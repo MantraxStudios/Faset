@@ -33,6 +33,7 @@
 #include "Frontend.h"
 #include "Lsp.h"
 #include "Lexer.h"
+#include "Packages.h"
 #include "Parser.h"
 #include "Project.h"
 #include "Runtime.h"
@@ -99,7 +100,7 @@ static void usage() {
         "Faset %s - lenguaje nativo que mezcla C# y C++\n\n"
         "Uso:\n"
         "  faset new <Nombre> [plantilla]        Crea un proyecto (Nombre/Nombre.fstproj)\n"
-        "         plantillas: --console (por defecto), --lib, --winexe, --ui (AppUI),\n"
+        "         plantillas: --console (por defecto), --lib [--package], --winexe, --ui (AppUI),\n"
         "                     --android (AppUI para Android), --android --console\n"
         "  faset build  [entrada] [opciones]     Compila a un ejecutable nativo\n"
         "  faset run    [entrada] [-- args]      Compila y ejecuta\n"
@@ -110,6 +111,13 @@ static void usage() {
         "  faset new <Nombre> --solution [...]   Solución con un primer proyecto (Nombre/Nombre.fstp)\n"
         "  faset sln <orden>                     add, remove, list, startup, folder, move, rename, ref\n"
         "                                        (faset sln help)\n"
+        "  faset add <paquete> [--version X]     Añade un paquete: nombre del índice, URL git o carpeta\n"
+        "                                        (faset add --help)\n"
+        "  faset remove <paquete>                Quita un paquete del .fstproj\n"
+        "  faset restore [proyecto|solución]     Descarga los paquetes (respeta paquetes.lock)\n"
+        "  faset update [paquete]                Busca versiones nuevas y actualiza paquetes.lock\n"
+        "  faset list paquetes [--json]          Árbol de dependencias resuelto\n"
+        "  faset pack | faset publish            Comprueba los metadatos de un paquete y explica cómo publicarlo\n"
         "  faset android <comando>               devices, avds, emulator, logcat, stop, uninstall\n"
         "                                        (faset android help)\n"
         "  faset doctor                          Muestra los compiladores y el SDK de Android detectados\n"
@@ -295,6 +303,15 @@ static bool loadProjectTree(const std::string& path, Options& o) {
             return false;
         }
         if (isRoot) o.project = proj;
+        if (isRoot) {
+            // <PackageReference>: se restauran (paquetes.lock + caché) y cuentan como ProjectReference.
+            std::vector<std::string> pkgs;
+            if (!packagesForBuild(p, pkgs, err)) {
+                diag.fatal(err);
+                return false;
+            }
+            proj->references.insert(proj->references.end(), pkgs.begin(), pkgs.end());
+        }
         stack.push_back(key);
         for (const std::string& ref : proj->references) {
             if (!fs::exists(ref)) {
@@ -951,6 +968,8 @@ int main(int argc, char** argv) {
     }
     // Soluciones .fstp: 'faset sln', 'faset new sln' y build/run/check/clean de una solución (src/SolutionCli.cpp).
     if (int code = 0; solutionCommand(args, o.argv0, code)) return code;
+    // Paquetes: add, remove, restore, update, list paquetes, pack, publish, new --package (src/Packages.cpp).
+    if (int code = 0; packageCommand(args, o.argv0, code)) return code;
     if (o.command == "new") return cmdNew(std::vector<std::string>(args.begin() + 1, args.end()));
     if (o.command == "android") {
         // El paquete del proyecto de la carpeta actual (para stop, uninstall y logcat --app).

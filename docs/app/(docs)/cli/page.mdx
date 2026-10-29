@@ -2,7 +2,7 @@ import { CliCommands, CliHelp, CliOptions } from "@/components/CliReference";
 
 export const metadata = {
   title: "Línea de órdenes (CLI)",
-  description: "Referencia de faset: new, build, run, check, emit-c, clean, doctor, lsp y todas sus opciones.",
+  description: "Referencia de faset: new, build, run, check, emit-c, clean, paquetes (add, remove, restore, update), doctor, lsp y todas sus opciones.",
 };
 
 # Línea de órdenes (CLI)
@@ -39,7 +39,22 @@ faset new Hola --android --console   # Android sin interfaz: la consola va a log
 ```
 
 Crea `Nombre/Nombre.fstproj`, el código inicial y un `.gitignore`. Consulta
-[Tu primer proyecto](/empezar/primer-proyecto/) y [Android](/android/).
+[Tu primer proyecto](/empezar/primer-proyecto/) y [Android](/android/). `faset new Nombre --lib --package`
+crea una biblioteca lista para publicar como [paquete](/empezar/paquetes/#crear-y-publicar-un-paquete).
+
+## Paquetes: add, remove, restore, update
+
+```bash
+faset add https://github.com/usuario/json5-faset --version "^1.2"   # o un nombre del índice, o ../carpeta
+faset remove Json5
+faset restore                  # lo que diga paquetes.lock (sin red si está en la caché)
+faset update [Json5]           # versiones nuevas compatibles
+faset list paquetes            # árbol resuelto (--json)
+faset pack                     # valida los metadatos de un paquete y muestra cómo publicarlo
+```
+
+`faset build` y `faset run` restauran solos los paquetes que falten. Todas aceptan
+`--project <x.fstproj>`, `--offline` e `--index <url>`. Consulta [Paquetes](/empezar/paquetes/).
 
 ## faset build
 
@@ -131,6 +146,9 @@ otros editores. Consulta [Editores y LSP](/empezar/editores/).
 | `FASET_UI_SCREENSHOT`, `FASET_UI_SCRIPT` | Aplicaciones `std.ui`: dibujar sin pantalla y guardar una captura `.bmp`. |
 | `FASET_STUDIO_LANG` | Idioma de FasetStudio (`es`, `en`…). |
 | `FASET_STUDIO_GPU` | `cpu` fuerza Vulkan por software (lavapipe) en FasetStudio. |
+| `FASET_PAQUETES_INDICE` | URL o ruta del [índice de paquetes](/empezar/paquetes/#el-indice-de-paquetes) (por defecto `https://faset.lat/paquetes/index.json`). |
+| `FASET_OFFLINE` | Con `1`, los paquetes solo salen de la caché y de `paquetes.lock` (nada de red). |
+| `FASET_PAQUETES_CACHE` | Carpeta de la caché de paquetes en vez de `~/.local/share/faset/paquetes`. |
 
 ## Ayuda completa
 

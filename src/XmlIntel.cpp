@@ -7,6 +7,7 @@
 #include <functional>
 #include <set>
 
+#include "Packages.h"
 #include "Xml.h"
 
 namespace fs = std::filesystem;
@@ -49,9 +50,15 @@ const std::vector<ElemSpec>& projectProps() {
         {"OutputPath", "Carpeta de salida, relativa al proyecto (por defecto 'bin').", {}, {"bin"}},
         {"StaticLink", "Enlaza las bibliotecas de C de forma estática (true o false).", {}, kBool, true},
         {"EnableDefaultCompileItems", "Compila automáticamente todos los .fst y .fstui de la carpeta (true por defecto).", {}, kBool, true},
-        {"Version", "Versión del proyecto (informativa).", {}, {}},
+        {"Version", "Versión del proyecto (en un paquete, semver: 1.2.0; se publica con la etiqueta git v1.2.0).", {}, {"1.0.0", "0.1.0"}},
         {"Description", "Descripción del proyecto (informativa).", {}, {}},
-        {"Authors", "Autores del proyecto (informativo).", {}, {}},
+        {"Authors", "Autores del proyecto (en un paquete, los que muestra 'faset pack').", {}, {}},
+        // Paquetes (faset pack / faset publish)
+        {"PackageId", "Nombre del paquete: el que se usa en <PackageReference Include=\"...\"> (letras, números, '.', '_' y '-').", {}, {}},
+        {"License", "Licencia del paquete (p. ej. MIT, Apache-2.0).", {}, {"MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0", "LGPL-3.0", "MPL-2.0"}},
+        {"RepositoryUrl", "Repositorio git del paquete: donde se publican las etiquetas vX.Y.Z.", {}, {}},
+        {"PackageIndex", "Índice de paquetes (JSON) donde se buscan los <PackageReference> sin Git ni Path "
+                         "(por defecto https://faset.lat/paquetes/index.json).", {}, {}},
         {"Optimize", "Fuerza la optimización (true o false).", {}, kBool, true},
         {"DebugSymbols", "Fuerza los símbolos de depuración (true o false).", {}, kBool, true},
         {"RuntimeChecks", "Comprobaciones en ejecución (límites, nulos, delete doble...): por defecto en Debug sí y en Release no.", {}, kBool, true},
@@ -81,6 +88,9 @@ const std::vector<ElemSpec>& projectItems() {
          {"Include", "Platform"}, {}},
         {"LibraryPath", "Carpeta donde buscar bibliotecas nativas, relativa al proyecto.", {"Include"}, {}},
         {"ProjectReference", "Otro proyecto Faset (.fstproj) cuyo código se compila junto con este.", {"Include"}, {}},
+        {"PackageReference", "Paquete (una biblioteca Faset) de un repositorio git, de una carpeta o del índice: se "
+                             "descarga con 'faset restore' (o al compilar) y se compila como un ProjectReference.",
+         {"Include", "Version", "Git", "Branch", "Commit", "Path", "Folder"}, {}},
         {"AndroidPermission", "Permiso de Android que pide la app (p. ej. INTERNET, CAMERA).", {"Include"}, {}},
         {"Asset", "Recursos (sonidos, imágenes...): se copian junto al ejecutable o a assets/ del APK con la misma ruta "
                   "relativa. Include admite '*', '**' y carpetas; Remove excluye.", {"Include", "Remove"}, {}},
@@ -93,13 +103,20 @@ const std::vector<AttrSpec>& projectAttrs() {
         {"Include", "Elementos que se añaden (lista separada por ';').", {}},
         {"Remove", "Elementos que se excluyen (lista separada por ';', admite '*' y '**').", {}},
         {"Platform", "Sistema en el que se aplica: linux, windows, android o macos.", {"linux", "windows", "android", "macos"}},
+        {"Version", "Versión del paquete (etiqueta git vX.Y.Z): exacta (1.2.0), ^1.2 (compatible), ~1.2 (parches), 1.x, "
+                    "\">=1.0 <2.0\" o alternativas con ||. Sin Version: la más reciente.", {"^1.0", "~1.0", "1.0.0", ">=1.0 <2.0"}},
+        {"Git", "Repositorio git del paquete (https://..., git@... o una ruta a un repositorio local).", {}},
+        {"Branch", "Usa la punta de esta rama en vez de una versión (paquetes.lock guarda el commit).", {"main", "master"}},
+        {"Commit", "Usa este commit exacto (sha completo o abreviado).", {}},
+        {"Path", "Carpeta local con el proyecto del paquete (relativa a este .fstproj).", {}},
+        {"Folder", "Subcarpeta del repositorio (o de Path) donde está el .fstproj del paquete.", {}},
     };
     return v;
 }
 
 const ElemSpec kProjectRoot = {"Project", "Proyecto de Faset: grupos <PropertyGroup> con propiedades y <ItemGroup> con archivos y referencias.", {}, {}};
 const ElemSpec kPropertyGroup = {"PropertyGroup", "Propiedades del proyecto (OutputType, AssemblyName, TargetPlatform...).", {}, {}};
-const ElemSpec kItemGroup = {"ItemGroup", "Elementos del proyecto: Compile, NativeLibrary, LibraryPath y ProjectReference.", {}, {}};
+const ElemSpec kItemGroup = {"ItemGroup", "Elementos del proyecto: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference y Asset.", {}, {}};
 
 // ---- .fstp (ver src/Solution.cpp)
 
@@ -601,6 +618,34 @@ struct ProjectValidator {
         out.push_back(d);
     }
 
+    // <PackageReference>: combinaciones de atributos, versión, carpeta y estado de paquetes.lock.
+    void checkPackage(const XTag& t) {
+        const XAttr* inc = t.attr("Include");
+        const XAttr *ver = t.attr("Version"), *gitA = t.attr("Git"), *pathA = t.attr("Path");
+        const XAttr *br = t.attr("Branch"), *cm = t.attr("Commit");
+        if (gitA && pathA) at(pathA->nameBeg, "Git y Path no pueden ir juntos");
+        if (br && cm) at(cm->nameBeg, "Branch y Commit no pueden ir juntos");
+        if (pathA && (br || cm)) at((br ? br : cm)->nameBeg, "Branch y Commit solo valen para paquetes git");
+        if (ver && ver->closed && !trim(ver->value).empty()) {
+            std::string err;
+            if (!packageVersionValid(ver->value, err)) at(ver->valBeg, err);
+            if (pathA) at(ver->nameBeg, "con Path no se comprueba la versión (se usa la carpeta tal cual)", 2);
+            else if (br || cm) at(ver->nameBeg, "Branch y Commit mandan sobre Version", 2);
+        }
+        if (pathA && pathA->closed && !pathA->value.empty()) {
+            std::error_code ec;
+            if (!fs::exists(fs::path(path).parent_path() / pathA->value, ec))
+                at(pathA->valBeg, "no existe la carpeta '" + pathA->value + "'", 2);
+        }
+        if (!inc || !inc->closed || trim(inc->value).empty()) return;
+        PackageStatus st = lockedPackageStatus(path, trim(inc->value));
+        if (!st.locked)
+            at(inc->valBeg, std::string("el paquete '") + trim(inc->value) + "' no está restaurado" +
+                                (st.lockExists ? " (no aparece en paquetes.lock)" : "") + ": compila o ejecuta 'faset restore'", 2);
+        else if (st.project.empty())
+            at(inc->valBeg, "el paquete '" + trim(inc->value) + "' no está descargado en la caché: ejecuta 'faset restore'", 2);
+    }
+
     void checkValue(const XTag& t, const ElemSpec& spec) {
         size_t beg = t.end;
         std::string raw = sc.content(t, &beg);
@@ -681,7 +726,7 @@ struct ProjectValidator {
                         const ElemSpec* spec = findSpec(projectItems(), item.name);
                         if (!spec) {
                             at(item.nameBeg, "elemento desconocido <" + item.name +
-                                                 "> en <ItemGroup> (válidos: Compile, NativeLibrary, LibraryPath, ProjectReference)");
+                                                 "> en <ItemGroup> (válidos: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference, Asset)");
                             continue;
                         }
                         for (const XAttr& a : item.attrs) {
@@ -697,6 +742,7 @@ struct ProjectValidator {
                         const XAttr* inc = item.attr("Include");
                         if (!inc && !(item.name == "Compile" && item.attr("Remove")))
                             at(item.nameBeg, "<" + item.name + "> necesita el atributo Include");
+                        if (item.name == "PackageReference") checkPackage(item);
                         if (inc && inc->closed && item.name == "ProjectReference") {
                             fs::path dir = fs::path(path).parent_path();
                             std::string v = inc->value;
@@ -960,6 +1006,9 @@ void completeProject(const XScan& sc, const std::string& path, const CursorCtx& 
         const XTag& t = sc.tags[c.tag];
         if (c.attr->name == "Platform") {
             for (const std::string& v : findSpec(projectAttrs(), "Platform")->values) add(out, v, kValue, "");
+        } else if (t.name == "PackageReference" && (c.attr->name == "Version" || c.attr->name == "Branch")) {
+            const AttrSpec* as = findSpec(projectAttrs(), c.attr->name);
+            for (const std::string& v : as->values) add(out, v, kValue, as->doc);
         } else if (c.attr->name == "Include" && t.name == "ProjectReference") {
             // Proyectos de las carpetas vecinas.
             std::error_code ec;
@@ -1269,6 +1318,20 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
             }
             if (kind == XmlDocKind::Project) {
                 if (const AttrSpec* as = findSpec(projectAttrs(), a.name)) ref(a.nameBeg, a.name.size(), attrHover(*as));
+                if (t.name == "PackageReference" && a.name == "Include" && a.closed && !trim(a.value).empty()) {
+                    // Información del paquetes.lock e "ir a la definición" abre el .fstproj del paquete.
+                    PackageStatus st = lockedPackageStatus(path, trim(a.value));
+                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(),
+                                          st.locked ? st.description : "paquete " + trim(a.value) + " (sin restaurar: faset restore)");
+                    if (!st.project.empty()) {
+                        r.defPath = st.project;
+                        r.defLine = r.defCol = 1;
+                    }
+                }
+                if (t.name == "PackageReference" && a.name == "Path" && a.closed && !a.value.empty()) {
+                    fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
+                    ref(a.valBeg, a.value.size(), "carpeta " + target.string());
+                }
                 if (t.name == "ProjectReference" && a.name == "Include" && a.closed && !a.value.empty()) {
                     fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
                     std::error_code ec;

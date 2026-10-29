@@ -92,6 +92,12 @@ sln_check() {
 if why=$(sln_check); then echo "ok     soluciones"; pass=$((pass+1)); else echo "FALLO  soluciones ($why)"; fail=$((fail+1)); fi
 cd "$(dirname "$0")/.." 2>/dev/null || true
 
+# Paquetes (tests/paquetes.sh): repositorios git locales, paquetes.lock, update, conflictos y sin conexión.
+if command -v git > /dev/null; then
+    pout=$(timeout 300 bash tests/paquetes.sh "$PWD/$FASET" 2>&1)
+    if [ "$(echo "$pout" | tail -n 1)" = ok ]; then echo "ok     paquetes"; pass=$((pass+1)); else echo "FALLO  paquetes: $pout"; fail=$((fail+1)); fi
+fi
+
 if command -v node > /dev/null; then
     if out=$(timeout 60 node tests/lsp/test.js "$PWD/$FASET" 2>&1); then
         echo "ok     lsp"; pass=$((pass+1))

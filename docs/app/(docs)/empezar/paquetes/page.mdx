@@ -1,0 +1,263 @@
+export const metadata = {
+  title: "Paquetes",
+  description: "Gestor de paquetes de Faset: dependencias desde git, carpetas locales o el índice, versiones semver, paquetes.lock, caché, compilación sin conexión y cómo publicar un paquete.",
+};
+
+# Paquetes
+
+<p className="lead">
+  Un paquete es una biblioteca Faset (un <code>.fstproj</code> con <code>OutputType</code>
+  <code>Library</code>) que vive en un repositorio git o en una carpeta. Se declara con
+  <code>&lt;PackageReference&gt;</code> y <code>faset</code> lo descarga, elige la versión y lo compila
+  junto con tu programa, igual que un <code>&lt;ProjectReference&gt;</code>. No hace falta ningún
+  servidor: las versiones son etiquetas git.
+</p>
+
+```bash
+faset add https://github.com/usuario/json5-faset          # la versión más reciente (^X.Y.Z)
+faset add https://github.com/usuario/json5-faset --version "~1.2"
+faset add ../MiLib                                        # una carpeta local
+faset add Json5                                           # por nombre, desde el índice
+faset run                                                 # descarga lo que falte y compila
+```
+
+## Declarar dependencias
+
+`faset add` escribe el elemento en el `.fstproj` (conservando el resto del archivo), pero también se
+puede escribir a mano:
+
+```fstproj
+<ItemGroup>
+  <!-- git: Version es una restricción sobre las etiquetas v1.2.0 / 1.2.0 del repositorio -->
+  <PackageReference Include="Json5" Git="https://github.com/usuario/json5-faset" Version="^1.2" />
+
+  <!-- la punta de una rama, o un commit concreto (completo o abreviado) -->
+  <PackageReference Include="Graficos" Git="https://github.com/usuario/graficos" Branch="main" />
+  <PackageReference Include="Red" Git="git@github.com:usuario/red.git" Commit="a1b2c3d" />
+
+  <!-- el .fstproj no está en la raíz del repositorio -->
+  <PackageReference Include="Fisica" Git="https://github.com/usuario/motor" Folder="src/Fisica" Version="2.0.0" />
+
+  <!-- una carpeta local (relativa a este .fstproj): ideal para desarrollar varias bibliotecas a la vez -->
+  <PackageReference Include="MiLib" Path="../milib" />
+
+  <!-- sin Git ni Path: se busca en el índice -->
+  <PackageReference Include="Texto" Version="^1.0" />
+</ItemGroup>
+```
+
+| Atributo | Uso |
+|---|---|
+| `Include` | Nombre del paquete (letras, números, `.`, `_` y `-`). Para los paquetes git es el nombre con el que se guarda en la caché y en `paquetes.lock`. |
+| `Version` | Restricción de versión (ver abajo). Sin `Version`, la versión más alta (sin contar las preliminares). |
+| `Git` | URL del repositorio (`https://`, `ssh://`, `git@...`, `file://`) o la ruta de un repositorio local, relativa al `.fstproj`. |
+| `Branch` | Usa la punta de esa rama. El commit queda fijado en `paquetes.lock` hasta `faset update`. |
+| `Commit` | Usa ese commit exacto. |
+| `Path` | Carpeta local con el proyecto del paquete. No tiene versiones: se usa tal cual. |
+| `Folder` | Subcarpeta del repositorio (o de `Path`) donde está el `.fstproj` del paquete. |
+
+`Git` y `Path` no pueden ir juntos, ni `Branch` y `Commit`. Si se indica `Branch` o `Commit`, mandan
+sobre `Version`.
+
+### Versiones
+
+Las versiones siguen [semver](https://semver.org/lang/es/) (`MAYOR.MENOR.PARCHE`) y salen de las
+**etiquetas git** del repositorio: `v1.2.0` o `1.2.0`.
+
+| Restricción | Acepta |
+|---|---|
+| `1.2.0` | exactamente 1.2.0 |
+| `^1.2` / `^1.2.3` | compatibles: `>=1.2.0 <2.0.0` (con `0.x`, `^0.2` es `>=0.2.0 <0.3.0`) |
+| `~1.2` / `~1.2.3` | solo parches: `>=1.2.0 <1.3.0` |
+| `1.2.x`, `1.x`, `1.2`, `1` | comodines: `1.2` = `1.2.x` |
+| `>=1.0 <2.0` | rangos con `>`, `>=`, `<`, `<=` (separados por espacios o comas) |
+| `^1.0 \|\| ^3.0` | alternativas |
+| `*` o vacío | cualquiera |
+
+Las versiones preliminares (`2.0.0-beta.1`) solo se eligen si la restricción nombra una
+(`>=2.0.0-beta`).
+
+## Cómo se resuelven
+
+`faset` reúne los `<PackageReference>` del proyecto **y de los proyectos que referencia**
+(`ProjectReference`), y después los de cada paquete elegido (dependencias transitivas). Para cada
+paquete elige la **versión más alta que cumple todas las restricciones**; si una dependencia
+indirecta no deja ninguna versión posible, prueba con versiones anteriores del paquete que la pide
+(por ejemplo, si tu proyecto pide `Texto ^1.0` y `Json5 2.x` necesita `Texto ^2.0`, se usa la última
+`Json5 1.x`). Si no hay salida, lo explica:
+
+```text
+faset: error: conflicto de versiones: no hay ninguna versión de 'Texto' que cumpla todas las restricciones:
+  App.fstproj pide ^2.0
+  Json5 1.2.0 pide ^1.0
+  versiones disponibles: 1.0.0, 1.1.0, 2.0.0
+```
+
+Un mismo paquete solo puede venir de un origen. Si tu proyecto lo declara (por ejemplo con `Path`
+para probar una copia local), ese origen manda sobre el de las dependencias indirectas.
+
+## `paquetes.lock`
+
+Tras resolver, `faset` escribe `paquetes.lock` junto al `.fstproj`: el commit exacto de cada paquete,
+para que la compilación sea reproducible. **Súbelo a git** con tu proyecto.
+
+```json
+{
+  "formato": 1,
+  "generadoPor": "faset",
+  "paquetes": [
+    {
+      "nombre": "Json5",
+      "git": "https://github.com/usuario/json5-faset",
+      "version": "1.2.0",
+      "etiqueta": "v1.2.0",
+      "commit": "3f0c9e1d…",
+      "dependencias": ["Texto"]
+    }
+  ]
+}
+```
+
+- Mientras una entrada del lock siga cumpliendo las restricciones del `.fstproj`, se usa esa (aunque
+  haya versiones más nuevas) y no se consulta la red.
+- Si cambias una restricción, solo se vuelve a resolver ese paquete.
+- `faset update` busca versiones nuevas de todos; `faset update Json5`, solo de uno.
+- Si alguien mueve una etiqueta, manda el commit del lock.
+
+## Caché y compilación sin conexión
+
+Cada paquete se descarga una vez (`git clone --depth 1 --branch v1.2.0`) en la caché del usuario:
+
+| Sistema | Carpeta |
+|---|---|
+| Linux | `~/.local/share/faset/paquetes/<nombre>/<versión o commit>` (o `$XDG_DATA_HOME/faset/paquetes`) |
+| Windows | `%LOCALAPPDATA%\Faset\paquetes\<nombre>\<versión o commit>` |
+
+`faset build` y `faset run` **restauran solos** lo que falte. Con el lock y la caché completos no se
+usa la red: se puede compilar sin conexión. `faset restore --offline` (o `FASET_OFFLINE=1`) lo
+garantiza y falla con un mensaje claro si algo no está en la caché.
+
+## Cómo se compilan
+
+Cada paquete se trata como un `<ProjectReference>`: sus `.fst` se compilan dentro de tu programa y sus
+`<NativeLibrary>`, `<LibraryPath>`, `<Asset>` y `<AndroidPermission>` se heredan. El IntelliSense de
+VS Code y FasetStudio también los ve: <Kbd>F12</Kbd> sobre un tipo del paquete abre su código en la
+caché, y pasar el ratón sobre `Include="Json5"` en el `.fstproj` muestra la versión y el commit del
+lock («ir a la definición» abre el `.fstproj` del paquete).
+
+## Órdenes
+
+| Orden | Qué hace |
+|---|---|
+| `faset add <nombre \| url git \| carpeta>` | Añade (o cambia) el `<PackageReference>` y restaura. Con una URL descarga el paquete para saber su nombre (`PackageId`) y escribe `Version="^X.Y.Z"` con la más reciente. Opciones: `--version`, `--branch`, `--commit`, `--folder`, `--name`. Si falla la resolución, el `.fstproj` no cambia. |
+| `faset remove <nombre>` | Quita el paquete del `.fstproj` (y el `<ItemGroup>` si se queda vacío) y actualiza el lock. |
+| `faset restore [proyecto \| solución]` | Descarga lo que diga el lock (o resuelve lo que falte). Con una `.fstp`, todos sus proyectos. |
+| `faset update [nombre]` | Ignora el lock (de todos o de uno) y busca las versiones más altas compatibles. |
+| `faset list paquetes [--json]` | Árbol de dependencias resuelto. |
+| `faset new <Nombre> --lib --package` | Biblioteca con metadatos de paquete, `README.md` y `.gitignore`. |
+| `faset pack` / `faset publish` | Comprueban los metadatos y muestran cómo publicar. |
+
+Todas aceptan `--project <x.fstproj>` (por defecto, el de la carpeta actual), `--offline` e
+`--index <url>`.
+
+```text
+$ faset list paquetes
+App.fstproj
+├── Json5 1.2.0 (3f0c9e1)  https://github.com/usuario/json5-faset
+│   └── Texto 1.1.0 (9a2b4c7)  https://github.com/usuario/texto-faset
+└── MiLib (ruta ../milib)
+```
+
+## Crear y publicar un paquete
+
+```bash
+faset new Json5 --lib --package
+cd Json5
+faset pack                     # comprueba los metadatos
+git init && git add . && git commit -m "Json5 0.1.0"
+git remote add origin https://github.com/usuario/json5-faset
+git tag v0.1.0
+git push origin main v0.1.0
+```
+
+La plantilla incluye los metadatos que `faset pack` comprueba:
+
+```fstproj
+<Project>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <PackageId>Json5</PackageId>          <!-- el nombre para Include="..." -->
+    <Version>0.1.0</Version>              <!-- semver; se publica con la etiqueta v0.1.0 -->
+    <Description>Lector de JSON5.</Description>
+    <Authors>Tu nombre</Authors>
+    <License>MIT</License>
+    <RepositoryUrl>https://github.com/usuario/json5-faset</RepositoryUrl>
+  </PropertyGroup>
+</Project>
+```
+
+`faset pack` da error si falta `PackageId` o `Version` (o no es semver), si el proyecto no es
+`Library` o si una dependencia usa `Path` (quien instale el paquete no tendría esa carpeta), y avisa
+de lo demás: metadatos vacíos, `README.md`, cambios sin confirmar o una etiqueta que ya existe. Después
+muestra las órdenes `git tag` y el `<PackageReference>` que tendrán que escribir tus usuarios (con
+`Folder` si el paquete está en una subcarpeta del repositorio). Para publicar una versión nueva: sube
+`<Version>`, confirma y crea la etiqueta `vX.Y.Z`.
+
+## El índice de paquetes
+
+Para poder escribir `faset add Json5` sin la URL, `faset` busca el nombre en un **índice**: un JSON
+estático que se puede alojar en cualquier sitio. Se elige así, por orden:
+
+1. la variable `FASET_PAQUETES_INDICE` (o la opción `--index`);
+2. la propiedad `<PackageIndex>` del proyecto;
+3. `https://faset.lat/paquetes/index.json`.
+
+Acepta `https://`, `file://` o una ruta local. Se guarda una copia en la caché para usarla sin conexión.
+Si el índice no existe (todavía no hay uno oficial), todo lo demás sigue funcionando: solo los
+paquetes sin `Git` ni `Path` dan error, con un mensaje que sugiere usar la URL o una carpeta.
+
+```json
+{
+  "formato": 1,
+  "paquetes": {
+    "Json5": {
+      "git": "https://github.com/usuario/json5-faset",
+      "carpeta": "",
+      "descripcion": "Lector de JSON5",
+      "autores": "Tu nombre",
+      "licencia": "MIT",
+      "versiones": ["0.1.0", "1.0.0", "1.2.0"]
+    }
+  }
+}
+```
+
+Solo `git` es obligatorio; las versiones se siguen leyendo de las etiquetas del repositorio (la lista
+es informativa). `faset publish` imprime la entrada de tu paquete en este formato.
+
+<Callout type="nota">
+**El registro del futuro.** El diseño está pensado para crecer: el índice es el mismo formato que
+servirá un registro central en `faset.lat`, y `faset publish`, que hoy solo valida y muestra la
+entrada, la enviará al registro. Los paquetes seguirán siendo repositorios git con etiquetas, así que
+lo que publiques hoy seguirá valiendo.
+</Callout>
+
+## En FasetStudio
+
+Botón derecho sobre el proyecto (o sobre un proyecto de la solución) → **Administrar paquetes…**
+(también en el menú Proyecto). El diálogo lista los paquetes con la versión de `paquetes.lock` (o
+«sin restaurar»), quita uno con la ×, y añade otro escribiendo un nombre, una URL git o una carpeta y,
+si quieres, una versión. **Restaurar** y **Actualizar todos** llaman a `faset restore` y
+`faset update`. Las órdenes se ejecutan en segundo plano y su progreso aparece en el panel Salida. Al
+abrir un proyecto o una solución que usa paquetes, FasetStudio ejecuta `faset restore`
+automáticamente.
+
+## Limitaciones
+
+- La resolución es voraz con retroceso sencillo: si hay varias combinaciones posibles, encuentra una
+  válida, pero no siempre la que maximiza todas las versiones a la vez.
+- Cada `.fstproj` raíz tiene su propio `paquetes.lock`; en una solución, cada proyecto con paquetes
+  tiene el suyo.
+- `Path` no tiene versión ni se guarda en la caché, y `Version` se ignora con `Path`.
+- Hace falta `git` en el `PATH` para los paquetes git.
+- Todavía no hay registro central ni firma de paquetes.

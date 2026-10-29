@@ -3,10 +3,20 @@
 // =============================================================================
 using std.collections;
 using std.io;
+using std.json;
 using std.text;
 
 namespace FasetStudio.Ide
 {
+    // Un <PackageReference> del proyecto, con la versión que dice paquetes.lock.
+    public class PackageItem
+    {
+        public string Name = "";      // copias propias
+        public string Wanted = "";    // "^1.2", "rama main", "commit a1b2c3d" o ""
+        public string Origin = "";    // URL git, ruta o "índice"
+        public string Resolved = "";  // versión o commit de paquetes.lock ("" = sin restaurar)
+    }
+
     public class ProjectFile
     {
         public string Path = "";            // copia propia
@@ -21,6 +31,10 @@ namespace FasetStudio.Ide
         public List<string> CompileRemove = new List<string>();
         public List<string> CompileInclude = new List<string>();
         public List<string> LibraryPaths = new List<string>();
+        // Lo que este diálogo no edita (Asset, PackageReference, propiedades de Android y de
+        // paquetes...): se conserva tal cual al guardar.
+        public List<string> ExtraProperties = new List<string>();
+        public List<string> ExtraItems = new List<string>();
 
         ~ProjectFile()
         {
@@ -29,6 +43,8 @@ namespace FasetStudio.Ide
             FreeList(CompileRemove);
             FreeList(CompileInclude);
             FreeList(LibraryPaths);
+            FreeList(ExtraProperties);
+            FreeList(ExtraItems);
         }
 
         static void FreeList(List<string> l)
@@ -105,6 +121,113 @@ namespace FasetStudio.Ide
             return r;
         }
 
+        // Valor del atributo 'name' en una etiqueta (vista; "" si no está).
+        public static string Attr(string tag, string name)
+        {
+            string key = String.Concat(" ", name, "=\"");
+            int a = tag.IndexOf(key);
+            string r = "";
+            if (a >= 0)
+            {
+                int start = a + key.Length;
+                int b = tag.IndexOf("\"", start);
+                if (b >= start) r = tag.Substring(start, b - start);
+            }
+            String.Free(key);
+            return r;
+        }
+
+        static bool IsSpace(byte c) => c == ' ' || c == '\t' || c == '\r' || c == '\n';
+
+        // Nombre del elemento que empieza en 'pos' ('<' incluido).
+        static string ElementName(string xml, int pos)
+        {
+            int e = pos + 1;
+            while (e < xml.Length && !IsSpace(xml[e]) && xml[e] != '>' && xml[e] != '/') e++;
+            return xml.Substring(pos + 1, e - pos - 1);
+        }
+
+        // Fin (exclusivo) del elemento que empieza en 'pos': '/>' o su etiqueta de cierre.
+        static int ElementEnd(string xml, int pos)
+        {
+            int gt = xml.IndexOf(">", pos);
+            if (gt < 0) return xml.Length;
+            if (xml[gt - 1] == '/') return gt + 1;
+            string close = String.Concat("</", ElementName(xml, pos), ">");
+            int c = xml.IndexOf(close, gt);
+            int end = c < 0 ? gt + 1 : c + close.Length;
+            String.Free(close);
+            return end;
+        }
+
+        // Hijos directos de cada <group> que no están en 'known' ("|A|B|"): texto original.
+        static void ExtraChildren(string xml, string group, string known, List<string> output)
+        {
+            string open = String.Concat("<", group, ">");
+            string close = String.Concat("</", group, ">");
+            int g = xml.IndexOf(open);
+            while (g >= 0)
+            {
+                int start = g + open.Length;
+                int stop = xml.IndexOf(close, start);
+                if (stop < 0) break;
+                int pos = xml.IndexOf("<", start);
+                while (pos >= 0 && pos < stop)
+                {
+                    int end = ElementEnd(xml, pos);
+                    string name = String.Concat("|", ElementName(xml, pos), "|");
+                    if (!known.Contains(name)) output.Add(String.Copy(xml.Substring(pos, end - pos)));
+                    String.Free(name);
+                    pos = xml.IndexOf("<", end);
+                }
+                g = xml.IndexOf(open, stop);
+            }
+            String.Free(open);
+            String.Free(close);
+        }
+
+        // <PackageReference> del proyecto y su estado en paquetes.lock (junto al .fstproj).
+        public static List<PackageItem> LoadPackages(string projectPath)
+        {
+            List<PackageItem> list = new List<PackageItem>();
+            string raw;
+            if (!File.TryReadAllText(projectPath, out raw)) return list;
+            string xml = StripComments(raw);
+            JsonValue lockJson = null;
+            string lockText;
+            string lockPath = std.io.Path.Combine(std.io.Path.GetDirectoryName(projectPath), "paquetes.lock");
+            if (File.TryReadAllText(lockPath, out lockText)) lockJson = Json.Parse(lockText);
+            JsonValue locked = lockJson != null ? lockJson.Get("paquetes") : null;
+            int pos = xml.IndexOf("<PackageReference ");
+            while (pos >= 0)
+            {
+                int end = xml.IndexOf(">", pos);
+                if (end < 0) break;
+                string tag = xml.Substring(pos, end - pos);
+                PackageItem it = new PackageItem();
+                it.Name = String.Copy(Attr(tag, "Include"));
+                string v = Attr(tag, "Version"), b = Attr(tag, "Branch"), c = Attr(tag, "Commit");
+                it.Wanted = b.Length > 0 ? String.Concat("rama ", b) : (c.Length > 0 ? String.Concat("commit ", c) : String.Copy(v));
+                string g = Attr(tag, "Git"), p = Attr(tag, "Path");
+                it.Origin = String.Copy(g.Length > 0 ? g : (p.Length > 0 ? p : "índice"));
+                for (int i = 0; locked != null && i < locked.Count; i++)
+                {
+                    JsonValue e = locked.At(i);
+                    if (!e.GetString("nombre").EqualsIgnoreCase(it.Name)) continue;
+                    string ver = e.GetString("version"), commit = e.GetString("commit");
+                    if (ver.Length > 0) it.Resolved = String.Copy(ver);
+                    else if (commit.Length >= 7) it.Resolved = String.Concat("@", commit.Substring(0, 7));
+                    else it.Resolved = String.Copy("ruta");
+                }
+                list.Add(it);
+                pos = xml.IndexOf("<PackageReference ", end);
+            }
+            delete lockJson;
+            String.Free(raw);
+            String.Free(xml);
+            return list;
+        }
+
         public static ProjectFile Load(string path)
         {
             string raw;
@@ -128,6 +251,8 @@ namespace FasetStudio.Ide
             Items(xml, "Compile", "Remove", p.CompileRemove);
             Items(xml, "Compile", "Include", p.CompileInclude);
             Items(xml, "LibraryPath", "Include", p.LibraryPaths);
+            ExtraChildren(xml, "PropertyGroup", "|OutputType|AssemblyName|RootNamespace|TargetPlatform|TargetArch|Configuration|StaticLink|", p.ExtraProperties);
+            ExtraChildren(xml, "ItemGroup", "|Compile|ProjectReference|NativeLibrary|LibraryPath|", p.ExtraItems);
             String.Free(xml);
             return p;
         }
@@ -148,8 +273,24 @@ namespace FasetStudio.Ide
             if (TargetArch.Length > 0) sb.Append("    <TargetArch>").Append(TargetArch).Append("</TargetArch>\n");
             sb.Append("    <Configuration>").Append(Configuration).Append("</Configuration>\n");
             if (StaticLink) sb.Append("    <StaticLink>true</StaticLink>\n");
+            for (int i = 0; i < ExtraProperties.Count; i++) sb.Append("    ").Append(ExtraProperties[i]).Append("\n");
             sb.Append("  </PropertyGroup>\n");
-            int items = References.Count + NativeLibraries.Count + CompileRemove.Count + CompileInclude.Count + LibraryPaths.Count;
+            // Los <PackageReference> se leen otra vez del disco: 'faset add/remove' puede haberlos
+            // cambiado mientras el diálogo estaba abierto.
+            List<string> extra = new List<string>();
+            string current;
+            if (File.TryReadAllText(Path, out current))
+            {
+                string xml = StripComments(current);
+                ExtraChildren(xml, "ItemGroup", "|Compile|ProjectReference|NativeLibrary|LibraryPath|", extra);
+                String.Free(xml);
+                String.Free(current);
+            }
+            else
+            {
+                for (int i = 0; i < ExtraItems.Count; i++) extra.Add(String.Copy(ExtraItems[i]));
+            }
+            int items = References.Count + NativeLibraries.Count + CompileRemove.Count + CompileInclude.Count + LibraryPaths.Count + extra.Count;
             if (items > 0)
             {
                 sb.Append("\n  <ItemGroup>\n");
@@ -158,8 +299,10 @@ namespace FasetStudio.Ide
                 for (int i = 0; i < References.Count; i++) Item(sb, "ProjectReference", "Include", References[i]);
                 for (int i = 0; i < NativeLibraries.Count; i++) Item(sb, "NativeLibrary", "Include", NativeLibraries[i]);
                 for (int i = 0; i < LibraryPaths.Count; i++) Item(sb, "LibraryPath", "Include", LibraryPaths[i]);
+                for (int i = 0; i < extra.Count; i++) sb.Append("    ").Append(extra[i]).Append("\n");
                 sb.Append("  </ItemGroup>\n");
             }
+            FreeList(extra);
             sb.Append("</Project>\n");
             bool ok = File.WriteAllText(Path, sb.View());
             delete sb;

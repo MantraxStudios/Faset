@@ -16,6 +16,7 @@
 //     <NativeLibrary Include="user32" />
 //     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
 //     <Asset Include="sonidos/**" />          junto al ejecutable o en assets/ del APK
+//     <PackageReference Include="Json5" Git="https://github.com/usuario/json5-faset" Version="^1.2" />
 //   </ItemGroup>
 // </Project>
 //
@@ -25,6 +26,13 @@
 #include <map>
 #include <string>
 #include <vector>
+
+// <PackageReference Include="Nombre" Version="^1.2" Git="url" Branch="rama" Commit="sha"
+//                   Path="../carpeta" Folder="subcarpeta" />   (ver src/Packages.h)
+struct PackageRef {
+    std::string name, version, git, branch, commit, path, folder;
+    int line = 0;  // línea en el .fstproj (para los mensajes)
+};
 
 struct Project {
     std::string path;  // ruta del .fstproj
@@ -36,6 +44,7 @@ struct Project {
     std::vector<std::string> references;  // rutas a otros .fstproj
     std::vector<std::string> androidPermissions;  // <AndroidPermission Include="INTERNET" />
     std::vector<std::string> assetInclude, assetRemove;  // <Asset Include="sonidos/**" />
+    std::vector<PackageRef> packages;  // <PackageReference .../> (se resuelven en src/Packages.cpp)
 
     std::string prop(const std::string& name, const std::string& def = "") const;
     bool boolProp(const std::string& name, bool def) const;

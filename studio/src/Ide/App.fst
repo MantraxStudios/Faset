@@ -58,7 +58,7 @@ namespace FasetStudio.Ide
     {
         None, QuickOpen, Find, GoToLine, NewFile, NewFolder, Rename, ConfirmQuit, ConfirmCloseTab,
         ConfirmDelete, ConfirmCloseProject, ConfirmDeleteProject, NewProject, OpenFolder, ProjectProperties, About,
-        SolutionFolder, RenameSolution
+        SolutionFolder, RenameSolution, Packages
     }
 
     public class App
@@ -156,6 +156,10 @@ namespace FasetStudio.Ide
         List<DirEntry> browseEntries;
         int browseScroll;
         ProjectFile props;
+        // Diálogo de paquetes: proyecto, sus <PackageReference> y si el proceso en curso es una orden de paquetes.
+        string packagesProject = "";
+        List<PackageItem> packageItems = new List<PackageItem>();
+        bool processIsPackages;
         int pressRow = -1;          // fila del explorador pulsada (clic o arrastre)
         float pressX;
         float pressY;
@@ -324,6 +328,7 @@ namespace FasetStudio.Ide
             AddRecent(folder);
             UpdateTitle();
             SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
+            RestorePackagesOnOpen();
         }
 
         // ------------------------------------------------------------------ soluciones (.fstp)
@@ -364,6 +369,7 @@ namespace FasetStudio.Ide
             AddRecent(solutionFile);
             UpdateTitle();
             SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
+            RestorePackagesOnOpen();
         }
 
         // Lee la solución con 'faset sln list --json' y rehace el árbol del explorador.
@@ -951,6 +957,7 @@ namespace FasetStudio.Ide
             if (process == null) process = new ChildProcess();
             if (!process.Start(cmd.View(), cwd)) output.Append(L.T("Could not start the compiler.")).Append("\n");
             processIsRun = run;
+            processIsPackages = false;
             processStart = Environment.TickCount64();
             SetStatus(run ? L.T("Building and running…") : L.T("Building…"));
             String.Free(faset);
@@ -1196,7 +1203,7 @@ namespace FasetStudio.Ide
                 if (e.Key == Keys.Return) overlay = Overlay.None;
                 return true;
             }
-            if (overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties)
+            if (overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.Packages)
             {
                 DialogKey(e);
                 return true;
@@ -1483,7 +1490,8 @@ namespace FasetStudio.Ide
                     return;
                 }
             // Controles de los diálogos (proyectos, carpetas, propiedades)
-            if (overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.About)
+            if (overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.About ||
+                overlay == Overlay.Packages)
             {
                 DialogMouse(x, y);
                 return;
@@ -1970,12 +1978,19 @@ namespace FasetStudio.Ide
                     int code = process.ExitCode;
                     long ms = now - processStart;
                     string codeText = String.FromInt(code), msText = String.FromInt(ms);
-                    string summary = L.F(processIsRun ? "[program exited with code {0} in {1} ms]" : "[build finished with code {0} in {1} ms]", codeText, msText);
+                    string summary = L.F(processIsPackages ? "[packages: finished with code {0} in {1} ms]"
+                                         : processIsRun ? "[program exited with code {0} in {1} ms]" : "[build finished with code {0} in {1} ms]", codeText, msText);
                     output.Append("\n").Append(summary).Append("\n");
                     String.Free(summary);
                     String.Free(codeText);
                     String.Free(msText);
-                    if (processIsRun) SetStatus(code == 0 ? L.T("Program finished successfully") : L.T("Program exited with errors"));
+                    if (processIsPackages)
+                    {
+                        SetStatus(code == 0 ? L.T("Packages up to date") : L.T("The package command failed (see Output)"));
+                        processIsPackages = false;
+                        ReloadPackages();
+                    }
+                    else if (processIsRun) SetStatus(code == 0 ? L.T("Program finished successfully") : L.T("Program exited with errors"));
                     else SetStatus(code == 0 ? L.T("Build succeeded") : L.T("Build failed"));
                     explorer.Refresh();
                     analysisPending = true;
@@ -2371,6 +2386,183 @@ namespace FasetStudio.Ide
             BrowseTo(rootFolder);
         }
 
+        // ------------------------------------------------------------------ paquetes (faset add/remove/restore)
+
+        // ¿El .fstproj tiene algún <PackageReference>?
+        bool UsesPackages(string project)
+        {
+            string text;
+            if (project.Length == 0 || !File.TryReadAllText(project, out text)) return false;
+            bool uses = text.Contains("<PackageReference");
+            String.Free(text);
+            return uses;
+        }
+
+        // Al abrir un proyecto o una solución que usa paquetes: 'faset restore' en segundo plano.
+        void RestorePackagesOnOpen()
+        {
+            if (!analyzer.Available || (process != null && process.IsRunning)) return;
+            bool uses = false;
+            if (solutionFile.Length > 0 && solutionInfo != null)
+            {
+                JsonValue projects = solutionInfo.Get("projects");
+                for (int i = 0; projects != null && i < projects.Count && !uses; i++) uses = UsesPackages(projects.At(i).GetString("path"));
+                if (uses) RunPackageCommand("restore", "", solutionFile);
+            }
+            else if (UsesPackages(projectFile)) RunPackageCommand("restore", "", projectFile);
+        }
+
+        // 'faset <orden> [argumentos] --project <x.fstproj>' (o la .fstp) sin bloquear el editor: la salida va al panel Output.
+        void RunPackageCommand(string verb, string arguments, string project)
+        {
+            if (process != null && process.IsRunning)
+            {
+                SetStatus(L.T("A build is already running"));
+                return;
+            }
+            if (!analyzer.Available)
+            {
+                SetStatus(L.T("Compiler 'faset' not found"));
+                return;
+            }
+            if (project.Length == 0) return;
+            string faset = Analyzer.Quote(analyzer.Compiler), qp = Analyzer.Quote(project);
+            StringBuilder cmd = new StringBuilder();
+            cmd.Append(faset).Append(" ").Append(verb);
+            if (arguments.Length > 0) cmd.Append(" ").Append(arguments);
+            if (project.EndsWith(".fstp")) cmd.Append(" ").Append(qp);
+            else cmd.Append(" --project ").Append(qp);
+            output.Clear();
+            ShowTool(1);
+            outputScroll = 0;
+            output.Append("> faset ").Append(verb);
+            if (arguments.Length > 0) output.Append(" ").Append(arguments);
+            output.Append("  (").Append(Path.GetFileName(project)).Append(")\n");
+            if (process == null) process = new ChildProcess();
+            if (!process.Start(cmd.View(), Path.GetDirectoryName(project))) output.Append(L.T("Could not start the compiler.")).Append("\n");
+            processIsRun = false;
+            processIsPackages = true;
+            processStart = Environment.TickCount64();
+            SetStatus(verb == "restore" ? L.T("Restoring packages…") : L.T("Updating packages…"));
+            String.Free(faset);
+            String.Free(qp);
+            delete cmd;
+        }
+
+        void OpenPackagesFor(string project)
+        {
+            CloseMenu();
+            if (project.Length == 0)
+            {
+                SetStatus(L.T("This folder has no .fstproj project"));
+                return;
+            }
+            packagesProject = String.Copy(project);
+            ReloadPackages();
+            OpenOverlay(Overlay.Packages);
+            fieldExtra.Set("");
+            fieldExtra2.Set("");
+            fieldName.Focused = false;
+            fieldExtra.Focused = true;
+            fieldExtra2.Focused = false;
+        }
+
+        void ReloadPackages()
+        {
+            if (packagesProject.Length == 0) return;
+            for (int i = 0; i < packageItems.Count; i++) delete packageItems[i];
+            delete packageItems;
+            packageItems = ProjectFile.LoadPackages(packagesProject);
+            analysisPending = true;
+            needsRedraw = true;
+        }
+
+        // 'faset add <nombre | url git | carpeta> [--version X]' con lo escrito en el diálogo.
+        void AddPackageFromDialog()
+        {
+            string spec = fieldExtra.Text.Trim();
+            if (spec.Length == 0)
+            {
+                SetStatus(L.T("Type a package name, a git URL or a folder"));
+                return;
+            }
+            StringBuilder args = new StringBuilder();
+            string qs = Analyzer.Quote(spec);
+            args.Append(qs);
+            string version = fieldExtra2.Text.Trim();
+            if (version.Length > 0)
+            {
+                string qv = Analyzer.Quote(version);
+                args.Append(" --version ").Append(qv);
+                String.Free(qv);
+            }
+            RunPackageCommand("add", args.View(), packagesProject);
+            if (processIsPackages)
+            {
+                fieldExtra.Set("");
+                fieldExtra2.Set("");
+            }
+            String.Free(qs);
+            delete args;
+        }
+
+        void DrawPackagesDialog()
+        {
+            float w = 760, h = 540, x, y;
+            DialogFrame(w, h, out x, out y);
+            r.Text(r.Title, x + 28, y + 24, L.T("Packages"), Theme.White);
+            r.PushClip(x + 28, y + 56, w - 56, 20);
+            r.Text(r.UiSmall, x + 28, y + 58, packagesProject, Theme.TextTertiary);
+            r.PopClip();
+            float lx = x + 28, lw = w - 56, ry = y + 92;
+            if (packageItems.Count == 0) r.Text(r.Ui, lx, ry + 6, L.T("This project does not use packages yet."), Theme.TextSecondary);
+            int shown = Math.Min(packageItems.Count, 7);
+            for (int i = 0; i < shown; i++)
+            {
+                PackageItem it = packageItems[i];
+                float py = ry + i * 34;
+                r.RoundRect(lx, py, lw, 30, 8, Theme.Base);
+                r.PushClip(lx, py, 170, 30);
+                r.Text(r.Ui, lx + 12, py + 6, it.Name, Theme.Text);
+                r.PopClip();
+                string detail = String.Concat(it.Wanted.Length > 0 ? it.Wanted : "*", "  ·  ", it.Origin);
+                r.PushClip(lx + 176, py, lw - 176 - 160, 30);
+                r.Text(r.UiSmall, lx + 176, py + 8, detail, Theme.TextTertiary);
+                r.PopClip();
+                String.Free(detail);
+                bool restored = it.Resolved.Length > 0;
+                r.Text(r.Code, lx + lw - 150, py + 6, restored ? it.Resolved : L.T("not restored"), restored ? Theme.TextSecondary : Theme.Error);
+                bool hover = mouseX >= lx + lw - 28 && mouseX < lx + lw && mouseY >= py && mouseY < py + 30;
+                r.Text(r.Icons, lx + lw - 20, py + 7, "×", hover ? Theme.White : Theme.TextTertiary);
+                AddHit(lx + lw - 28, py, 28, 30, 500 + i, -5, false);
+            }
+            if (packageItems.Count > shown)
+            {
+                string more = String.FromInt(packageItems.Count - shown);
+                string label = L.F("…and {0} more (see 'faset list paquetes')", more, "");
+                r.Text(r.UiSmall, lx, ry + shown * 34 + 4, label, Theme.TextTertiary);
+                String.Free(label);
+                String.Free(more);
+            }
+            float fy = y + h - 140;
+            string add = L.T("Add");
+            float aw = PillWidth(add, ""), vw = 150;
+            float sw = lw - vw - aw - 16;
+            r.Text(r.UiSmall, lx, fy - 22, L.T("Name (index), git URL or folder"), Theme.TextSecondary);
+            r.Text(r.UiSmall, lx + sw + 8, fy - 22, L.T("Version (optional)"), Theme.TextSecondary);
+            fieldExtra.Draw(r, lx, fy, sw, "https://github.com/usuario/paquete");
+            fieldExtra2.Draw(r, lx + sw + 8, fy, vw, "^1.0");
+            DialogButton(lx + lw - aw, fy + 3, add, 40, 0);
+            r.Text(r.UiSmall, lx, fy + 46, L.T("Commands run in the background; their progress appears in the Output panel."), Theme.TextTertiary);
+            string close = L.T("Close"), restore = L.T("Restore"), update = L.T("Update all");
+            float bx = x + w - 28 - PillWidth(close, "");
+            DialogButton(bx, y + h - 50, close, 43, 1);
+            bx -= PillWidth(update, "") + 8;
+            DialogButton(bx, y + h - 50, update, 42, 2);
+            bx -= PillWidth(restore, "") + 8;
+            DialogButton(bx, y + h - 50, restore, 41, 2);
+        }
+
         void OpenPropertiesDialog() { OpenPropertiesFor(projectFile); }
 
         void OpenPropertiesFor(string path)
@@ -2508,6 +2700,7 @@ namespace FasetStudio.Ide
                     m.Add(L.T("Add existing project…"), "", 302, ws);
                 }
                 m.Add(L.T("Reload project"), "", 144, ws);
+                m.Add(L.T("Manage packages…"), "", 145, ws && projectFile.Length > 0);
             }
             else
             {
@@ -2586,6 +2779,7 @@ namespace FasetStudio.Ide
                 m.Add(L.T("New folder…"), "", 166, exists);
                 m.Separator();
                 m.Add(L.T("Properties…"), "", 314, exists);
+                m.Add(L.T("Manage packages…"), "", 316, exists);
                 m.Add(L.T("Copy path"), "", 164, true);
                 m.AddDanger(L.T("Remove from solution"), "", 315);
                 ShowMenu(m, x, y, -1);
@@ -2602,6 +2796,7 @@ namespace FasetStudio.Ide
                 m.Separator();
                 m.Add(L.T("Copy path"), "", 164, true);
                 m.Add(L.T("Properties…"), "", 140, projectFile.Length > 0);
+                m.Add(L.T("Manage packages…"), "", 145, projectFile.Length > 0);
                 m.Add(L.T("Close project"), "", 105, true);
             }
             else if (isDir)
@@ -2713,6 +2908,7 @@ namespace FasetStudio.Ide
             else if (id == 135) configuration = "Debug";
             else if (id == 136) configuration = "Release";
             else if (id == 140) OpenPropertiesDialog();
+            else if (id == 145) OpenPackagesFor(projectFile);
             else if (id == 142)
             {
                 SetTargetFolder(rootFolder);
@@ -2767,6 +2963,7 @@ namespace FasetStudio.Ide
             else if (id == 311) StartProcessFor(false, contextProject);
             else if (id == 313) OpenReferenceMenu();
             else if (id == 314) OpenPropertiesFor(contextProject);
+            else if (id == 316) OpenPackagesFor(contextProject);
             else if (id == 315)
             {
                 StringBuilder args = new StringBuilder();
@@ -2800,6 +2997,7 @@ namespace FasetStudio.Ide
             if (process == null) process = new ChildProcess();
             process.Start(cmd.View(), rootFolder);
             processIsRun = false;
+            processIsPackages = false;
             processStart = Environment.TickCount64();
             SetStatus(L.T("Cleaning…"));
             String.Free(qf);
@@ -2847,6 +3045,12 @@ namespace FasetStudio.Ide
                 }
                 else if (f != null) f.Key(e);
             }
+            else if (overlay == Overlay.Packages)
+            {
+                if (enter) AddPackageFromDialog();
+                else if (e.Key == Keys.Tab) FocusField(fieldExtra.Focused ? fieldExtra2 : fieldExtra);
+                else if (f != null) f.Key(e);
+            }
             else if (overlay == Overlay.ProjectProperties)
             {
                 if (enter && fieldExtra.Focused) DialogAction(150);
@@ -2861,8 +3065,9 @@ namespace FasetStudio.Ide
         {
             if (fieldName.Contains(x, y) && (overlay == Overlay.NewProject || overlay == Overlay.ProjectProperties)) FocusField(fieldName);
             else if (fieldLocation.Contains(x, y) && overlay == Overlay.NewProject) FocusField(fieldLocation);
-            else if (fieldExtra.Contains(x, y) && (overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.NewProject)) FocusField(fieldExtra);
-            else if (fieldExtra2.Contains(x, y) && overlay == Overlay.ProjectProperties) FocusField(fieldExtra2);
+            else if (fieldExtra.Contains(x, y) && (overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.NewProject ||
+                                                   overlay == Overlay.Packages)) FocusField(fieldExtra);
+            else if (fieldExtra2.Contains(x, y) && (overlay == Overlay.ProjectProperties || overlay == Overlay.Packages)) FocusField(fieldExtra2);
             for (int i = 0; i < hits.Count; i++)
             {
                 HitBox h = hits[i];
@@ -2923,6 +3128,20 @@ namespace FasetStudio.Ide
                         OpenWorkspace(path);
                     }
                     String.Free(path);
+                }
+                return;
+            }
+            if (overlay == Overlay.Packages)
+            {
+                if (id == 40) AddPackageFromDialog();
+                else if (id == 41) RunPackageCommand("restore", "", packagesProject);
+                else if (id == 42) RunPackageCommand("update", "", packagesProject);
+                else if (id == 43) overlay = Overlay.None;
+                else if (id >= 500 && id < 600 && id - 500 < packageItems.Count)
+                {
+                    string qn = Analyzer.Quote(packageItems[id - 500].Name);
+                    RunPackageCommand("remove", qn, packagesProject);
+                    String.Free(qn);
                 }
                 return;
             }
@@ -3822,6 +4041,11 @@ namespace FasetStudio.Ide
                 DrawPropertiesDialog();
                 return;
             }
+            if (overlay == Overlay.Packages)
+            {
+                DrawPackagesDialog();
+                return;
+            }
             if (overlay == Overlay.About)
             {
                 DrawAboutDialog();
@@ -4456,7 +4680,7 @@ namespace FasetStudio.Ide
             }
             else if (overlay != Overlay.None)
             {
-                bool dialog = overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties;
+                bool dialog = overlay == Overlay.NewProject || overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.Packages;
                 bool overInput = !dialog && mouseX >= overlayInputX && mouseX < overlayInputX + overlayInputW && mouseY >= overlayInputY && mouseY < overlayInputY + 34;
                 if (overInput && !IsConfirm(overlay) && overlay != Overlay.About) kind = CursorKind.Text;
                 if (dialog && (fieldName.Contains(mouseX, mouseY) || fieldLocation.Contains(mouseX, mouseY) ||

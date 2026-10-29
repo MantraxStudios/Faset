@@ -21,6 +21,7 @@ export const nav: NavSection[] = [
       { title: "Instalación", href: "/empezar/instalacion/" },
       { title: "Tu primer proyecto", href: "/empezar/primer-proyecto/" },
       { title: "Proyectos .fstproj", href: "/empezar/proyectos/" },
+      { title: "Paquetes", href: "/empezar/paquetes/" },
       { title: "Plataformas y compilación cruzada", href: "/empezar/plataformas/" },
       { title: "Editores y LSP", href: "/empezar/editores/" },
     ],

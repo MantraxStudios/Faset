@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Proyectos .fstproj",
-  description: "Referencia del formato .fstproj: propiedades, archivos, recursos (Asset), referencias a proyectos y bibliotecas nativas.",
+  description: "Referencia del formato .fstproj: propiedades, archivos, recursos (Asset), referencias a proyectos, paquetes y bibliotecas nativas.",
 };
 
 # Proyectos `.fstproj`
@@ -27,6 +27,7 @@ export const metadata = {
     <NativeLibrary Include="user32" Platform="windows" />        <!-- -luser32 solo en Windows -->
     <LibraryPath Include="libs" />                               <!-- -Llibs -->
     <Asset Include="sonidos/**" />                               <!-- recursos junto al ejecutable / en el APK -->
+    <PackageReference Include="Json5" Git="https://github.com/usuario/json5-faset" Version="^1.2" />
   </ItemGroup>
 </Project>
 ```
@@ -47,7 +48,9 @@ export const metadata = {
 | `AllowUnsafe` | `true` / `false` | Todo el proyecto es un contexto `memory_unsafe` (como `--allow-unsafe`). |
 | `AndroidPackage`, `AppName`, `VersionCode`, `VersionName`, `AndroidTargetSdk`, `AndroidAbis`, `AndroidOrientation`, `AndroidIcon`, `AndroidKeystore`, `AndroidKeyAlias` | texto | Empaquetado del APK: consulta [Android](/android/#propiedades-del-fstproj). |
 | `EnableDefaultCompileItems` | `true` / `false` | Con `false` solo se compilan los archivos indicados con `Compile Include`. |
-| `RootNamespace`, `Version`, `Description`, `Authors`, `Optimize`, `DebugSymbols` | texto | Se aceptan como metadatos; el compilador todavía no los usa. |
+| `PackageId`, `Version`, `Description`, `Authors`, `License`, `RepositoryUrl` | texto | Metadatos de un [paquete](/empezar/paquetes/#crear-y-publicar-un-paquete): `PackageId` es su nombre y `Version` (semver) la versión que se publica con la etiqueta `vX.Y.Z`. `faset pack` los comprueba. |
+| `PackageIndex` | URL o ruta | [Índice de paquetes](/empezar/paquetes/#el-indice-de-paquetes) donde se buscan los `<PackageReference>` sin `Git` ni `Path` (por defecto `https://faset.lat/paquetes/index.json`). |
+| `RootNamespace`, `Optimize`, `DebugSymbols` | texto | Se aceptan como metadatos; el compilador todavía no los usa. |
 
 <Callout type="aviso">
 Las propiedades y elementos desconocidos **dan error**: así una errata (`<Configuraton>`) no pasa
@@ -64,6 +67,7 @@ desapercibida.
 | `LibraryPath` | `Include` | Carpeta de bibliotecas nativas (`-L`), relativa al proyecto. |
 | `AndroidPermission` | `Include` | Permisos de Android (`INTERNET;CAMERA` → `android.permission.*`); se heredan de las bibliotecas referenciadas. |
 | `Asset` | `Include`, `Remove` | Recursos que el programa lee en ejecución (sonidos, imágenes, vídeos, datos). Ver [Recursos](#recursos-asset). |
+| `PackageReference` | `Include`, `Version`, `Git`, `Branch`, `Commit`, `Path`, `Folder` | Paquete (una biblioteca Faset) de un repositorio git, una carpeta o el índice. Se descarga a la caché, se fija en `paquetes.lock` y se compila como un `ProjectReference`. Ver [Paquetes](/empezar/paquetes/). |
 
 ## Recursos (`<Asset>`)
 
@@ -138,6 +142,9 @@ su código se compila **dentro** del programa que la usa, y sus `NativeLibrary`,
 una se incluye una sola vez aunque llegue por varios caminos. El resultado es un único binario (o una
 única `lib<App>.so` en el APK). Para producir una biblioteca dinámica
 independiente, compila el proyecto `Library` por sí solo (genera `libNombre.so` o `Nombre.dll`).
+
+Para usar bibliotecas de otros repositorios (con versiones, dependencias transitivas y
+`paquetes.lock`) usa [`<PackageReference>`](/empezar/paquetes/) en lugar de copiar la carpeta.
 
 ## Soluciones (`.fstp`)
 

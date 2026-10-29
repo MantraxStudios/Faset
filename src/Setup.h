@@ -17,3 +17,7 @@ std::string managedJavaHome();
 
 // faset setup [módulos...] [--list] [--yes] [--no-emulator]
 int cmdSetup(const std::vector<std::string>& args);
+
+// Descarga el texto de una URL con curl o wget (false si no se puede: sin red, 404...).
+// Lo usa también el gestor de paquetes para leer el índice.
+bool fetchUrlText(const std::string& url, std::string& out);

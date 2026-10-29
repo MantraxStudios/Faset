@@ -1,4 +1,5 @@
 #include "Project.h"
+#include "Packages.h"
 #include "Xml.h"
 
 #include <algorithm>
@@ -93,7 +94,9 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
     static const std::vector<std::string> known = {
         "OutputType", "AssemblyName", "RootNamespace", "TargetPlatform", "TargetArch", "AndroidApi",
         "Configuration", "OutputPath", "StaticLink", "EnableDefaultCompileItems", "Version", "Description",
-        "Authors", "Optimize", "DebugSymbols", "RuntimeChecks", "AllowUnsafe",
+        "Authors", "Optimize",
+        // Paquetes (ver src/Packages.h)
+        "PackageId", "License", "RepositoryUrl", "PackageIndex", "DebugSymbols", "RuntimeChecks", "AllowUnsafe",
         // Android (APK)
         "AndroidPackage", "AppName", "VersionCode", "VersionName", "AndroidAbis", "AndroidTargetSdk", "AndroidIcon",
         "AndroidOrientation", "AndroidKeystore", "AndroidKeyAlias", "AndroidKeystorePassword", "AndroidKeyPassword"};
@@ -126,6 +129,40 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                 } else if (it.name == "Asset") {
                     out.assetInclude.insert(out.assetInclude.end(), inc.begin(), inc.end());
                     out.assetRemove.insert(out.assetRemove.end(), rem.begin(), rem.end());
+                } else if (it.name == "PackageReference") {
+                    PackageRef pr;
+                    pr.name = it.attrs["Include"];
+                    pr.version = it.attrs["Version"];
+                    pr.git = it.attrs["Git"];
+                    pr.branch = it.attrs["Branch"];
+                    pr.commit = it.attrs["Commit"];
+                    pr.path = it.attrs["Path"];
+                    pr.folder = it.attrs["Folder"];
+                    pr.line = it.line;
+                    std::string where = path + ":" + std::to_string(it.line) + ": <PackageReference Include=\"" + pr.name + "\">: ";
+                    static const std::vector<std::string> attrs = {"Include", "Version", "Git", "Branch", "Commit", "Path", "Folder"};
+                    for (const std::string& a : it.attrOrder)
+                        if (std::find(attrs.begin(), attrs.end(), a) == attrs.end()) {
+                            error = where + "atributo desconocido '" + a + "'";
+                            return false;
+                        }
+                    if (pr.name.empty() || pr.name.find(';') != std::string::npos) {
+                        error = where + "Include debe ser el nombre de un paquete";
+                        return false;
+                    }
+                    if (!pr.git.empty() && !pr.path.empty()) {
+                        error = where + "Git y Path no pueden ir juntos";
+                        return false;
+                    }
+                    if (!pr.branch.empty() && !pr.commit.empty()) {
+                        error = where + "Branch y Commit no pueden ir juntos";
+                        return false;
+                    }
+                    if (!pr.path.empty() && (!pr.branch.empty() || !pr.commit.empty())) {
+                        error = where + "Branch y Commit solo valen para paquetes git";
+                        return false;
+                    }
+                    out.packages.push_back(pr);
                 } else if (it.name == "ProjectReference") {
                     for (auto& r : inc) out.references.push_back((fs::path(out.dir) / r).lexically_normal().string());
                 } else {
@@ -251,6 +288,10 @@ bool projectTreeSources(const std::string& projPath, std::vector<std::string>& f
         visited.push_back(key);
         Project proj;
         if (!loadProject(p, proj, error)) return false;
+        // Paquetes ya restaurados (paquetes.lock + caché, sin red): su código cuenta como el de
+        // una referencia más, así el IntelliSense y "ir a la definición" llegan a sus fuentes.
+        if (visited.size() == 1)
+            for (const std::string& pkg : lockedPackageProjects(p)) proj.references.push_back(pkg);
         for (const std::string& ref : proj.references)
             if (fs::exists(ref) && !visit(ref)) return false;
         for (const std::string& f : projectSources(proj))

@@ -768,3 +768,5 @@ int cmdSetup(const std::vector<std::string>& args) {
     std::printf("Todo listo. Comprueba con 'faset doctor'.\n");
     return 0;
 }
+
+bool fetchUrlText(const std::string& url, std::string& out) { return fetchText(url, out); }
