@@ -2038,8 +2038,8 @@ namespace std.ui
                 }
                 else if (op == "wait" && parts.Count >= 2)
                 {
-                    VideoPlayer.WaitTicking(Convert.ToInt32(parts[1]));  // deja correr los vídeos (tiempo real)
-                    ScriptVerb(op, parts);                               // y los temporizadores (reloj simulado)
+                    PumpFor(Convert.ToInt32(parts[1]));  // vídeos y continuaciones async (tiempo real)
+                    ScriptVerb(op, parts);               // y los temporizadores (reloj simulado)
                 }
                 else if (op == "resize" && parts.Count >= 3)
                 {
@@ -2060,6 +2060,7 @@ namespace std.ui
         // Muestra la ventana y procesa eventos hasta que se cierra. Devuelve 0 si todo fue bien.
         public int Run()
         {
+            InstallSync();  // los 'await' de los métodos async de este hilo vuelven a él (ui/async.fst)
             // FASET_UI_SCREENSHOT=archivo.bmp: dibuja una vez, guarda la imagen y termina (sin pantalla).
             string shot = Environment.GetVariable("FASET_UI_SCREENSHOT");
             if (shot.Length > 0)
@@ -2069,6 +2070,7 @@ namespace std.ui
                 string script = Environment.GetVariable("FASET_UI_SCRIPT");
                 RunScript(script);
                 String.Free(script);
+                RunPosted();
                 Render();
                 bool saved = canvas.SaveBmp(shot);
                 String.Free(shot);
@@ -2094,6 +2096,8 @@ namespace std.ui
                     HandleEvent(e);
                 }
                 if (!open) break;
+                RunPosted();  // continuaciones de los métodos async (ui/async.fst)
+                if (!open) break;
                 int videoWait = VideoPlayer.Tick();  // fotogramas y eventos de los VideoPlayer
                 bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
                 native.SetTextInput(editing);  // teclado en pantalla (Android)
@@ -2118,6 +2122,7 @@ namespace std.ui
                 if (videoWait >= 0 && videoWait < waitMs) waitMs = videoWait;
                 if (untilTimer >= 0 && untilTimer < waitMs) waitMs = untilTimer;
                 if (dirty && waitMs > 15) waitMs = 15;  // animación: otro fotograma pedido durante el dibujo
+                if (HasPosted) waitMs = 0;               // una continuación llegó mientras se dibujaba
                 native.Wait(WebViewHost.WaitMs(waitMs));
             }
             WebViewHost.CloseAll();
@@ -2340,8 +2345,10 @@ namespace std.ui
         {
             if (queue.Count > 0) return;
             if (ms < 0) ms = 0;
-            Win32.MsgWaitForMultipleObjects(0, null, 0, (uint)ms, 0x04FF);
+            UiLoop.faset_loop_wait_msgs(ms);  // mensajes, UiLoop.Wake (continuaciones async) o el plazo
         }
+
+        public static void Wake() { UiLoop.faset_loop_wake(); }
 
         public bool Poll(out UiEvent e)
         {
@@ -2563,6 +2570,7 @@ namespace std.ui
         public static extern float faset_android_density();
         public static extern int faset_android_next(int* ev);
         public static extern void faset_android_wait(int ms);
+        public static extern void faset_android_wake();
         public static extern void faset_android_present(uint* pixels, int w, int h);
         public static extern void faset_android_text_input(int on);
         public static extern int faset_android_clipboard_set(byte* text, int len);
@@ -2617,6 +2625,9 @@ namespace std.ui
             if (ms < 0) ms = 0;
             AndroidNative.faset_android_wait(ms);
         }
+
+        // Despierta a Wait desde otro hilo (continuaciones async para el hilo de la interfaz).
+        public static void Wake() { AndroidNative.faset_android_wake(); }
 
         int Logical(int px) => (int)(px / Scale);
 
@@ -2876,8 +2887,10 @@ namespace std.ui
         {
             if (X11.XPending(display) > 0) return;
             if (ms < 0) ms = 0;
-            EventWait.WaitFd(X11.XConnectionNumber(display), ms);
+            UiLoop.faset_wait_fd_wake(X11.XConnectionNumber(display), ms);  // también despierta con Wake
         }
+
+        public static void Wake() { UiLoop.faset_loop_wake(); }
 
         static int I32(byte* p, int off) => *(int*)(p + off);
         static uint U32(byte* p, int off) => *(uint*)(p + off);

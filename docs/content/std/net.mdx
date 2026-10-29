@@ -1,7 +1,10 @@
 Redes con sockets BSD (Linux y Android) y Winsock2 (Windows): direcciones IPv4/IPv6, DNS, TCP,
 UDP, URL, TLS (HTTPS) y un cliente HTTP/1.1. El compilador enlaza `ws2_32` automáticamente en Windows. No hay
 excepciones: las operaciones devuelven `bool`, un número de bytes (`-1` = error) o `null`, y el motivo
-queda en `Error`, `ErrorMessage` (en español) y `NativeError`.
+queda en `Error`, `ErrorMessage` (en español) y `NativeError`. Las versiones
+[async](/lenguaje/async/) (`HttpClient.GetStringAsync`/`GetAsync`/`PostAsync`/`SendAsync`,
+`TcpClient.ConnectAsync`/`ReadAsync`/`ReadToEndAsync`/`WriteAsync`) devuelven una `Task` y sí lanzan
+excepciones al hacer `await` (`HttpRequestException`); corren en el grupo de hilos de `std.task`.
 
 ```faset
 using std.net;

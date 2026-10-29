@@ -1,0 +1,4 @@
+click: hilo de la interfaz = True
+tras Task.Delay: hilo de la interfaz = True
+tras Task.Run: hilo de la interfaz = True, resultado 42
+etiqueta: listo: 42

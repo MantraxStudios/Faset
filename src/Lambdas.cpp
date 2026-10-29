@@ -252,18 +252,33 @@ bool Sema::lambdaReturn(ReturnStmt* rs) {
         if (rs->value) checkOperand(rs->value);
         return true;
     }
-    if (l->ret->isVoid()) {
+    Type* lret = l->ret;
+    if (l->fn && l->fn->async) {  // lambda async: devuelve el T de Task<T> (Async.cpp)
+        lret = l->fn->async->result ? l->fn->async->result : tc_.error();
+        if (lret->isVoid() && rs->value && rs->fromExprBody) {  // async () => expr con Task o void
+            Type* t = checkOperand(rs->value);
+            if (!t->isVoid() && !t->isError() && !statementLike(rs->value) && rs->value->kind != EK::Await)
+                diag.error(rs->value->loc, "el cuerpo de una lambda async sin resultado debe ser una llamada, una "
+                                           "asignación, 'new' o un 'await'");
+            return true;
+        }
+    }
+    if (lret->isError()) {
+        if (rs->value) checkOperand(rs->value);
+        return true;
+    }
+    if (lret->isVoid()) {
         if (rs->value) {
             checkOperand(rs->value);
             diag.error(rs->loc, "esta lambda corresponde a un delegado sin valor de retorno ('void') y no puede devolver un valor");
         }
     } else if (!rs->value) {
-        diag.error(rs->loc, "la lambda debe devolver un valor de tipo '" + l->ret->str() + "'");
+        diag.error(rs->loc, "la lambda debe devolver un valor de tipo '" + lret->str() + "'");
     } else {
         checkOperand(rs->value);
-        int c = convCost(rs->value, l->ret);
+        int c = convCost(rs->value, lret);
         if (c > l->retCost) l->retCost = c;
-        coerce(rs->value, l->ret);
+        coerce(rs->value, lret);
     }
     return true;
 }
@@ -295,6 +310,9 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
     ctx_.loopDepth = 0;
     ctx_.switchDepth = 0;
     ctx_.scopes.emplace_back();
+    ctx_.async = nullptr;  // una lambda dentro de un método async tiene su propio contexto
+    fn->async = nullptr;
+    if (l->isAsync) ctx_.async = asyncBegin(fn, ret, l, l->loc);  // máquina de estados (Async.cpp)
     for (size_t i = 0; i < l->params.size(); i++) {
         auto& p = l->params[i];
         p.var = declareLocal(p.name, params[i], p.loc, "p_");
@@ -317,7 +335,12 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
         }
     } else {
         for (Stmt* s : l->blockBody->stmts) checkStmt(s);
-        if (ret && !ret->isVoid() && !ret->isError() && !alwaysReturns(l->blockBody))
+        Type* mustReturn = ret;
+        if (fn->async) {
+            asyncEnd(fn->async, l->blockBody);
+            mustReturn = fn->async->result;
+        }
+        if (mustReturn && !mustReturn->isVoid() && !mustReturn->isError() && !alwaysReturns(l->blockBody))
             diag.error(l->loc, "no todas las rutas de código de la lambda devuelven un valor");
     }
     lambdaStack_.pop_back();
@@ -349,6 +372,7 @@ LambdaExpr* Sema::lambdaTrial(LambdaExpr* l, const std::vector<Type*>& params, T
 
 // Tipo de retorno inferido de una copia comprobada sin retorno conocido (nullptr si no se puede).
 Type* Sema::lambdaReturnType(LambdaExpr* t) {
+    if (t->isAsync) return asyncLambdaReturnType(t);  // Task / Task<T> (Async.cpp)
     if (t->exprBody) {
         Type* bt = t->exprBody->type;
         if (!bt || bt->isPending() || bt->is(TK::Null)) return nullptr;
@@ -376,6 +400,18 @@ int Sema::lambdaCost(LambdaExpr* l, Type* d) {
         if (i < l->paramTypes.size() && l->paramTypes[i] && l->paramTypes[i] != d->params[i]) return -1;
     LambdaExpr* t = lambdaTrial(l, d->params, d->ret);
     if (!t || t->trialErrors) return -1;
+    // Una lambda async prefiere un delegado que devuelva la tarea (Func<Task>) a uno void (Action).
+    if (l->isAsync && d->ret->isVoid()) return 2 + t->retCost;
+    // () => Llamada() con valor encaja con Action (se descarta) y con Func<T>: mejor Func<T> (como en C#).
+    if (!l->isAsync && d->ret->isVoid() && t->exprBody && t->exprBody->type && !t->exprBody->type->isVoid() &&
+        !t->exprBody->type->isError())
+        return 2 + t->retCost;
+    // () => { throw ...; } encaja con cualquier retorno: se prefiere el delegado sin valor (Action).
+    if (!l->isAsync && !d->ret->isVoid() && t->blockBody) {
+        bool value = false;
+        for (ReturnStmt* rs : t->returns) value |= rs->value != nullptr;
+        if (!value) return 2 + t->retCost;
+    }
     return 1 + t->retCost;
 }
 

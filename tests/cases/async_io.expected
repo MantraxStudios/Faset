@@ -1,0 +1,8 @@
+archivo: línea 1
+línea 2
+no existe: FileNotFoundException
+GetStringAsync: hola desde /datos
+PostAsync: 200 recibido a=1
+GetAsync: 404
+GetStringAsync 404: HttpRequestException 404
+TcpClient: True eco: ECO uno

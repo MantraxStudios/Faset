@@ -1,6 +1,8 @@
 Archivos, carpetas y rutas, igual en Linux y en Windows: las rutas son UTF-8 (en Windows se usan
 las API W de Win32 y se aceptan `/` y `\`) y las fechas son milisegundos Unix (UTC). Las funciones
 devuelven `bool` o `null` en lugar de lanzar excepciones (Faset no tiene excepciones).
+`File.ReadAllTextAsync`, `WriteAllTextAsync` y `AppendAllTextAsync` devuelven una `Task` para usar con
+[`await`](/lenguaje/async/) (la operación corre en el grupo de hilos de `std.task`).
 
 ```faset
 using std.io;

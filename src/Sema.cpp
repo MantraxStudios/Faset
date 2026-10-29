@@ -105,9 +105,19 @@ std::vector<TypeRef*>* exprTypeArgs(Expr* e) {
     return nullptr;
 }
 
+// IntelliSense de async/await: lo que da 'await' sobre un Task / Task<T> de std.task.
+std::string awaitNote(Type* t) {
+    if (!t || !t->isClass() || !t->decl) return "";
+    ClassDecl* d = t->decl;
+    if (!d->templateOf && d->name == "Task" && d->ns == "std.task") return "  (await: sin valor)";
+    if (d->templateOf && d->templateOf->name == "Task" && d->templateOf->ns == "std.task" && d->typeArgs.size() == 1)
+        return "  (await: " + d->typeArgs[0]->str() + ")";
+    return "";
+}
+
 std::string describeVar(VarInfo* v) {
     std::string kind = v->cname.rfind("p_", 0) == 0 ? "(parámetro) " : v->isConst ? "(constante local) " : "(variable local) ";
-    return kind + v->type->str() + (v->isRef ? "& " : " ") + v->name;
+    return kind + v->type->str() + (v->isRef ? "& " : " ") + v->name + awaitNote(v->type);
 }
 std::string describeField(FieldDecl* f) {
     std::string kind = f->owner->isNamespaceScope ? "(variable global) "
@@ -255,6 +265,24 @@ void Sema::buildNamespaces() {
             continue;
         }
         if (ns->types.count(c->name)) {
+            // Task y Task<T>: un tipo genérico y otro que no lo es pueden compartir nombre (como en C#).
+            ClassDecl* other = ns->types[c->name];
+            if (other->isTemplate() != c->isTemplate() && !other->arityTwin && !c->isNamespaceScope) {
+                other->arityTwin = c;
+                c->arityTwin = other;
+                if (c->isTemplate()) {
+                    c->cname = prefix + c->name + "_G";
+                    continue;
+                }
+                ns->types[c->name] = c;  // el no genérico es el principal (Task.Run)
+                c->cname = prefix + c->name;
+                c->type = new Type(c->kind == ClassKind::Class || c->kind == ClassKind::Interface ? TK::Class
+                                   : c->kind == ClassKind::Struct                                ? TK::Struct
+                                                                                                 : TK::Enum);
+                c->type->decl = c;
+                if (other->cname == prefix + other->name) other->cname = prefix + other->name + "_G";
+                continue;
+            }
             diag.error(c->loc, "el tipo '" + c->name + "' ya está definido en '" + ns->display() + "'");
             continue;
         }
@@ -413,6 +441,7 @@ Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
         return s.type;
     }
     ClassDecl* c = s.decl;
+    if (c->arityTwin && c->isTemplate() == tr->typeArgs.empty()) c = c->arityTwin;  // Task / Task<T>
     if (c->isTemplate()) {
         if (tr->typeArgs.empty()) {
             diag.error(tr->loc, "el tipo genérico '" + c->name + "' requiere " + std::to_string(c->typeParams.size()) +
@@ -895,13 +924,13 @@ void Sema::findEntry() {
             bool named = m->name == "Main" || (c->isNamespaceScope && m->name == "main");
             if (!named || !m->isStatic() || m->mods.isExtern || m->kind != MethodKind::Normal || m->isTemplate())
                 continue;
-            bool retOk = m->ret->isVoid() || m->ret->is(TK::Int);
+            bool retOk = m->ret->isVoid() || m->ret->is(TK::Int) || asyncCheckEntry(m);  // Task / Task<int> (Async.cpp)
             bool paramsOk = m->params.empty() ||
                             (m->params.size() == 2 && m->params[0].type->is(TK::Int) &&
                              m->params[1].type == tc_.pointerTo(tc_.pointerTo(tc_.get(TK::Byte))));
             if (!retOk || !paramsOk) {
-                diag.error(m->loc, "el punto de entrada debe ser 'void|int " + m->name + "()' o 'void|int " + m->name +
-                                       "(int argc, byte** argv)'");
+                diag.error(m->loc, "el punto de entrada debe ser 'void|int|Task|Task<int> " + m->name + "()' o 'void|int " +
+                                       m->name + "(int argc, byte** argv)'");
                 continue;
             }
             if (entry) {
@@ -934,6 +963,7 @@ VarInfo* Sema::declareLocal(const std::string& name, Type* t, SourceLoc loc, con
     v->fnDepth = (int)lambdaStack_.size();
     v->excDepth = ctx_.excTryDepth;
     ctx_.scopes.back()[name] = v;
+    asyncNoteLocal(v);  // en un método async vive en el marco (Async.cpp)
     return v;
 }
 
@@ -951,9 +981,12 @@ void Sema::checkMethod(MethodDecl* m) {
     m->checked = true;
     if (!m->body) return;
     if (m->kind == MethodKind::Ctor) checkCtorInit(m);
+    AsyncInfo* async = m->mods.isAsync ? asyncBegin(m, m->ret, nullptr, m->loc) : nullptr;  // Async.cpp
     for (Stmt* s : m->body->stmts) checkStmt(s);
+    if (async) asyncEnd(async, m->body);
+    Type* mustReturn = async ? (async->result ? async->result : tc_.get(TK::Void)) : m->ret;
     if ((m->kind == MethodKind::Normal || m->kind == MethodKind::Getter || m->kind == MethodKind::Operator) &&
-        !m->ret->isVoid() && !m->ret->isError() && !alwaysReturns(m->body))
+        !mustReturn->isVoid() && !mustReturn->isError() && !alwaysReturns(m->body))
         diag.error(m->loc, "no todas las rutas de código devuelven un valor en '" + m->name + "'");
 }
 
@@ -965,6 +998,12 @@ void Sema::checkCondition(Expr*& e) {
 }
 
 void Sema::checkStmt(Stmt* s) {
+    int awaits = awaitCount_;
+    checkStmtCore(s);
+    if (awaitCount_ != awaits) asyncLowerStmt(s);  // saca los 'await' de sus expresiones (Async.cpp)
+}
+
+void Sema::checkStmtCore(Stmt* s) {
     if (checkSugarStmt(s)) return;  // foreach, deconstrucción, using, switch con patrones (Sugar.cpp)
     switch (s->kind) {
         case SK::Empty: break;
@@ -1021,7 +1060,7 @@ void Sema::checkStmt(Stmt* s) {
             auto* es = static_cast<ExprStmt*>(s);
             check(es->expr);
             if (es->expr->vk != ValKind::Value) checkValue(es->expr);
-            else if (!isAssignOrCallLike(es->expr))
+            else if (!isAssignOrCallLike(es->expr) && es->expr->kind != EK::Await)
                 diag.error(es->loc,
                            "solo las asignaciones, llamadas, incrementos, decrementos y 'new' pueden usarse como instrucción");
             break;
@@ -1082,10 +1121,13 @@ void Sema::checkStmt(Stmt* s) {
             if (lambdaReturn(rs)) break;  // 'return' dentro del cuerpo de una lambda
             MethodDecl* m = ctx_.method;
             Type* ret = m ? m->ret : tc_.get(TK::Void);
+            if (m && m->async) ret = m->async->result ? m->async->result : tc_.error();  // async Task<T>: devuelve T
             if (ret->isVoid()) {
                 if (rs->value) {
                     checkValue(rs->value);
-                    diag.error(rs->loc, "un método 'void' no puede devolver un valor");
+                    diag.error(rs->loc, m && m->async && !m->async->isVoid
+                                            ? "un método async que devuelve 'Task' no puede devolver un valor (usa Task<T>)"
+                                            : "un método 'void' no puede devolver un valor");
                 }
             } else if (!rs->value) {
                 diag.error(rs->loc, "se requiere un valor de retorno de tipo '" + ret->str() + "'");
@@ -1585,6 +1627,7 @@ Type* Sema::checkInner(Expr* e) {
             noteThisUse(e->loc);
             return ctx_.cls->type;
         case EK::Name: return checkName(static_cast<NameExpr*>(e));
+        case EK::Await: return checkAwait(static_cast<AwaitExpr*>(e));  // Async.cpp
         case EK::Member: return checkMember(static_cast<MemberExpr*>(e));
         case EK::Call: return checkCall(static_cast<CallExpr*>(e));
         case EK::Index: return checkIndex(static_cast<IndexExpr*>(e));
@@ -2132,6 +2175,35 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
     std::stable_sort(viable.begin(), viable.end(), [](const Cand& a, const Cand& b) {
         return a.cost != b.cost ? a.cost < b.cost : (!a.generic && b.generic);
     });
+    // Desempates de C#: el miembro de la clase más derivada (Task<T>.ContinueWith frente a
+    // Task.ContinueWith) y, entre genéricos, la plantilla más específica (Run<T>(Func<Task<T>>) frente
+    // a Run<T>(Func<T>) para una lambda async que devuelve Task<int>).
+    auto specificity = [](MethodDecl* m) {
+        MethodDecl* t = m->templateOf ? m->templateOf : m;
+        std::function<int(TypeRef*)> depth = [&](TypeRef* r) {
+            int d = 0;
+            for (TypeRef* a : r->typeArgs) d = std::max(d, 1 + depth(a));
+            return d;
+        };
+        int s = 0;
+        for (Param& p : t->params)
+            if (p.tref) s += depth(p.tref);
+        return s;
+    };
+    if (viable.size() > 1 && viable[0].cost == viable[1].cost && viable[0].generic == viable[1].generic &&
+        viable[0].m != viable[1].m) {
+        MethodDecl* a = viable[0].m;
+        MethodDecl* b = viable[1].m;
+        bool tie3 = viable.size() > 2 && viable[2].cost == viable[0].cost && viable[2].generic == viable[0].generic;
+        if (!tie3 && a->owner && b->owner && a->owner != b->owner) {
+            if (derivesFrom(a->owner, b->owner)) return a;
+            if (derivesFrom(b->owner, a->owner)) return b;
+        }
+        if (!tie3 && viable[0].generic) {
+            int sa = specificity(a), sb = specificity(b);
+            if (sa != sb) return sa > sb ? a : b;
+        }
+    }
     if (viable.size() > 1 && viable[0].cost == viable[1].cost && viable[0].generic == viable[1].generic &&
         viable[0].m != viable[1].m) {
         if (report) diag.error(loc, "la llamada a '" + what + "' es ambigua para los argumentos " + typeList(args));
@@ -2765,6 +2837,7 @@ std::string Sema::methodSignature(MethodDecl* m) {
     std::string s;
     if (m->unsafeApi) s += "memory_unsafe ";
     if (m->mods.isStatic && m->owner && !m->owner->isNamespaceScope) s += "static ";
+    if (m->mods.isAsync) s += "async ";
     if (m->kind == MethodKind::Ctor) {
         s += "new " + (m->owner ? m->owner->displayName : m->name);
     } else {
@@ -2790,7 +2863,7 @@ std::string Sema::methodSignature(MethodDecl* m) {
         s += " " + p.name;
     }
     if (m->variadic) s += m->params.empty() ? "..." : ", ...";
-    return s + ")";
+    return s + ")" + (m->kind == MethodKind::Normal ? awaitNote(m->ret) : "");
 }
 
 void Sema::addRef(SourceLoc loc, int length, const std::string& hover, const SourceLoc* def) {
@@ -2866,7 +2939,7 @@ void Sema::completeScope() {
         "class", "struct", "enum", "namespace", "using", "import", "public", "private", "static", "extern",
         "operator", "delegate", "ref", "out", "memory_unsafe", "int", "long", "double", "float", "bool", "char", "byte", "string", "void",
         "interface", "abstract", "virtual", "override", "sealed", "protected", "internal", "is", "as", "typeof", "nameof",
-        "record", "object"};
+        "record", "object", "async", "await"};
     for (const char* k : keywords) addCompletion(k, kKeyword, "");
 }
 

@@ -136,6 +136,7 @@ VarInfo* Sema::hiddenLocal(Type* t, SourceLoc loc, bool hoisted) {
     v->fnDepth = (int)lambdaStack_.size();  // pertenece a la lambda que se comprueba (no se captura)
     if (ctx_.scopes.empty()) ctx_.scopes.emplace_back();
     ctx_.scopes.back()[v->name] = v;
+    asyncNoteLocal(v);  // Async.cpp
     return v;
 }
 

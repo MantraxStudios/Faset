@@ -1,0 +1,4 @@
+<Window Class="MainWindow" Title="Prueba de async" Width="320" Height="160">
+  <Button Name="btnIr" X="10" Y="10" Width="120" Height="30" Text="Descargar" Click="OnClick" />
+  <Label Name="lblEstado" X="10" Y="60" Width="300" Height="24" Text="inicio" />
+</Window>

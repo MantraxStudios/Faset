@@ -69,6 +69,7 @@ static int g_head, g_count;
 static ANativeWindow* g_window;    /* protegido por g_lock */
 static int g_win_w, g_win_h;       /* último tamaño comunicado */
 static int g_closing;
+static int g_woken;  /* faset_android_wake: hay trabajo para el bucle (continuaciones async) */
 static volatile int g_program_done;
 static int g_exit_code;
 static float g_density = 1.0f;
@@ -442,10 +443,18 @@ int32_t faset_android_next(int32_t* ev) {
     return got;
 }
 
-/* Espera hasta 'ms' milisegundos a que llegue un evento. */
+/* Despierta a faset_android_wait desde cualquier hilo (UiSynchronizationContext.Post de std.ui). */
+void faset_android_wake(void) {
+    pthread_mutex_lock(&g_lock);
+    g_woken = 1;
+    pthread_cond_broadcast(&g_cond);
+    pthread_mutex_unlock(&g_lock);
+}
+
+/* Espera hasta 'ms' milisegundos a que llegue un evento (o a faset_android_wake). */
 void faset_android_wait(int32_t ms) {
     pthread_mutex_lock(&g_lock);
-    if (g_count == 0 && !g_closing && ms > 0) {
+    if (g_count == 0 && !g_closing && !g_woken && ms > 0) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += ms / 1000;
@@ -456,6 +465,7 @@ void faset_android_wait(int32_t ms) {
         }
         pthread_cond_timedwait(&g_cond, &g_lock, &ts);
     }
+    g_woken = 0;
     pthread_mutex_unlock(&g_lock);
 }
 

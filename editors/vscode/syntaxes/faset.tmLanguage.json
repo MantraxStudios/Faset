@@ -272,6 +272,15 @@
           "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally)\\b"
         },
         {
+          "comment": "async / await (palabras contextuales: await seguido de una expresión, async antes de un tipo o una lambda)",
+          "name": "keyword.control.async.faset",
+          "match": "\\bawait\\b(?=\\s*[A-Za-z_(@\"$])"
+        },
+        {
+          "name": "storage.modifier.async.faset",
+          "match": "\\basync\\b(?=\\s+[A-Za-z_(]|\\s*\\()"
+        },
+        {
           "comment": "Filtro de excepciones: catch (Exception e) when (condición)",
           "name": "keyword.control.faset",
           "match": "\\bwhen\\b(?=\\s*\\()"

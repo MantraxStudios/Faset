@@ -6,6 +6,7 @@
 #   tests/errors/*.fst     deben producir errores de compilación; si hay un .expected, cada
 #                          línea 'N|regex' debe aparecer como error en la línea N
 #   tests/projects/*/      compila el proyecto indicado en 'main' y compara con 'expected'
+#   tests/async_ui/        async/await en std.ui sin pantalla (continuaciones en el hilo de la interfaz)
 #   tests/debug/           información de depuración: '#line' en el C de Debug y gdb (si está) para
 #                          en una línea de Faset, muestra sus variables y avanza paso a paso
 #   tests/lsp/test.js      servidor de lenguaje (si hay Node)
@@ -82,6 +83,17 @@ if [ -n "$CLANG" ]; then
     else
         echo "FALLO  orden_evaluacion con clang (salida distinta)"; cat "$TMP/orden_clang.diff"; fail=$((fail+1))
     fi
+fi
+
+# async/await en std.ui sin pantalla: el manejador 'async void' de un botón espera (Task.Delay y
+# Task.Run) y sigue en el hilo de la interfaz (UiSynchronizationContext), donde cambia la etiqueta.
+if ! $FASET build tests/async_ui/MainWindow.fstui tests/async_ui/Main.fst -o "$TMP/async_ui" > /dev/null 2> "$TMP/async_ui.err"; then
+    echo "FALLO  async_ui (no compila)"; cat "$TMP/async_ui.err"; fail=$((fail+1))
+elif aout=$(cd tests/async_ui && FASET_UI_SCREENSHOT="$TMP/async_ui.bmp" FASET_UI_SCRIPT="click 50 25 | wait 400" \
+            timeout 30 "$TMP/async_ui" 2>&1) && [ "$aout" = "$(cat tests/async_ui/expected)" ] && [ -s "$TMP/async_ui.bmp" ]; then
+    echo "ok     async_ui"; pass=$((pass+1))
+else
+    echo "FALLO  async_ui: $aout"; fail=$((fail+1))
 fi
 
 # Depurador: el C de Debug (o con -g) lleva '#line N "archivo.fst"', el de Release no, y gdb

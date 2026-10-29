@@ -7,6 +7,7 @@
 
 #include "AST.h"
 #include "Sugar.h"
+#include "Async.h"
 
 struct NamespaceSym {
     std::string name;  // nombre completo con puntos; "" = global
@@ -92,6 +93,11 @@ public:
     static bool derivesFrom(ClassDecl* c, ClassDecl* target);  // c es target, deriva o lo implementa
     static MethodDecl* paramlessCtor(ClassDecl* c);
     MethodDecl* typeFromHandle() const;
+    // ---- async / await (Async.cpp)
+    std::vector<AsyncInfo*> asyncFns;          // métodos y lambdas async comprobados
+    MethodDecl* entryWait = nullptr;           // Task.RunMain(Task): Main async (espera y relanza)
+    FieldDecl* entryResult = nullptr;          // campo con el resultado de Task<int> (código de salida)
+    std::string awaitHover(Type* t);           // " (await → T)" para el IntelliSense de Task<T>
 
 private:
     struct Ctx {
@@ -110,6 +116,8 @@ private:
         std::vector<ExcRegion> excRegions;
         std::vector<char> excHandlers;  // 'C' dentro de un catch, 'F' dentro de un finally ('throw;')
         int excTryDepth = 0;            // sentencias 'try' abiertas (para las variables 'volatile')
+        AsyncInfo* async = nullptr;     // método o lambda 'async' cuyo cuerpo se comprueba (Async.cpp)
+        int filterDepth = 0;            // dentro de un filtro 'when' (no admite 'await')
     };
     struct CtxSave {
         Sema& s;
@@ -266,6 +274,25 @@ private:
     bool excAlwaysReturns(TryStmt* t);
     bool excContainsBreak(TryStmt* t);
     Type* primitiveStaticMember(MemberExpr* e, Type* t);  // int.Parse, double.TryParse, char.IsDigit...
+    // ---- async / await (Async.cpp): máquinas de estados. Sema comprueba 'await' con el patrón
+    // GetAwaiter/IsCompleted/OnCompleted/GetResult y saca cada 'await' de su expresión a una
+    // sentencia AwaitStmt (con los operandos anteriores en temporales, en orden).
+    int awaitCount_ = 0;                    // 'await' comprobados (para saber si una sentencia tiene alguno)
+    void checkStmtCore(Stmt* s);
+    ClassDecl* taskDecl(bool generic);      // std.task.Task / Task<T>
+    Type* taskOf(Type* result, SourceLoc loc);  // Task (result void) o Task<result>
+    Type* asyncResultOf(Type* ret);         // T de Task<T>, void de Task; nullptr si no es una tarea
+    AsyncInfo* asyncBegin(MethodDecl* fn, Type* ret, LambdaExpr* lambda, SourceLoc loc);
+    void asyncEnd(AsyncInfo* a, BlockStmt* body);
+    Type* checkAwait(AwaitExpr* e);
+    void asyncLowerStmt(Stmt* s);
+    void asyncSpill(Expr*& e, std::vector<Stmt*>& pre);
+    VarInfo* asyncTemp(Expr*& e, std::vector<Stmt*>& pre);
+    Stmt* asyncAwaitStmt(AwaitExpr* aw, bool wantResult);
+    void asyncValidate(Stmt* s);
+    Type* asyncLambdaReturnType(LambdaExpr* t);
+    void asyncNoteLocal(VarInfo* v);
+    bool asyncCheckEntry(MethodDecl* m);
     // ---- azúcar sintáctico (Sugar.cpp): foreach, interpolación, ?? ?. , T?, tuplas, patrones,
     // switch de expresión, params, deconstrucción y 'default'. Casi todo se reescribe (campo
     // 'lowered' de Expr/Stmt) en construcciones que CodeGen ya sabe emitir.

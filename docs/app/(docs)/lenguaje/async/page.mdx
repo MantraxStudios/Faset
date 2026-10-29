@@ -1,0 +1,354 @@
+export const metadata = {
+  title: "async y await",
+  description: "Métodos y lambdas async, await, Task y Task<T>, cancelación, planificadores (grupo de hilos e hilo de la interfaz) y cómo se compilan a máquinas de estados.",
+};
+
+# async y await
+
+<p className="lead">
+  Faset tiene <code>async</code> y <code>await</code> como C#: un método <code>async</code> puede
+  esperar una tarea sin bloquear el hilo, y el compilador lo convierte en una{" "}
+  <strong>máquina de estados</strong> que se suspende en cada <code>await</code> y continúa cuando la
+  tarea termina. Las tareas (<code>Task</code>, <code>Task&lt;T&gt;</code>), la cancelación y los
+  planificadores están en <code>std.task</code>.
+</p>
+
+## Un primer ejemplo
+
+```faset
+using std.task;
+
+static async Task<int> Sumar(int a, int b)
+{
+    await Task.Delay(100);        // no bloquea: el método se suspende y vuelve a los 100 ms
+    return a + b;
+}
+
+static async Task Main()
+{
+    Task<int> t = Sumar(1, 2);    // empieza ya; devuelve la tarea enseguida
+    println("esperando...");
+    int r = await t;              // 3
+    println(r);
+}
+```
+
+- Un método `async` devuelve `Task` (sin resultado), `Task<T>` (su `return` da un `T`) o `void`
+  (solo para manejadores de eventos: ver [async void](#async-void)).
+- `await` solo se puede usar dentro de un método o una lambda `async`. Si la tarea ya terminó, sigue
+  sin suspenderse; si no, el método devuelve el control a quien lo llamó y continúa después.
+- `Main` puede ser `static async Task Main()` o `static async Task<int> Main()` (el entero es el
+  código de salida). El programa espera a la tarea; si falla, la excepción termina el programa como
+  cualquier excepción no controlada.
+
+## Tareas: `Task` y `Task<T>`
+
+```faset
+using std;
+using std.collections;
+using std.task;
+
+static async Task<string> Descargar(string nombre, int ms)
+{
+    await Task.Delay(ms);
+    return nombre + " listo";
+}
+
+static async Task Main()
+{
+    // Varias a la vez: empiezan todas y se espera a todas.
+    List<string> todas = await Task.WhenAll(Descargar("a", 30), Descargar("b", 10));
+    println(todas[0] + ", " + todas[1]);              // a listo, b listo
+
+    // La primera que termine.
+    Task primera = await Task.WhenAny(Task.Delay(500), Task.Delay(5));
+    println(primera.IsCompleted);                     // true
+
+    // Trabajo en el grupo de hilos (también acepta lambdas async).
+    int n = await Task.Run(() => 6 * 7);
+    println(n);                                       // 42
+
+    // Ya terminadas, continuaciones y espera bloqueante.
+    println(await Task.FromResult(5));                // 5
+    int doble = await Task.FromResult(4).ContinueWith(t => t.Result * 2);
+    println(doble);                                   // 8
+    println(Descargar("c", 1).Result);                // c listo (bloquea el hilo hasta que termine)
+}
+```
+
+| Miembro | Qué hace |
+|---|---|
+| `Task.Run(() => ...)` | Ejecuta en el grupo de hilos de las tareas (`Action`, `Func<T>` y lambdas `async`) |
+| `Task.Delay(ms)`, `Task.Delay(ms, token)` | Termina pasado el plazo; lo completa un hilo de temporizadores, sin ocupar un hilo del grupo |
+| `Task.WhenAll(...)`, `Task.WhenAny(...)` | Todas (con `Task<T>`: una `List<T>` con los resultados en orden) / la primera |
+| `Task.FromResult(v)`, `Task.CompletedTask`, `Task.FromException(e)`, `Task.FromCanceled()` | Tareas ya terminadas |
+| `Task.Yield()` | `await Task.Yield()` siempre suspende y sigue más tarde |
+| `t.Result`, `t.Wait()`, `t.Wait(ms)` | Esperar **bloqueando** el hilo (relanzan la excepción de la tarea) |
+| `t.IsCompleted`, `IsCompletedSuccessfully`, `IsFaulted`, `IsCanceled`, `Status`, `Exception` | Estado |
+| `t.ContinueWith(t => ...)` | Continuación (en el grupo de hilos) |
+| `t.ConfigureAwait(false)` | El resto del método no vuelve al contexto (sigue en el grupo de hilos) |
+| `TaskCompletionSource<T>` | Una tarea que completa tu propio código (para envolver APIs con callbacks) |
+
+## Excepciones
+
+Una excepción no atrapada dentro de un método `async` (o de `Task.Run`) **se guarda en la tarea**:
+`IsFaulted` pasa a `true`, `Exception` la devuelve, y `await`, `Result` y `Wait()` la vuelven a lanzar
+(la misma excepción, con su `StackTrace` original). `try`/`catch`/`finally` funcionan alrededor de los
+`await`, y también puede haber `await` dentro de `catch` y de `finally`:
+
+```faset
+using std.task;
+
+static async Task Falla(string msg)
+{
+    await Task.Delay(5);
+    throw new InvalidOperationException(msg);
+}
+
+static async Task Main()
+{
+    try
+    {
+        await Task.Delay(1);
+        await Falla("se rompió");            // la excepción llega aquí tras la suspensión
+        println("no se ve");
+    }
+    catch (InvalidOperationException e)
+    {
+        await Task.Delay(1);                 // 'await' dentro del catch
+        println("atrapada: " + e.Message);   // atrapada: se rompió
+    }
+    finally
+    {
+        await Task.Delay(1);                 // y dentro del finally
+        println("finally");
+    }
+
+    Task t = Falla("guardada");
+    try { t.Wait(); } catch (Exception e) { }
+    println(t.IsFaulted + " " + t.Exception.Message);   // True guardada
+}
+```
+
+`WhenAll` falla con la primera excepción de sus tareas. Una `OperationCanceledException` no deja la
+tarea con error sino **cancelada** (`IsCanceled`).
+
+## Cancelación
+
+La cancelación es cooperativa: quien quiere cancelar llama a `Cancel()` de un
+`CancellationTokenSource`; el código cancelable recibe su `Token` y comprueba
+`IsCancellationRequested` o llama a `ThrowIfCancellationRequested()`, que lanza
+`OperationCanceledException`. `Task.Delay(ms, token)` se cancela sola (`TaskCanceledException`).
+
+```faset
+using std.task;
+
+static async Task<int> Contar(CancellationToken token)
+{
+    int n = 0;
+    while (true)
+    {
+        token.ThrowIfCancellationRequested();
+        await Task.Delay(5);
+        n++;
+    }
+}
+
+static async Task Main()
+{
+    var cts = new CancellationTokenSource();
+    Task<int> t = Contar(cts.Token);
+    await Task.Delay(30);
+    cts.Cancel();
+    try
+    {
+        await t;
+    }
+    catch (OperationCanceledException e)
+    {
+        println("cancelada: " + t.IsCanceled);          // cancelada: True
+    }
+
+    var limite = new CancellationTokenSource(10);       // se cancela sola a los 10 ms
+    try { await Task.Delay(60000, limite.Token); }
+    catch (TaskCanceledException e) { println("Delay cancelado"); }
+    limite.Token.Register(() => println("ya estaba cancelado: se ejecuta enseguida"));
+}
+```
+
+## Lambdas async
+
+```faset
+using std;
+using std.task;
+
+static async Task Main()
+{
+    int total = 0;
+    Func<int, Task<int>> sumar = async n =>
+    {
+        await Task.Delay(1);
+        total += n;                          // la misma variable que ve Main (captura por referencia)
+        return total;
+    };
+    println(await sumar(5));                 // 5
+    Func<Task> esperar = async () => await Task.Delay(1);
+    await esperar();
+    int r = await Task.Run(async () =>
+    {
+        await Task.Delay(1);
+        return 7;
+    });
+    println(total + r);                      // 12
+}
+```
+
+Una lambda `async` se convierte en `Func<Task>`, `Func<Task<T>>` o (sin resultado) `Action`; en las
+sobrecargas se prefiere el delegado que devuelve la tarea, como en C#.
+
+## Dónde sigue el método: planificadores
+
+Tras un `await`, el método sigue en el **contexto de sincronización** que había al esperar
+(`SynchronizationContext.Current`):
+
+- En un programa de consola no hay ninguno: la continuación corre en un hilo del **grupo de hilos**
+  de las tareas (`TaskScheduler`, un hilo por procesador, al menos 4). Esos hilos están registrados
+  en el recolector de basura. Si varios métodos `async` comparten datos, protégelos con un `Mutex`
+  como en cualquier programa con [hilos](/std/thread/).
+- En una aplicación `std.ui`, `Window.Run` instala un `UiSynchronizationContext` en el hilo de la
+  interfaz: los métodos `async` empezados en ese hilo (los manejadores de eventos) **vuelven a él**
+  después de cada `await`. La continuación se encola, despierta la espera del bucle de eventos y se
+  ejecuta entre dos eventos, así que se pueden tocar los controles sin cerrojos:
+
+```fst
+async void OnDescargar(Widget sender)
+{
+    lblEstado.Text = "Descargando...";
+    string html = await http.GetStringAsync("https://example.com/");   // la ventana sigue respondiendo
+    lblEstado.Text = "Recibidos " + html.Length + " bytes";            // de nuevo en el hilo de la interfaz
+}
+```
+
+`await tarea.ConfigureAwait(false)` sigue en el grupo de hilos aunque haya contexto. Un
+`SynchronizationContext` propio se escribe heredando de él y reemplazando `Post(Action)`, y se
+instala con `SynchronizationContext.SetSynchronizationContext`.
+
+<Callout type="aviso">
+  No esperes **bloqueando** (`.Result`, `.Wait()`) en el hilo de la interfaz a una tarea que necesita
+  volver a ese hilo: el hilo estaría parado esperando algo que solo él puede ejecutar (el mismo
+  interbloqueo que en C#). Usa `await`.
+</Callout>
+
+## async void
+
+`async void` existe para los manejadores de eventos (`Click="OnDescargar"`). No hay tarea que
+esperar ni donde guardar la excepción: una excepción no atrapada llega a quien ejecutaba la
+continuación (el bucle de la interfaz o un hilo del grupo) y, si nadie la atrapa, termina el
+programa. En el resto de los casos devuelve `Task`.
+
+## E/S asíncrona
+
+| API | |
+|---|---|
+| `HttpClient.GetStringAsync(url)`, `GetAsync`, `PostAsync`, `SendAsync` | Errores como `HttpRequestException` (`StatusCode`); un 4xx/5xx también en `GetStringAsync` |
+| `File.ReadAllTextAsync`, `WriteAllTextAsync`, `AppendAllTextAsync` | `FileNotFoundException` / `IOException` al hacer `await` |
+| `TcpClient.ConnectAsync`, `ReadAsync`, `ReadToEndAsync`, `WriteAsync` | |
+| `Task.Delay` | Hilo de temporizadores (no bloquea ningún hilo del grupo) |
+
+Las operaciones de red y de archivos todavía usan llamadas bloqueantes del sistema: cada una corre en
+un hilo del grupo de tareas y `await` no bloquea a quien espera (ni a la interfaz). Es correcto y
+portátil (Linux, Windows y Android); con miles de operaciones de red simultáneas, un reactor con
+`epoll`/IOCP sería más eficiente (ver [limitaciones](/lenguaje/limitaciones/)).
+
+## Esperar cualquier cosa: el patrón *awaitable*
+
+`await x` funciona con cualquier tipo que tenga `GetAwaiter()`, y el *awaiter* devuelto
+`bool IsCompleted`, `void OnCompleted(Action continuacion)` y `GetResult()` (su tipo es el del
+`await`). `Task` y `Task<T>` son su propio *awaiter*.
+
+```faset
+using std;
+using std.task;
+
+class Siempre
+{
+    public int Valor;
+    public Siempre GetAwaiter() => this;
+    public bool IsCompleted => true;               // nunca suspende
+    public void OnCompleted(Action continuacion) { continuacion(); }
+    public int GetResult() => Valor;
+}
+
+static async Task Main()
+{
+    var s = new Siempre();
+    s.Valor = 9;
+    println(await s);                              // 9
+}
+```
+
+## Cómo se compila
+
+El compilador (`src/Async.cpp` y `src/CodeGenAsync.cpp`) reescribe cada método `async` en una
+**máquina de estados** sin cambiar de pila (lo natural al generar C):
+
+1. **El marco.** Las variables locales, los parámetros, los temporales y los marcos de `try` del
+   método viven en un objeto del recolector (el *marco*), no en la pila de C: sobreviven a cada
+   suspensión. La función original solo crea el marco, la tarea y la continuación (un `Action` que
+   vuelve a llamar a la máquina) y ejecuta el primer paso.
+2. **Los `await` pasan a ser sentencias.** Cada `await` se saca de su expresión; lo que se evalúa
+   antes que él (el receptor, los argumentos y los operandos de su izquierda) se guarda antes en
+   temporales, así que el orden de evaluación es el de C#: en `F(a(), await t, b())`, `a()` se
+   ejecuta antes de esperar y `b()` después. `&&`, `||` y `?:` con un `await` en la parte que se
+   evalúa solo a veces se convierten en un `if`; `while (await ...)` en un bucle con `break`.
+3. **Suspender.** `a = t.GetAwaiter(); if (!a.IsCompleted) { estado = N; a.OnCompleted(continuar);
+   return; }`. Al reanudar, la función de paso salta (`goto`) al punto `N` y toma `a.GetResult()`.
+4. **Terminar.** `return v` guarda `v` y completa la tarea (`SetResult`); una excepción no atrapada
+   la marca con error (`SetException`).
+
+### `try`, `catch` y `finally` alrededor de un `await`
+
+Las [excepciones](/lenguaje/excepciones/#cómo-funcionan-y-cuánto-cuestan) usan `setjmp`/`longjmp`:
+cada `try` enlaza un marco con un `jmp_buf` que apunta a la pila de C, y esa pila deja de existir al
+suspender. Por eso:
+
+- **Al suspender**, el método desapila todos sus marcos de `try` (sin ejecutar ningún `catch` ni
+  `finally`: el `try` no ha terminado).
+- **Los marcos** (`jmp_buf`, la excepción atrapada) y el estado del `finally` (salir normalmente, con
+  una excepción pendiente o con un `return`/`break`/`continue` pendiente) son campos del marco del
+  método, así que sobreviven.
+- **Al reanudar**, la máquina no salta directamente al `await`: salta a la *entrada de reanudación*
+  del `try` más externo que lo contiene, que vuelve a enlazar el marco y a llamar a `setjmp` en la
+  pila actual; dentro, sigue hacia el siguiente `try` interior y por último al `await`. Cada `try`
+  queda partido en tramos, uno por reanudación, con su marco restablecido en cada uno.
+- **Un `await` dentro de un `catch` o de un `finally`** no necesita reentrada en ese `try` (su marco
+  ya estaba desapilado): `throw;` usa la excepción guardada en el marco y el `finally` sigue con lo
+  que tenía pendiente.
+
+Así, una excepción lanzada antes o después de la suspensión la atrapa el mismo `catch` y el `finally`
+se ejecuta una sola vez, al terminar el `try`.
+
+### Coste
+
+- Una llamada a un método `async` reserva el marco, la tarea y la continuación (tres objetos). Un
+  `await` de una tarea ya terminada no suspende ni reserva nada más.
+- Cada suspensión registra la continuación en la tarea y, al terminar esta, la encola en el grupo de
+  hilos (o en el contexto). Las variables del método se leen a través del marco (una indirección).
+- Un método sin `await` dentro funciona igual (síncrono, con su tarea ya completada al volver).
+
+## Lo que no se admite (errores de compilación)
+
+El compilador nunca convierte un `await` en una espera bloqueante: si no puede suspender en esa
+posición, es un error con la alternativa.
+
+| No admitido | Mensaje | Alternativa |
+|---|---|---|
+| `await` fuera de un método/lambda `async` | `'await' solo se puede usar dentro de un método 'async'` | Marca el método `async Task` |
+| En la condición o el incremento de un `for`, en la condición de un `do`-`while`, dentro de `?.` o `??=`, en una referencia `ref` | `no se puede usar 'await' en esta posición` | `var x = await ...;` antes, o `while (true) { ... }` |
+| En un filtro `when` | `no se puede usar 'await' en un filtro 'when'` | Igual que en C#: espera dentro del `catch` |
+| Parámetros `ref`/`out`, métodos de instancia de un `struct`, constructores, propiedades | `un método async no puede ...` | Una clase, un método estático o devuelve un resultado |
+| Tipo de retorno distinto de `void`, `Task` y `Task<T>` | `un método async debe devolver void, Task o Task<T>` | |
+
+Diferencias con C#: `x += await f()` lee `x` después de esperar (C# lo lee antes); no hay
+`IAsyncEnumerable`/`await foreach`, `ValueTask` ni `async` en métodos locales; `Wait()` y `Result`
+lanzan la excepción original en lugar de una `AggregateException`, y `WhenAll` falla con la primera.

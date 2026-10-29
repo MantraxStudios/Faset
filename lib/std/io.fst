@@ -15,6 +15,7 @@
 //  funciones Free* se conservan por compatibilidad.
 // =============================================================================
 using std.collections;
+using std.task;
 using std.text;
 
 namespace std.io
@@ -541,6 +542,28 @@ namespace std.io
 
         public static bool WriteAllText(string path, string text) => WriteAllBytes(path, text.Ptr, text.Length);
         public static bool AppendAllText(string path, string text) => AppendAllBytes(path, text.Ptr, text.Length);
+
+        // ---------------------------------------------------------------- async (std.task)
+        // No hay E/S de archivos no bloqueante portátil (Linux, Windows y Android): la operación
+        // corre en un hilo del grupo de tareas y 'await' no bloquea a quien espera (ni a la interfaz).
+        // Los errores llegan como excepciones al hacer 'await' (FileNotFoundException, IOException).
+        public static Task<string> ReadAllTextAsync(string path) => Task.Run(() => ReadAllText(path));
+
+        public static Task WriteAllTextAsync(string path, string text)
+        {
+            return Task.Run(() =>
+            {
+                if (!WriteAllText(path, text)) throw new IOException("File.WriteAllTextAsync: no se puede escribir el archivo '" + path + "'");
+            });
+        }
+
+        public static Task AppendAllTextAsync(string path, string text)
+        {
+            return Task.Run(() =>
+            {
+                if (!AppendAllText(path, text)) throw new IOException("File.AppendAllTextAsync: no se puede escribir el archivo '" + path + "'");
+            });
+        }
         public static bool WriteAllBytes(string path, byte* data, long length) => WriteRaw(path, data, length, 2 | 4 | 8);
         public static bool AppendAllBytes(string path, byte* data, long length) => WriteRaw(path, data, length, 2 | 4 | 32);
 

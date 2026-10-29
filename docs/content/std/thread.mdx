@@ -53,6 +53,34 @@ int main()
 }
 ```
 
+Para trabajo que **espera** (red, archivos, temporizadores) en lugar de calcular, usa
+[`async` y `await`](/lenguaje/async/) con las tareas de [`std.task`](/std/task/): `Task.Run(() => ...)`
+ejecuta en un grupo de hilos compartido, `await` no bloquea el hilo que espera y, en una aplicación
+`std.ui`, el método vuelve al hilo de la interfaz después de cada `await`. `Task.Delay` no ocupa ningún
+hilo del grupo (lo completa un hilo de temporizadores). `Thread`, `ThreadPool` y `Channel<T>` siguen
+siendo la herramienta para hilos de larga vida y para repartir cálculo.
+
+```faset
+using std.task;
+
+static async Task<long> SumarHasta(long n)
+{
+    return await Task.Run(() =>
+    {
+        long s = 0;
+        for (long i = 1; i <= n; i++) s += i;   // en un hilo del grupo
+        return s;
+    });
+}
+
+static async Task Main()
+{
+    Task<long> a = SumarHasta(1000);
+    Task<long> b = SumarHasta(2000);
+    println(await a + await b);                  // 2501500
+}
+```
+
 Todas las operaciones atómicas son secuencialmente consistentes. Los hilos se registran solos en el
 [recolector de basura](/lenguaje/memoria/#hilos), que recorre sus pilas: el objeto que pasas como `arg`
 sigue vivo mientras el hilo lo use. Protege con un `Mutex` el estado que varios hilos modifican: una

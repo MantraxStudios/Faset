@@ -1,0 +1,27 @@
+1) excepción después de varios await
+  try: antes
+  try: tras el primer await
+  catch: fallo 5
+  catch: tras await
+  finally: antes
+  finally: después
+2) excepción antes del primer await (sin suspender)
+  catch: inmediata
+3) return pendiente y finally con await
+  finally de ConFinally
+  resultado 42
+4) try anidados
+  finally interno
+  finally interno tras await
+  externo: interna
+5) throw; tras un await en el catch
+  catch: relanzada
+  arriba: relanzada (InvalidOperationException)
+6) break/continue a través de try con await
+  ok0 f0 [impar 1] f1 ok2 f2 [impar 3] f3 
+7) la excepción queda en la tarea
+  Wait: guardada
+  IsFaulted True, IsCompleted True, Exception guardada
+  Result: DivideByZeroException
+  await Task.Run: en Task.Run
+fin

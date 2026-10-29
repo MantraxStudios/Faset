@@ -37,6 +37,7 @@
 //  con 'Connection: close').
 // =============================================================================
 using std.collections;
+using std.task;
 using std.text;
 
 namespace std.net
@@ -1643,6 +1644,34 @@ namespace std.net
             return r;
         }
 
+        // ---- async (std.task). Implementación con hilos: cada operación bloqueante corre en un hilo
+        // del grupo de tareas y 'await' no bloquea a quien espera. No uses el mismo TcpClient desde
+        // dos operaciones a la vez (como en C#, una lectura y una escritura simultáneas sí valen).
+        public Task<bool> ConnectAsync(string host, int port)
+        {
+            TcpClient self = this;
+            return Task.Run(() => self.Connect(host, port));
+        }
+
+        // Una lectura: añade a 'output' lo recibido (bytes añadidos; 0 = cerrada, -1 = error).
+        public Task<int> ReadAsync(StringBuilder output)
+        {
+            TcpClient self = this;
+            return Task.Run(() => self.Read(output));
+        }
+
+        public Task<string> ReadToEndAsync()
+        {
+            TcpClient self = this;
+            return Task.Run(() => self.ReadToEnd());
+        }
+
+        public Task<bool> WriteAsync(string text)
+        {
+            TcpClient self = this;
+            return Task.Run(() => self.Write(text));
+        }
+
         // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia).
         // Devuelve false si la conexión se cerró sin más datos o hubo un error.
         public bool ReadLine(out string line)
@@ -3022,6 +3051,17 @@ namespace std.net
         }
     }
 
+    // Error de una petición de HttpClient.GetAsync / GetStringAsync / PostAsync / SendAsync.
+    public class HttpRequestException : IOException
+    {
+        public int StatusCode;  // 0 si no hubo respuesta (no se pudo conectar, TLS...)
+        public HttpRequestException(string message, int statusCode)
+        {
+            Message = message;
+            StatusCode = statusCode;
+        }
+    }
+
     // Cliente HTTP/1.1 sencillo para http:// y https:// (TLS con TlsStream: certificado
     // verificado contra las autoridades del sistema; las redirecciones pueden cambiar de esquema).
     public memory_unsafe class HttpClient
@@ -3111,6 +3151,48 @@ namespace std.net
             req.SetBody(body, contentType);
             HttpResponse r = Send(req);
             delete req;
+            return r;
+        }
+
+        // ---- async (std.task). La petición corre en un hilo del grupo de tareas (conexión, TLS y
+        // lectura bloqueantes) y 'await' no bloquea a quien espera: en una ventana de std.ui, el
+        // resto del manejador sigue en el hilo de la interfaz. Si falla, la tarea lanza
+        // HttpRequestException al hacer 'await' (Error y ErrorMessage se comparten entre peticiones:
+        // usa un HttpClient por petición simultánea si los necesitas).
+        public Task<HttpResponse> GetAsync(string url)
+        {
+            HttpClient self = this;
+            return Task.Run(() => self.OrThrow(self.Get(url), url));
+        }
+
+        public Task<HttpResponse> PostAsync(string url, string body, string contentType)
+        {
+            HttpClient self = this;
+            return Task.Run(() => self.OrThrow(self.Post(url, body, contentType), url));
+        }
+
+        public Task<HttpResponse> SendAsync(HttpRequest request)
+        {
+            HttpClient self = this;
+            return Task.Run(() => self.OrThrow(self.Send(request), request.Url));
+        }
+
+        // El cuerpo de la respuesta; un código de estado de error (4xx, 5xx) también es una excepción.
+        public Task<string> GetStringAsync(string url)
+        {
+            HttpClient self = this;
+            return Task.Run(() =>
+            {
+                HttpResponse r = self.OrThrow(self.Get(url), url);
+                if (r.StatusCode >= 400)
+                    throw new HttpRequestException("HTTP " + r.StatusCode + " " + r.ReasonPhrase + ": " + url, r.StatusCode);
+                return String.Copy(r.Body);
+            });
+        }
+
+        HttpResponse OrThrow(HttpResponse r, string url)
+        {
+            if (r == null) throw new HttpRequestException(url + ": " + message, 0);
             return r;
         }
 

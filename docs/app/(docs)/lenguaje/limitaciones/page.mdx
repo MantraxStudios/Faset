@@ -22,6 +22,8 @@ export const metadata = {
 | `using static` | Nombre de la clase delante (`Math.Sqrt`) |
 | `goto`, `stackalloc`, `fixed` | — |
 | Operadores compuestos sobre la propiedad de un struct temporal (`F().X += 1`) | Guardar el struct en una variable |
+| `await` en la condición o el incremento de un `for`, en la condición de un `do`-`while`, dentro de `?.`/`??=` o en un filtro `when` | `var x = await ...;` antes (ver [async y await](/lenguaje/async/)) |
+| `await foreach`, `IAsyncEnumerable<T>`, `ValueTask`, métodos `async` en un `struct` o con parámetros `ref`/`out` | `Task<List<T>>`, una clase o un método estático |
 
 ## Otras notas
 
@@ -45,7 +47,14 @@ export const metadata = {
   `extern` dentro de código `memory_unsafe`.
 - `std.thread` y `std.net` en Windows suponen x86-64/ARM64 (los `extern` no declaran `__stdcall`).
   Varios hilos que escriben con `println` a la vez pueden intercalar líneas: protégelo con un `Mutex`.
-- `std.net` no tiene HTTPS/TLS, proxies, compresión ni keep-alive.
+- `std.net` no tiene proxies, compresión ni keep-alive.
+- [async y await](/lenguaje/async/): la E/S asíncrona de red y de archivos (`GetStringAsync`,
+  `ReadAllTextAsync`, `ConnectAsync`...) corre en hilos del grupo de tareas con llamadas bloqueantes
+  (no hay un reactor con `epoll`/IOCP), así que miles de operaciones de red simultáneas ocupan
+  muchos hilos; `Task.Delay` sí usa un único hilo de temporizadores. En `x += await f()` se lee `x`
+  después de esperar (C# lo lee antes). `async void` no guarda las excepciones: si nadie las atrapa,
+  terminan el programa. Esperar bloqueando (`.Result`, `.Wait()`) en el hilo de la interfaz a una
+  tarea que necesita volver a él lo bloquea para siempre (como en C#).
 - Android: `std.ui` no conoce los recortes de la pantalla (la barra de navegación se dibuja encima)
   ni redimensiona la ventana cuando aparece el teclado. Consulta [Android](/android/#limitaciones).
 - FasetStudio funciona en Linux (X11/XWayland); las aplicaciones `std.ui` funcionan en Linux, Windows

@@ -51,6 +51,7 @@ export const nav: NavSection[] = [
       { title: "Delegados y punteros a función", href: "/lenguaje/delegados/" },
       { title: "Lambdas y cierres", href: "/lenguaje/lambdas/" },
       { title: "Eventos", href: "/lenguaje/eventos/" },
+      { title: "async y await", href: "/lenguaje/async/" },
       { title: "LINQ", href: "/lenguaje/linq/" },
       { title: "Referencias, ref y out", href: "/lenguaje/referencias/" },
       { title: "Namespaces, using e import", href: "/lenguaje/namespaces/" },
