@@ -315,6 +315,10 @@ int32_t faset_android_clipboard_get(uint8_t** out) {
     return n;
 }
 
+/* Para otras capas nativas (lib/android/faset_webview.c): JNIEnv del hilo actual y la actividad. */
+JNIEnv* faset_android_jni(void) { return jni(); }
+jobject faset_android_activity(void) { return g_app ? g_app->activity->clazz : NULL; }
+
 /* ------------------------------------------------------------------ actividad (hilo del pegamento) */
 
 static void on_cmd(struct android_app* app, int32_t cmd) {

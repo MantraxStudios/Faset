@@ -439,11 +439,12 @@ namespace FasetStudio.Ide
         static bool clipboardOwned;
 
         public string RequestHandler = String.Copy("");   // método que la aplicación debe abrir en el código (copia)
+        public string RequestHandlerParams = "Widget sender";  // parámetros del manejador (MessageReceived lleva el texto)
         public string Status = "";           // mensaje para la barra de estado (vista de literal)
         public bool SwitchToCode;            // pide pasar a la vista de código
 
-        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel";
-        const int KindCount = 10;
+        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel|WebView";
+        const int KindCount = 11;
 
         public Designer(Document doc) { Doc = doc; }
 
@@ -837,7 +838,8 @@ namespace FasetStudio.Ide
         {
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
                           : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar"
-                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : "panel";
+                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox"
+                          : kind == "WebView" ? "webView" : "panel";
             for (int i = 1; ; i++)
             {
                 string num = Convert.ToString(i);
@@ -893,6 +895,12 @@ namespace FasetStudio.Ide
                 w = 200;
                 h = 160;
                 n.Set("Items", "Item 1;Item 2;Item 3;Item 4");
+            }
+            else if (kind == "WebView")
+            {
+                w = 360;
+                h = 240;
+                n.Set("Source", "https://");
             }
             else if (kind == "Slider")
             {
@@ -1121,10 +1129,12 @@ namespace FasetStudio.Ide
             }
             String.Free(RequestHandler);
             RequestHandler = method;
+            RequestHandlerParams = ev == "MessageReceived" ? "Widget sender, string message" : "Widget sender";
         }
 
         static string MainEvent(string kind) =>
-            kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed" : "Click";
+            kind == "WebView" ? "Navigated"
+            : kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed" : "Click";
 
         // ------------------------------------------------------------------ propiedades
 
@@ -1162,6 +1172,11 @@ namespace FasetStudio.Ide
             Def(l, "Name", 7, "", "", "Control");
             if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Text", 0, "", "", "Control");
             if (k == "TextBox" || k == "ComboBox") Def(l, "Placeholder", 0, "", "", "Control");
+            if (k == "WebView")
+            {
+                Def(l, "Source", 0, "", "", "Control");
+                Def(l, "Html", 0, "", "", "Control");
+            }
             if (k == "ComboBox" || k == "ListBox")
             {
                 Def(l, "Items", 0, "", "", "Control");
@@ -1184,7 +1199,7 @@ namespace FasetStudio.Ide
                 Def(l, "TextAlign", 4, "Left|Center|Right", "Left", "Appearance");
             }
             if (k == "Panel") Def(l, "Style", 4, "Default|Subtle", "Default", "Appearance");
-            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar" || k == "ComboBox" || k == "ListBox")
+            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar" || k == "ComboBox" || k == "ListBox" || k == "WebView")
                 Def(l, "CornerRadius", 1, "", "", "Appearance");
             if (k == "CheckBox" || k == "RadioButton") Def(l, "Checked", 3, "", "false", "Behavior");
             if (k == "RadioButton") Def(l, "Group", 0, "", "", "Behavior");
@@ -1204,8 +1219,14 @@ namespace FasetStudio.Ide
             if (k != "Panel" && k != "Slider" && k != "ProgressBar") Def(l, "Foreground", 8, "", "", "Colors");
             if (box) Def(l, "BorderColor", 8, "", "", "Colors");
             if (k == "CheckBox" || k == "RadioButton" || k == "Slider" || k == "ProgressBar") Def(l, "Accent", 8, "", "", "Colors");
-            Def(l, "Enabled", 3, "", "true", "Behavior");
+            if (k != "WebView") Def(l, "Enabled", 3, "", "true", "Behavior");
             Def(l, "Visible", 3, "", "true", "Behavior");
+            if (k == "WebView")
+            {
+                Def(l, "Navigated", 6, "", "", "Events");
+                Def(l, "TitleChanged", 6, "", "", "Events");
+                Def(l, "MessageReceived", 6, "", "", "Events");
+            }
             if (k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Click", 6, "", "", "Events");
             if (k == "TextBox" || k == "CheckBox" || k == "Slider" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
                 Def(l, "Changed", 6, "", "", "Events");
@@ -2293,6 +2314,7 @@ namespace FasetStudio.Ide
                 r.PopClip();
                 delete items;
             }
+            else if (k == "WebView") DrawWebViewNode(r, n, x, y, w, h, border2);
             else if (k == "Slider" || k == "ProgressBar")
             {
                 float min = n.Num("Min", 0), max = n.Num("Max", 100);
@@ -2395,6 +2417,44 @@ namespace FasetStudio.Ide
             }
         }
 
+        // Vista previa del WebView: marco de navegador con la dirección (la página se ve al ejecutar).
+        void DrawWebViewNode(Renderer r, UiNode n, float x, float y, float w, float h, Color border)
+        {
+            float rad = Z(n.Int("CornerRadius", 8));
+            r.RoundRect(x, y, w, h, rad, NodeColor(n, "Background", Pal(1)));
+            r.RoundBorder(x, y, w, h, rad, 1, border);
+            float bar = Z(34) < h ? Z(34) : h;
+            r.PushClip(x + 1, y + 1, w - 2, h - 2);
+            r.Rect(x, y + bar, w, 1, Pal(2));
+            Color dim = Pal(6);
+            float cy = y + bar / 2;
+            r.Text(r.Icons, x + Z(10), cy - Z(9), "‹", dim);
+            r.Text(r.Icons, x + Z(30), cy - Z(9), "›", dim);
+            r.RoundBorder(x + Z(50), cy - Z(5), Z(10), Z(10), Z(5), 1.4f, dim);
+            float ax = x + Z(70), aw = w - Z(80);
+            if (aw > Z(20))
+            {
+                r.RoundRect(ax, y + Z(6), aw, bar - Z(12), (bar - Z(12)) / 2, Pal(4));
+                r.RoundBorder(ax, y + Z(6), aw, bar - Z(12), (bar - Z(12)) / 2, 1, Pal(2));
+                string src = n.Get("Source");
+                string addr = n.Has("Html") && src.Length == 0 ? "(HTML)" : (src.Length > 0 ? src : "about:blank");
+                r.PushClip(ax + Z(10), y, aw - Z(20), bar);
+                CenteredText(r, ZFont(r, 12, false), addr, ax + Z(12), y, aw - Z(24), bar, 0, dim);
+                r.PopClip();
+            }
+            float bodyH = h - bar;
+            if (bodyH > Z(40))
+            {
+                float gx = x + w / 2, gy = y + bar + bodyH / 2 - Z(14);
+                float gr = bodyH > Z(120) ? Z(20) : Z(11);
+                r.RoundBorder(gx - gr, gy - gr, gr * 2, gr * 2, gr, 1.5f, dim);
+                r.RoundBorder(gx - gr * 0.45f, gy - gr, gr * 0.9f, gr * 2, gr * 0.45f, 1.3f, dim);
+                r.Rect(gx - gr, gy - 0.6f, gr * 2, 1.3f, dim);
+                CenteredText(r, ZFont(r, 14, true), "WebView", x, gy + gr + Z(6), w, Z(22), 1, NodeColor(n, "Foreground", Pal(5)));
+            }
+            r.PopClip();
+        }
+
         void DrawToolIcon(Renderer r, string kind, float x, float y)
         {
             Color c = Theme.TextSecondary;
@@ -2444,6 +2504,13 @@ namespace FasetStudio.Ide
                 r.Rect(x + 4, y + 6, 14, 1.5f, c);
                 r.RoundRect(x + 3, y + 9, 16, 4, 1.5f, dim);
                 r.Rect(x + 4, y + 15, 10, 1.5f, c);
+            }
+            else if (kind == "WebView")
+            {
+                // Globo terráqueo
+                r.RoundBorder(x + 2, y + 1, 19, 19, 9.5f, 1.2f, c);
+                r.RoundBorder(x + 7.5f, y + 1, 8, 19, 4, 1.2f, c);
+                r.Rect(x + 2, y + 10, 19, 1.2f, c);
             }
             else
             {

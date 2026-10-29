@@ -140,6 +140,13 @@ const std::vector<AttrSpec>& uiAttrs() {
         {"Accent", "Color de acento: relleno de casillas, barras y deslizadores ('#RRGGBB').", {}},
         {"Click", "Método que se llama al hacer clic: void Nombre(Widget sender).", {}, false, true},
         {"Changed", "Método que se llama cuando cambia el valor: void Nombre(Widget sender).", {}, false, true},
+        {"Source", "Dirección que carga el WebView (https://..., file://...).", {}},
+        {"Html", "Documento HTML que muestra el WebView (en vez de Source).", {}},
+        {"Navigated", "Método que se llama al terminar de cargar una página: void Nombre(Widget sender).", {}, false, true},
+        {"TitleChanged", "Método que se llama cuando cambia el título de la página: void Nombre(Widget sender).", {}, false, true},
+        {"MessageReceived",
+         "Método que se llama cuando la página llama a window.faset.postMessage(texto): void Nombre(Widget sender, string message).",
+         {}, false, true},
     };
     return v;
 }
@@ -159,6 +166,10 @@ const std::vector<ElemSpec>& uiControls() {
         {"RadioButton", "Botón de opción: solo uno de cada Group puede estar marcado.", {FST_COMMON, "Text", "Checked", "Group", "Accent", "Click", "Changed"}, {}},
         {"ComboBox", "Lista desplegable: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
         {"ListBox", "Lista de elementos: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
+        {"WebView", "Navegador web incrustado (WebKitGTK en Linux, android.webkit en Android). Desde JavaScript: window.faset.postMessage(texto).",
+         {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "CornerRadius", "Background", "Foreground", "BorderColor",
+          "Source", "Html", "Navigated", "TitleChanged", "MessageReceived"},
+         {}},
     };
     return v;
 }
@@ -759,8 +770,10 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
         if (!as) return;
         if (as->handler) {
             if (!code) return;
+            // MessageReceived recibe también el texto: void Nombre(Widget sender, string message).
+            bool message = a.name == "MessageReceived";
             for (const XmlUiCodeInfo::Method& m : code->methods)
-                if (m.handler) add(out, m.name, kMethod, m.signature);
+                if (m.handler && (m.signature.find(", string") != std::string::npos) == message) add(out, m.name, kMethod, m.signature);
             // Nombre propuesto para un manejador nuevo: On + nombre del control (sin prefijo) + evento.
             const XAttr* nm = t.attr("Name");
             std::string base = nm && !nm->value.empty() ? nm->value : t.name;
@@ -771,7 +784,8 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
             std::string fresh = "On" + base + a.name;
             bool exists = false;
             for (const XmlUiCodeInfo::Method& m : code->methods) exists |= m.name == fresh;
-            if (!exists) add(out, fresh, kMethod, "nuevo manejador: void " + fresh + "(Widget sender)");
+            if (!exists)
+                add(out, fresh, kMethod, "nuevo manejador: void " + fresh + (message ? "(Widget sender, string message)" : "(Widget sender)"));
             return;
         }
         if (a.name == "Class" && t.name == "Window") {

@@ -26,10 +26,11 @@ using std.collections;
 using std.text;
 using std.io;
 using std.os;
+using std.ui.webview;   // control WebView (lib/std/ui/webview.fst)
 
 namespace std.ui
 {
-    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox }
+    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox, WebView }
     public enum WidgetStyle { Default, Primary, Subtle, Danger }
     public enum TextAlign { Left, Center, Right }
     public enum UiTheme { Dark, Light }
@@ -652,7 +653,7 @@ namespace std.ui
     // ======================================================================= controles
 
     // Un control de la interfaz. Todos los tipos comparten esta clase y se distinguen por 'Kind'.
-    public memory_unsafe class Widget
+    public memory_unsafe partial class Widget
     {
         public WidgetKind Kind;
         public string Name = String.Copy("");
@@ -1142,6 +1143,9 @@ namespace std.ui
                 }
                 case WidgetKind.ListBox:
                     DrawListBox(c, p, w, font, fx, fy, fw, fh, focused, textColor);
+                    break;
+                case WidgetKind.WebView:
+                    DrawWebView(c, p, font, fx, fy, fw, fh);
                     break;
                 case WidgetKind.ProgressBar:
                 {
@@ -2037,7 +2041,12 @@ namespace std.ui
             while (open)
             {
                 UiEvent e;
-                while (open && native.Poll(out e)) HandleEvent(e);
+                WebViewHost.Pump();
+                while (open && native.Poll(out e))
+                {
+                    if (e.Kind == UiEventKind.MouseDown) WebViewHost.WindowClicked();
+                    HandleEvent(e);
+                }
                 if (!open) break;
                 bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
                 native.SetTextInput(editing);  // teclado en pantalla (Android)
@@ -2056,8 +2065,10 @@ namespace std.ui
                     Render();
                     native.Present(canvas);
                 }
-                native.Wait(editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000);
+                WebViewHost.Sync(this, native.Handle, native.Scale);
+                native.Wait(WebViewHost.WaitMs(editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000));
             }
+            WebViewHost.CloseAll();
             native.Destroy();
             return 0;
         }
@@ -2172,6 +2183,8 @@ namespace std.ui
         void* hwnd;
         byte* msg;
         byte* bmi;
+
+        internal ulong Handle => (ulong)hwnd;  // ventana padre de los controles nativos (WebView)
         List<UiEvent> queue = new List<UiEvent>();
         void* cursorArrow;
         void* cursorText;
@@ -2496,6 +2509,8 @@ namespace std.ui
         public float Scale = 1;
         int* ev;
         bool textInput;
+
+        internal ulong Handle => 0;  // los controles nativos (WebView) van en ventanas propias
         string clipboard = String.Copy("");
 
         ~NativeWindow()
@@ -2691,6 +2706,8 @@ namespace std.ui
         int width;
         int height;
         string clipboard = String.Copy("");
+
+        internal ulong Handle => window;  // ventana padre de los controles nativos (WebView)
 
         ~NativeWindow()
         {
