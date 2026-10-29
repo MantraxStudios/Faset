@@ -147,6 +147,26 @@ int main()
 }
 ```
 
+## Manejadores async
+
+Un manejador puede ser `async void` y esperar sin bloquear la ventana. `Window.Run` instala un
+contexto de sincronización en el hilo de la interfaz, así que después de cada `await` el método
+sigue en ese hilo y puede tocar los controles (ver [async y await](/lenguaje/async/)):
+
+```fst
+async void OnDescargar(Widget sender)
+{
+    btnDescargar.Enabled = false;
+    lblEstado.Text = "Descargando...";
+    string html = await http.GetStringAsync("https://example.com/");   // la ventana sigue respondiendo
+    lblEstado.Text = "Recibidos " + html.Length + " bytes";
+    btnDescargar.Enabled = true;
+}
+```
+
+Sin pantalla (`FASET_UI_SCREENSHOT`), el verbo `wait MS` del guion de pruebas ejecuta también las
+continuaciones que llegan durante la espera.
+
 ## Conectar eventos a mano
 
 Los controles creados con `Widget.Create` no tienen eventos hasta que les das una función y un número

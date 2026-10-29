@@ -1,0 +1,16 @@
+1) cancelación
+  cancelada: True, Canceled, faulted False
+  Delay cancelado: True
+  avisos 1, None False
+2) WhenAll y WhenAny
+  WhenAll: 123
+  WhenAny: la rápida True, lenta terminada False
+  WhenAll con error: w
+3) Task.Run, ContinueWith, TaskCompletionSource
+  Run: 42 43
+  ContinueWith: 50
+  TaskCompletionSource: desde otro hilo
+  ConfigureAwait: 3
+  FromResult: listo, Result 4
+4) async void
+  terminados 20

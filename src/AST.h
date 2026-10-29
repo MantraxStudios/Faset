@@ -71,6 +71,7 @@ struct Modifiers {
     bool isEvent = false;         // modificador contextual 'event' (campos de tipo delegado)
     // Herencia: virtual / override / abstract / sealed / new (ocultar un miembro heredado).
     bool isVirtual = false, isOverride = false, isAbstract = false, isSealed = false, isNew = false;
+    bool isAsync = false;  // modificador contextual 'async' (ver Async.cpp)
 };
 
 struct Attribute {
@@ -125,7 +126,8 @@ enum class EK {
     Lambda, DelegateConv,
     // Azúcar sintáctico (Sugar.cpp / SugarGen.cpp)
     Interp, CondAccess, CondRecv, Tuple, Let, SwitchExpr, IsPattern, ParamsList, MatchFail, CoalesceAssign,
-    Is, As, TypeOf, NameOf, With  // orientación a objetos (ver SemaClasses.cpp)
+    Is, As, TypeOf, NameOf, With,  // orientación a objetos (ver SemaClasses.cpp)
+    Await                          // async/await (ver Async.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -325,6 +327,7 @@ struct LambdaExpr : Expr {
     std::vector<ReturnStmt*> returns;
     std::map<std::string, LambdaExpr*> trials;  // copias de prueba por tipos de parámetros
     int id = -1;                      // índice en Sema::lambdas (se emite como fs_lamN)
+    bool isAsync = false;             // async () => ... (ver Async.cpp)
     explicit LambdaExpr(SourceLoc l) : Expr(EK::Lambda, l) {}
 };
 
@@ -388,7 +391,8 @@ struct WithExpr : Expr {  // registro with { X = 1, Y = 2 }
 // ---------------------------------------------------------------- sentencias
 
 enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty, Try, Throw,
-    Foreach, Deconstruct, Using };
+    Foreach, Deconstruct, Using,
+    Await };  // punto de espera de un método async (lo genera Async.cpp)
 
 struct Stmt {
     SK kind;
@@ -464,6 +468,7 @@ struct EmptyStmt : Stmt {
 
 struct ReturnStmt : Stmt {
     Expr* value = nullptr;
+    bool fromExprBody = false;  // cuerpo de expresión de una lambda async (async () => expr)
     explicit ReturnStmt(SourceLoc l) : Stmt(SK::Return, l) {}
 };
 
@@ -605,6 +610,7 @@ struct MethodDecl {
     MethodDecl* ctorInitTarget = nullptr;
     int recordGen = 0;                 // miembro generado por 'record' (1 ToString, 2 GetHashCode, 3 ==)
     std::vector<VarInfo*> patternVars; // variables de patrones 'is T x' (se declaran al inicio en C)
+    struct AsyncInfo* async = nullptr; // método o lambda 'async': máquina de estados (ver Async.cpp)
     bool isVirtualish() const { return mods.isVirtual || mods.isOverride || mods.isAbstract; }
 
     bool isStatic() const { return mods.isStatic; }
@@ -661,6 +667,8 @@ struct ClassDecl {
     std::vector<std::vector<MethodDecl*>> itabs;  // por cada allInterfaces: implementación de cada método
     int hierarchyState = 0;                // 0 sin resolver, 1 resolviendo, 2 lista
     bool isRecord = false;
+    // Mismo nombre con y sin parámetros de tipo en un namespace (Task y Task<T>): el otro.
+    ClassDecl* arityTwin = nullptr;
     bool isInterface() const { return kind == ClassKind::Interface; }
 
     bool isStaticClass() const { return mods.isStatic; }
@@ -806,6 +814,31 @@ struct UsingStmt : Stmt {
     Stmt* body = nullptr;         // nulo en 'using var' (llega hasta el final del bloque)
     std::vector<VarInfo*> vars;   // objetos a liberar (destructor) al salir
     explicit UsingStmt(SourceLoc l) : Stmt(SK::Using, l) {}
+};
+
+// ---------------------------------------------------------------- async / await (ver Async.cpp)
+
+// await operando. Sema lo comprueba con el patrón de C#: operando.GetAwaiter(), y sobre el
+// 'awaiter' IsCompleted, OnCompleted(Action) y GetResult(). Después lo saca de la expresión a una
+// sentencia AwaitStmt propia (los temporales de la izquierda se evalúan antes, en orden).
+struct AwaitExpr : Expr {
+    Expr* operand = nullptr;
+    VarInfo* opVar = nullptr;       // <op> = operando
+    VarInfo* awVar = nullptr;       // <aw> = <op>.GetAwaiter()
+    Expr* getAwaiter = nullptr;     // comprobadas, sobre las variables ocultas
+    Expr* isCompleted = nullptr;
+    Expr* onCompleted = nullptr;    // <aw>.OnCompleted(<continuación>)
+    Expr* getResult = nullptr;
+    bool spilled = false;           // ya se convirtió en un AwaitStmt
+    explicit AwaitExpr(SourceLoc l) : Expr(EK::Await, l) {}
+};
+
+// Punto de suspensión: evalúa el operando, y si no ha terminado guarda el estado, registra la
+// continuación y vuelve; al reanudar sigue aquí. 'result' recibe GetResult() (nulo si es void).
+struct AwaitStmt : Stmt {
+    AwaitExpr* aw = nullptr;
+    VarInfo* result = nullptr;
+    explicit AwaitStmt(SourceLoc l) : Stmt(SK::Await, l) {}
 };
 
 struct Program {

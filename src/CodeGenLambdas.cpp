@@ -112,10 +112,10 @@ std::string CodeGen::localRef(VarInfo* v) {
 void CodeGen::declareLocalVar(VarInfo* v, const std::string& init) {
     std::string t = ctype(v->type);
     if (!v->captured) {
-        line(t + " " + v->cname + " = " + (init.empty() ? zeroInit(v->type) : init) + ";");
+        emitLocalDecl(t, v->cname, init.empty() ? zeroInit(v->type) : init);
         return;
     }
-    line(t + "* " + v->cname + "_bx = (" + t + "*)faset_gc_alloc((int64_t)sizeof(" + t + "));");
+    emitLocalDecl(t + "*", v->cname + "_bx", "(" + t + "*)faset_gc_alloc((int64_t)sizeof(" + t + "))");
     if (!init.empty()) line("*" + v->cname + "_bx = " + init + ";");
 }
 
@@ -218,6 +218,10 @@ void CodeGen::emitLambdaBodies() {
         curLambda_ = l;
         curMethod_ = l->fn;
         curClass_ = l->ownerClass;
+        if (l->fn && l->fn->async) {  // lambda async: máquina de estados (CodeGenAsync.cpp)
+            emitAsyncLambda(l);
+            continue;
+        }
         std::string n = lamName(l);
         out_ << "static " << lambdaSig(l) << " {\n";
         indent_ = 1;

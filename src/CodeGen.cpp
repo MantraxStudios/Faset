@@ -280,7 +280,16 @@ std::string CodeGen::generate(bool shared) {
         out_ << "    faset_rt_init(argc, argv);\n";
         out_ << "    fs__static_init();\n";
         std::string call = m->cname + (m->params.empty() ? "()" : "(argc, (uint8_t**)argv)");
-        if (m->ret->isVoid()) {
+        if (MethodDecl* w = sema_.entryWait) {  // Main async: espera la tarea y relanza su excepción
+            out_ << "    void* fs_main_task = (void*)" << call << ";\n";
+            out_ << "    " << w->cname << "((" << ctype(w->params[0].type) << ")fs_main_task);\n";
+            if (FieldDecl* f = sema_.entryResult) {
+                out_ << "    int32_t r = ((" << m->ret->decl->cname << "*)fs_main_task)->" << fieldPath(m->ret->decl, f) << ";\n";
+                out_ << "    faset_rt_exit();\n    return (int)r;\n";
+            } else {
+                out_ << "    faset_rt_exit();\n    return 0;\n";
+            }
+        } else if (m->ret->isVoid()) {
             out_ << "    " << call << ";\n";
             out_ << "    faset_rt_exit();\n    return 0;\n";
         } else {
@@ -338,6 +347,10 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
 }
 
 void CodeGen::emitMethod(MethodDecl* m) {
+    if (m->async) {  // máquina de estados (CodeGenAsync.cpp)
+        emitAsyncMethod(m);
+        return;
+    }
     curMethod_ = m;
     setLoc(m->loc);
     lineDirective(m->loc);
@@ -387,6 +400,10 @@ void CodeGen::emitBody(Stmt* s) {
 
 void CodeGen::emitStmt(Stmt* s) {
     if (s->kind != SK::Block && s->kind != SK::Empty) setLoc(s->loc);
+    if (async_ && s->kind == SK::Return && !s->lowered) {  // 'return' de un método async (CodeGenAsync.cpp)
+        emitAsyncReturn(static_cast<ReturnStmt*>(s));
+        return;
+    }
     if (emitSugarStmt(s)) return;  // formas reescritas, bloques y 'using' (SugarGen.cpp)
     switch (s->kind) {
         case SK::Empty: break;
@@ -404,8 +421,8 @@ void CodeGen::emitStmt(Stmt* s) {
                 Type* t = dc.var->type;
                 std::string vq = dc.var->isVolatile ? " volatile " : " ";  // modificada dentro de un 'try'
                 if (dc.var->captured) declareLocalVar(dc.var, dc.init ? expr(dc.init) : "");  // caja compartida con lambdas
-                else if (dc.var->isRef) line(ctype(t) + "* " + dc.var->cname + " = &" + expr(dc.init) + ";");
-                else line(localType(t) + vq + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
+                else if (dc.var->isRef) emitLocalDecl(ctype(t) + "*", dc.var->cname, "&" + expr(dc.init));
+                else emitLocalDecl(localType(t), dc.var->cname, dc.init ? expr(dc.init) : zeroInit(t), vq);
             }
             break;
         }
@@ -500,6 +517,7 @@ void CodeGen::emitStmt(Stmt* s) {
         }
         case SK::Try: emitTry(static_cast<TryStmt*>(s)); break;
         case SK::Throw: emitThrow(static_cast<ThrowStmt*>(s)); break;
+        case SK::Await: emitAwait(static_cast<AwaitStmt*>(s)); break;  // CodeGenAsync.cpp
         default: break;  // SK del azúcar: SugarGen.cpp
     }
 }

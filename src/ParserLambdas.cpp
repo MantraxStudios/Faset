@@ -9,6 +9,33 @@
 // ¿Empieza aquí una lambda? 'nombre =>' o '( ... ) =>' (paréntesis equilibrados).
 // Si es así la analiza; si no, no consume nada y devuelve nullptr.
 Expr* Parser::tryParseLambda() {
+    // async x => ...  /  async (a, b) => { ... }  (ver Async.cpp)
+    if (cur().kind == TokKind::Ident && cur().text == "async" &&
+        (peekTok().kind == TokKind::Ident || (peekTok().kind == TokKind::Punct && peekTok().text == "("))) {
+        size_t save = p_;
+        p_++;
+        Expr* e = tryParseLambda();
+        if (!e) {
+            p_ = save;
+            return nullptr;
+        }
+        auto* l = static_cast<LambdaExpr*>(e);
+        l->isAsync = true;
+        l->tokBegin = save;
+        l->loc = (*toks_)[save].loc;
+        requestModule({"std", "task"});
+        if (l->exprBody) {  // el cuerpo de expresión pasa a ser { return expr; } (la máquina de estados trabaja con sentencias)
+            auto* rs = new ReturnStmt(l->exprBody->loc);
+            rs->value = l->exprBody;
+            rs->fromExprBody = true;
+            auto* b = new BlockStmt(l->exprBody->loc);
+            b->stmts.push_back(rs);
+            b->endLoc = l->exprBody->loc;
+            l->blockBody = b;
+            l->exprBody = nullptr;
+        }
+        return l;
+    }
     bool single = cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct && peekTok().text == "=>";
     bool paren = false;
     if (!single && isP("(")) {

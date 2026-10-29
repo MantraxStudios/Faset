@@ -1,0 +1,21 @@
+1) lambdas async y capturas
+  f(4) = 50, capturada = 5
+  expresión 5
+  suma = 5
+  capturada = 105
+2) virtuales y genéricos
+  override = 1010
+  genérico = hola 2.5
+3) bucles
+  total = 40, k = 3, d = 6
+4) expresiones
+  False True True tres
+  interpolación 7 y x
+  longitud 3, ?? 10, ?. 10
+5) switch, patrones y using
+  dos
+  patrón: saldo 10
+  switch de expresión: tres
+  usando A
+  liberado A
+fin

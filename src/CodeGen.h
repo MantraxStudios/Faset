@@ -144,6 +144,32 @@ private:
     std::string finishLineDirectives(const std::string& c);
     void emitDebugEnums();                // tipos enum de C para que gdb muestre los nombres
     std::string localType(Type* t);       // tipo de C de una variable local o campo (enum con nombre en Debug)
+    // ---- async / await (CodeGenAsync.cpp): máquinas de estados con el marco en el recolector.
+    AsyncInfo* async_ = nullptr;          // método o lambda async que se está emitiendo
+    int asyncCounter_ = 0;
+    std::vector<std::pair<std::string, std::string>> asyncFields_;  // (tipo C, nombre) de los campos del marco
+    std::set<std::string> asyncFieldNames_;
+    struct AsyncRegion {                  // zona protegida de un 'try' con algún 'await' dentro
+        std::string label;                // etiqueta de reentrada (antes de FASET_TRY)
+        std::vector<std::pair<int, std::string>> dispatch;  // estado -> etiqueta siguiente
+    };
+    std::map<std::pair<const TryStmt*, char>, AsyncRegion> asyncRegions_;
+    std::vector<std::pair<int, std::string>> asyncTop_;  // despacho al entrar en la función de paso
+    std::map<const AwaitStmt*, int> asyncStates_;
+    void emitAsyncMethod(MethodDecl* m);
+    void emitAsyncLambda(LambdaExpr* l);
+    void emitAsyncMachine(AsyncInfo* a, const std::string& entrySig, const std::string& selfType,
+                          const std::string& selfInit, const std::vector<VarInfo*>& params, BlockStmt* body);
+    void asyncAnalyze(Stmt* s, std::vector<std::pair<const TryStmt*, char>>& chain, int& states);
+    void asyncField(const std::string& ctype, const std::string& name);
+    void emitAwait(AwaitStmt* s);
+    void emitAsyncReturn(ReturnStmt* rs);
+    std::string asyncDispatch(const std::vector<std::pair<int, std::string>>& d);
+    // Declara una variable local de C (en un método async, asigna el campo del marco).
+    void emitLocalDecl(const std::string& ct, const std::string& name, const std::string& init,
+                       const std::string& qual = " ");
+    // FASET_TRY(marco) { — y, en un método async, la reentrada tras una suspensión.
+    void emitTryOpen(TryStmt* t, char kind, const std::string& frame);
 };
 
 // Runtime de los delegados (se añade al C generado tras la cabecera del runtime).

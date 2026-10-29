@@ -264,6 +264,11 @@ Modifiers Parser::parseModifiers() {
         else if (cur().kind == TokKind::Ident && cur().text == "event" &&
                  (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword))
             p_++, m.isEvent = true;
+        else if (cur().kind == TokKind::Ident && cur().text == "async" &&
+                 (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword || peekTok().text == "(")) {
+            p_++, m.isAsync = true;  // async/await (Async.cpp): la biblioteca std.task hace falta
+            requestModule({"std", "task"});
+        }
         else if (acceptK("virtual")) m.isVirtual = true;
         else if (acceptK("override")) m.isOverride = true;
         else if (acceptK("abstract")) m.isAbstract = true;
@@ -897,6 +902,9 @@ bool Parser::looksLikeDecl() {
     if (isPrimitiveKw() && !(peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "::")))
         return true;
     if (cur().kind != TokKind::Ident && !isP("(")) return false;  // '(' : (int, string) t = ...
+    if (cur().kind == TokKind::Ident && cur().text == "await" &&
+        (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword || peekTok().text == "("))
+        return false;  // await tarea;
     size_t save = p_;
     TypeRef* tr = tryParseType();
     bool r = false;
@@ -1154,6 +1162,20 @@ Expr* Parser::parseUnary() {
             u->op = op;
             u->operand = parseUnary();
             return u;
+        }
+    }
+    // await operando (palabra contextual; ver Async.cpp)
+    if (cur().kind == TokKind::Ident && cur().text == "await") {
+        const Token& n = peekTok();
+        bool operand = n.kind == TokKind::Ident || n.kind == TokKind::Int || n.kind == TokKind::Float ||
+                       n.kind == TokKind::Char || n.kind == TokKind::String || (n.kind == TokKind::Punct && n.text == "(") ||
+                       (n.kind == TokKind::Keyword && n.text != "is" && n.text != "as" && n.text != "in");
+        if (operand) {
+            p_++;
+            auto* a = new AwaitExpr(loc);
+            a->operand = parseUnary();
+            requestModule({"std", "task"});
+            return a;
         }
     }
     // ¿Conversión explícita (T)x?

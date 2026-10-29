@@ -31,6 +31,10 @@ void CodeGen::popHoist() {
 }
 
 void CodeGen::hoistDecl(const std::string& ct, const std::string& name) {
+    if (async_) {  // método async: los temporales también son campos del marco (CodeGenAsync.cpp)
+        asyncField(ct, name);
+        return;
+    }
     if (hoist_.empty()) {  // fuera de una función (no debería ocurrir): variable estática
         if (strFns_.emplace("var:" + name, name).second) helpers_ += "static " + ct + " " + name + ";\n";
         return;

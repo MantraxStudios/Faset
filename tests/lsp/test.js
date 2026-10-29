@@ -214,6 +214,25 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const ooSymbols = await request('textDocument/documentSymbol', { textDocument: { uri: oo.u } });
     assert.strictEqual(ooSymbols.find((s) => s.name === 'ISonido').kind, 11, 'símbolo de interfaz');
 
+    // ---- async / await: hover de Task<T> con el tipo que da 'await', del propio 'await' y palabras clave
+    const asy = (() => {
+        const p = path.join(__dirname, 'async.fst');
+        const u = 'file://' + p;
+        const t = fs.readFileSync(p, 'utf8');
+        notify('textDocument/didOpen', { textDocument: { uri: u, languageId: 'faset', version: 1, text: t } });
+        return { u, t };
+    })();
+    const ah = await request('textDocument/hover', pos(asy.u, asy.t, 'Calcular(3)', 2));
+    assert.match(ah.contents.value, /async Task<int> Programa\.Calcular\(int x\)  \(await: int\)/, 'hover de un método async');
+    const av = await request('textDocument/hover', pos(asy.u, asy.t, 'tarea = ', 1));
+    assert.match(av.contents.value, /Task<int> tarea  \(await: int\)/, 'hover de una variable Task<T>');
+    const aw = await request('textDocument/hover', pos(asy.u, asy.t, 'await tarea', 1));
+    assert.match(aw.contents.value, /await: espera a 'Task<int>' y da 'int'/, "hover de 'await'");
+    t = asy.t.replace('Console.WriteLine(valor);', 'aw');
+    edit(asy.u, t);
+    items = await complete(asy.u, t, 'aw\n', 2);
+    assert.ok(labels(items).includes('await') && labels(items).includes('async'), 'palabras clave async/await');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');

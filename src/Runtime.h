@@ -14,6 +14,9 @@ extern const char* const kRuntimeVideoSource;
 // Excepciones: cabecera (se añade a faset_rt.h) y runtime (al final de faset_rt.c); ver RuntimeExc.cpp.
 extern const char* const kRuntimeExcHeader;
 extern const char* const kRuntimeExcSource;
+// async / await: contexto de sincronización por hilo, relanzar la excepción de una tarea y despertar
+// el bucle de std.ui (se añade al final de faset_rt.c; ver RuntimeAsync.cpp).
+extern const char* const kRuntimeAsyncSource;
 // Azúcar sintáctico (cadenas interpoladas, formatos, switch sin coincidencia; ver RuntimeSugar.cpp):
 // la cabecera va en el C generado y la implementación se añade a kRuntimeSource.
 extern const char* const kRuntimeSugarHeader;

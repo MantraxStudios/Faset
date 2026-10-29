@@ -566,6 +566,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource + kRuntimeSugarSource;
     if (o.video) runtime += kRuntimeVideoSource;
     runtime += kRuntimeExcSource;
+    runtime += kRuntimeAsyncSource;  // async / await (RuntimeAsync.cpp)
     if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", std::string(kRuntimeHeader) + kRuntimeExcHeader) ||
         !writeFile(rtC, runtime) ||
         !writeFile(gcC, kRuntimeGcSource)) {

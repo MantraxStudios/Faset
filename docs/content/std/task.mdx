@@ -1,0 +1,36 @@
+Tareas asíncronas para [`async` y `await`](/lenguaje/async/): `Task` y `Task<T>` (una operación en
+curso con su resultado o su excepción), `Task.Run`, `Task.Delay`, `Task.WhenAll`/`WhenAny`,
+`ContinueWith`, `TaskCompletionSource<T>`, la cancelación cooperativa (`CancellationTokenSource`,
+`CancellationToken`) y los planificadores: el grupo de hilos de las tareas (`TaskScheduler`) y
+`SynchronizationContext`, que `std.ui` usa para que los `await` vuelvan al hilo de la interfaz.
+
+```faset
+using std.collections;
+using std.task;
+
+static async Task<int> Cuadrado(int x, CancellationToken token)
+{
+    token.ThrowIfCancellationRequested();
+    await Task.Delay(10 * x, token);
+    return x * x;
+}
+
+static async Task Main()
+{
+    var cts = new CancellationTokenSource();
+    var tareas = new List<Task<int>>();
+    for (int i = 1; i <= 3; i++) tareas.Add(Cuadrado(i, cts.Token));
+    List<int> r = await Task.WhenAll(tareas);
+    println(r[0] + r[1] + r[2]);                   // 14
+
+    var tcs = new TaskCompletionSource<string>();
+    Task.Run(() => tcs.SetResult("desde otro hilo"));
+    println(await tcs.Task);                       // desde otro hilo
+}
+```
+
+El estado de todas las tareas se protege con un único cerrojo del runtime; las continuaciones se
+encolan (en el grupo de hilos o en el contexto capturado), nunca se ejecutan dentro de quien
+completa la tarea. Los hilos del grupo y el de los temporizadores están registrados en el recolector
+de basura: una tarea pendiente (y el marco de su método `async`) sigue viva mientras algo pueda
+completarla.

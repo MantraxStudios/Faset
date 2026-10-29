@@ -322,7 +322,11 @@ void Sema::checkTry(TryStmt* t) {
             if (ideMode && valid)
                 addRef(c.nameLoc, (int)c.name.size(), "(variable local) " + c.type->str() + " " + c.name, &c.nameLoc);
         }
-        if (c.filter) checkCondition(c.filter);
+        if (c.filter) {
+            ctx_.filterDepth++;  // 'await' no se admite en un filtro (Async.cpp)
+            checkCondition(c.filter);
+            ctx_.filterDepth--;
+        }
         ctx_.excHandlers.push_back('C');
         checkStmt(c.body);
         ctx_.excHandlers.pop_back();
@@ -503,6 +507,7 @@ void CodeGen::emitExcJumpChain(int kind, int cross) {
     }
     if (kind == 3) line("break;");
     else if (kind == 4) line("continue;");
+    else if (async_) line("goto fs_done;");  // método async: completa la tarea (CodeGenAsync.cpp)
     else line(excRetVar_.empty() ? "return;" : "return " + excRetVar_ + ";");
 }
 
@@ -540,7 +545,7 @@ void CodeGen::emitTry(TryStmt* t) {
     indent_++;
     if (outermost) {
         excRetVar_.clear();
-        if (curMethod_ && !curMethod_->ret->isVoid()) {
+        if (curMethod_ && !curMethod_->ret->isVoid() && !async_) {  // async: el valor va al marco (<res>)
             excRetVar_ = "fs_ret" + std::to_string(tmp_++);
             line(ctype(curMethod_->ret) + (curMethod_->retIsRef() ? "*" : "") + " volatile " + excRetVar_ + ";");
         }
@@ -550,9 +555,9 @@ void CodeGen::emitTry(TryStmt* t) {
     } else {
         int id = tmp_++;
         std::string f = "fs_f" + std::to_string(id), why = "fs_why" + std::to_string(id);
-        line("faset_exc_frame " + f + ";");
-        line("int32_t volatile " + why + " = 0;");
-        line("FASET_TRY(" + f + ") {");
+        emitLocalDecl("faset_exc_frame", f, "");
+        emitLocalDecl("int32_t", why, "0", " volatile ");
+        emitTryOpen(t, 'F', f);
         indent_++;
         ExcRegion reg;
         reg.finally = true;
@@ -590,8 +595,8 @@ void CodeGen::emitTry(TryStmt* t) {
 void CodeGen::emitTryCatch(TryStmt* t) {
     int id = tmp_++;
     std::string f = "fs_c" + std::to_string(id), done = "fs_cdone" + std::to_string(id);
-    line("faset_exc_frame " + f + ";");
-    line("FASET_TRY(" + f + ") {");
+    emitLocalDecl("faset_exc_frame", f, "");
+    emitTryOpen(t, 'C', f);
     indent_++;
     ExcRegion reg;
     reg.frame = f;
@@ -613,7 +618,7 @@ void CodeGen::emitTryCatch(TryStmt* t) {
         indent_++;
         if (c.var) {
             std::string ct = ctype(c.type);
-            line(ct + (c.var->isVolatile ? " volatile " : " ") + c.var->cname + " = (" + ct + ")" + f + ".obj;");
+            emitLocalDecl(ct, c.var->cname, "(" + ct + ")" + f + ".obj", c.var->isVolatile ? " volatile " : " ");
         }
         if (c.filter) {
             line("if (" + expr(c.filter) + ") {");

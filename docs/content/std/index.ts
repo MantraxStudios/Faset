@@ -17,6 +17,7 @@ import net from "./net.mdx";
 import thread from "./thread.mdx";
 import audio from "./audio.mdx";
 import video from "./video.mdx";
+import task from "./task.mdx";
 
 export const intros: Record<string, ComponentType> = {
   core,
@@ -35,4 +36,5 @@ export const intros: Record<string, ComponentType> = {
   thread,
   audio,
   video,
+  task,
 };

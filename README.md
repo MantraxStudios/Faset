@@ -415,6 +415,7 @@ infieren el tipo en tiempo de compilación.
 | `delegate*<...>`, `&Funcion`                     |                                                |
 | `var`, `null`, `int.MaxValue`, `int.Parse`       | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` (en `memory_unsafe`) |
 | `try`/`catch`/`when`/`finally`, `throw`          |                                                |
+| `async`/`await`, `Task<T>` (máquinas de estados)  |                                                |
 | `public`/`private` por miembro                   | secciones `public:` / `private:`               |
 
 Por defecto, los miembros de una `class` son privados y los de un `struct`, públicos (como en C++).
@@ -635,6 +636,7 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 | `std.io`          | `File` (texto, bytes y líneas; `Copy`/`Move` con `overwrite`, `Delete`, `GetSize`, `GetLastWriteTime`, permisos, `OpenRead`/`OpenWrite`/`OpenAppend`), `FileStream` (búfer, `ReadLine`, `Write`, `Seek`, `Position`, `Length`), `Directory` (`Create` recursivo, `Delete`, `GetFiles`/`GetDirectories` con patrón y recursión, `Move`, `GetCurrent`/`SetCurrent`, `CreateTemp`), `Path` (`Combine`, `GetFileName`, `GetExtension`, `ChangeExtension`, `Normalize`, `GetFullPath`, `GetRelativePath`, `IsRooted`, `GetTempPath`, `GetTempFileName`, `MatchesPattern`), `FileInfo`, `FileWatcher` |
 | `std.time`        | `Time` (`TickMs`, `TickNs`, `NowUnixMs`, `Sleep`), `DateTime`, `TimeSpan`, `TimeZone`, `Stopwatch` (alta resolución) |
 | `std.thread`      | `Thread`, `Mutex`, `RecursiveMutex`, `ConditionVariable`, `Semaphore`, `Atomic`, `AtomicInt`/`AtomicLong`, `ThreadPool`, `Parallel.For`, `Channel<T>` |
+| `std.task`        | `Task`/`Task<T>` para `async`/`await` (`Run`, `Delay`, `WhenAll`, `WhenAny`, `FromResult`, `ContinueWith`, `Result`), `TaskCompletionSource<T>`, `CancellationTokenSource`/`CancellationToken`, `SynchronizationContext` (los `await` de `std.ui` vuelven al hilo de la interfaz) |
 | `std.random`      | `Random` (xorshift64*: `Next`, `NextDouble`, `Shuffle<T>`) |
 | `std.math`        | `Vec2`, `Vec3`, `Rect` con operadores; `Interp` (`Lerp`, `Remap`, `SmoothStep`) |
 | `std.mem`         | `Span<T>` con comprobación de límites, `Arena`, `Box<T>` |
