@@ -41,6 +41,12 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
 - Edición: deshacer y rehacer, sangría automática, cierre de `()` `[]` `""`, `Tab`/`Shift+Tab`
   sobre bloques, `Ctrl+/` comentar, `Ctrl+D` duplicar línea, `Ctrl+Shift+K` borrar línea,
   doble y triple clic, portapapeles del sistema
+- Navegación y edición rápidas:
+  - `Ctrl+←/→` salta por palabras y `Ctrl+↑/↓` por bloques (hasta la siguiente línea en blanco); con `Shift` se selecciona.
+  - `Alt+↑/↓` mueve la línea o las líneas seleccionadas y `Alt+Shift+↑/↓` las duplica encima o debajo.
+  - `Ctrl+Retroceso` / `Ctrl+Supr` borran la palabra anterior o siguiente.
+  - `Ctrl+L` selecciona la línea (repetido, amplía la selección).
+  - `Ctrl+Intro` / `Ctrl+Shift+Intro` crean una línea nueva debajo o encima.
 - `Ctrl+P` abrir rápido, `Ctrl+N` nuevo archivo, `Ctrl+F`/`F3` buscar, `Ctrl+G` ir a la línea,
   `Ctrl+S` guardar (`Ctrl+Shift+S` todo), `Ctrl+W` cerrar pestaña, `Ctrl+Tab` cambiar de pestaña
 

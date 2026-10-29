@@ -3772,6 +3772,7 @@ namespace FasetStudio.Ide
                 Event e = new Event();
                 e.Kind = EventKind.KeyDown;
                 string k = arg;
+                if (k.StartsWith("alt+")) { e.Alt = true; k = k.Substring(4); }
                 if (k.StartsWith("ctrl+")) { e.Ctrl = true; k = k.Substring(5); }
                 if (k.StartsWith("shift+")) { e.Shift = true; k = k.Substring(6); }
                 if (k == "enter") e.Key = Keys.Return;
@@ -3784,6 +3785,7 @@ namespace FasetStudio.Ide
                 else if (k == "end") e.Key = Keys.End;
                 else if (k == "home") e.Key = Keys.Home;
                 else if (k == "backspace") e.Key = Keys.BackSpace;
+                else if (k == "delete") e.Key = Keys.Delete;
                 else if (k == "f5") e.Key = Keys.F5;
                 else if (k == "f12") e.Key = Keys.F12;
                 else if (k == "space") e.Key = ' ';
