@@ -26,8 +26,11 @@ int main()
     Punto b = a;                              // copia
     b.X = 10;
     println(a.X);                             // 1
-    Punto* p = &a;
-    p->Y = 7;                                 // a través de un puntero
+    memory_unsafe
+    {
+        Punto* p = &a;                        // punteros: solo en memory_unsafe
+        p->Y = 7;
+    }
     println(a.Manhattan());                   // 8
     return 0;
 }

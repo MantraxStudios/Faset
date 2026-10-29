@@ -42,17 +42,31 @@ const lines = got.text.split("\n");
 const commands = [];
 const options = [];
 let section = "";
+let col = 0; // columna en la que empiezan las descripciones de la sección actual
 for (const line of lines) {
-  if (/^Uso:/.test(line)) { section = "uso"; continue; }
-  if (/^Opciones:/.test(line)) { section = "opciones"; continue; }
-  if (/^Entrada:/.test(line) || (!line.startsWith("  ") && line.trim())) { if (section !== "") section = "otro"; }
-  const m = /^  (\S.*\S)\s{2,}(\S.*)$/.exec(line);
-  if (section === "uso") {
-    if (m) commands.push({ usage: m[1].replace(/\s+/g, " "), description: m[2].trim() });
-    else if (line.trim()) commands.push({ usage: line.trim(), description: "" });
-  } else if (section === "opciones" && m) {
-    options.push({ flag: m[1].replace(/\s{2,}/g, "  "), description: m[2].trim() });
+  if (/^Uso:/.test(line)) { section = "uso"; col = 0; continue; }
+  if (/^Opciones:/.test(line)) { section = "opciones"; col = 0; continue; }
+  if (line.trim() && !line.startsWith("  ")) { section = "otro"; continue; }
+  if (section !== "uso" && section !== "opciones") continue;
+  if (!line.trim()) continue;
+  const list = section === "uso" ? commands : options;
+  const key = section === "uso" ? "usage" : "flag";
+  // Línea de continuación: más sangría de la normal.
+  if (/^ {5,}/.test(line) && list.length) {
+    const last = list[list.length - 1];
+    last.description = (last.description + " " + line.trim()).trim();
+    continue;
   }
+  if (!col) {
+    const m = /^  (\S.*\S)\s{2,}(\S.*)$/.exec(line);
+    if (m) col = line.length - m[2].length;
+  }
+  let left = line, right = "";
+  if (col && line.length > col && line[col - 1] === " ") {
+    left = line.slice(0, col);
+    right = line.slice(col);
+  }
+  list.push({ [key]: left.trim().replace(/\s{2,}/g, key === "usage" ? " " : "  "), description: right.trim() });
 }
 const versionMatch = /Faset (\d+\.\d+\.\d+)/.exec(got.text);
 fs.mkdirSync(outDir, { recursive: true });

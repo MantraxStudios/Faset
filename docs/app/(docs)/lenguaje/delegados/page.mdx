@@ -60,9 +60,13 @@ int main()
 ## Callbacks con contexto
 
 Para pasar estado a un callback, añade un parámetro `void*` y conviértelo dentro. Es el mismo patrón
-que usa `std.ui` para los eventos:
+que usa `std.ui` para los eventos. Como `void*` y la conversión `(Contador)self` reinterpretan
+memoria, este código va en un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/) (aquí,
+todo el archivo con la directiva `memory_unsafe;`):
 
 ```faset
+memory_unsafe;
+
 class Contador
 {
     public int Clics;

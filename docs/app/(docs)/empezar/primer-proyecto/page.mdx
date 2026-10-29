@@ -25,6 +25,8 @@ faset run                    # compila y ejecuta
 | `faset new Utilidades --lib` | Biblioteca (`Library`) | `Biblioteca.fst` con una clase estática |
 | `faset new MiVentana --winexe` | Aplicación de ventana de Windows (`WinExe`) | `Program.fst` (sin consola en Windows) |
 | `faset new MiApp --ui` | **AppUI** con `std.ui` (`WinExe`) | `MainWindow.fstui`, `MainWindow.fst` y `Program.fst` |
+| `faset new MiMovil --android` | **App de Android** (AppUI con las propiedades de Android) | lo mismo que `--ui`, con `TargetPlatform` `android` |
+| `faset new Hola --android --console` | Programa de consola para Android | `Program.fst`; la consola va a logcat |
 
 También se aceptan las formas sin guiones (`lib`, `classlib`, `winexe`, `console`, `ui`, `appui`).
 Cada plantilla incluye un `.gitignore` con `bin/` y `obj/`.

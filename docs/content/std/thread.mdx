@@ -1,0 +1,59 @@
+Hilos del sistema (pthreads en Linux y Android, Win32 en Windows), exclusión mutua, variables de
+condición, semáforos, atómicos, un pool de hilos, `Parallel.For` y canales productor/consumidor. En
+Linux se enlaza `-lpthread` automáticamente. La función de un hilo es un `delegate*` que recibe un
+`void*`, así que crear hilos y convertir ese puntero ocurre en código
+[`memory_unsafe`](/lenguaje/seguridad-de-memoria/); `Mutex`, `Channel<T>` o `AtomicLong` se usan
+desde código seguro.
+
+```faset
+using std.thread;
+
+class Datos
+{
+    public Mutex M = new Mutex();
+    public long Suma;
+}
+
+memory_unsafe static class Trabajos
+{
+    // Parallel.For llama a este cuerpo para cada i, repartido entre los procesadores.
+    public static void Sumar(int i, void* arg)
+    {
+        Datos d = (Datos)arg;
+        d.M.Lock();
+        d.Suma += i;
+        d.M.Unlock();
+    }
+
+    public static void Productor(void* arg)
+    {
+        Channel<int> c = (Channel<int>)arg;
+        for (int i = 1; i <= 5; i++) c.Send(i * i);
+        c.Close();                            // el consumidor sale del bucle
+    }
+}
+
+int main()
+{
+    auto d = new Datos();
+    auto canal = new Channel<int>(2);         // capacidad 2: Send espera si está lleno
+    memory_unsafe
+    {
+        Parallel.For(1, 1001, &Trabajos.Sumar, (void*)d);
+        Thread t = Thread.Run(&Trabajos.Productor, (void*)canal);
+        int v;
+        long total = 0;
+        while (canal.Receive(out v)) total += v;
+        t.Join();
+        delete t;
+        println(total);                       // 55
+    }
+    println(d.Suma);                          // 500500
+    delete canal;
+    delete d;
+    return 0;
+}
+```
+
+Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el objeto que
+pasas como `arg` debe seguir vivo mientras el hilo lo use.

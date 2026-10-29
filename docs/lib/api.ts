@@ -6,6 +6,7 @@ export type ApiMember = {
   signature: string;
   static?: boolean;
   extern?: boolean;
+  unsafe?: boolean;
   extension?: boolean;
   extends?: string;
   access?: string;

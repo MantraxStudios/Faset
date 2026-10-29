@@ -45,6 +45,11 @@ function Members({ members }: { members: ApiMember[] }) {
               <code className="sig">
                 <Signature text={m.signature} name={m.name} />
               </code>
+              {m.unsafe ? (
+                <span className="unsafe-tag" title="Solo se puede usar dentro de un contexto memory_unsafe">
+                  memory_unsafe
+                </span>
+              ) : null}
               {m.doc ? <div className="doc">{m.doc}</div> : null}
             </div>
           )),

@@ -13,6 +13,8 @@ import json from "./json.mdx";
 import hash from "./hash.mdx";
 import mem from "./mem.mdx";
 import ui from "./ui.mdx";
+import net from "./net.mdx";
+import thread from "./thread.mdx";
 
 export const intros: Record<string, ComponentType> = {
   core,
@@ -27,4 +29,6 @@ export const intros: Record<string, ComponentType> = {
   hash,
   mem,
   ui,
+  net,
+  thread,
 };

@@ -8,7 +8,7 @@ struct Body
     }
 }
 
-static class Program
+memory_unsafe static class Program   // punteros crudos, como en C
 {
     const double SolarMass = 4.0 * Math.PI * Math.PI;
     const double DaysPerYear = 365.24;

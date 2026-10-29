@@ -1,28 +1,63 @@
-Archivos, carpetas y rutas. Las funciones devuelven `bool` en lugar de lanzar excepciones (Faset no
-tiene excepciones): compruébalo y sigue.
+Archivos, carpetas y rutas, igual en Linux y en Windows: las rutas son UTF-8 (en Windows se usan
+las API W de Win32 y se aceptan `/` y `\`) y las fechas son milisegundos Unix (UTC). Las funciones
+devuelven `bool` o `null` en lugar de lanzar excepciones (Faset no tiene excepciones).
 
 ```faset
 using std.io;
+using std.collections;
 
 int main()
 {
-    if (!File.WriteAllText("saludo.txt", "Hola desde Faset\n")) return 1;
-    File.AppendAllText("saludo.txt", "segunda línea\n");
+    string tmp = Directory.CreateTemp("demo-");       // carpeta temporal única
+    string log = Path.Combine(tmp, "log.txt");
+    File.WriteAllText(log, "uno\ndos\n");
 
-    string contenido;
-    if (File.TryReadAllText("saludo.txt", out contenido))
-    {
-        print(contenido);
-        String.Free(contenido);              // copia nueva
-    }
+    FileStream f = File.OpenAppend(log);              // null si no se puede abrir
+    f.WriteLine("tres");
+    delete f;                                         // escribe lo pendiente y cierra
 
-    auto entradas = Directory.GetEntries(".");
-    for (int i = 0; i < entradas.Count; i++)
-        println(entradas[i].Name);
-    Directory.FreeEntries(entradas);
+    FileStream r = File.OpenRead(log);
+    string line;
+    while (r.ReadLine(out line)) { println(line); String.Free(line); }
+    delete r;
 
-    println(Path.GetExtension("informe.final.pdf"));   // vista: ".pdf"
-    File.Delete("saludo.txt");
+    println(File.GetSize(log));                       // 13
+    Directory.Delete(tmp);                            // recursivo; no sigue enlaces
+    String.Free(log);
+    String.Free(tmp);
     return 0;
 }
 ```
+
+`FileWatcher` avisa de los cambios en una carpeta: usa inotify en Linux y compara instantáneas
+(`PollIntervalMs`) en el resto de sistemas.
+
+```faset
+using std.io;
+using std.collections;
+
+int main()
+{
+    string dir = Directory.CreateTemp("vigilada-");
+    auto watcher = new FileWatcher(dir, true);         // true: también subcarpetas
+    string nuevo = Path.Combine(dir, "nuevo.txt");
+    File.WriteAllText(nuevo, "hola");
+
+    auto cambios = new List<FileChange>();
+    watcher.WaitForChanges(cambios, 1000);             // espera hasta 1 s
+    for (int i = 0; i < cambios.Count; i++) println(Path.GetFileName(cambios[i].Path));
+    FileWatcher.FreeChanges(cambios);
+
+    delete cambios;
+    delete watcher;
+    Directory.Delete(dir);
+    String.Free(nuevo);
+    String.Free(dir);
+    return 0;
+}
+```
+
+- `File.Copy`/`File.Move`/`Directory.Move` fallan si el destino existe (como en C#), salvo con
+  `overwrite = true`. `Directory.Create` crea las carpetas intermedias.
+- `File.ReadAllLines`, `Directory.GetFiles(dir, "*.fst", true)` y similares devuelven listas de
+  copias: libéralas con `File.FreeLines` / `Directory.FreeList`.

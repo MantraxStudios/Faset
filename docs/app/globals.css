@@ -1680,3 +1680,15 @@ a.feature:hover {
     overflow-x: auto;
   }
 }
+
+.unsafe-tag {
+  display: inline-block;
+  margin-top: 4px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}

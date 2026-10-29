@@ -42,6 +42,9 @@ export const metadata = {
 | `Configuration` | `Debug`, `Release` | `Debug` compila con `-O0 -g`; `Release` con `-O2`. Se cambia con `-c`. |
 | `OutputPath` | ruta | Carpeta raíz de la salida (por defecto `bin`). |
 | `StaticLink` | `true` / `false` | Enlazado estático (`-static`). |
+| `RuntimeChecks` | `true` / `false` | [Comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion); por defecto, solo en `Debug`. |
+| `AllowUnsafe` | `true` / `false` | Todo el proyecto es un contexto `memory_unsafe` (como `--allow-unsafe`). |
+| `AndroidPackage`, `AppName`, `VersionCode`, `VersionName`, `AndroidTargetSdk`, `AndroidAbis`, `AndroidOrientation`, `AndroidIcon`, `AndroidKeystore`, `AndroidKeyAlias` | texto | Empaquetado del APK: consulta [Android](/android/#propiedades-del-fstproj). |
 | `EnableDefaultCompileItems` | `true` / `false` | Con `false` solo se compilan los archivos indicados con `Compile Include`. |
 | `RootNamespace`, `Version`, `Description`, `Authors`, `Optimize`, `DebugSymbols` | texto | Se aceptan como metadatos; el compilador todavía no los usa. |
 
@@ -58,6 +61,7 @@ desapercibida.
 | `ProjectReference` | `Include` | Referencia a otro proyecto, que debe ser `Library`. Sus archivos se compilan junto con el tuyo. |
 | `NativeLibrary` | `Include`, `Platform` (opcional) | Biblioteca nativa a enlazar (`-l`). Con `Platform` solo se usa para ese objetivo. |
 | `LibraryPath` | `Include` | Carpeta de bibliotecas nativas (`-L`), relativa al proyecto. |
+| `AndroidPermission` | `Include` | Permisos de Android (`INTERNET;CAMERA` → `android.permission.*`); se heredan de las bibliotecas referenciadas. |
 
 ## Qué archivos se compilan
 
@@ -82,11 +86,15 @@ examples/proyecto/
 faset run examples/proyecto/MiJuego
 ```
 
-Una biblioteca referenciada no se enlaza como `.so` aparte: su código se compila dentro del
-ejecutable final (como un proyecto de código compartido). Para producir una biblioteca dinámica
+Una biblioteca referenciada no se enlaza como `.so` aparte: como las plantillas se instancian por tipo,
+su código se compila **dentro** del programa que la usa, y sus `NativeLibrary`, `LibraryPath` y
+`AndroidPermission` se heredan. Las bibliotecas pueden referenciar otras: se detectan los ciclos y cada
+una se incluye una sola vez aunque llegue por varios caminos. El resultado es un único binario (o una
+única `lib<App>.so` en el APK). Para producir una biblioteca dinámica
 independiente, compila el proyecto `Library` por sí solo (genera `libNombre.so` o `Nombre.dll`).
 
 ## Bibliotecas que enlaza el compilador por ti
 
-Si un programa usa `std.ui`, `faset` añade automáticamente `X11` y `freetype` (Linux) o `user32` y
-`gdi32` (Windows). Siempre se enlaza `libm`.
+Si un programa usa `std.ui`, `faset` añade automáticamente `X11` y `freetype` (Linux), `user32` y
+`gdi32` (Windows) o `android` y `log` (Android). `std.net` añade `ws2_32` en Windows y `std.thread`
+añade `pthread` en Linux. Siempre se enlaza `libm`.

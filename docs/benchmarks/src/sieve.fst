@@ -1,5 +1,5 @@
 // Criba de Eratóstenes hasta 20 000 000: acceso a memoria y bucles.
-static class Program
+memory_unsafe static class Program   // punteros crudos, como en C
 {
     static int Main()
     {

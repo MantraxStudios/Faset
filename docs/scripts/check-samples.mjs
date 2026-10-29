@@ -53,7 +53,8 @@ for (const file of files) {
     const f = path.join(tmp, `ejemplo_${ok + failed}.fst`);
     fs.writeFileSync(f, code);
     try {
-      if (process.argv.includes("--run") && !/std\.ui/.test(code)) {
+      // Las ventanas (std.ui) y las APIs de Windows solo se comprueban, no se ejecutan.
+      if (process.argv.includes("--run") && !/std\.ui|User32/.test(code)) {
         // Ejecuta el ejemplo y muestra su salida (para revisar los comentarios "// 42").
         const out = execFileSync(faset, ["run", f], { stdio: "pipe", encoding: "utf8", cwd: tmp, timeout: 20000 });
         console.log(`--- ${path.relative(docsDir, file)} (bloque ${n})\n${out.trimEnd()}`);
@@ -62,6 +63,12 @@ for (const file of files) {
       }
       ok++;
     } catch (e) {
+      // Ejemplos que muestran a propósito un 'Faset panic' (código 101): se marcan con "termina aquí".
+      if (e.status === 101 && /termina aquí/.test(code) && /Faset panic/.test(e.stderr || "")) {
+        console.log(`--- ${path.relative(docsDir, file)} (bloque ${n}) [panic esperado]\n${String(e.stderr).trimEnd()}`);
+        ok++;
+        continue;
+      }
       failed++;
       const rel = path.relative(docsDir, file);
       console.error(`\n✗ ${rel} (bloque ${n})\n${(e.stdout || "") + (e.stderr || "")}`);

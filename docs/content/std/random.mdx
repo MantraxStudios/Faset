@@ -3,6 +3,7 @@ para criptografía.
 
 ```faset
 using std.random;
+using std.collections;
 
 int main()
 {
@@ -10,11 +11,15 @@ int main()
     println(rng.Next(1, 7));                 // dado: [1, 7)
     println(rng.NextDouble());
 
-    int* cartas = new int[52];
-    for (int i = 0; i < 52; i++) cartas[i] = i;
+    auto cartas = new List<int>();
+    for (int i = 0; i < 52; i++) cartas.Add(i);
     Random azar = Random.FromTime();
-    azar.Shuffle<int>(cartas, 52);
-    delete[] cartas;
+    for (int i = 51; i > 0; i--)             // Fisher-Yates sobre una List<T>
+        Algorithms.Swap<int>(cartas[i], cartas[azar.Next(i + 1)]);
+    delete cartas;
     return 0;
 }
 ```
+
+`Shuffle<T>(T* datos, int n)` baraja un arreglo crudo y, como recibe un puntero, se llama desde un
+contexto `memory_unsafe`.

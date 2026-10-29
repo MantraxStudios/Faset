@@ -1,0 +1,16 @@
+<Window Class="MainWindow" Namespace="HolaAndroid" Title="HolaAndroid" Width="360" Height="640" Theme="Dark"
+        Background="#0e0e12" Background2="#191924">
+  <Panel Name="hero" X="24" Y="32" Width="312" Height="104" Background="#2b2f77" Background2="#7a2e8c" GradientDirection="Horizontal" BorderColor="#00000000" Anchor="Left,Top,Right">
+    <Label Name="lblTitle" X="18" Y="18" Width="276" Height="36" Text="Hola, Faset" FontSize="24" Bold="true" Foreground="#ffffff" Anchor="Left,Top,Right" />
+    <Label Name="lblSubtitle" X="18" Y="58" Width="276" Height="22" Text="App nativa de Android escrita en Faset" Foreground="#e8e2ff" Anchor="Left,Top,Right" />
+  </Panel>
+  <Panel Name="card" X="24" Y="156" Width="312" Height="232" Anchor="Left,Top,Right">
+    <Label X="16" Y="14" Width="200" Height="20" Text="Tu nombre" FontSize="13" Style="Subtle" />
+    <TextBox Name="txtName" X="16" Y="38" Width="280" Height="44" Placeholder="Escribe tu nombre..." Anchor="Left,Top,Right" Changed="OnNameChanged" />
+    <CheckBox Name="chkExcited" X="16" Y="98" Width="240" Height="28" Text="Con entusiasmo" Checked="true" Accent="#4f8cff" Changed="OnNameChanged" />
+    <Slider Name="sldVolume" X="16" Y="146" Width="280" Height="28" Value="60" Accent="#3ecf8e" Anchor="Left,Top,Right" Changed="OnVolumeChanged" />
+    <ProgressBar Name="prgVolume" X="16" Y="196" Width="280" Height="8" Value="60" Accent="#3ecf8e" Anchor="Left,Top,Right" />
+  </Panel>
+  <Button Name="btnClose" X="24" Y="568" Width="150" Height="48" Text="Cerrar" Anchor="Left,Bottom" Click="OnCloseClick" />
+  <Button Name="btnGreet" X="186" Y="568" Width="150" Height="48" Text="Saludar" Style="Primary" Background="#4f8cff" Background2="#3a63d8" Foreground="#ffffff" Anchor="Right,Bottom" Click="OnGreetClick" />
+</Window>

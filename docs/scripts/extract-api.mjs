@@ -240,10 +240,18 @@ function parseFile(file) {
     if (flags.includes("extern")) member.extern = true;
     member.doc = doc;
     member.line = bufLine;
-    if (type) type.info.members.push(member);
+    // Requiere un contexto memory_unsafe: marcado así o con punteros en la firma.
+    if (flags.includes("memory_unsafe") || /\b[A-Za-z_]\w*\s*\*(?!<)/.test(member.signature.replace(/delegate\*</g, "delegate<")))
+      member.unsafe = true;
+    // Las ramas de #if WINDOWS / #else declaran lo mismo dos veces: una sola entrada.
+    const list = type ? type.info.members : mod.functions;
+    const dup = list.find((m) => m.signature === member.signature);
+    if (dup) {
+      if (!dup.doc) dup.doc = member.doc;
+    } else if (type) list.push(member);
     else {
       member.namespace = currentNamespace();
-      mod.functions.push(member);
+      list.push(member);
     }
     lastDecl = member;
     lastDeclLine = line;

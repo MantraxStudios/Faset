@@ -12,3 +12,6 @@ public/search-index.json
 samples/**/bin/
 samples/**/obj/
 benchmarks/build/
+
+# Generado por `next dev`
+AGENTS.md

@@ -1,4 +1,5 @@
 import { BenchBars, BuildTable, CpuTable, Machine, StartupTable } from "@/components/Bench";
+import ChecksTable from "@/components/ChecksTable";
 
 export const metadata = {
   title: "Rendimiento",
@@ -40,7 +41,7 @@ medición.
 
 El tiempo incluye todo `faset build -c Release`: análisis del proyecto completo y de la biblioteca
 estándar que usa, generación de C y compilación con `cc -O2`. Las líneas cuentan los `.fst` y
-`.fstui` del proyecto (sin la biblioteca estándar). El proyecto AppUI incluye `std.ui`, unas 2 800
+`.fstui` del proyecto (sin la biblioteca estándar). El proyecto AppUI incluye `std.ui`, unas 3 000
 líneas de biblioteca con el renderizador por software.
 
 ## Arranque
@@ -50,6 +51,14 @@ líneas de biblioteca con el renderizador por software.
 Media de 200 ejecuciones de un «Hola, mundo» (lanzar el proceso, imprimir y salir), con la salida
 descartada. El ejecutable de Faset incluye su pequeño runtime (`faset_rt.c`) y la parte usada de la
 biblioteca estándar.
+
+## Coste de la seguridad
+
+Las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion) están
+desactivadas en Release, que es lo que miden las pruebas anteriores. Su coste, medido con
+`examples/benchmark_checks.fst`:
+
+<ChecksTable />
 
 ## Metodología
 
@@ -61,7 +70,8 @@ biblioteca estándar.
 | Repeticiones | 10 para Faset y C; 3 para Node.js y Python |
 | Estadístico | mediana del tiempo de pared (incluye el arranque del proceso) |
 
-Las fuentes están en `docs/benchmarks/src`:
+Las fuentes están en `docs/benchmarks/src`. La criba y n-body usan arreglos crudos con punteros, como
+la versión en C, así que su clase `Program` está marcada `memory_unsafe`; fib no usa punteros.
 
 | Prueba | Qué mide | Archivos |
 |---|---|---|

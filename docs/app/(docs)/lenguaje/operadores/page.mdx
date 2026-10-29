@@ -38,7 +38,9 @@ int main()
 ## Indexación con referencias
 
 ```faset
-class Rejilla
+// La implementación usa punteros (memory_unsafe), pero su API pública no:
+// Rejilla es un envoltorio seguro y se usa desde código normal.
+memory_unsafe class Rejilla
 {
     int ancho;
     int* celdas;
