@@ -1,0 +1,99 @@
+export const metadata = {
+  title: "Genéricos (plantillas)",
+  description: "Genéricos con sintaxis de C# que se instancian como las plantillas de C++: sin coste en ejecución y con duck typing.",
+};
+
+# Genéricos (plantillas)
+
+<p className="lead">
+  Las plantillas usan la sintaxis de C#, pero se compilan como en C++: cada combinación de tipos
+  genera su propio código, sin coste en ejecución, y un método solo se comprueba si se usa.
+</p>
+
+## Funciones y tipos genéricos
+
+```faset
+T Mayor<T>(T a, T b) => a < b ? b : a;
+
+class Par<A, B>
+{
+    public A Primero;
+    public B Segundo;
+    public Par(A a, B b) { Primero = a; Segundo = b; }
+}
+
+int main()
+{
+    println(Mayor(3, 9));                  // T = int (inferido)
+    println(Mayor<double>(2.5, 1.5));      // T explícito
+    println(Mayor("abc", "abd"));          // las cadenas se comparan con <
+
+    auto p = new Par<string, int>("edad", 31);
+    println(p.Segundo);
+    delete p;
+    println(default(double));              // valor por defecto de cualquier T
+    return 0;
+}
+```
+
+## Duck typing
+
+No hace falta declarar restricciones: si el tipo admite lo que la plantilla usa, compila. Las
+cláusulas `where` de C# se aceptan, pero se ignoran.
+
+```faset
+using std.collections;
+
+struct Punto
+{
+    public int X, Y;
+    public Punto(int x, int y) { X = x; Y = y; }
+    public static bool operator <(Punto a, Punto b) => a.X < b.X || (a.X == b.X && a.Y < b.Y);
+    public static bool operator ==(Punto a, Punto b) => a.X == b.X && a.Y == b.Y;
+}
+
+int main()
+{
+    auto puntos = new List<Punto>();
+    puntos.Add(new Punto(3, 1));
+    puntos.Add(new Punto(1, 9));
+    puntos.Sort();                          // necesita operator< : Punto lo tiene
+    println(puntos[0].X);                   // 1
+    println(puntos.Contains(new Punto(3, 1)));   // necesita operator==
+    delete puntos;
+    return 0;
+}
+```
+
+## Errores con la cadena de instanciación
+
+Si un tipo no cumple lo que la plantilla necesita, el error indica dónde se instanció:
+
+```text
+<std/collections>.fst:448:40: error: el operador '<' no está definido para 'P' ...
+<std/collections>.fst:113:48: nota: requerido por 'Algorithms.Sort<P>', usado aquí
+programa.fst:26:12: nota: requerido por 'List<P>.Sort', usado aquí
+```
+
+Como cada método se comprueba solo al usarlo, `List<P>` funciona aunque `P` no tenga `operator<`,
+siempre que no llames a `Sort()`.
+
+## Métodos genéricos
+
+```faset
+using std.collections;
+
+int Longitud(string s) => s.Length;
+
+int main()
+{
+    auto nombres = new List<string>();
+    nombres.Add("Ana"); nombres.Add("Bartolomé");
+    auto longitudes = nombres.Select<int>(&Longitud);   // Select<U>
+    println(longitudes.Max());
+    Algorithms.Swap<string>(nombres[0], nombres[1]);    // T& a, T& b
+    println(nombres[0]);
+    delete nombres; delete longitudes;
+    return 0;
+}
+```

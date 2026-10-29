@@ -1,0 +1,86 @@
+export const metadata = {
+  title: "Punteros a función",
+  description: "delegate*<...> y &Funcion: callbacks nativos sin asignaciones, usados por List.Where, Select o Sort.",
+};
+
+# Punteros a función
+
+<p className="lead">
+  Faset usa la sintaxis de punteros a función de C#: <code>delegate*&lt;A, B, R&gt;</code> es un puntero a
+  una función que recibe <code>A</code> y <code>B</code> y devuelve <code>R</code> (el último tipo es siempre el
+  de retorno). Se obtienen con <code>&amp;Funcion</code> y se llaman como una función normal.
+</p>
+
+```faset
+int Sumar(int a, int b) => a + b;
+int Restar(int a, int b) => a - b;
+void Saludar() { println("hola"); }
+
+int Aplicar(delegate*<int, int, int> op, int a, int b) => op(a, b);
+
+int main()
+{
+    delegate*<int, int, int> f = &Sumar;
+    println(f(2, 3));                 // 5
+    f = &Restar;
+    println(Aplicar(f, 10, 4));       // 6
+
+    delegate*<void> g = &Saludar;     // sin parámetros ni retorno
+    g();
+    return 0;
+}
+```
+
+En el C generado es un puntero a función de C: no hay objetos, cierres ni asignaciones de memoria.
+
+## Con colecciones
+
+Mientras no haya lambdas, las operaciones de estilo LINQ de `List<T>` reciben punteros a función:
+
+```faset
+using std.collections;
+
+bool EsPar(int x) => x % 2 == 0;
+int Descendente(int a, int b) => b - a;
+void Mostrar(int x) { println(x); }
+
+int main()
+{
+    auto l = new List<int>();
+    for (int i = 1; i <= 6; i++) l.Add(i);
+    auto pares = l.Where(&EsPar);
+    pares.Sort(&Descendente);
+    pares.ForEach(&Mostrar);          // 6 4 2
+    println(l.Any(&EsPar));
+    delete l; delete pares;
+    return 0;
+}
+```
+
+## Callbacks con contexto
+
+Para pasar estado a un callback, añade un parámetro `void*` y conviértelo dentro. Es el mismo patrón
+que usa `std.ui` para los eventos:
+
+```faset
+class Contador
+{
+    public int Clics;
+    public static void AlPulsar(void* self) { ((Contador)self).Clics++; }
+}
+
+void Disparar(delegate*<void*, void> cb, void* contexto) { cb(contexto); }
+
+int main()
+{
+    auto c = new Contador();
+    Disparar(&Contador.AlPulsar, (void*)c);
+    Disparar(&Contador.AlPulsar, (void*)c);
+    println(c.Clics);                 // 2
+    delete c;
+    return 0;
+}
+```
+
+Un puntero a función también puede pasarse a C (por ejemplo, el comparador de `qsort`): consulta
+[interoperabilidad con C](/lenguaje/interop/).

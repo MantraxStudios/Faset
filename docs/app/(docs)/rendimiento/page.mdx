@@ -1,0 +1,82 @@
+import { BenchBars, BuildTable, CpuTable, Machine, StartupTable } from "@/components/Bench";
+
+export const metadata = {
+  title: "Rendimiento",
+  description: "Mediciones reales de Faset frente a C, Node.js y Python: CPU, tiempo de compilación, tamaño del ejecutable y arranque.",
+};
+
+# Rendimiento
+
+<p className="lead">
+  Todas las cifras de esta página (y de la portada) salen de <code>docs/benchmarks/results.json</code>,
+  escrito por <code>docs/benchmarks/run.py</code>. Ninguna se escribe a mano.
+</p>
+
+<Machine />
+
+## CPU
+
+<BenchBars />
+
+<CpuTable />
+
+Debajo de cada prueba está la salida del programa: el script comprueba que **las cuatro versiones
+imprimen lo mismo** (los decimales se comparan con 9 cifras significativas) antes de aceptar la
+medición.
+
+### Cómo leer estos números
+
+- Faset genera C y lo compila con el mismo `gcc -O2`, así que lo esperable es un rendimiento
+  equivalente al de C. Las diferencias de unos pocos milisegundos entre Faset y C están dentro del
+  ruido de medición.
+- En `fib(37)`, gcc transforma la recursión de forma agresiva tanto en el C escrito a mano como en el
+  generado por Faset; por eso el tiempo es tan bajo.
+- Node.js (V8) compila con JIT y queda cerca en las pruebas numéricas; Python, interpretado, es uno o
+  dos órdenes de magnitud más lento.
+
+## Compilación y tamaño
+
+<BuildTable />
+
+El tiempo incluye todo `faset build -c Release`: análisis del proyecto completo y de la biblioteca
+estándar que usa, generación de C y compilación con `cc -O2`. Las líneas cuentan los `.fst` y
+`.fstui` del proyecto (sin la biblioteca estándar). El proyecto AppUI incluye `std.ui`, unas 2 800
+líneas de biblioteca con el renderizador por software.
+
+## Arranque
+
+<StartupTable />
+
+Media de 200 ejecuciones de un «Hola, mundo» (lanzar el proceso, imprimir y salir), con la salida
+descartada. El ejecutable de Faset incluye su pequeño runtime (`faset_rt.c`) y la parte usada de la
+biblioteca estándar.
+
+## Metodología
+
+| | |
+|---|---|
+| Faset | `faset build -c Release` (C11 generado + `cc -O2`) |
+| C | `gcc -O2`, el mismo algoritmo escrito a mano |
+| Node.js / Python | el intérprete del sistema, sin opciones |
+| Repeticiones | 10 para Faset y C; 3 para Node.js y Python |
+| Estadístico | mediana del tiempo de pared (incluye el arranque del proceso) |
+
+Las fuentes están en `docs/benchmarks/src`:
+
+| Prueba | Qué mide | Archivos |
+|---|---|---|
+| Fibonacci recursivo (`fib 37`) | llamadas a función y aritmética entera | `fib.fst`, `fib.c`, `fib.js`, `fib.py` |
+| Criba de Eratóstenes (20 M) | acceso a memoria y bucles | `sieve.*` |
+| N-body, 2 M pasos | coma flotante y structs | `nbody.*` |
+| «Hola, mundo» | arranque y tamaño | `hello.fst`, `hello.c` |
+
+## Repetir las mediciones
+
+```bash
+make                             # compila ./faset
+python3 docs/benchmarks/run.py   # escribe docs/benchmarks/results.json
+cd docs && npm run build         # la web muestra los nuevos resultados
+```
+
+Los resultados dependen de la máquina, del compilador de C y de la carga del sistema. Si los
+repites en otro equipo, la página mostrará automáticamente su descripción y la fecha.

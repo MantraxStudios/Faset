@@ -1,0 +1,93 @@
+export const metadata = {
+  title: "¿Qué es Faset?",
+  description: "Lenguaje nativo con la sintaxis de C# y el control de C++, que compila a C11 y produce ejecutables sin máquina virtual.",
+};
+
+# ¿Qué es Faset?
+
+<p className="lead">
+  Faset es un lenguaje de programación <strong>nativo</strong>, con <strong>tipado estático estricto</strong> y
+  <strong> memoria manual</strong>. Se escribe como C# y se comporta como C++: no hay máquina virtual ni
+  recolector de basura, y el resultado es un ejecutable equivalente a uno escrito en C.
+</p>
+
+```faset
+using std::collections;          // estilo C++ ...
+using std.text;                  // ... o estilo C#: ambos valen
+
+namespace Juego::Modelo
+{
+    struct Punto
+    {
+        int X, Y;                                     // en un struct, público por defecto (C++)
+        Punto(int x, int y) { X = x; Y = y; }
+        static Punto operator +(Punto a, Punto b) => new Punto(a.X + b.X, a.Y + b.Y);
+        int Manhattan => Math::Abs(X) + Math::Abs(Y);  // propiedad (C#)
+    }
+}
+
+T Mayor<T>(T a, T b) => a < b ? b : a;               // plantilla (se instancia por tipo)
+void Incrementar(int& x) { x++; }                     // referencia (C++)
+
+int main()                                            // punto de entrada al estilo C++
+{
+    auto lista = new List<int>();                     // sin recolector de basura
+    for (int i = 0; i < 10; i++) lista.Add(i * i);
+    lista[0] = 100;                                   // operator[] devuelve T&
+    lista.Sort();
+    println(lista.Sum());
+
+    int n = 1;
+    Incrementar(n);
+    println(Mayor(n, 0));
+
+    auto p = new Juego::Modelo::Punto(1, 2) + new Juego.Modelo.Punto(3, 4);
+    println(p.Manhattan);
+
+    delete lista;                                     // tú decides cuándo liberar
+    return 0;
+}
+```
+
+## Cómo funciona
+
+```text
+ .fst ─► lexer ─► parser ─► análisis semántico ─► C11 ─► gcc / clang / NDK ─► binario nativo
+        (todo dentro de 'faset', escrito en C++17)                             .exe / ELF / Android
+```
+
+`faset` comprueba el programa completo (tipos, sobrecargas, plantillas, accesibilidad, rutas de
+retorno…), genera C portable y lo compila con el compilador de C de la plataforma, que produce
+**código máquina nativo** para x86-64, x86, ARM64 o ARMv7. Puedes ver el C intermedio en cualquier
+momento con [`faset emit-c`](/cli/#faset-emit-c).
+
+## Qué se toma de cada lenguaje
+
+| De C#                                             | De C++                                            |
+|---------------------------------------------------|---------------------------------------------------|
+| `class`, `struct`, `enum`, `namespace`, `using`   | `::`, `using namespace`, `import` de archivos     |
+| propiedades `int Total => n;` y `{ get; set; }`   | funciones y variables globales, `int main()`      |
+| clases parciales `partial class`                  | referencias `T&`; `ref`/`out` como alias          |
+| métodos de extensión `static int F(this int x)`   | `T& operator[](int i)`                            |
+| sobrecarga `static T operator+(T a, T b)`         | plantillas instanciadas por tipo (*duck typing*)  |
+| genéricos `<T>`, `default(T)`, `where` (ignorado) | `new`/`delete`/`delete[]`, destructores `~T()`    |
+| `delegate*<...>`, `&Funcion`                      | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x`   |
+| `var`, `null`, `int.MaxValue`                     | secciones `public:` / `private:`                  |
+
+Por defecto, los miembros de una `class` son privados y los de un `struct`, públicos (como en C++).
+
+## Qué incluye el repositorio
+
+| Componente | Descripción |
+|---|---|
+| `faset` | Compilador, gestor de proyectos y servidor de lenguaje en un solo ejecutable (C++17). |
+| `lib/std` | [Biblioteca estándar](/std/) escrita en Faset: colecciones, texto, E/S, JSON, procesos, UI… |
+| `studio/` | [FasetStudio](/studio/introduccion/), un IDE escrito en Faset y dibujado con Vulkan. |
+| `editors/vscode` | Extensión de VS Code (gramática, snippets y cliente LSP). |
+| `examples/` | Programas de ejemplo y un proyecto con referencia a una biblioteca. |
+
+## Siguientes pasos
+
+- [Instala el compilador](/empezar/instalacion/) desde el código fuente.
+- [Crea tu primer proyecto](/empezar/primer-proyecto/) con `faset new`.
+- Recorre la [guía del lenguaje](/lenguaje/tipos/).

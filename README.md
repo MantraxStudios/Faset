@@ -53,6 +53,19 @@ int main()                                            // punto de entrada al est
 }
 ```
 
+## Documentación
+
+La documentación completa (en español) está en [`docs/`](docs/): una web estática hecha con
+Next.js que incluye la guía del lenguaje, la referencia de la biblioteca estándar (generada a partir
+de `lib/std`), std.ui y el diseñador, FasetStudio, la CLI y benchmarks medidos.
+
+```bash
+cd docs
+npm install
+npm run dev        # http://localhost:3000 (Turbopack)
+npm run build      # exportación estática en docs/out/
+```
+
 ## Cómo funciona
 
 ```

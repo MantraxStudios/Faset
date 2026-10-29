@@ -1,0 +1,114 @@
+export const metadata = {
+  title: "Modelo de memoria",
+  description: "Memoria manual sin recolector de basura: new/delete, destructores, arreglos, cadenas y propiedad de la memoria.",
+};
+
+# Modelo de memoria
+
+<p className="lead">
+  Faset no tiene recolector de basura. Tú decides cuándo se reserva y cuándo se libera, igual que en
+  C++. A cambio, no hay pausas, el consumo de memoria es predecible y el ejecutable no arrastra ningún
+  entorno de ejecución.
+</p>
+
+## Pila y heap
+
+```faset
+struct Punto { public int X, Y; public Punto(int x, int y) { X = x; Y = y; } }
+
+class Jugador
+{
+    public string Nombre;
+    public Jugador(string n) { Nombre = n; }
+    ~Jugador() { println("Jugador liberado"); }
+}
+
+int main()
+{
+    Punto p = new Punto(1, 2);       // struct: valor en la pila
+    Punto* pp = &p;
+    pp->X = 10;                      // punteros
+
+    Jugador j = new Jugador("Ana");  // class: heap
+    delete j;                        // llama a ~Jugador() y libera
+
+    int n = 100;
+    double* v = new double[n];       // arreglo en el heap (a cero)
+    v[n - 1] = 1.5;
+    delete[] v;
+    return 0;
+}
+```
+
+| Operación | Efecto |
+|---|---|
+| `new Clase(...)` | reserva en el heap, pone los campos a cero, ejecuta los inicializadores y el constructor |
+| `delete obj` | ejecuta el destructor `~Clase()` y libera |
+| `new T[n]` | reserva `n` elementos a cero |
+| `delete[] p` | libera un arreglo |
+| `new Struct(...)` | construye un valor; no reserva memoria |
+
+Las colecciones de la biblioteca (`List<T>`, `Dictionary<K, V>`…) liberan su memoria interna en su
+destructor, pero no los objetos a los que apunten sus elementos: si guardas clases en una lista,
+bórralas antes de borrar la lista.
+
+## Cadenas
+
+Un `string` es una **vista** (puntero + longitud), no un objeto propietario. La regla es sencilla:
+
+- Los **literales** viven en el ejecutable: nunca se liberan.
+- Las funciones que **crean** texto devuelven una copia nueva que liberas con `String.Free`:
+  `String.Concat`, `String.Copy`, `ToUpper`, `ToLower`, `Convert.ToString`, `Text.Join`,
+  `Text.Replace`, `StringBuilder.ToString`, `File.ReadAllText`, `Console.ReadLine`…
+- Las funciones que **recortan** devuelven vistas de la cadena original y no reservan nada:
+  `Substring`, `Trim`, `Text.Split` (cada parte), `StringBuilder.View`, `Path.GetFileName`…
+
+```faset
+using std.text;
+
+int main()
+{
+    string base = "  Hola, Faset  ";
+    string recorte = base.Trim();                 // vista: no se libera
+    string grande = recorte.ToUpper();            // copia: se libera
+    println(grande);
+    String.Free(grande);
+
+    auto sb = new StringBuilder();
+    sb.Append("n = ").Append(42);
+    string copia = sb.ToString();                 // copia: sobrevive al builder
+    delete sb;
+    println(copia);
+    String.Free(copia);
+    return 0;
+}
+```
+
+La documentación de cada función de la [biblioteca estándar](/std/) dice si devuelve una copia o una
+vista.
+
+## Memoria de bajo nivel
+
+`Memory` (en el núcleo) expone `Alloc`, `AllocZeroed`, `Realloc`, `Free`, `Copy`, `Set`,
+`Compare` y las versiones tipadas `New<T>(n)` y `Resize<T>(p, n)`. Para patrones más cómodos,
+[`std.mem`](/std/mem/) ofrece:
+
+- `Span<T>`: vista con comprobación de límites sobre un puntero.
+- `Arena`: muchas reservas pequeñas y una sola liberación.
+- `Box<T>`: propietario único de un valor en el heap (como `unique_ptr`).
+
+## Detectar errores de memoria
+
+Compila con `--sanitize` para activar AddressSanitizer y UndefinedBehaviorSanitizer del compilador de
+C: detectan accesos fuera de límites, usos después de liberar, dobles liberaciones y fugas al
+terminar.
+
+```bash
+faset run --sanitize programa.fst
+```
+
+<Callout type="dev" title="Seguridad de memoria (en desarrollo)">
+Se está implementando un modelo **seguro por defecto**: las operaciones con punteros requerirán un
+contexto `memory_unsafe` y las compilaciones Debug comprobarán límites, nulos y dobles liberaciones.
+Consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/).
+</Callout>

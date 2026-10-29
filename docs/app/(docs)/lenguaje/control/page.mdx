@@ -1,0 +1,107 @@
+export const metadata = {
+  title: "Control de flujo",
+  description: "if, bucles for/while/do, switch, break/continue y el punto de entrada de un programa Faset.",
+};
+
+# Control de flujo
+
+<p className="lead">
+  Las sentencias son las de C# y C++: <code>if</code>/<code>else</code>, <code>for</code>, <code>while</code>,
+  <code>do</code>/<code>while</code>, <code>switch</code>, <code>break</code>, <code>continue</code> y
+  <code>return</code>, con el operador ternario <code>?:</code>.
+</p>
+
+## Punto de entrada
+
+Vale cualquiera de las dos formas: una función global al estilo C++ o un `Main` estático al estilo C#.
+Ambas pueden devolver `void` o `int` (el código de salida).
+
+```faset
+int main()
+{
+    println("estilo C++");
+    return 0;
+}
+```
+
+```faset
+static class Program
+{
+    static void Main()
+    {
+        Console.WriteLine("estilo C#");
+    }
+}
+```
+
+Los argumentos de la línea de órdenes se leen con `Environment.ArgCount()` y `Environment.GetArg(i)`.
+
+## Bucles y condiciones
+
+```faset
+int main()
+{
+    int suma = 0;
+    for (int i = 0; i < 20; i++)
+    {
+        if (i % 2 == 0) continue;
+        if (i > 15) break;
+        suma += i;
+    }
+    println(suma);              // 64
+
+    int k = 0;
+    do { k += 3; } while (k < 10);
+
+    int w = 100;
+    while (true) { w /= 2; if (w < 10) break; }
+    println(k > w ? k : w);
+    return 0;
+}
+```
+
+## switch
+
+`switch` admite enteros, `char` y enums. Cada `case` termina en `break`, `return` o `continue`.
+
+```faset
+enum Color { Rojo, Verde, Azul }
+
+string Nombre(Color c)
+{
+    switch (c)
+    {
+        case Color.Rojo: return "rojo";
+        case Color.Verde: return "verde";
+        default: return "otro";
+    }
+}
+
+int main()
+{
+    println(Nombre(Color.Verde));
+    return 0;
+}
+```
+
+## Errores sin excepciones
+
+Faset **no tiene excepciones** (`try`, `catch` y `throw` dan error de compilación). Las funciones
+que pueden fallar devuelven `bool` o un código de error, a menudo con un parámetro `out`:
+
+```faset
+int main()
+{
+    int n = 0;
+    if (!Convert.TryToInt32("12a", out n)) println("no es un número");
+    assert(n == 0, "n debería seguir a cero");
+    return 0;
+}
+```
+
+`panic(mensaje)` termina el programa con un mensaje de error; `assert(cond, mensaje)` hace lo mismo
+si la condición es falsa.
+
+<Callout type="nota">
+`foreach` todavía no existe: usa `for` con un índice. Consulta las [limitaciones actuales](/lenguaje/limitaciones/).
+</Callout>

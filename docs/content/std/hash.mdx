@@ -1,0 +1,21 @@
+Funciones hash: FNV-1a de 64 bits para cadenas y bytes, y la mezcla splitmix64 para enteros. Las
+usan `Dictionary<K, V>` y `HashSet<T>`; para tus propios tipos, combina los hash de sus campos.
+
+```faset
+using std.hash;
+
+struct Punto
+{
+    public int X, Y;
+    public Punto(int x, int y) { X = x; Y = y; }
+}
+
+int main()
+{
+    Punto p = new Punto(3, 4);
+    ulong h = Hash.Combine(Hash.Of(p.X), Hash.Of(p.Y));
+    println(h != 0);
+    println(Hash.Of("faset") == Hash.Of("faset"));
+    return 0;
+}
+```

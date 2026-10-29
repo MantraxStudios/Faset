@@ -1,0 +1,57 @@
+import StdIndex from "@/components/StdIndex";
+
+export const metadata = {
+  title: "Biblioteca estándar",
+  description: "Módulos de lib/std: colecciones, texto, E/S, procesos, JSON, tiempo, aleatorios, vectores, memoria y UI.",
+};
+
+# Biblioteca estándar
+
+<p className="lead">
+  Toda la biblioteca estándar está escrita en Faset (<code>lib/std/*.fst</code>): puedes leerla,
+  aprender de ella y ampliarla. Las páginas de cada módulo se generan a partir del código fuente en
+  cada compilación de esta documentación.
+</p>
+
+<StdIndex />
+
+## Cómo se cargan los módulos
+
+`std` (el núcleo) se importa siempre. El resto se carga automáticamente al importarlo o al usarlo
+con su nombre completo:
+
+```faset
+using std.collections;              // estilo C#
+using namespace std::io;            // estilo C++
+import std.text;                    // también vale
+
+int main()
+{
+    auto l = new List<int>();       // de std.collections
+    println(std::io::File::Exists("no-existe.txt"));   // nombre totalmente cualificado
+    delete l;
+    return 0;
+}
+```
+
+## Propiedad de la memoria
+
+Faset no tiene recolector de basura, así que cada función documenta quién libera lo que devuelve:
+
+- **Copias nuevas** — `String.Concat`, `ToUpper`, `Text.Join`, `Convert.ToString`,
+  `File.ReadAllText`, `Dictionary.Keys()`… La memoria es tuya: libérala con `String.Free` o `delete`.
+- **Vistas** — `Substring`, `Trim`, `Text.Split` (sus partes), `StringBuilder.View()`,
+  `Path.GetFileName`… No reservan memoria: son válidas mientras viva la cadena original.
+- **Colecciones** — se crean con `new` y se liberan con `delete`; su destructor libera la memoria
+  interna, pero no los objetos a los que apunten sus elementos.
+
+## Añadir tus propios módulos
+
+Crea `lib/<raíz>/<módulo>.fst`; `using raíz.módulo;` lo cargará. Por ejemplo,
+`lib/juego/fisica.fst` con `namespace juego.fisica { ... }` se usa con `using juego.fisica;`.
+
+<Callout type="nota">
+Las páginas de cada módulo se generan con `docs/scripts/extract-api.mjs`, que lee los miembros
+públicos y sus comentarios `//`. Los módulos nuevos (por ejemplo `net` o `thread`) aparecen aquí
+automáticamente en cuanto se añaden a `lib/std`.
+</Callout>

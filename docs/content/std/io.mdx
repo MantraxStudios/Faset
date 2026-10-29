@@ -1,0 +1,28 @@
+Archivos, carpetas y rutas. Las funciones devuelven `bool` en lugar de lanzar excepciones (Faset no
+tiene excepciones): compruébalo y sigue.
+
+```faset
+using std.io;
+
+int main()
+{
+    if (!File.WriteAllText("saludo.txt", "Hola desde Faset\n")) return 1;
+    File.AppendAllText("saludo.txt", "segunda línea\n");
+
+    string contenido;
+    if (File.TryReadAllText("saludo.txt", out contenido))
+    {
+        print(contenido);
+        String.Free(contenido);              // copia nueva
+    }
+
+    auto entradas = Directory.GetEntries(".");
+    for (int i = 0; i < entradas.Count; i++)
+        println(entradas[i].Name);
+    Directory.FreeEntries(entradas);
+
+    println(Path.GetExtension("informe.final.pdf"));   // vista: ".pdf"
+    File.Delete("saludo.txt");
+    return 0;
+}
+```

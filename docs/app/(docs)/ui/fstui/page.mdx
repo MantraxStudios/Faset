@@ -1,0 +1,99 @@
+export const metadata = {
+  title: "Formato .fstui",
+  description: "Referencia del formato .fstui: elemento Window, controles, atributos, anclajes, estilos y eventos.",
+};
+
+# Formato `.fstui`
+
+<p className="lead">
+  Un <code>.fstui</code> es un XML con un elemento raíz <code>&lt;Window&gt;</code> y los controles dentro.
+  El compilador lo convierte en una mitad de una clase parcial; los errores se señalan con su línea.
+</p>
+
+```fstui
+<Window Class="MainWindow" Namespace="MiApp" Title="MiApp" Width="560" Height="380" Theme="Dark">
+  <Label Name="lblTitle" X="32" Y="28" Width="496" Height="34" Text="Hello, Faset" FontSize="24" Bold="true" Anchor="Left,Top,Right" />
+  <Panel Name="card" X="32" Y="104" Width="496" Height="180" Anchor="Left,Top,Right,Bottom">
+    <TextBox Name="txtName" X="20" Y="40" Width="456" Height="36" Placeholder="Type your name..." Changed="OnNameChanged" />
+    <CheckBox Name="chkExcited" X="20" Y="92" Width="240" Height="24" Text="Add excitement" Changed="OnNameChanged" />
+    <Slider Name="sldVolume" X="20" Y="130" Width="300" Height="24" Value="30" Changed="OnVolumeChanged" />
+    <ProgressBar Name="prgVolume" X="336" Y="139" Width="140" Height="6" Value="30" />
+  </Panel>
+  <Button Name="btnGreet" X="420" Y="312" Width="108" Height="38" Text="Greet" Style="Primary" Anchor="Right,Bottom" Click="OnGreetClick" />
+</Window>
+```
+
+## `<Window>`
+
+| Atributo | Valor | Descripción |
+|---|---|---|
+| `Class` | identificador | **Obligatorio.** Nombre de la clase parcial que se genera. |
+| `Namespace` | nombre | Namespace de la clase (opcional). |
+| `Title` | texto | Título de la ventana (por defecto, el nombre de la clase). |
+| `Width`, `Height` | entero | Tamaño inicial (por defecto 800 × 600). |
+| `Theme` | `Dark`, `Light` | Tema de colores. |
+| `Resizable` | `true`, `false` | Si se puede redimensionar. |
+| `MinWidth`, `MinHeight` | entero | Tamaño mínimo. |
+| `Background`, `Background2` | color | Fondo; con `Background2`, degradado. Ver [Colores y degradados](/ui/colores/). |
+| `GradientDirection` | `Vertical`, `Horizontal` | Dirección del degradado. |
+
+## Controles
+
+| Elemento | Uso | Atributos propios |
+|---|---|---|
+| `<Label>` | Texto | `Text`, `TextAlign` |
+| `<Button>` | Botón | `Text`, `Style`, evento `Click` |
+| `<TextBox>` | Entrada de texto de una línea | `Text`, `Placeholder`, evento `Changed` (y `Click` con Intro) |
+| `<CheckBox>` | Casilla | `Text`, `Checked`, evento `Changed` |
+| `<RadioButton>` | Opción exclusiva | `Text`, `Checked`, `Group`, evento `Changed` |
+| `<ComboBox>` | Lista desplegable | `Items`, `SelectedIndex`, evento `Changed` |
+| `<ListBox>` | Lista con desplazamiento y teclado | `Items`, `SelectedIndex`, evento `Changed` |
+| `<Slider>` | Deslizador | `Value`, `Min`, `Max`, evento `Changed` |
+| `<ProgressBar>` | Barra de progreso | `Value`, `Min`, `Max` |
+| `<Panel>` | Contenedor (el único que admite hijos) | — |
+
+Los `RadioButton` con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. En
+`ComboBox` y `ListBox`, `Items` separa los elementos con `;` (`Items="Rojo;Verde;Azul"`).
+
+## Atributos comunes
+
+| Atributo | Valor | Descripción |
+|---|---|---|
+| `Name` | identificador | Nombre del campo en la clase. Sin `Name` el control existe pero no es accesible desde el código. |
+| `X`, `Y`, `Width`, `Height` | entero | Posición y tamaño, relativos al contenedor (por defecto 0, 0, 100 × 32). |
+| `Anchor` | `Left`, `Top`, `Right`, `Bottom` separados por comas | Bordes del contenedor a los que se ancla al redimensionar (por defecto `Left,Top`). |
+| `Text` | texto | Texto del control. |
+| `FontSize` | entero | Tamaño de letra (por defecto 14). |
+| `Bold` | `true`, `false` | Negrita. |
+| `TextAlign` | `Left`, `Center`, `Right` | Alineación del texto. |
+| `Style` | `Default`, `Primary`, `Subtle`, `Danger` | Estilo predefinido. |
+| `CornerRadius` | entero | Radio de las esquinas (por defecto, según el control). |
+| `Enabled`, `Visible` | `true`, `false` | Estado. |
+| `Value`, `Min`, `Max` | número | Para `Slider` y `ProgressBar` (por defecto 0–100). |
+| `Background`, `Background2`, `GradientDirection`, `Foreground`, `BorderColor`, `Accent` | color / dirección | Ver [Colores y degradados](/ui/colores/). |
+
+Los valores se validan al compilar: un número mal escrito, un `Style` desconocido o un atributo que no
+existe dan un error en la línea correspondiente del `.fstui`.
+
+## Eventos
+
+| Atributo | Cuándo se dispara |
+|---|---|
+| `Click` | Al activar el control: clic, `Espacio`, o `Intro` en un `TextBox`. |
+| `Changed` | Cuando cambia el valor: texto, casilla, opción, selección o deslizador. |
+
+El valor es el nombre de un método de la clase con la firma `void Nombre(Widget sender)`:
+
+```faset
+using std.ui;
+
+namespace MiApp
+{
+    public partial class MainWindow
+    {
+        void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }
+    }
+}
+```
+
+El [diseñador de FasetStudio](/studio/disenador/) crea el método por ti al hacer doble clic en un control.

@@ -1,0 +1,72 @@
+export const metadata = {
+  title: "Namespaces, using e import",
+  description: "Namespaces con . o ::, using al estilo C# y C++, alias de tipos e import de archivos.",
+};
+
+# Namespaces, `using` e `import`
+
+<p className="lead">
+  Los namespaces aceptan los separadores de los dos lenguajes: <code>Juego.Motor</code> y
+  <code>Juego::Motor</code> son el mismo nombre.
+</p>
+
+## Declarar namespaces
+
+```faset
+namespace Juego.Motor            // o  namespace Juego::Motor
+{
+    public static class Reloj
+    {
+        public static int Fps => 60;
+    }
+}
+
+int main()
+{
+    println(Juego.Motor.Reloj.Fps);
+    println(Juego::Motor::Reloj::Fps);
+    return 0;
+}
+```
+
+También existe la forma para todo el archivo, sin llaves:
+
+```faset
+namespace MiApp;
+
+static class Program
+{
+    static void Main() { Console.WriteLine("namespace de archivo"); }
+}
+```
+
+## Importar
+
+```faset
+using std.collections;              // importa un namespace (C#)
+using namespace std::io;            // lo mismo (C++)
+import std.text;                    // lo mismo
+using Lista = std.collections.List<int>;   // alias de tipo
+
+int main()
+{
+    auto l = new Lista();
+    l.Add(1);
+    println(std::io::File::Exists("a.txt"));    // nombre totalmente cualificado
+    delete l;
+    return 0;
+}
+```
+
+Los módulos de la biblioteca (`std.collections`, `std.io`…) se cargan automáticamente al importarlos
+o al usarlos con su nombre completo. `std` se importa siempre.
+
+## Incluir otros archivos
+
+En un proyecto `.fstproj` todos los archivos de la carpeta se compilan juntos, así que no hace falta
+incluir nada. Para programas de un solo archivo, `import "ruta"` incluye otro archivo (ruta relativa
+al archivo actual):
+
+```faset
+import "utilidades/cadenas.fst";
+```

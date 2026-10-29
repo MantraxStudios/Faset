@@ -1,0 +1,126 @@
+export const metadata = {
+  title: "Clases y structs",
+  description: "Clases (referencia, heap) y structs (valor), constructores, destructores, miembros estáticos y accesibilidad.",
+};
+
+# Clases y structs
+
+<p className="lead">
+  Un <code>struct</code> es un tipo valor (se copia y vive donde lo declares); una <code>class</code> es un
+  tipo referencia: <code>new</code> la crea en el heap y <code>delete</code> llama a su destructor y la libera.
+</p>
+
+## Structs
+
+```faset
+struct Punto
+{
+    int X, Y;                                 // público por defecto (como en C++)
+    Punto(int x, int y) { X = x; Y = y; }
+    int Manhattan() => Math.Abs(X) + Math.Abs(Y);
+}
+
+int main()
+{
+    Punto a = new Punto(1, 2);                // en la pila: no se libera
+    Punto b = a;                              // copia
+    b.X = 10;
+    println(a.X);                             // 1
+    Punto* p = &a;
+    p->Y = 7;                                 // a través de un puntero
+    println(a.Manhattan());                   // 8
+    return 0;
+}
+```
+
+`new Punto(...)` con un struct **no** reserva memoria: construye un valor.
+
+## Clases
+
+```faset
+class Jugador
+{
+    string nombre;                            // privado por defecto
+    int puntos;
+    public static int Creados = 0;
+    public const int Maximo = 100;
+
+    public Jugador(string n) { nombre = n; Creados++; }
+    ~Jugador() { println("adiós"); }          // destructor
+
+    public void Sumar(int p) { puntos = Math.Min(puntos + p, Maximo); }
+    public int Puntos() => puntos;
+}
+
+int main()
+{
+    Jugador j = new Jugador("Ana");           // heap
+    j.Sumar(250);
+    println(j.Puntos());                      // 100
+    println(Jugador.Creados);
+    delete j;                                 // llama a ~Jugador() y libera
+    return 0;
+}
+```
+
+## Accesibilidad
+
+| | `class` | `struct` |
+|---|---|---|
+| Por defecto | privado | público |
+
+Puedes marcar cada miembro (`public`, `private`) al estilo C#, o usar secciones al estilo C++:
+
+```faset
+class Inventario
+{
+public:
+    Inventario() { }
+    int Total => total;
+    void Agregar(int n) { total += n; }
+private:
+    int total;
+}
+
+int main()
+{
+    auto inv = new Inventario();
+    inv.Agregar(3);
+    println(inv.Total);
+    delete inv;
+    return 0;
+}
+```
+
+## Clases estáticas y funciones globales
+
+Una `static class` agrupa funciones sin estado (como `Math` o `File`). También puedes declarar
+funciones y variables **globales** al estilo C++, fuera de cualquier clase:
+
+```faset
+int contador = 0;
+
+void Incrementar() { contador++; }
+
+static class Util
+{
+    public static int Doble(int x) => x * 2;
+}
+
+int main()
+{
+    Incrementar();
+    println(Util.Doble(contador));
+    return 0;
+}
+```
+
+## Valores iniciales
+
+Los campos pueden tener inicializador (`int vida = 100;`) y se ponen a cero si no lo tienen. Las
+clases también admiten inicializadores con `new`: `List<int> items = new List<int>();`.
+
+<Callout type="nota">
+Todavía no hay herencia, interfaces ni métodos `virtual`; están en la hoja de ruta. Mientras tanto,
+la composición y los [punteros a función](/lenguaje/delegados/) cubren la mayoría de los casos.
+</Callout>

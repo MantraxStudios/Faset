@@ -1,0 +1,67 @@
+export const metadata = {
+  title: "Referencias, ref y out",
+  description: "Referencias T& al estilo C++ y los modificadores ref/out de C# como alias.",
+};
+
+# Referencias, `ref` y `out`
+
+<p className="lead">
+  Una referencia <code>T&amp;</code> es un alias de otra variable, como en C++. Los modificadores
+  <code>ref</code> y <code>out</code> de C# son la misma idea escrita a la manera de C#.
+</p>
+
+## `T&` al estilo C++
+
+```faset
+void Incrementar(int& x) { x++; }
+
+int main()
+{
+    int a = 5;
+    Incrementar(a);          // no hace falta marcar el argumento
+    int& r = a;              // referencia local
+    r += 10;
+    println(a);              // 16
+    return 0;
+}
+```
+
+Las referencias sirven en parámetros, en valores de retorno (`T& operator[](int i)`) y en variables
+locales.
+
+## `ref` y `out` al estilo C#
+
+```faset
+void Dividir(int a, int b, out int cociente, ref int resto)
+{
+    cociente = a / b;
+    resto = a % b;
+}
+
+void Incrementar(int& x) { x++; }
+
+int main()
+{
+    int q = 0, r = 0;
+    Dividir(17, 5, out q, ref r);
+    println(q);              // 3
+    println(r);              // 2
+
+    int n = 1;
+    Incrementar(ref n);      // 'ref' también vale con un parámetro T&
+    println(n);
+    return 0;
+}
+```
+
+El patrón `Try...(entrada, out resultado)` es la forma habitual de señalar errores en la biblioteca
+estándar, que no usa excepciones:
+
+```faset
+int main()
+{
+    double d = 0;
+    if (Convert.TryToDouble("3.25", out d)) println(d * 2);
+    return 0;
+}
+```

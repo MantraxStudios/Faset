@@ -1,0 +1,23 @@
+Interfaces de usuario nativas para Linux (X11) y Windows (Win32), dibujadas por un **renderizador
+por software** escrito en Faset: rectángulos redondeados con antialiasing, degradados, círculos,
+líneas y texto (FreeType en Linux, GDI en Windows). Normalmente no se usa a mano: describes la
+ventana en un `.fstui` y el compilador genera los controles. Consulta
+[Aplicaciones AppUI](/ui/introduccion/) y el [formato .fstui](/ui/fstui/).
+
+```faset
+using std.ui;
+
+int main()
+{
+    auto w = new Window("Hola", 360, 160);
+    Widget l = w.Add(Widget.Create(WidgetKind.Label, "titulo", 24, 24, 300, 30));
+    l.Text = "Hola desde std.ui";
+    l.FontSize = 20;
+    int code = Application.Run(w);
+    delete w;
+    return code;
+}
+```
+
+Al usar `std.ui` el compilador enlaza automáticamente `X11` y `freetype` en Linux, o `user32` y
+`gdi32` en Windows.

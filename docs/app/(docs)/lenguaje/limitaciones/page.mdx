@@ -1,0 +1,43 @@
+export const metadata = {
+  title: "Limitaciones actuales",
+  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, foreach, lambdas, interpolación de cadenas, excepciones…",
+};
+
+# Limitaciones actuales
+
+<p className="lead">
+  Faset 0.2 es joven. Esta es la lista honesta de lo que el compilador rechaza hoy, con el mensaje que
+  verás y la alternativa recomendada.
+</p>
+
+| No disponible | Alternativa |
+|---|---|
+| Herencia, `interface`, `virtual`/`override` | Composición y [punteros a función](/lenguaje/delegados/). Están en la hoja de ruta. |
+| `foreach` | `for (int i = 0; i < lista.Count; i++)` |
+| Lambdas | Funciones con nombre y `&Funcion` |
+| Interpolación `$"..."` | `StringBuilder` o `String.Concat` |
+| Excepciones (`try`, `catch`, `throw`) | Devolver `bool`/códigos de error y `out` (no se añadirán) |
+| `is` / `as` | Un campo `Kind` (enum) en tus tipos |
+| Operador `??` | `x != null ? x : y` |
+| Parámetros con valor por defecto, `params` | Sobrecargas |
+| Inicializadores de objeto `new T { X = 1 }` | Constructores |
+| Inicializadores de constructor `: this(...)` | Un método privado común |
+| Tipos anidados | Tipos en el mismo namespace |
+| `using static` | Nombre de la clase delante (`Math.Sqrt`) |
+| `goto`, `typeof`, `stackalloc`, `fixed` | — |
+| Operadores compuestos sobre propiedades (`p.X += 1`) | `p.X = p.X + 1` |
+
+## Otras notas
+
+- C no fija el orden de evaluación de los operandos: evita expresiones como `a[f()] = g()` cuando
+  `f` y `g` tienen efectos que dependen entre sí.
+- El empaquetado de APK de Android y los bindings de Win32 y Android aún no vienen incluidos: se
+  usan con `extern`. El [soporte de Android](/android/) está en desarrollo.
+- FasetStudio solo funciona en Linux (X11/XWayland) por ahora; las aplicaciones `std.ui` sí
+  funcionan en Linux y en Windows.
+
+<Callout type="dev">
+En desarrollo en otras ramas: [seguridad de memoria con `memory_unsafe`](/lenguaje/seguridad-de-memoria/),
+empaquetado y ejecución en [Android](/android/), y nuevos módulos de la biblioteca estándar (red,
+hilos, más funciones de E/S, sistema y tiempo). Esta documentación se actualizará cuando se integren.
+</Callout>

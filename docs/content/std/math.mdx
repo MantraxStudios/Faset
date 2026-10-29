@@ -1,0 +1,20 @@
+Vectores y utilidades para gráficos y juegos. Son `struct` (tipos valor) con operadores
+sobrecargados, así que no reservan memoria. Las funciones básicas (`Sqrt`, `Sin`, `Clamp`…) están
+en [`std::Math`](/std/core/#math).
+
+```faset
+using std.math;
+
+int main()
+{
+    Vec2 pos = new Vec2(1, 2);
+    Vec2 vel = new Vec2(0.5, -1);
+    pos = pos + vel * 2.0;                   // operadores
+    println(pos.Length);
+
+    Rect r = new Rect(0, 0, 10, 5);
+    println(r.Contains(pos));
+    println(Interp.Remap(5, 0, 10, 0, 100)); // 50
+    return 0;
+}
+```

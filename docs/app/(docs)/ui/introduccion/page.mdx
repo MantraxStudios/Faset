@@ -1,0 +1,93 @@
+export const metadata = {
+  title: "Aplicaciones AppUI",
+  description: "Interfaces nativas para Linux y Windows con std.ui: ventanas descritas en .fstui, código en una clase parcial y un renderizador por software escrito en Faset.",
+};
+
+# Aplicaciones AppUI
+
+<p className="lead">
+  Una aplicación AppUI describe sus ventanas en archivos <code>.fstui</code> (XML), escribe la lógica en
+  una clase parcial y se dibuja con <code>std.ui</code>, un renderizador por software escrito en Faset.
+  El mismo proyecto compila para Linux (X11) y Windows (Win32).
+</p>
+
+<Screenshot src="/screenshots/galeria.png" width={720} height={460} alt="Ventana de ejemplo de std.ui con degradados, casillas, botones de opción, deslizador, barra de progreso y lista desplegable" caption="docs/samples/Galeria: captura real generada sin pantalla con FASET_UI_SCREENSHOT." />
+
+## Crear una aplicación
+
+```bash
+faset new MiApp --ui
+cd MiApp
+faset run
+```
+
+La plantilla genera tres archivos:
+
+| Archivo | Contenido |
+|---|---|
+| `MainWindow.fstui` | La ventana y sus controles, en XML. Se edita a mano o con el [diseñador](/studio/disenador/). |
+| `MainWindow.fst` | La otra mitad de `partial class MainWindow`: constructor, destructor y manejadores de eventos. |
+| `Program.fst` | `Main`: crea la ventana y llama a `Application.Run`. |
+
+```fst
+// Program.fst
+using std.ui;
+
+namespace MiApp
+{
+    public static class Program
+    {
+        public static int Main()
+        {
+            auto window = new MainWindow();
+            int code = Application.Run(window.Window);
+            delete window;
+            return code;
+        }
+    }
+}
+```
+
+## Cómo funciona
+
+1. Al compilar, cada `.fstui` del proyecto se traduce a código Faset: una mitad de la clase parcial
+   indicada en `Class`, con un campo `Widget` por cada control con `Name` y el método
+   `InitializeComponent()`.
+2. Tu código llama a `InitializeComponent()` en el constructor y responde a los eventos con métodos
+   `void Nombre(Widget sender)`.
+3. `Application.Run` abre la ventana nativa, procesa la entrada y redibuja cuando algo cambia.
+
+Los errores del `.fstui` (atributos desconocidos, colores mal escritos, manejadores que no existen)
+se muestran con la línea del XML, igual que los del código.
+
+## El renderizador
+
+`std.ui` dibuja cada píxel en un búfer en memoria (`Canvas`) y lo copia a la ventana:
+
+- rectángulos redondeados con antialiasing, bordes, círculos y líneas;
+- **degradados** verticales u horizontales en la ventana y en cada control;
+- texto con FreeType (Linux) o GDI (Windows), con UTF-8 completo;
+- temas oscuro y claro, foco visible con teclado, cursores según la zona;
+- portapapeles del sistema en los cuadros de texto (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`).
+
+No depende de ninguna biblioteca de interfaz: en Linux solo enlaza `X11` y `freetype`; en Windows,
+`user32` y `gdi32`.
+
+## Controles
+
+`Panel`, `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`, `Slider`
+y `ProgressBar`. Consulta el [formato .fstui](/ui/fstui/) para sus atributos y
+[Colores y degradados](/ui/colores/) para personalizarlos.
+
+## Capturas sin pantalla
+
+Las aplicaciones `std.ui` pueden dibujarse sin abrir una ventana, útil para tests y para generar
+capturas como las de esta documentación:
+
+```bash
+FASET_UI_SCREENSHOT=captura.bmp ./bin/Debug/linux-x86_64/MiApp
+FASET_UI_SCREENSHOT=captura.bmp FASET_UI_SCRIPT="click 120 80 | type Hola | key tab" ./MiApp
+```
+
+`FASET_UI_SCRIPT` simula entrada antes de la captura: `click X Y`, `move X Y`, `scroll N`,
+`type texto`, `key tab|enter|space|…` y `resize W H`, separados por `|`.

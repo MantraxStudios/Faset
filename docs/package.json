@@ -1,0 +1,30 @@
+{
+  "name": "faset-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "node scripts/extract-api.mjs && node scripts/extract-cli.mjs && node scripts/build-search-index.mjs",
+    "predev": "npm run gen",
+    "dev": "next dev --turbopack",
+    "prebuild": "npm run gen",
+    "build": "next build --turbopack",
+    "serve": "npx serve out"
+  },
+  "dependencies": {
+    "@mdx-js/loader": "^3.1.1",
+    "@mdx-js/react": "^3.1.1",
+    "@next/mdx": "^16.4.3",
+    "next": "^16.4.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "shiki": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

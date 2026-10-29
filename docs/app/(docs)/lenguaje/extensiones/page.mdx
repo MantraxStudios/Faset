@@ -1,0 +1,49 @@
+export const metadata = {
+  title: "Métodos de extensión",
+  description: "Añade métodos a tipos existentes, incluidos int y string, con static ... (this T x).",
+};
+
+# Métodos de extensión
+
+<p className="lead">
+  Un método estático cuyo primer parámetro lleva <code>this</code> se puede llamar como si fuera un
+  método del tipo. Funciona con cualquier tipo, también con los primitivos.
+</p>
+
+```faset
+static class Extensiones
+{
+    public static int Doble(this int x) => x * 2;
+    public static bool EsPar(this int x) => x % 2 == 0;
+    public static string Saludo(this string nombre) => String.Concat("Hola, ", nombre);
+}
+
+int main()
+{
+    println(7.Doble());              // 14
+    println(10.EsPar());             // true
+    string s = "Ana".Saludo();       // copia nueva
+    println(s);
+    String.Free(s);
+    return 0;
+}
+```
+
+## En la biblioteca estándar
+
+Así están hechos los métodos de `string`: `Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`,
+`ToUpper`, `ToInt`… viven en la clase `StringExtensions` de [`std`](/std/core/#stringextensions) y
+se usan directamente sobre cualquier cadena:
+
+```faset
+int main()
+{
+    string linea = "  edad=31  ";
+    string limpia = linea.Trim();               // vista
+    int i = limpia.IndexOf("=");
+    println(limpia.Substring(i + 1).ToInt() + 1);   // 32
+    return 0;
+}
+```
+
+Las extensiones están disponibles en cuanto su namespace está importado con `using`.

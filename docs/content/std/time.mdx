@@ -1,0 +1,16 @@
+Reloj, pausas y cronómetro. `Time.TickMs()` es monótono (para medir intervalos);
+`Time.NowUnixMs()` da la hora real.
+
+```faset
+using std.time;
+
+int main()
+{
+    Stopwatch sw = Stopwatch.StartNew();
+    Time.Sleep(50);
+    sw.Stop();
+    println(sw.ElapsedMs >= 50);
+    println(Time.NowUnixSeconds());
+    return 0;
+}
+```

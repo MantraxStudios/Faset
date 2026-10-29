@@ -1,0 +1,78 @@
+export const metadata = {
+  title: "Sobrecarga de operadores",
+  description: "Operadores aritméticos, de comparación y de indexación (operator[] devuelve T&) para tus tipos.",
+};
+
+# Sobrecarga de operadores
+
+<p className="lead">
+  Los operadores se declaran como en C# (<code>static T operator +(T a, T b)</code>). La indexación
+  usa la forma de C++: <code>T&amp; operator[](int i)</code> devuelve una referencia, así que
+  <code>v[i] = x</code> funciona.
+</p>
+
+```faset
+struct Vec2
+{
+    public double X, Y;
+    public Vec2(double x, double y) { X = x; Y = y; }
+
+    public static Vec2 operator +(Vec2 a, Vec2 b) => new Vec2(a.X + b.X, a.Y + b.Y);
+    public static Vec2 operator -(Vec2 a, Vec2 b) => new Vec2(a.X - b.X, a.Y - b.Y);
+    public static Vec2 operator -(Vec2 a) => new Vec2(-a.X, -a.Y);          // unario
+    public static Vec2 operator *(Vec2 a, double k) => new Vec2(a.X * k, a.Y * k);
+    public static Vec2 operator *(double k, Vec2 a) => new Vec2(a.X * k, a.Y * k);
+    public static bool operator ==(Vec2 a, Vec2 b) => a.X == b.X && a.Y == b.Y;
+}
+
+int main()
+{
+    Vec2 v = new Vec2(1, 2) + new Vec2(3, 4) * 2.0;
+    println(v.X);                       // 7
+    println(v == new Vec2(7, 10));      // true
+    println(v != new Vec2(0, 0));       // != se deduce de ==
+    return 0;
+}
+```
+
+## Indexación con referencias
+
+```faset
+class Rejilla
+{
+    int ancho;
+    int* celdas;
+
+    public Rejilla(int w, int h) { ancho = w; celdas = new int[w * h]; }
+    ~Rejilla() { delete[] celdas; }
+
+    public int& operator[](int i) => celdas[i];
+}
+
+int main()
+{
+    auto r = new Rejilla(4, 4);
+    r[5] = 42;              // asigna a través de la referencia
+    r[5] += 1;
+    println(r[5]);          // 43
+    delete r;
+    return 0;
+}
+```
+
+`List<T>`, `Span<T>` y `Dictionary<K, V>` de la biblioteca estándar usan exactamente este mecanismo.
+
+## Operadores que se pueden sobrecargar
+
+| Tipo | Operadores |
+|---|---|
+| Aritméticos | `+` `-` `*` `/` `%` (y `-` unario) |
+| Comparación | `==` `!=` `<` `>` `<=` `>=` |
+| Bits | `&` `\|` `^` `<<` `>>` `~` |
+| Lógicos | `!` |
+| Indexación | `[]` (con retorno `T&`) |
+
+<Callout type="nota">
+Si defines `==`, `!=` se obtiene automáticamente. La biblioteca estándar usa `operator<` para
+ordenar y `operator==` para buscar (`List.Sort`, `List.Contains`, `Algorithms.BinarySearch`).
+</Callout>

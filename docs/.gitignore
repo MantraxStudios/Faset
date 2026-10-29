@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Generado en prebuild/predev a partir de lib/std y src/main.cpp
+generated/
+public/search-index.json
+
+# Binarios de las muestras y benchmarks
+samples/**/bin/
+samples/**/obj/
+benchmarks/build/

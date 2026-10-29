@@ -1,0 +1,415 @@
+{
+ "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+ "name": "faset",
+ "scopeName": "source.faset",
+ "fileTypes": [
+  "fst"
+ ],
+ "patterns": [
+  {
+   "include": "#comments"
+  },
+  {
+   "include": "#directives"
+  },
+  {
+   "include": "#attributes"
+  },
+  {
+   "include": "#declarations"
+  },
+  {
+   "include": "#strings"
+  },
+  {
+   "include": "#characters"
+  },
+  {
+   "include": "#numbers"
+  },
+  {
+   "include": "#keywords"
+  },
+  {
+   "include": "#types"
+  },
+  {
+   "include": "#functions"
+  },
+  {
+   "include": "#names"
+  },
+  {
+   "include": "#operators"
+  },
+  {
+   "include": "#punctuation"
+  }
+ ],
+ "repository": {
+  "comments": {
+   "patterns": [
+    {
+     "name": "comment.line.documentation.faset",
+     "match": "///.*$"
+    },
+    {
+     "name": "comment.line.double-slash.faset",
+     "begin": "//",
+     "end": "$",
+     "beginCaptures": {
+      "0": {
+       "name": "punctuation.definition.comment.faset"
+      }
+     }
+    },
+    {
+     "name": "comment.block.faset",
+     "begin": "/\\*",
+     "end": "\\*/",
+     "captures": {
+      "0": {
+       "name": "punctuation.definition.comment.faset"
+      }
+     }
+    }
+   ]
+  },
+  "directives": {
+   "patterns": [
+    {
+     "name": "meta.preprocessor.faset",
+     "match": "^\\s*(#)\\s*(region|endregion|pragma)\\b.*$",
+     "captures": {
+      "1": {
+       "name": "punctuation.separator.hash.faset"
+      },
+      "2": {
+       "name": "keyword.preprocessor.faset"
+      }
+     }
+    },
+    {
+     "name": "meta.using.faset",
+     "match": "\\b(using|import)\\s+(?:(namespace)\\s+)?(?:([A-Za-z_]\\w*)\\s*(=)\\s*)?([A-Za-z_][\\w]*(?:\\s*(?:\\.|::)\\s*[A-Za-z_]\\w*)*)?",
+     "captures": {
+      "1": {
+       "name": "keyword.other.using.faset"
+      },
+      "2": {
+       "name": "keyword.other.namespace.faset"
+      },
+      "3": {
+       "name": "entity.name.type.alias.faset"
+      },
+      "4": {
+       "name": "keyword.operator.assignment.faset"
+      },
+      "5": {
+       "name": "entity.name.namespace.faset"
+      }
+     }
+    },
+    {
+     "match": "\\b(namespace)\\s+([A-Za-z_][\\w]*(?:\\s*(?:\\.|::)\\s*[A-Za-z_]\\w*)*)",
+     "captures": {
+      "1": {
+       "name": "storage.type.namespace.faset"
+      },
+      "2": {
+       "name": "entity.name.namespace.faset"
+      }
+     }
+    }
+   ]
+  },
+  "attributes": {
+   "match": "(\\[)\\s*(Export)\\b",
+   "captures": {
+    "1": {
+     "name": "punctuation.definition.attribute.faset"
+    },
+    "2": {
+     "name": "entity.other.attribute-name.faset"
+    }
+   }
+  },
+  "declarations": {
+   "patterns": [
+    {
+     "match": "\\b(class|struct|enum|interface)\\s+([A-Za-z_]\\w*)",
+     "captures": {
+      "1": {
+       "name": "storage.type.$1.faset"
+      },
+      "2": {
+       "name": "entity.name.type.$1.faset"
+      }
+     }
+    },
+    {
+     "match": "(~)([A-Za-z_]\\w*)\\s*(?=\\()",
+     "captures": {
+      "1": {
+       "name": "punctuation.definition.destructor.faset"
+      },
+      "2": {
+       "name": "entity.name.function.destructor.faset"
+      }
+     }
+    },
+    {
+     "match": "\\b(operator)\\s*(\\[\\]|==|!=|<=|>=|<<|>>|[-+*/%&|^!~<>])",
+     "captures": {
+      "1": {
+       "name": "storage.type.operator.faset"
+      },
+      "2": {
+       "name": "entity.name.function.operator.faset"
+      }
+     }
+    }
+   ]
+  },
+  "strings": {
+   "patterns": [
+    {
+     "name": "string.quoted.double.verbatim.faset",
+     "begin": "@\"",
+     "end": "\"(?!\")",
+     "patterns": [
+      {
+       "name": "constant.character.escape.faset",
+       "match": "\"\""
+      }
+     ]
+    },
+    {
+     "name": "string.quoted.double.faset",
+     "begin": "\"",
+     "end": "\"|$",
+     "patterns": [
+      {
+       "include": "#escapes"
+      }
+     ]
+    }
+   ]
+  },
+  "characters": {
+   "name": "string.quoted.single.faset",
+   "match": "'(?:\\\\(?:[\\\\'\"0abfnrtv]|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})|[^'\\\\])'",
+   "captures": {
+    "0": {
+     "patterns": [
+      {
+       "include": "#escapes"
+      }
+     ]
+    }
+   }
+  },
+  "escapes": {
+   "name": "constant.character.escape.faset",
+   "match": "\\\\(?:[\\\\'\"0abfnrtv]|x[0-9A-Fa-f]{1,4}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8})"
+  },
+  "numbers": {
+   "patterns": [
+    {
+     "name": "constant.numeric.hex.faset",
+     "match": "\\b0[xX][0-9A-Fa-f_]+(?:[uU][lL]?|[lL][uU]?)?\\b"
+    },
+    {
+     "name": "constant.numeric.binary.faset",
+     "match": "\\b0[bB][01_]+(?:[uU][lL]?|[lL][uU]?)?\\b"
+    },
+    {
+     "name": "constant.numeric.decimal.faset",
+     "match": "(?:\\b[0-9][0-9_]*(?:\\.[0-9][0-9_]*)?|\\.[0-9][0-9_]*)(?:[eE][+-]?[0-9]+)?(?:[fFdDmM]|[uU][lL]?|[lL][uU]?)?\\b"
+    }
+   ]
+  },
+  "keywords": {
+   "patterns": [
+    {
+     "name": "keyword.control.faset",
+     "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally)\\b"
+    },
+    {
+     "name": "keyword.operator.memory.faset",
+     "match": "\\b(new|delete|sizeof|typeof|stackalloc|is|as)\\b"
+    },
+    {
+     "name": "storage.modifier.faset",
+     "match": "\\b(public|private|protected|internal|static|extern|const|readonly|unsafe|memory_unsafe|partial|virtual|override|abstract|sealed|inline|constexpr|ref|out|params|this(?=\\s+[A-Za-z_]))\\b"
+    },
+    {
+     "name": "storage.type.faset",
+     "match": "\\b(class|struct|enum|interface|namespace|delegate|operator|var|auto|typename|where|get|set)\\b"
+    },
+    {
+     "name": "constant.language.faset",
+     "match": "\\b(true|false|null|nullptr)\\b"
+    },
+    {
+     "name": "variable.language.this.faset",
+     "match": "\\bthis\\b"
+    }
+   ]
+  },
+  "types": {
+   "patterns": [
+    {
+     "name": "keyword.type.faset",
+     "match": "\\b(void|bool|char|sbyte|byte|short|ushort|int|uint|long|ulong|float|double|string|object)\\b"
+    },
+    {
+     "comment": "Tipos genéricos: List<int>, Dictionary<string, int>",
+     "match": "\\b([A-Z]\\w*)\\s*(?=<[\\w\\s,.:<>*&\\[\\]]*>)",
+     "captures": {
+      "1": {
+       "name": "entity.name.type.faset"
+      }
+     }
+    },
+    {
+     "comment": "Tipo seguido de un nombre, de 'operator' o de '*'/'&': Punto p, Nodo* n, T& operator[]",
+     "match": "\\b([A-Z]\\w*)(?=\\s*[*&]*\\s+(?:operator\\b|[A-Za-z_]\\w*\\s*[=;,)(]))",
+     "captures": {
+      "1": {
+       "name": "entity.name.type.faset"
+      }
+     }
+    },
+    {
+     "comment": "Después de new: new Punto(...)",
+     "match": "(?<=\\bnew\\s)\\s*([A-Za-z_]\\w*)",
+     "captures": {
+      "1": {
+       "name": "entity.name.type.faset"
+      }
+     }
+    }
+   ]
+  },
+  "functions": {
+   "patterns": [
+    {
+     "comment": "Llamadas y declaraciones: Nombre(  o  Nombre<T>(",
+     "match": "\\b([A-Za-z_]\\w*)\\s*(?=(?:<[\\w\\s,.:<>*&]*>)?\\s*\\()",
+     "captures": {
+      "1": {
+       "name": "entity.name.function.faset"
+      }
+     }
+    }
+   ]
+  },
+  "names": {
+   "patterns": [
+    {
+     "comment": "Calificadores de namespace o tipo antes de ::",
+     "match": "\\b([A-Za-z_]\\w*)\\s*(?=::)",
+     "captures": {
+      "1": {
+       "name": "entity.name.namespace.faset"
+      }
+     }
+    },
+    {
+     "comment": "Miembros tras . o ->",
+     "match": "(?<=\\.|->)\\s*([A-Za-z_]\\w*)",
+     "captures": {
+      "1": {
+       "name": "variable.other.member.faset"
+      }
+     }
+    },
+    {
+     "name": "variable.other.readwrite.faset",
+     "match": "\\b[A-Za-z_]\\w*\\b"
+    }
+   ]
+  },
+  "operators": {
+   "patterns": [
+    {
+     "name": "punctuation.accessor.faset",
+     "match": "::|->|\\."
+    },
+    {
+     "name": "keyword.operator.assignment.compound.faset",
+     "match": "<<=|>>=|\\+=|-=|\\*=|/=|%=|&=|\\|=|\\^="
+    },
+    {
+     "name": "keyword.operator.comparison.faset",
+     "match": "==|!=|<=|>="
+    },
+    {
+     "name": "keyword.operator.logical.faset",
+     "match": "&&|\\|\\||!"
+    },
+    {
+     "name": "keyword.operator.increment.faset",
+     "match": "\\+\\+|--"
+    },
+    {
+     "name": "keyword.operator.arrow.faset",
+     "match": "=>"
+    },
+    {
+     "name": "keyword.operator.bitwise.shift.faset",
+     "match": "<<|>>"
+    },
+    {
+     "name": "keyword.operator.assignment.faset",
+     "match": "="
+    },
+    {
+     "name": "keyword.operator.faset",
+     "match": "[-+*/%&|^~<>?:]"
+    }
+   ]
+  },
+  "punctuation": {
+   "patterns": [
+    {
+     "name": "punctuation.terminator.statement.faset",
+     "match": ";"
+    },
+    {
+     "name": "punctuation.separator.comma.faset",
+     "match": ","
+    },
+    {
+     "name": "punctuation.curlybrace.open.faset",
+     "match": "\\{"
+    },
+    {
+     "name": "punctuation.curlybrace.close.faset",
+     "match": "\\}"
+    },
+    {
+     "name": "punctuation.parenthesis.open.faset",
+     "match": "\\("
+    },
+    {
+     "name": "punctuation.parenthesis.close.faset",
+     "match": "\\)"
+    },
+    {
+     "name": "punctuation.squarebracket.open.faset",
+     "match": "\\["
+    },
+    {
+     "name": "punctuation.squarebracket.close.faset",
+     "match": "\\]"
+    }
+   ]
+  }
+ },
+ "displayName": "Faset",
+ "aliases": [
+  "fst"
+ ]
+}

@@ -1,0 +1,29 @@
+El núcleo se importa solo en todos los archivos (como si escribieras `using std;`). Reúne la salida
+por consola, las funciones globales al estilo C++ (`print`, `println`, `panic`, `assert`), `Math`,
+`Memory`, `String`, `Char`, `Convert`, `Environment` y las extensiones de `string`.
+
+```faset
+int main()
+{
+    println("Hola");                         // función global
+    Console.WriteLine(Math.Gcd(84, 36));     // 12
+
+    string s = "  Faset es nativo  ";
+    string t = s.Trim();                     // vista: no reserva memoria
+    println(t.StartsWith("Faset"));          // true
+
+    string upper = t.ToUpper();              // copia nueva...
+    println(upper);
+    String.Free(upper);                      // ...que liberas tú
+
+    int n = 0;
+    if (Convert.TryToInt32("42", out n)) println(n + 1);
+    return 0;
+}
+```
+
+<Callout type="nota">
+Las funciones que **crean** una cadena (`String.Concat`, `ToUpper`, `Convert.ToString`,
+`Console.ReadLine`…) devuelven memoria que liberas con `String.Free`. Las que **recortan**
+(`Substring`, `Trim`) devuelven vistas de la cadena original y no reservan nada.
+</Callout>

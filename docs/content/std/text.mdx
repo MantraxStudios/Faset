@@ -1,0 +1,22 @@
+Construcción y manipulación de texto. `StringBuilder` crece según haga falta y encadena llamadas
+como en C#; `Text` agrupa las operaciones sobre cadenas que necesitan reservar memoria.
+
+```faset
+using std.collections;
+using std.text;
+
+int main()
+{
+    auto sb = new StringBuilder();
+    sb.Append("x=").Append(42).Append(", y=").Append(1.5);
+    println(sb.View());                      // vista sin copiar
+    delete sb;
+
+    auto partes = Text.Split("uno,dos,tres", ",");   // las partes son vistas
+    string unido = Text.Join(partes, " | ");         // copia nueva
+    println(unido);
+    String.Free(unido);
+    delete partes;
+    return 0;
+}
+```

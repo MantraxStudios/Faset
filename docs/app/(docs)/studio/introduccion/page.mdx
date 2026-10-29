@@ -1,0 +1,82 @@
+export const metadata = {
+  title: "FasetStudio",
+  description: "El IDE de Faset, escrito en Faset: Vulkan, X11, FreeType, IntelliSense del compilador real, diseñador visual y paneles acoplables.",
+};
+
+# FasetStudio
+
+<p className="lead">
+  FasetStudio es un entorno de desarrollo al estilo de Visual Studio, <strong>escrito en Faset</strong>.
+  Dibuja con <strong>Vulkan</strong>, usa la ventana nativa de X11, rasteriza el texto con FreeType y
+  obtiene el IntelliSense del propio compilador.
+</p>
+
+<Screenshot src="/screenshots/studio-editor.png" width={1440} height={880} alt="FasetStudio con el explorador de soluciones, una clase parcial abierta en el editor y el panel de salida" caption="FasetStudio editando docs/samples/Galeria (captura real con --screenshot, interfaz en español)." />
+
+## Compilar y abrir
+
+```bash
+make studio                       # desde la raíz del repositorio (= ./faset build studio)
+./studio/bin/Release/linux-x86_64/FasetStudio                     # ventana de inicio
+./studio/bin/Release/linux-x86_64/FasetStudio  ruta/a/MiProyecto  # abrir directamente
+```
+
+Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`. Necesita X11 (o XWayland),
+FreeType y el cargador de Vulkan (`libvulkan.so.1`). La GPU se elige automáticamente (prefiere la
+dedicada); `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
+
+## Funciones
+
+- **Ventana de inicio**: proyectos recientes, crear proyecto con plantillas (consola, biblioteca,
+  ventana) y abrir proyecto o carpeta con un explorador integrado.
+- **Explorador de soluciones** con gestión de archivos: nuevo archivo o carpeta, renombrar (`F2`),
+  duplicar, copiar ruta, eliminar con confirmación y arrastrar y soltar. Las pestañas abiertas siguen
+  al archivo.
+- **Editor** con pestañas, vista dividida (`Ctrl+\`), resaltado de Faset, números de línea,
+  deshacer/rehacer, sangría automática, cierre de `()` `[]` `""` y portapapeles del sistema.
+- **[IntelliSense](/studio/intellisense/)** del compilador real: errores en vivo, autocompletado,
+  información al pasar el ratón e ir a la definición, también dentro de la biblioteca estándar.
+- **Compilar y ejecutar** con salida en vivo (`Ctrl+B`, `F5`, `Shift+F5`) y selector Debug/Release.
+- **[Diseñador visual](/studio/disenador/)** de archivos `.fstui`.
+- **[Paneles acoplables](/studio/paneles/)**: explorador, salida y problemas a la izquierda, a la
+  derecha o abajo.
+- **Propiedades del proyecto**: editor visual del `.fstproj` (nombre, tipo de salida, plataforma,
+  arquitectura, configuración, enlazado estático, referencias y bibliotecas nativas).
+- **Interfaz traducible**: inglés por defecto e incluye español. Cada idioma es un archivo
+  `lang/<código>.txt` con líneas `English = Traducción`; se cambia desde la barra de estado o el menú
+  *Ver*, o con `FASET_STUDIO_LANG=es`.
+
+## Arquitectura
+
+| Archivo | Contenido |
+|---|---|
+| `src/Gfx/Vk.fst` | Bindings de Vulkan escritos en Faset (structs con la disposición de C). |
+| `src/Gfx/Renderer.fst` | Renderizador 2D: swapchain, pipeline, atlas, lotes con recorte y capturas. |
+| `src/Gfx/Font.fst` | FreeType → atlas de glifos bajo demanda. |
+| `src/Gfx/Shaders.fst` | SPIR-V generado desde `shaders/ui.vert` y `shaders/ui.frag`. |
+| `src/Platform/X11.fst` | Ventana, teclado, ratón y portapapeles con Xlib. |
+| `src/Ide/*.fst` | Búfer de texto, resaltado, editor, explorador, IntelliSense, diseñador y la aplicación. |
+
+Las formas redondeadas y las sombras se dibujan en el *fragment shader*. Todo el IDE son unas
+12 000 líneas de Faset que se compilan en pocos segundos: consulta [Rendimiento](/rendimiento/) para
+las cifras medidas.
+
+## Modo sin ventana
+
+Para pruebas automáticas y capturas, FasetStudio puede ejecutar un guion y guardar una imagen sin
+mostrar nada en pantalla (es lo que usa `make test`):
+
+```bash
+FasetStudio carpeta --screenshot captura.ppm --size 1400x860 \
+  --script "open Program.fst | goto 10 5 | type heroe. | hover 12 8"
+```
+
+Órdenes disponibles: `open`, `goto L C`, `type texto`, `key ctrl+s`, `hover L C`, `click X Y`,
+`dblclick`, `rclick`, `drag X1 Y1 X2 Y2`, `mdrag`, `wheel X Y N [ctrl]`, `split`, `panel N`,
+`dock P L`, `quickopen`, `find`, `build`, `run`, `menu`, `hub`, `properties`, `about` y `quit`.
+
+## Limitaciones
+
+- Solo Linux (X11/XWayland) por ahora. La versión de Windows necesita un backend Win32 para la ventana.
+- Los programas que se ejecutan con `F5` no reciben entrada por teclado: la salida va al panel *Salida*.
+- No hay depurador ni refactorizaciones (renombrar, buscar referencias).

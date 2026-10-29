@@ -1,0 +1,63 @@
+export const metadata = {
+  title: "Diseñador visual",
+  description: "Diseñador de .fstui en FasetStudio: herramientas, esquema, propiedades, colores, alineación, zoom, cuadrícula y atajos.",
+};
+
+# Diseñador visual
+
+<p className="lead">
+  Al abrir un <code>.fstui</code>, FasetStudio muestra el diseñador. Lo que ves en el lienzo lo dibuja
+  la misma lógica que <code>std.ui</code>, así que la ventana diseñada es la que obtendrás al ejecutar.
+</p>
+
+<Screenshot src="/screenshots/studio-designer.png" width={1680} height={980} alt="Diseñador de FasetStudio con la caja de herramientas, la ventana Galería en el lienzo con una etiqueta seleccionada y el panel de propiedades" caption="Diseñador con un control seleccionado: asas de redimensionado, barra de alineación y propiedades por categorías." />
+
+El botón **Diseño | Código** alterna entre el lienzo y el XML del archivo.
+
+## Paneles del diseñador
+
+- **Herramientas**: `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`,
+  `Slider`, `ProgressBar` y `Panel`. Se arrastran a la ventana o se añaden con un clic.
+- **Esquema**: árbol de todos los controles. Un clic selecciona; un doble clic va al evento.
+- **Propiedades** por categorías (*Control*, *Disposición*, *Apariencia*, *Colores*…). `Items` usa `;`
+  como separador (`Rojo;Verde;Azul`).
+- **Colores**: muestra, campo `#RRGGBB` (o `#RRGGBBAA`) y paleta. `Background` + `Background2` crean
+  un degradado y `GradientDirection` elige su dirección; la ventana también los admite.
+
+## Editar controles
+
+- **Mover y redimensionar** con asas, ajustando a la cuadrícula y a guías inteligentes; `Ctrl`
+  mientras arrastras desactiva el ajuste.
+- **Barra de alinear** (izquierda, centro, derecha, arriba, medio, abajo) y de orden (traer al frente,
+  enviar al fondo).
+- **Doble clic** en un control crea su manejador (`OnGuardarClick`…) en el código de la ventana y
+  lo abre.
+
+## Moverse por el lienzo
+
+| Acción | Cómo |
+|---|---|
+| Zoom | <Kbd>Ctrl</Kbd> + rueda, o los botones `−` / `+` de la barra (muestra el %); <Kbd>Ctrl+0</Kbd> vuelve al 100 % |
+| Desplazar en vertical | rueda |
+| Desplazar en horizontal | <Kbd>Shift</Kbd> + rueda |
+| Desplazar libremente | arrastrar con el botón central (rueda pulsada) |
+| Mostrar u ocultar la cuadrícula | <Kbd>G</Kbd> (al ocultarla también se desactiva el ajuste a la cuadrícula) |
+
+## Atajos
+
+| Atajo | Acción |
+|---|---|
+| <Kbd>Ctrl+C</Kbd> / <Kbd>Ctrl+X</Kbd> / <Kbd>Ctrl+V</Kbd> | Copiar, cortar y pegar controles |
+| <Kbd>Ctrl+D</Kbd> | Duplicar |
+| <Kbd>Supr</Kbd> | Borrar |
+| <Kbd>Ctrl+Z</Kbd> / <Kbd>Ctrl+Y</Kbd> | Deshacer y rehacer |
+| <Kbd>Tab</Kbd> | Seleccionar el siguiente control |
+| <Kbd>Ctrl+↑</Kbd> / <Kbd>Ctrl+↓</Kbd> | Traer al frente / enviar al fondo |
+| Flechas | Mover 1 px (con <Kbd>Shift</Kbd>, de 8 en 8) |
+| <Kbd>G</Kbd> | Cuadrícula |
+
+## Del diseño al ejecutable
+
+No hay paso intermedio: el `.fstui` guardado es el que compila `faset`. Pulsa <Kbd>F5</Kbd> y la
+ventana se ejecuta con los manejadores de tu clase parcial. Consulta el
+[formato .fstui](/ui/fstui/) y [Código de la ventana](/ui/codigo/).

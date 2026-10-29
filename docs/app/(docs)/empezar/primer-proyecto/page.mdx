@@ -1,0 +1,86 @@
+export const metadata = {
+  title: "Tu primer proyecto",
+  description: "Crea proyectos con faset new: consola, biblioteca, aplicación de ventana de Windows y AppUI.",
+};
+
+# Tu primer proyecto
+
+<p className="lead">
+  <code>faset new</code> crea una carpeta con un <code>.fstproj</code> y el código inicial. Los proyectos
+  funcionan como los <code>.csproj</code> de .NET SDK: todos los <code>.fst</code> de la carpeta se
+  compilan automáticamente.
+</p>
+
+```bash
+faset new MiApp              # MiApp/MiApp.fstproj + Program.fst
+cd MiApp
+faset run                    # compila y ejecuta
+```
+
+## Plantillas
+
+| Orden | Plantilla | Genera |
+|---|---|---|
+| `faset new MiApp` | Aplicación de consola (`Exe`) | `Program.fst` con `Main` y un ejemplo de `List<int>` |
+| `faset new Utilidades --lib` | Biblioteca (`Library`) | `Biblioteca.fst` con una clase estática |
+| `faset new MiVentana --winexe` | Aplicación de ventana de Windows (`WinExe`) | `Program.fst` (sin consola en Windows) |
+| `faset new MiApp --ui` | **AppUI** con `std.ui` (`WinExe`) | `MainWindow.fstui`, `MainWindow.fst` y `Program.fst` |
+
+También se aceptan las formas sin guiones (`lib`, `classlib`, `winexe`, `console`, `ui`, `appui`).
+Cada plantilla incluye un `.gitignore` con `bin/` y `obj/`.
+
+### Aplicación de consola
+
+```faset
+using std::collections;
+
+namespace MiApp
+{
+    public static class Program
+    {
+        public static void Main()
+        {
+            Console::WriteLine("¡Hola desde Faset!");
+
+            auto numeros = new List<int>();
+            for (int i = 1; i <= 5; i++) numeros.Add(i * i);
+            Console::WriteLine(numeros.Sum());
+            delete numeros;
+        }
+    }
+}
+```
+
+### Aplicación AppUI
+
+`faset new MiApp --ui` crea una ventana descrita en XML (`MainWindow.fstui`) y su código
+(`MainWindow.fst`), una clase parcial con los manejadores de eventos. Ábrela en FasetStudio para
+editarla con el [diseñador visual](/studio/disenador/), o consulta [Aplicaciones AppUI](/ui/introduccion/).
+
+<Screenshot src="/screenshots/holaui.png" width={560} height={380} alt="Ventana generada por la plantilla AppUI" caption="La plantilla AppUI tal cual la genera faset new --ui (captura real, sin ventana: FASET_UI_SCREENSHOT)." />
+
+## Compilar, ejecutar y limpiar
+
+```bash
+faset run                    # Debug, y ejecuta
+faset run -- arg1 arg2       # argumentos para tu programa
+faset build -c Release       # bin/Release/linux-x86_64/MiApp
+faset build --target windows # bin/Debug/windows-x86_64/MiApp.exe
+faset check                  # solo errores, sin generar el ejecutable
+faset clean                  # borra bin/ y obj/
+```
+
+La salida va a `bin/<Configuración>/<plataforma>-<arquitectura>/`. Sin argumentos, `faset` usa el
+`.fstproj` de la carpeta actual; también puedes pasarle la ruta de un `.fstproj` o de una carpeta.
+
+## Archivos sueltos
+
+No hace falta un proyecto para probar algo rápido:
+
+```bash
+faset run archivo.fst
+faset build a.fst b.fst -o programa
+```
+
+Si una carpeta no tiene `.fstproj`, `faset build carpeta` compila todos los `.fst` y `.fstui` que
+contenga.

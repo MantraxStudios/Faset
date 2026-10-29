@@ -1,0 +1,32 @@
+export const metadata = {
+  title: "IntelliSense",
+  description: "Errores en vivo, autocompletado, información al pasar el ratón e ir a la definición, servidos por el propio compilador.",
+};
+
+# IntelliSense
+
+<p className="lead">
+  El IntelliSense de FasetStudio no es una aproximación: lo calcula el propio compilador
+  (<code>faset __analyze</code>), con las mismas reglas de tipos, sobrecargas y plantillas que al compilar.
+</p>
+
+<Screenshot src="/screenshots/studio-complete.png" width={1440} height={880} alt="Autocompletado en FasetStudio mostrando la propiedad Value de Widget con su tipo float" caption="Autocompletado sobre un control generado desde el .fstui: el compilador conoce los campos de la otra mitad de la clase parcial." />
+
+## Qué ofrece
+
+- **Errores en vivo** subrayados en rojo, marcados en la barra de desplazamiento y listados en el panel
+  *Problemas* (un clic abre el archivo en esa línea).
+- **Autocompletado** tras `.`, `::` y `->`, al empezar a escribir una palabra o con
+  <Kbd>Ctrl+Espacio</Kbd>; muestra el tipo o la firma de cada sugerencia.
+- **Información al pasar el ratón**: firmas, tipos y mensajes de error.
+- **Ir a la definición** con <Kbd>F12</Kbd> o <Kbd>Ctrl</Kbd>+clic, también dentro de la biblioteca
+  estándar (`lib/std`).
+
+La barra de estado muestra cuánto tardó el último análisis (en las capturas de esta documentación,
+unos 27 ms para un proyecto AppUI con `std.ui`).
+
+## Cómo funciona
+
+Cada análisis se ejecuta en un subproceso que analiza el proyecto completo (incluidos los `.fstui`
+convertidos a código) y libera toda su memoria al terminar. El mismo motor está disponible para
+cualquier editor con `faset lsp`: consulta [Editores y LSP](/empezar/editores/).

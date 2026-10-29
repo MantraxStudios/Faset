@@ -1,0 +1,78 @@
+export const metadata = {
+  title: "Plataformas y compilación cruzada",
+  description: "Compila para Linux, Windows y Android desde la misma máquina: objetivos, arquitecturas y compiladores de C.",
+};
+
+# Plataformas y compilación cruzada
+
+<p className="lead">
+  Como Faset genera C11 portable, cambiar de plataforma es cambiar de compilador de C. Con
+  <code>--target</code> y <code>--arch</code> eliges el destino y <code>faset</code> busca el compilador adecuado.
+</p>
+
+```bash
+faset build                              # la máquina actual
+faset build --target windows             # .exe con MinGW-w64
+faset build --target windows --arch x86  # Windows de 32 bits
+faset build --target android --api 29    # ARM64 con el NDK (API 24 por defecto)
+faset build --target android --arch armv7 --api 29
+faset build --target linux --arch arm64  # Linux ARM64 (aarch64-linux-gnu-gcc)
+```
+
+## Qué compilador se usa
+
+| Objetivo | Compilador buscado |
+|---|---|
+| El de la máquina | `cc`, `gcc` o `clang` |
+| `windows` | `<triple>-gcc` o `<triple>-clang` con `x86_64-w64-mingw32`, `i686-w64-mingw32` o `aarch64-w64-mingw32` |
+| `linux` (cruzado) | `aarch64-linux-gnu-gcc`, `arm-linux-gnueabihf-gcc`, `i686-linux-gnu-gcc` o `x86_64-linux-gnu-gcc` |
+| `android` | `clang` del NDK: `<triple><api>-clang` en `toolchains/llvm/prebuilt/<host>/bin` |
+
+El NDK se busca en `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, `ANDROID_NDK` y en las carpetas
+`ndk/<versión>` de `ANDROID_HOME`, `ANDROID_SDK_ROOT` o `~/Android/Sdk` (se usa la versión más
+reciente). Siempre puedes forzar uno con `--cc` o `FASET_CC`.
+
+## Salidas
+
+| Objetivo | Ejecutable | Biblioteca (`--shared` / `Library`) |
+|---|---|---|
+| Linux | `Nombre` | `libNombre.so` |
+| Windows | `Nombre.exe` | `Nombre.dll` |
+| Android | `Nombre` (ELF) | `libNombre.so` |
+
+`faset run` solo ejecuta programas para la máquina actual; para otros objetivos usa `faset build`.
+
+## Código específico de cada plataforma
+
+Usa la [compilación condicional](/lenguaje/compilacion-condicional/) (`#if WINDOWS`, `#if ANDROID`…)
+o pregunta en tiempo de ejecución con `Environment.CurrentPlatform()` / `OS.IsWindows`.
+
+```faset
+int main()
+{
+#if WINDOWS
+    println("Compilado para Windows");
+#elif ANDROID
+    println("Compilado para Android");
+#else
+    println("Compilado para Linux");
+#endif
+    println(Environment.CurrentPlatform() == Platform.Linux);
+    return 0;
+}
+```
+
+## Aplicaciones de ventana en Windows
+
+Con `OutputType` `WinExe` (o `--gui`) el `.exe` no abre consola. Las APIs de Win32 se declaran con
+`extern` y se enlazan con `-l`:
+
+```bash
+faset build examples/ventana_windows.fst --target windows --gui -l user32
+```
+
+## Android
+
+`faset build --target android` produce hoy binarios ELF y bibliotecas `.so` para el NDK (con el NDK
+r30 hace falta `--api 29` o superior; consulta [Android](/android/)). El empaquetado de APK y la
+ejecución en un emulador están en desarrollo.
