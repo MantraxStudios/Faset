@@ -59,7 +59,8 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
 Al abrir un `.fstui` se muestra el diseñador visual (botón **Diseño | Código** para ver el XML).
 
 - **Herramientas:** Label, Button, TextBox, CheckBox, RadioButton, ComboBox, ListBox, Slider,
-  ProgressBar y Panel. Se arrastran a la ventana o se añaden con un clic.
+  ProgressBar, Panel, PictureBox, TabControl, TreeView, MenuBar y Canvas, y los componentes Timer y
+  ContextMenu. Se arrastran a la ventana o se añaden con un clic.
 - **Esquema:** árbol de todos los controles. Un clic selecciona y un doble clic va al evento.
 - **Mover y redimensionar** con asas, ajustando a la cuadrícula y a guías inteligentes (`Ctrl` desactiva el ajuste).
 - **Barra de alinear** en el contenedor (izquierda, centro, derecha, arriba, medio, abajo) y de orden (frente/fondo).
@@ -78,6 +79,43 @@ Al abrir un `.fstui` se muestra el diseñador visual (botón **Diseño | Código
   - `Foreground` es el color del texto y `BorderColor` el del borde.
   - `Accent` colorea la casilla marcada, el deslizador y la barra de progreso.
   - La ventana también admite `Background`, `Background2` y `GradientDirection`.
+
+### Imágenes, pestañas, árbol, menús, lienzo y componentes
+
+- **PictureBox** muestra PNG, JPEG, BMP o GIF (primer fotograma) con `Source` (ruta relativa al
+  proyecto) y `SizeMode`: `Normal`, `Stretch`, `Zoom` (cabe entera sin deformarse), `Center` o
+  `Cover` (llena y recorta). Se escala con filtro bilineal. `Button` y `MenuItem` aceptan `Icon`.
+  En el código, la clase `Image` (`Image.FromFile`, `Image.Load`, `GetPixel`/`SetPixel`) sirve
+  también para el Canvas. El compilador copia junto al ejecutable (y mete en el APK de Android) la
+  carpeta `Assets/` del proyecto y las imágenes que nombran los `.fstui`.
+- **TabControl:** las páginas son `<TabPage Text="...">` con sus controles dentro. En el diseñador,
+  un clic en una pestaña muestra esa página (los controles que se sueltan encima van a ella) y `+`
+  añade otra. `SelectedIndex`, `SelectedPage`, evento `SelectedChanged`; `Ctrl+Tab` cambia de página.
+- **TreeView:** nodos `<TreeNode Text="..." Expanded="true" Tag="...">` anidados (con `Name` se
+  genera un campo `TreeNode`). En código: `AddNode`, `node.Add`, `Nodes`, `SelectedNode`, eventos
+  `SelectedChanged` y `NodeActivated` (doble clic o Enter); teclado ↑ ↓ ← → Inicio Fin.
+- **MenuBar y ContextMenu:** `<Menu Text="Archivo">` con `<MenuItem Text Shortcut Icon Checked Enabled
+  Click>`, `<Separator/>` y submenús (`<Menu>` dentro de `<Menu>`). El atajo (`Ctrl+S`, `F5`...)
+  funciona aunque el menú esté cerrado. Un control abre un `ContextMenu` con el botón derecho si lo
+  nombra en su propiedad `ContextMenu` (`menu.SourceControl` dice sobre cuál se abrió).
+  **Edición en el diseñador:** un clic en una cabecera de la barra despliega ese menú y un clic en un
+  elemento lo elige (doble clic: su manejador `Click`). Los botones *Añadir elemento / separador /
+  submenú / menú* del panel de propiedades crean entradas, `Ctrl+↑/↓` las cambia de orden y `Supr`
+  las borra. El **esquema** muestra todo el árbol de menús (y la vista de código, el XML).
+- **Canvas:** dibujo libre. `Paint` recibe un `Graphics` (`Clear`, `FillRect`, `DrawRect`,
+  `FillRoundRect`, `DrawLine`, `FillCircle`, `DrawCircle`, `DrawText`, `DrawImage`, `FillGradient`,
+  `SetClip`); `MouseDown`/`MouseMove`/`MouseUp` reciben un `MouseArgs` (X, Y, Button, Clicks).
+  `Invalidate()` pide otro fotograma. Los manejadores se crean con la firma correcta.
+- **Componentes no visuales** (`Timer`, `ContextMenu`) van directamente dentro de `<Window>` y el
+  diseñador los muestra en la **bandeja de componentes** bajo la ventana: un clic los elige, doble
+  clic va a su evento (`Tick`). Para añadir otro tipo de componente basta con incluirlo en
+  `UiNode.IsComponentKind` (Designer.fst) y en `Widget.IsComponent` (lib/std/ui/kinds.fst).
+- **Timer:** `Interval` (ms), `Enabled`, `Start()`, `Stop()` y el evento `Tick`, que llega en el hilo
+  de la interfaz (la espera de eventos de la ventana se acorta para despertar a tiempo).
+
+Pruebas sin pantalla: `FASET_UI_SCREENSHOT=captura.bmp FASET_UI_SCRIPT="click X Y | rclick X Y |
+dblclick X Y | key ctrl+s | wait 500" ./App` (`wait` avanza el reloj de los Timer sin esperar).
+El ejemplo `examples/controles` usa todos estos controles.
 
 ## Paneles acoplables
 

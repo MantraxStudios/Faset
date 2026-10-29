@@ -21,6 +21,9 @@
 //  Densidad: las coordenadas de los controles son lógicas; el lienzo multiplica por
 //  'Scale' (1 en escritorio, dpi/160 en Android) y las fuentes se rasterizan al tamaño
 //  real, así el texto se ve nítido en pantallas de alta densidad.
+//
+//  El módulo sigue en lib/std/ui/*.fst (se cargan con 'using std.ui'): imágenes
+//  (Image, PictureBox), pestañas, árbol, menús, temporizador y lienzo de dibujo.
 // =============================================================================
 using std.collections;
 using std.text;
@@ -29,7 +32,9 @@ using std.os;
 
 namespace std.ui
 {
-    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox }
+    // Los tipos nuevos se añaden al final (PictureBox... Canvas: ver lib/std/ui/*.fst).
+    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox,
+                             PictureBox, TabControl, TabPage, TreeView, MenuBar, MenuItem, ContextMenu, Timer, Canvas }
     public enum WidgetStyle { Default, Primary, Subtle, Danger }
     public enum TextAlign { Left, Center, Right }
     public enum UiTheme { Dark, Light }
@@ -145,7 +150,7 @@ namespace std.ui
     // ======================================================================= lienzo
 
     // Mapa de píxeles 0x00RRGGBB con primitivas antialias (por distancia con signo).
-    public memory_unsafe class Canvas
+    public memory_unsafe partial class Canvas
     {
         public uint* Pixels;
         public int Width;         // en píxeles físicos
@@ -652,7 +657,7 @@ namespace std.ui
     // ======================================================================= controles
 
     // Un control de la interfaz. Todos los tipos comparten esta clase y se distinguen por 'Kind'.
-    public memory_unsafe class Widget
+    public memory_unsafe partial class Widget
     {
         public WidgetKind Kind;
         public string Name = String.Copy("");
@@ -723,6 +728,7 @@ namespace std.ui
             wd.height = h;
             if (kind == WidgetKind.Slider) wd.value = 50;
             if (kind == WidgetKind.Label) wd.FontSize = 14;
+            wd.InitKind();
             return wd;
         }
 
@@ -855,7 +861,7 @@ namespace std.ui
             set
             {
                 int v = value < -1 ? -1 : value;
-                if (v >= items.Count) v = items.Count - 1;
+                if (v >= ChoiceCount) v = ChoiceCount - 1;
                 selectedIndex = v;
                 EnsureVisible();
                 Invalidate();
@@ -948,7 +954,7 @@ namespace std.ui
         public bool Focusable => Visible && Enabled && (Kind == WidgetKind.TextBox || Kind == WidgetKind.Button ||
                                                        Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider ||
                                                        Kind == WidgetKind.RadioButton || Kind == WidgetKind.ComboBox ||
-                                                       Kind == WidgetKind.ListBox);
+                                                       Kind == WidgetKind.ListBox || FocusableKind);
 
         internal void RaiseClick()
         {
@@ -979,8 +985,7 @@ namespace std.ui
             ScreenY = parentY + ny;
             ActualWidth = nw < 0 ? 0 : nw;
             ActualHeight = nh < 0 ? 0 : nh;
-            for (int i = 0; i < Children.Count; i++)
-                Children[i].Layout(ScreenX, ScreenY, ActualWidth - width, ActualHeight - height);
+            LayoutChildren();
         }
 
         public bool Contains(int px, int py) =>
@@ -995,7 +1000,7 @@ namespace std.ui
                 Widget hit = Children[i].HitTest(px, py);
                 if (hit != null) return hit;
             }
-            return Kind == WidgetKind.Panel || Kind == WidgetKind.Label ? null : this;
+            return Kind == WidgetKind.Panel || Kind == WidgetKind.Label || Kind == WidgetKind.TabPage ? null : this;
         }
 
         // ------------------------------------------------------------- dibujo
@@ -1064,9 +1069,7 @@ namespace std.ui
                     else if (bg != 0) c.FillRoundRect(fx, fy, fw, fh, r, bg);
                     if (border != 0) c.StrokeRoundRect(fx, fy, fw, fh, r, 1, border);
                     if (focused && w.FocusVisible) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
-                    float tw = font.Measure(text);
-                    float baseline = fy + (fh - font.LineHeight) / 2 + font.Ascent;
-                    c.Text(font, text, fx + (fw - tw) / 2, baseline + (pressed ? 1 : 0), fg);
+                    DrawButtonContent(c, font, fx, fy, fw, fh, fg, pressed);
                     break;
                 }
                 case WidgetKind.TextBox:
@@ -1151,6 +1154,9 @@ namespace std.ui
                     if (filled > 0) c.FillRoundRect(fx, fy, filled < fh ? fh : filled, fh, r, accent);
                     break;
                 }
+                default:
+                    DrawKind(c, p, w, font, fx, fy, fw, fh, focused, hot, textColor, accent);
+                    break;
             }
             for (int i = 0; i < Children.Count; i++) Children[i].Draw(c, p, w);
         }
@@ -1386,7 +1392,8 @@ namespace std.ui
 
     // ======================================================================= ventana
 
-    public enum KeyCode { None, Backspace, Delete, Left, Right, Up, Down, Home, End, Enter, Tab, Escape, Space, A, C, V, X, Other }
+    public enum KeyCode { None, Backspace, Delete, Left, Right, Up, Down, Home, End, Enter, Tab, Escape, Space, A, C, V, X, Other,
+                          F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, PageUp, PageDown, Insert }
     public enum UiEventKind { None, KeyDown, Char, MouseDown, MouseUp, MouseMove, MouseLeave, Scroll, Resize, Close, Expose, FocusLost }
 
     public struct UiEvent
@@ -1402,9 +1409,10 @@ namespace std.ui
         public int Width;
         public int Height;
         public int Delta;     // rueda: positivo hacia abajo
+        public char KeyChar;  // KeyDown: letra (mayúscula) o dígito de la tecla, para los atajos (Ctrl+S)
     }
 
-    public class Window
+    public partial class Window
     {
         public List<Widget> Children = new List<Widget>();
         public UiTheme Theme = UiTheme.Dark;
@@ -1525,6 +1533,7 @@ namespace std.ui
 
         public void Render()
         {
+            dirty = false;  // antes de dibujar: un Paint (Canvas) puede pedir otro fotograma con Invalidate
             if (palette == null) palette = Palette.For(Theme);
             float scale = native != null ? native.Scale : 1;
             canvas.Scale = scale;
@@ -1540,7 +1549,7 @@ namespace std.ui
                 Children[i].Draw(canvas, palette, this);
             }
             if (DropDown != null) DrawDropDown();
-            dirty = false;
+            DrawPopups();
         }
 
         // ------------------------------------------------------------- lista desplegable
@@ -1710,6 +1719,7 @@ namespace std.ui
 
         public void HandleEvent(UiEvent e)
         {
+            if (HandleEventFirst(e)) return;  // menús abiertos, botón derecho, doble clic (ui/menu.fst)
             switch (e.Kind)
             {
                 case UiEventKind.Resize:
@@ -1747,14 +1757,15 @@ namespace std.ui
                     }
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
-                    if (hit != Hot || (hit != null && hit.Kind == WidgetKind.ListBox))
+                    MouseMoveKind(e);
+                    if (hit != Hot || (hit != null && hit.TracksHover))
                     {
                         Hot = hit;
                         dirty = true;
                     }
                     if (native != null)
                         native.SetCursor(DropDown != null && InDropDown(e.X, e.Y) ? CursorShape.Hand
-                                         : hit == null || hit.Kind == WidgetKind.ListBox ? CursorShape.Arrow
+                                         : hit == null || hit.Kind == WidgetKind.ListBox || hit.ArrowCursor ? CursorShape.Arrow
                                          : (hit.Kind == WidgetKind.TextBox ? CursorShape.Text : CursorShape.Hand));
                     break;
                 }
@@ -1793,6 +1804,7 @@ namespace std.ui
                     if (hit != null && hit.Kind == WidgetKind.Slider) SetSlider(hit, e.X);
                     if (hit != null && hit.Kind == WidgetKind.ComboBox) OpenDropDown(hit);
                     if (hit != null && hit.Kind == WidgetKind.ListBox) hit.Choose(hit.RowAt(e.Y));
+                    if (hit != null) MouseDownKind(hit, e);
                     dirty = true;
                     break;
                 }
@@ -1804,6 +1816,7 @@ namespace std.ui
                     dirty = true;
                     if (p != null && p.Contains(e.X, e.Y) &&
                         (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox || p.Kind == WidgetKind.RadioButton)) Activate(p);
+                    if (p != null) MouseUpKind(p, e);
                     break;
                 }
                 case UiEventKind.Scroll:
@@ -1820,6 +1833,7 @@ namespace std.ui
                         over.ScrollList(e.Delta);
                         dirty = true;
                     }
+                    else if (over != null) ScrollKind(over, e);
                     break;
                 }
                 case UiEventKind.KeyDown:
@@ -1869,6 +1883,7 @@ namespace std.ui
                 CloseDropDown();
                 if (e.Key == KeyCode.Escape) return;
             }
+            if (HandleKeyFirst(e)) return;  // menús, atajos (Ctrl+S) y Ctrl+Tab
             if (e.Key == KeyCode.Tab)
             {
                 MoveFocus(e.Shift);
@@ -1928,11 +1943,16 @@ namespace std.ui
                 if (f.Value != old) f.RaiseChanged();
                 FocusVisible = true;
             }
+            else KeyKind(f, e);
         }
 
         // ------------------------------------------------------------- pruebas
 
-        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | move X Y | scroll N | type texto | key tab | resize W H".
+        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | move X Y | scroll N | type texto | key tab | resize W H"
+        // y también "rclick X Y | dblclick X Y | down X Y | drag X Y | up X Y | key ctrl+s | wait MS" (ver ui/menu.fst).
+        // Las pruebas pueden llamarlo directamente.
+        public void Simulate(string script) { RunScript(script); }
+
         void RunScript(string script)
         {
             auto cmds = Text.Split(script, "|");
@@ -1974,7 +1994,8 @@ namespace std.ui
                 {
                     string k = parts[1];
                     e.Kind = UiEventKind.KeyDown;
-                    e.Key = k == "tab" ? KeyCode.Tab : k == "enter" ? KeyCode.Enter : k == "backspace" ? KeyCode.Backspace
+                    ParseScriptKey(k, ref e);
+                    if (e.Key == KeyCode.None) e.Key = k == "tab" ? KeyCode.Tab : k == "enter" ? KeyCode.Enter : k == "backspace" ? KeyCode.Backspace
                           : k == "left" ? KeyCode.Left : k == "right" ? KeyCode.Right : k == "home" ? KeyCode.Home
                           : k == "end" ? KeyCode.End : k == "space" ? KeyCode.Space : k == "delete" ? KeyCode.Delete
                           : k == "up" ? KeyCode.Up : k == "down" ? KeyCode.Down : k == "escape" ? KeyCode.Escape : KeyCode.Other;
@@ -2000,6 +2021,7 @@ namespace std.ui
                     e.Height = Convert.ToInt32(parts[2]);
                     HandleEvent(e);
                 }
+                else ScriptVerb(op, parts);
                 delete parts;
                 Render();
             }
@@ -2051,12 +2073,16 @@ namespace std.ui
                         dirty = true;
                     }
                 }
+                int untilTimer = UpdateComponents(Environment.TickCount64());  // temporizadores (ui/timer.fst)
                 if (dirty)
                 {
                     Render();
                     native.Present(canvas);
                 }
-                native.Wait(editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000);
+                int waitMs = editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000;
+                if (untilTimer >= 0 && untilTimer < waitMs) waitMs = untilTimer;
+                if (dirty && waitMs > 15) waitMs = 15;  // animación: otro fotograma pedido durante el dibujo
+                native.Wait(waitMs);
             }
             native.Destroy();
             return 0;
@@ -2319,7 +2345,12 @@ namespace std.ui
                 case 0x43: return KeyCode.C;
                 case 0x56: return KeyCode.V;
                 case 0x58: return KeyCode.X;
-                default: return KeyCode.Other;
+                case 0x21: return KeyCode.PageUp;
+                case 0x22: return KeyCode.PageDown;
+                case 0x2D: return KeyCode.Insert;
+                default:
+                    if (vk >= 0x70 && vk <= 0x7B) return (KeyCode)((int)KeyCode.F1 + (int)(vk - 0x70));
+                    return KeyCode.Other;
             }
         }
 
@@ -2405,6 +2436,16 @@ namespace std.ui
                     else Win32.ReleaseCapture();
                     w.Push(e);
                     return 0;
+                case 0x0204:  // WM_RBUTTONDOWN
+                case 0x0205:  // WM_RBUTTONUP
+                    e.Kind = m == 0x0204 ? UiEventKind.MouseDown : UiEventKind.MouseUp;
+                    e.Button = 3;
+                    e.X = LoX(lp);
+                    e.Y = HiY(lp);
+                    e.Shift = (wp & 4) != 0;
+                    e.Ctrl = (wp & 8) != 0;
+                    w.Push(e);
+                    return 0;
                 case 0x020A:  // WM_MOUSEWHEEL
                     e.Kind = UiEventKind.Scroll;
                     e.Delta = -(int)(short)((wp >> 16) & 0xffff) / 40;
@@ -2413,6 +2454,7 @@ namespace std.ui
                 case 0x0100:  // WM_KEYDOWN
                     e.Kind = UiEventKind.KeyDown;
                     e.Key = MapKey(wp);
+                    if ((wp >= 0x30 && wp <= 0x39) || (wp >= 0x41 && wp <= 0x5A)) e.KeyChar = (char)wp;
                     e.Shift = Win32.GetKeyState(0x10) < 0;
                     e.Ctrl = Win32.GetKeyState(0x11) < 0;
                     w.Push(e);
@@ -2558,7 +2600,12 @@ namespace std.ui
                 case 31: return KeyCode.C;
                 case 50: return KeyCode.V;
                 case 52: return KeyCode.X;
-                default: return KeyCode.Other;
+                case 92: return KeyCode.PageUp;
+                case 93: return KeyCode.PageDown;
+                case 124: return KeyCode.Insert;
+                default:
+                    if (code >= 131 && code <= 142) return (KeyCode)((int)KeyCode.F1 + (code - 131));  // F1..F12
+                    return KeyCode.Other;
             }
         }
 
@@ -2586,7 +2633,12 @@ namespace std.ui
                     case 5: e.Kind = UiEventKind.MouseDown; e.Button = 1; return true;
                     case 6: e.Kind = UiEventKind.MouseUp; e.Button = 1; return true;
                     case 7: e.Kind = UiEventKind.MouseLeave; return true;
-                    case 8: e.Kind = UiEventKind.KeyDown; e.Key = MapKey(ev[3]); return true;
+                    case 8:
+                        e.Kind = UiEventKind.KeyDown;
+                        e.Key = MapKey(ev[3]);
+                        if (ev[3] >= 7 && ev[3] <= 16) e.KeyChar = (char)('0' + ev[3] - 7);       // AKEYCODE_0..9
+                        else if (ev[3] >= 29 && ev[3] <= 54) e.KeyChar = (char)('A' + ev[3] - 29); // AKEYCODE_A..Z
+                        return true;
                     case 9: e.Kind = UiEventKind.Char; e.Char = (char)ev[4]; return true;
                     case 10: e.Kind = UiEventKind.FocusLost; return true;
                 }
@@ -2813,7 +2865,12 @@ namespace std.ui
                 case 'V': return KeyCode.V;
                 case 'x': return KeyCode.X;
                 case 'X': return KeyCode.X;
-                default: return KeyCode.Other;
+                case 0xff55: return KeyCode.PageUp;
+                case 0xff56: return KeyCode.PageDown;
+                case 0xff63: return KeyCode.Insert;
+                default:
+                    if (sym >= 0xffbe && sym <= 0xffc9) return (KeyCode)((int)KeyCode.F1 + (int)(sym - 0xffbe));
+                    return KeyCode.Other;
             }
         }
 
@@ -2844,6 +2901,8 @@ namespace std.ui
                     int n = X11.XLookupString(ev, buf, 15, &keysym, null);
                     e.Kind = UiEventKind.KeyDown;
                     e.Key = MapKey(keysym);
+                    if (keysym >= 'a' && keysym <= 'z') e.KeyChar = (char)(keysym - 32);
+                    else if ((keysym >= 'A' && keysym <= 'Z') || (keysym >= '0' && keysym <= '9')) e.KeyChar = (char)keysym;
                     e.Shift = (state & 1) != 0;
                     e.Ctrl = (state & 4) != 0;
                     char ch = (char)0;

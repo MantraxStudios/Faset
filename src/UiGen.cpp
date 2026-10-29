@@ -19,6 +19,11 @@ struct Gen {
     std::set<std::string> names;
     int nextEvent = 1;
     int unnamed = 0;
+    int windowWidth = 800;
+    std::vector<std::pair<std::string, std::string>> typedFields;  // (tipo, nombre): nodos de TreeView
+    std::string late;                                              // código que va después de crear todo
+    std::set<std::string> contextMenus;                            // nombres de los <ContextMenu>
+    std::vector<std::pair<int, std::string>> menuRefs;             // ContextMenu="..." (línea, nombre)
     bool ok = true;
 
     void error(int line, const std::string& msg) {
@@ -127,49 +132,147 @@ struct Gen {
         return h;
     }
 
-    void widget(const XmlNode& n, const std::string& parent) {
-        static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
-                                                       "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
-        if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
-            error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
-                          "ProgressBar, RadioButton, ComboBox, ListBox)");
-            return;
+    // Tipos de elemento: controles visuales, páginas, elementos de menú, componentes y nodos.
+    static bool isVisual(const std::string& k) {
+        static const std::set<std::string> v = {"Panel",    "Label",   "Button",     "TextBox",    "CheckBox",
+                                                "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox",
+                                                "PictureBox", "TabControl", "TreeView", "MenuBar",  "Canvas"};
+        return v.count(k) != 0;
+    }
+    static bool isMenuEntry(const std::string& k) { return k == "Menu" || k == "MenuItem" || k == "Separator"; }
+    static bool isComponent(const std::string& k) { return k == "Timer" || k == "ContextMenu"; }
+    static bool isMenuOwner(const std::string& k) { return k == "MenuBar" || k == "Menu" || k == "MenuItem" || k == "ContextMenu"; }
+
+    // Comprueba que 'n' puede ir dentro de un elemento 'parentKind'.
+    bool placementOk(const XmlNode& n, const std::string& parentKind) {
+        const std::string& k = n.name;
+        bool known = isVisual(k) || isMenuEntry(k) || isComponent(k) || k == "TabPage" || k == "TreeNode";
+        if (!known) {
+            error(n.line, "control desconocido '<" + k + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
+                          "ProgressBar, RadioButton, ComboBox, ListBox, PictureBox, TabControl, TreeView, MenuBar, Canvas, "
+                          "Timer y ContextMenu)");
+            return false;
         }
-        std::string name;
+        std::string where;
+        if (k == "TabPage") {
+            if (parentKind != "TabControl") where = "<TabPage> solo puede ir dentro de <TabControl>";
+        } else if (k == "TreeNode") {
+            if (parentKind != "TreeView" && parentKind != "TreeNode") where = "<TreeNode> solo puede ir dentro de <TreeView> o de otro <TreeNode>";
+        } else if (isMenuEntry(k)) {
+            if (!isMenuOwner(parentKind)) where = "<" + k + "> solo puede ir dentro de <MenuBar>, <ContextMenu> o de otro <Menu>";
+        } else if (isComponent(k)) {
+            if (parentKind != "Window") where = "<" + k + "> es un componente: va directamente dentro de <Window>";
+        } else if (parentKind == "TabControl") {
+            where = "<TabControl> solo puede contener <TabPage> (pon <" + k + "> dentro de una página)";
+        } else if (parentKind == "TreeView" || parentKind == "TreeNode") {
+            where = "<" + parentKind + "> solo puede contener <TreeNode>";
+        } else if (isMenuOwner(parentKind)) {
+            where = "<" + parentKind + "> solo puede contener <Menu>, <MenuItem> y <Separator>";
+        } else if (parentKind != "Window" && parentKind != "Panel" && parentKind != "TabPage") {
+            where = "solo <Window>, <Panel> y <TabPage> pueden contener controles (<" + parentKind + "> no)";
+        }
+        if (!where.empty()) {
+            error(n.line, where);
+            return false;
+        }
+        return true;
+    }
+
+    void node(const XmlNode& n, const std::string& parent, const std::string& parentKind) {
+        if (!placementOk(n, parentKind)) return;
+        if (n.name == "TreeNode") treeNode(n, parent, parentKind == "TreeView");
+        else widget(n, parent, parentKind);
+    }
+
+    std::string fieldName(const XmlNode& n, const std::string& prefix) {
         auto nm = n.attrs.find("Name");
         if (nm != n.attrs.end()) {
-            name = nm->second;
+            const std::string& name = nm->second;
             if (!isIdent(name)) error(n.line, "'Name' debe ser un identificador válido (es '" + name + "')");
             else if (name == "Window" || !names.insert(name).second) error(n.line, "ya existe un control llamado '" + name + "'");
-        } else {
-            name = "__ui" + std::to_string(++unnamed);
+            return name;
         }
+        return prefix + std::to_string(++unnamed);
+    }
+
+    // <TreeNode Text="..." Expanded="true" Tag="..." Name="...">: campo TreeNode (no es un Widget).
+    void treeNode(const XmlNode& n, const std::string& parent, bool parentIsView) {
+        std::string name = fieldName(n, "__tn");
+        typedFields.push_back({"TreeNode", name});
+        auto t = n.attrs.find("Text");
+        std::string code = name + " = " + parent + (parentIsView ? ".AddNode(" : ".Add(") +
+                           quote(t == n.attrs.end() ? "" : t->second) + ");";
+        for (const std::string& key : n.attrOrder) {
+            const std::string& v = n.attrs.at(key);
+            if (key == "Name" || key == "Text") continue;
+            if (key == "Tag") code += " " + name + ".Tag = " + quote(v) + ";";
+            else if (key == "Expanded") code += " " + name + ".Expanded = " + boolValue(n, key, v) + ";";
+            else error(n.line, "atributo desconocido '" + key + "' en <TreeNode> (válidos: Name, Text, Expanded, Tag)");
+        }
+        emit(n.line, " if (ev == 0) { " + code + " }");
+        for (const XmlNode& c : n.children) node(c, name, "TreeNode");
+    }
+
+    static std::string eventCall(const std::string& ev, const std::string& h) {
+        if (ev == "Paint") return h + "(sender, sender.Graphics);";
+        if (ev == "MouseDown" || ev == "MouseMove" || ev == "MouseUp") return h + "(sender, sender.Mouse);";
+        return h + "(sender);";
+    }
+
+    void widget(const XmlNode& n, const std::string& parent, const std::string& parentKind) {
+        std::string kind = isMenuEntry(n.name) ? "MenuItem" : n.name;
+        std::string name = fieldName(n, "__ui");
         fields.push_back(name);
 
         std::string x = "0", y = "0", w = "100", h = "32";
-        intAttr(n, "X", x);
-        intAttr(n, "Y", y);
-        intAttr(n, "Width", w);
-        intAttr(n, "Height", h);
-        std::string code = name + " = " + parent + ".Add(Widget.Create(WidgetKind." + n.name + ", " + quote(name) + ", " + x +
-                           ", " + y + ", " + w + ", " + h + "));";
+        bool sized = kind != "TabPage" && kind != "MenuItem" && !isComponent(kind);
+        if (kind == "MenuBar") w = std::to_string(windowWidth), h = "30";
+        if (sized) {
+            intAttr(n, "X", x);
+            intAttr(n, "Y", y);
+            intAttr(n, "Width", w);
+            intAttr(n, "Height", h);
+        } else {
+            x = y = w = h = "0";
+        }
+        std::string create = "Widget.Create(WidgetKind." + kind + ", " + quote(name) + ", " + x + ", " + y + ", " + w + ", " + h + ")";
+        std::string code = name + " = " + (isComponent(kind) ? "Window.AddComponent(" : parent + ".Add(") + create + ");";
+        if (n.name == "Separator") code += " " + name + ".Text = \"-\";";
+        if (kind == "MenuBar" && !n.attrs.count("Anchor")) code += " " + name + ".Anchor = Anchor.Left | Anchor.Top | Anchor.Right;";
         std::string events;
         std::string post;  // SelectedIndex va después de Items, esté donde esté en el XML
-        int clickId = 0, changedId = 0;
+        std::vector<std::pair<std::string, int>> wired;  // (evento, número)
         for (const std::string& key : n.attrOrder) {
             const std::string& v = n.attrs.at(key);
             std::string num;
-            if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") continue;
-            if (key == "Text" || key == "Placeholder" || key == "Group") code += " " + name + "." + key + " = " + quote(v) + ";";
+            if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") {
+                if (!sized && key != "Name") error(n.line, "<" + n.name + "> no admite '" + key + "' (su tamaño lo decide su contenedor)");
+                continue;
+            }
+            if (n.name == "Separator") {
+                if (key != "Visible") error(n.line, "<Separator> solo admite Name y Visible");
+                else code += " " + name + ".Visible = " + boolValue(n, key, v) + ";";
+                continue;
+            }
+            if (key == "Text" || key == "Placeholder" || key == "Group" || key == "Shortcut" || key == "Source")
+                code += " " + name + "." + key + " = " + quote(v) + ";";
+            else if (key == "Icon") code += " " + name + ".Icon = Image.FromFile(" + quote(v) + ");";
             else if (key == "Items") code += " " + name + ".SetItems(" + quote(v) + ");";
-            else if (key == "SelectedIndex") intAttr(n, key, num), post += " " + name + ".SelectedIndex = " + num + ";";
-            else if (key == "FontSize") intAttr(n, key, num), code += " " + name + ".FontSize = " + num + ";";
+            else if (key == "SelectedIndex") {
+                intAttr(n, key, num);
+                // Las páginas de un TabControl se añaden después: se elige al final.
+                if (kind == "TabControl") late += " " + name + ".SelectedIndex = " + num + ";";
+                else post += " " + name + ".SelectedIndex = " + num + ";";
+            } else if (key == "FontSize") intAttr(n, key, num), code += " " + name + ".FontSize = " + num + ";";
             else if (key == "CornerRadius") intAttr(n, key, num), code += " " + name + ".CornerRadius = " + num + ";";
+            else if (key == "Interval") intAttr(n, key, num), code += " " + name + ".Interval = " + num + ";";
             else if (key == "Bold" || key == "Checked" || key == "Enabled" || key == "Visible")
                 code += " " + name + "." + key + " = " + boolValue(n, key, v) + ";";
             else if (key == "Value" || key == "Min" || key == "Max") numAttr(n, key, num), code += " " + name + "." + key + " = " + num + ";";
             else if (key == "Style")
                 code += " " + name + ".Style = " + enumValue(n, key, v, "WidgetStyle", {"Default", "Primary", "Subtle", "Danger"}) + ";";
+            else if (key == "SizeMode")
+                code += " " + name + ".SizeMode = " + enumValue(n, key, v, "PictureSizeMode", {"Normal", "Stretch", "Zoom", "Center", "Cover"}) + ";";
             else if (isColorKey(key)) code += " " + name + "." + key + " = " + colorValue(n, key, v) + ";";
             else if (key == "GradientDirection")
                 code += " " + name + ".GradientHorizontal = " +
@@ -189,24 +292,42 @@ struct Gen {
                     start = comma + 1;
                 }
                 if (!flags.empty()) code += " " + name + ".Anchor = " + flags + ";";
-            } else if (key == "Click") {
-                clickId = nextEvent++;
-                events += " if (ev == " + std::to_string(clickId) + ") " + handler(n, key) + "(sender);";
-            } else if (key == "Changed") {
-                changedId = nextEvent++;
-                events += " if (ev == " + std::to_string(changedId) + ") " + handler(n, key) + "(sender);";
+            } else if (key == "ContextMenu") {
+                if (!isIdent(v)) error(n.line, "'ContextMenu' debe ser el nombre (Name) de un <ContextMenu> (es '" + v + "')");
+                else {
+                    late += " " + name + ".ContextMenu = " + v + ";";
+                    menuRefs.push_back({n.line, v});
+                }
+            } else if (key == "Click" || key == "Changed" || key == "SelectedChanged" || key == "NodeActivated" || key == "Tick" ||
+                       key == "Paint" || key == "MouseDown" || key == "MouseMove" || key == "MouseUp") {
+                std::string bad;
+                if ((key == "Paint" || key == "MouseDown" || key == "MouseMove" || key == "MouseUp") && kind != "Canvas")
+                    bad = "solo <Canvas>";
+                else if (key == "Tick" && kind != "Timer") bad = "solo <Timer>";
+                else if (key == "NodeActivated" && kind != "TreeView") bad = "solo <TreeView>";
+                else if (key == "SelectedChanged" && kind != "TabControl" && kind != "TreeView" && kind != "ListBox" && kind != "ComboBox")
+                    bad = "solo <TabControl>, <TreeView>, <ListBox> y <ComboBox>";
+                if (!bad.empty()) {
+                    error(n.line, "el evento '" + key + "' no existe en <" + n.name + "> (lo tienen " + bad + ")");
+                    continue;
+                }
+                int id = nextEvent++;
+                wired.push_back({key, id});
+                events += " if (ev == " + std::to_string(id) + ") " + eventCall(key, handler(n, key));
             } else {
                 error(n.line, "atributo desconocido '" + key + "' en <" + n.name + ">");
             }
         }
         code += post;
+        if (kind == "ContextMenu") contextMenus.insert(name);
         // El enlace de eventos pasa 'this' como void*: es código memory_unsafe generado (confiable).
-        if (clickId || changedId)
-            code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " +
-                    std::to_string(changedId) + "); }";
+        if (!wired.empty()) {
+            code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, 0, 0);";
+            for (auto& [ev, id] : wired) code += " " + name + ".SetEvent(WidgetEvent." + ev + ", " + std::to_string(id) + ");";
+            code += " }";
+        }
         emit(n.line, " if (ev == 0) { " + code + " }" + events);
-        if (!n.children.empty() && n.name != "Panel") error(n.children[0].line, "solo <Panel> puede contener otros controles");
-        for (const XmlNode& c : n.children) widget(c, name);
+        for (const XmlNode& c : n.children) node(c, name, n.name);
     }
 };
 
@@ -253,13 +374,19 @@ std::string generateUiSource(const std::string& xml, int fileId) {
         else g.error(root.line, "atributo desconocido '" + key + "' en <Window>");
     }
     g.emit(root.line, " if (ev == 0) { " + code + " }");
-    for (const XmlNode& c : root.children) g.widget(c, "Window");
+    g.windowWidth = std::atoi(w.c_str());
+    for (const XmlNode& c : root.children) g.node(c, "Window", "Window");
+    for (auto& [line, name] : g.menuRefs)
+        if (!g.contextMenus.count(name)) g.error(line, "no existe un <ContextMenu Name='" + name + "'> en la ventana");
+    // Referencias entre controles (ContextMenu, páginas elegidas): cuando ya existen todos.
+    if (!g.late.empty()) g.emit(std::max<int>(1, (int)g.lines.size()), " if (ev == 0) {" + g.late + " }");
 
     // Línea 1: todo lo que no corresponde a un control concreto.
     std::string head = "using std; using std.ui;";
     if (!ns.empty()) head += " namespace " + ns + " {";
     head += " public partial class " + cls + " { public Window Window;";
     for (const std::string& f : g.fields) head += " Widget " + f + ";";
+    for (auto& [type, f] : g.typedFields) head += " " + type + " " + f + ";";
     head += " void InitializeComponent() { __ui_build(0, null); }";
     head += " memory_unsafe static void __ui_event(void* self, Widget sender, int ev) { ((" + cls +
             ")self).__ui_build(ev, sender); }";

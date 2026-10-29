@@ -1,0 +1,29 @@
+Assets/a.png: 4x3 255,0,0,255
+a.png (1,0) alfa = 0
+Assets/b.jpg: 8x8 128,128,128,255
+Assets/c.bmp: 2x2 0,255,0,255
+Assets/d.gif: 3x3 255,255,0,255
+Assets/no-existe.png: no se encontró la imagen 'Assets/no-existe.png'
+PictureBox: cargada
+Pestaña inicial: 1 de 2
+Pintadas > 0: True
+Píxel del lienzo: 255,0,0,255 / 0,0,0,255
+Ratón: 50, 20 botón 1
+Pestaña: Uno
+Pestaña: Dos
+Nodo: Raíz
+Nodo: Raíz/Hijo
+Activado: Hijo [h1]
+Expandido: True
+Nodo: Raíz
+Activado: Raíz []
+Expandido tras doble clic: True
+Click: Guardar
+Menú abierto: False
+Submenú: Sub
+Click: Guardar
+Ctrl+S con el elemento deshabilitado: sin evento
+Menú contextual abierto: True
+Contextual: Borrar sobre arbol
+Ticks: 10
+Ticks tras Stop: 10

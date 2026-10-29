@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Controles</AssemblyName>
+    <RootNamespace>Controles</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+    <AndroidPackage>com.faset.controles</AndroidPackage>
+    <AppName>Controles</AppName>
+    <AndroidOrientation>landscape</AndroidOrientation>
+  </PropertyGroup>
+</Project>

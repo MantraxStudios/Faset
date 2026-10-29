@@ -172,7 +172,17 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
             std::string rel = mod;
             std::replace(rel.begin(), rel.end(), '.', '/');
             fs::path p = fs::path(lib) / (rel + ".fst");
-            if (fs::exists(p, ec)) enqueue(p.string(), "<" + rel + ">.fst");
+            if (!fs::exists(p, ec)) continue;
+            enqueue(p.string(), "<" + rel + ">.fst");
+            // Un módulo puede repartirse en una carpeta con su nombre: lib/std/ui.fst + lib/std/ui/*.fst.
+            fs::path dir = fs::path(lib) / rel;
+            if (fs::is_directory(dir, ec)) {
+                std::vector<std::string> parts;
+                for (auto& e : fs::directory_iterator(dir, ec))
+                    if (e.is_regular_file() && e.path().extension() == ".fst") parts.push_back(e.path().filename().string());
+                std::sort(parts.begin(), parts.end());
+                for (const std::string& f : parts) enqueue((dir / f).string(), "<" + rel + "/" + f.substr(0, f.size() - 4) + ">.fst");
+            }
         }
         for (const std::string& f : prog.requestedFiles) {
             if (!fs::exists(f, ec) && !(opts.overrides && opts.overrides->count(normalizePath(f))))

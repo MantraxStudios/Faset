@@ -278,3 +278,24 @@ Console, library, desktop or Android app = Consola, biblioteca, escritorio o And
 Console = Consola
 Desktop = Escritorio
 Mobile = Móvil
+
+# Diseñador: imágenes, pestañas, árbol, menús, lienzo y componentes
+PictureBox = Imagen
+TabControl = Pestañas
+TabPage = Página
+TreeView = Árbol
+TreeNode = Nodo
+MenuBar = Barra de menús
+Menu = Menú
+MenuItem = Elemento de menú
+Separator = Separador
+Canvas = Lienzo
+Timer = Temporizador
+ContextMenu = Menú contextual
+COMPONENTS = COMPONENTES
+Add page = Añadir página
+Add node = Añadir nodo
+Add menu = Añadir menú
+Add item = Añadir elemento
+Add separator = Añadir separador
+Add submenu = Añadir submenú

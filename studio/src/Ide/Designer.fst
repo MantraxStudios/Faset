@@ -27,6 +27,8 @@ namespace FasetStudio.Ide
         public float SY;
         public float SW;
         public float SH;
+        // TabControl: página que se ve en el diseñador (-1 = la de SelectedIndex). No se guarda.
+        public int ShownPage = -1;
 
         public UiNode(string kind) { Kind = String.Copy(kind); }
 
@@ -44,7 +46,15 @@ namespace FasetStudio.Ide
             delete Children;
         }
 
-        public bool IsContainer => Kind == "Window" || Kind == "Panel";
+        public bool IsContainer => Kind == "Window" || Kind == "Panel" || Kind == "TabPage";
+
+        // Componentes no visuales (bandeja bajo la ventana). Para añadir otro, inclúyelo aquí.
+        public static bool IsComponentKind(string k) => k == "Timer" || k == "ContextMenu";
+        public bool IsComponent => IsComponentKind(Kind);
+        public bool IsMenuEntry => Kind == "Menu" || Kind == "MenuItem" || Kind == "Separator";
+        // Partes de otro control: su sitio lo decide el contenedor (no se mueven con el ratón).
+        public bool IsPart => Kind == "TabPage" || Kind == "TreeNode" || IsMenuEntry;
+        public bool Movable => !IsComponent && !IsPart && Kind != "Window" && Kind != "MenuBar";
 
         int IndexOfKey(string key)
         {
@@ -442,8 +452,12 @@ namespace FasetStudio.Ide
         public string Status = "";           // mensaje para la barra de estado (vista de literal)
         public bool SwitchToCode;            // pide pasar a la vista de código
 
-        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel";
-        const int KindCount = 10;
+        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel|" +
+                              "PictureBox|TabControl|TreeView|MenuBar|Canvas|Timer|ContextMenu";
+        const int KindCount = 17;
+        float toolScroll;
+        const float TrayH = 46;   // bandeja de componentes bajo la ventana
+        public string RequestParams = "Widget sender";   // parámetros del manejador pedido
 
         public Designer(Document doc) { Doc = doc; }
 
@@ -560,18 +574,37 @@ namespace FasetStudio.Ide
         float CanvasW => W - ToolboxWidth - PropsWidth;
         float PropsX => X + W - PropsWidth;
 
+        const int TabHeader = 36;   // alto de las pestañas (igual que std.ui)
+
         float ContentX(UiNode n)
         {
             float x = originX;
-            for (UiNode p = n; p != null && p != root; p = p.Parent) x += p.Int("X", 0) * zoom;
+            for (UiNode p = n; p != null && p != root; p = p.Parent) x += (p.Kind == "TabPage" ? 1 : p.Int("X", 0)) * zoom;
             return x;
         }
 
         float ContentY(UiNode n)
         {
             float y = originY;
-            for (UiNode p = n; p != null && p != root; p = p.Parent) y += p.Int("Y", 0) * zoom;
+            for (UiNode p = n; p != null && p != root; p = p.Parent) y += (p.Kind == "TabPage" ? TabHeader : p.Int("Y", 0)) * zoom;
             return y;
+        }
+
+        // Página de un TabControl que se ve en el diseñador.
+        static int ShownIndex(UiNode tabs)
+        {
+            int n = tabs.Children.Count;
+            int i = tabs.ShownPage >= 0 ? tabs.ShownPage : tabs.Int("SelectedIndex", 0);
+            if (i >= n) i = n - 1;
+            if (i < 0) i = 0;
+            return i;
+        }
+
+        // Al elegir un control de una página oculta, esa página pasa a verse.
+        static void RevealPages(UiNode n)
+        {
+            for (UiNode p = n; p != null && p.Parent != null; p = p.Parent)
+                if (p.Kind == "TabPage" && p.Parent.Kind == "TabControl") p.Parent.ShownPage = p.Parent.Children.IndexOf(p);
         }
 
         void Layout()
@@ -583,12 +616,19 @@ namespace FasetStudio.Ide
         // Nodo más interno bajo el punto (sin contar la ventana).
         UiNode HitTest(UiNode n, float px, float py)
         {
+            if (n == root)
+            {
+                UiNode pop = PopupHit(px, py);   // menús desplegados en el diseñador, encima de todo
+                if (pop != null) return pop;
+            }
             for (int i = n.Children.Count - 1; i >= 0; i--)
             {
                 UiNode c = n.Children[i];
+                if (c.IsMenuEntry && n.Kind != "MenuBar") continue;  // los elementos de un menú se ven en su lista
                 if (px >= c.SX && py >= c.SY && px < c.SX + c.SW && py < c.SY + c.SH)
                 {
-                    UiNode inner = HitTest(c, px, py);
+                    // Los nodos de un árbol se eligen en el esquema; el árbol se mueve entero.
+                    UiNode inner = c.Kind == "TreeView" ? null : HitTest(c, px, py);
                     return inner != null ? inner : c;
                 }
             }
@@ -608,10 +648,10 @@ namespace FasetStudio.Ide
             for (int i = 0; i < n.Children.Count; i++)
             {
                 UiNode c = n.Children[i];
-                if (c == exclude || c.Kind != "Panel") continue;
+                if (c == exclude || (c.Kind != "Panel" && c.Kind != "TabPage" && c.Kind != "TabControl")) continue;
                 if (px >= c.SX && py >= c.SY && px < c.SX + c.SW && py < c.SY + c.SH)
                 {
-                    best = c;
+                    if (c.Kind != "TabControl") best = c;   // en un TabControl, el destino es su página visible
                     FindContainer(c, px, py, exclude, ref best);
                 }
             }
@@ -620,7 +660,7 @@ namespace FasetStudio.Ide
         // Asa de redimensión bajo el punto (0..7 desde arriba-izquierda en sentido horario) o -1.
         int HandleAt(float px, float py)
         {
-            if (selected == null || selected == root) return -1;
+            if (selected == null || selected == root || !selected.Movable) return -1;
             for (int i = 0; i < 8; i++)
             {
                 float hx = 0, hy = 0;
@@ -669,7 +709,7 @@ namespace FasetStudio.Ide
         int ToolAt(float px, float py)
         {
             if (leftTab != 0 || px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
-            int i = (int)Math.Floor((py - (Y + 52)) / ToolRow);
+            int i = (int)Math.Floor((py - (Y + 52) + toolScroll) / ToolRow);
             return py >= Y + 52 && i >= 0 && i < KindCount ? i : -1;
         }
 
@@ -831,13 +871,18 @@ namespace FasetStudio.Ide
         {
             if (selected != n) CommitEdit();
             selected = n;
+            RevealPages(n);
         }
 
         string UniqueName(string kind)
         {
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
                           : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar"
-                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : "panel";
+                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox"
+                          : kind == "PictureBox" ? "pictureBox" : kind == "TabControl" ? "tabControl" : kind == "TabPage" ? "tabPage"
+                          : kind == "TreeView" ? "treeView" : kind == "TreeNode" ? "treeNode" : kind == "MenuBar" ? "menuBar"
+                          : kind == "Menu" || kind == "MenuItem" ? "menuItem" : kind == "Separator" ? "separator"
+                          : kind == "Canvas" ? "canvas" : kind == "Timer" ? "timer" : kind == "ContextMenu" ? "contextMenu" : "panel";
             for (int i = 1; ; i++)
             {
                 string num = Convert.ToString(i);
@@ -848,15 +893,79 @@ namespace FasetStudio.Ide
             }
         }
 
+        // Hijo sin nombre (página, nodo o elemento de menú) con un texto.
+        static UiNode Part(UiNode parent, string kind, string text)
+        {
+            UiNode c = new UiNode(kind);
+            if (text.Length > 0) c.Set("Text", text);
+            c.Parent = parent;
+            parent.Children.Add(c);
+            return c;
+        }
+
         UiNode CreateNode(string kind)
         {
             UiNode n = new UiNode(kind);
+            if (kind == "TabPage" || kind == "TreeNode" || kind == "Menu" || kind == "MenuItem" || kind == "Separator")
+                return n;   // partes: sin nombre ni posición
             string name = UniqueName(kind);
             n.Set("Name", name);
             String.Free(name);
+            if (kind == "Timer")
+            {
+                n.Set("Interval", "1000");
+                return n;
+            }
+            if (kind == "ContextMenu")
+            {
+                Part(n, "MenuItem", "Item 1");
+                Part(n, "MenuItem", "Item 2");
+                return n;
+            }
+            if (kind == "MenuBar")
+            {
+                // Sin Width: ocupa todo el ancho de la ventana (y lo sigue al redimensionarla).
+                n.Set("Anchor", "Left,Top,Right");
+                UiNode file = Part(n, "Menu", "File");
+                Part(file, "MenuItem", "Open").Set("Shortcut", "Ctrl+O");
+                Part(file, "MenuItem", "Save").Set("Shortcut", "Ctrl+S");
+                Part(file, "Separator", "");
+                Part(file, "MenuItem", "Exit");
+                UiNode help = Part(n, "Menu", "Help");
+                Part(help, "MenuItem", "About");
+                return n;
+            }
             n.Set("X", "0");
             n.Set("Y", "0");
             int w = 120, h = 24;
+            if (kind == "PictureBox")
+            {
+                w = 200;
+                h = 150;
+                n.Set("SizeMode", "Zoom");
+            }
+            else if (kind == "TabControl")
+            {
+                w = 400;
+                h = 260;
+                Part(n, "TabPage", "Page 1");
+                Part(n, "TabPage", "Page 2");
+            }
+            else if (kind == "TreeView")
+            {
+                w = 220;
+                h = 260;
+                UiNode a = Part(n, "TreeNode", "Node 1");
+                a.Set("Expanded", "true");
+                Part(a, "TreeNode", "Node 1.1");
+                Part(a, "TreeNode", "Node 1.2");
+                Part(n, "TreeNode", "Node 2");
+            }
+            else if (kind == "Canvas")
+            {
+                w = 320;
+                h = 200;
+            }
             if (kind == "Label") n.Set("Text", "Label");
             else if (kind == "Button")
             {
@@ -919,11 +1028,67 @@ namespace FasetStudio.Ide
         {
             string before = Snapshot();
             UiNode n = CreateNode(kind);
-            n.SetInt("X", x);
-            n.SetInt("Y", y);
+            if (n.IsComponent || kind == "MenuBar")
+            {
+                parent = root;   // los componentes y la barra de menús van directamente en la ventana
+                if (kind == "MenuBar") root.Children.Insert(0, n);
+                else root.Children.Add(n);
+            }
+            else
+            {
+                n.SetInt("X", x);
+                n.SetInt("Y", y);
+                parent.Children.Add(n);
+            }
             n.Parent = parent;
-            parent.Children.Add(n);
             selected = n;
+            Commit(before);
+        }
+
+        // Acciones de los botones "Añadir..." del panel de propiedades.
+        void RunAction(string action)
+        {
+            if (selected == null) return;
+            UiNode target = selected;
+            string before = Snapshot();
+            UiNode made = null;
+            if (action == "Add page")
+            {
+                if (target.Kind == "TabPage") target = target.Parent;
+                string num = Convert.ToString(target.Children.Count + 1);
+                made = Part(target, "TabPage", "Page " + num);
+                target.ShownPage = target.Children.Count - 1;
+            }
+            else if (action == "Add node") made = Part(target, "TreeNode", "Node");
+            else if (action == "Add menu") made = Part(target, "Menu", "Menu");
+            else if (action == "Add item") made = Part(target, "MenuItem", "Item");
+            else if (action == "Add separator") made = Part(target, "Separator", "");
+            else if (action == "Add submenu")
+            {
+                made = Part(target, "Menu", "Submenu");
+                Part(made, "MenuItem", "Item");
+            }
+            if (made == null)
+            {
+                String.Free(before);
+                return;
+            }
+            if (target.Kind == "TreeNode") target.Set("Expanded", "true");
+            selected = made;
+            Commit(before);
+        }
+
+        // Partes (páginas, nodos, elementos de menú): Ctrl+↑/↓ las cambia de orden.
+        void MoveSibling(int dir)
+        {
+            if (selected == null || selected.Parent == null) return;
+            List<UiNode> list = selected.Parent.Children;
+            int i = list.IndexOf(selected), j = i + dir;
+            if (j < 0 || j >= list.Count) return;
+            string before = Snapshot();
+            list.RemoveAt(i);
+            list.Insert(j, selected);
+            if (selected.Kind == "TabPage") selected.Parent.ShownPage = j;
             Commit(before);
         }
 
@@ -944,10 +1109,14 @@ namespace FasetStudio.Ide
             string before = Snapshot();
             UiNode c = selected.Clone();
             RenameTree(c);
-            c.SetInt("X", selected.Int("X", 0) + 16);
-            c.SetInt("Y", selected.Int("Y", 0) + 16);
             c.Parent = selected.Parent;
-            selected.Parent.Children.Add(c);
+            if (selected.Movable)
+            {
+                c.SetInt("X", selected.Int("X", 0) + 16);
+                c.SetInt("Y", selected.Int("Y", 0) + 16);
+                selected.Parent.Children.Add(c);
+            }
+            else selected.Parent.Children.Insert(selected.Parent.Children.IndexOf(selected) + 1, c);
             selected = c;
             Commit(before);
         }
@@ -965,7 +1134,7 @@ namespace FasetStudio.Ide
 
         void Nudge(int dx, int dy)
         {
-            if (selected == null || selected == root) return;
+            if (selected == null || selected == root || !selected.Movable) return;
             string before = Snapshot();
             selected.SetInt("X", selected.Int("X", 0) + dx);
             selected.SetInt("Y", selected.Int("Y", 0) + dy);
@@ -994,9 +1163,12 @@ namespace FasetStudio.Ide
                 delete n;
                 return;
             }
-            UiNode parent = root;
-            if (selected != null && selected.Kind == "Panel") parent = selected;
-            else if (selected != null && selected != root) parent = selected.Parent;
+            UiNode parent = DropParent(n);
+            if (parent == null)
+            {
+                delete n;
+                return;
+            }
             string before = Snapshot();
             RenameConflicts(n);
             // Si ocupa el mismo sitio que un hermano, se desplaza en cascada.
@@ -1026,11 +1198,28 @@ namespace FasetStudio.Ide
             for (int i = 0; i < n.Children.Count; i++) RenameConflicts(n.Children[i]);
         }
 
+        // Dónde va un control pegado: en el contenedor elegido, junto al control elegido o en la ventana.
+        // Las partes solo se pegan en un padre de su tipo (una página en un TabControl...).
+        UiNode DropParent(UiNode n)
+        {
+            UiNode s = selected != null ? selected : root;
+            if (n.IsComponent || n.Kind == "MenuBar") return root;
+            if (n.Kind == "TabPage") return s.Kind == "TabControl" ? s : (s.Kind == "TabPage" ? s.Parent : null);
+            if (n.Kind == "TreeNode") return s.Kind == "TreeView" || s.Kind == "TreeNode" ? s : null;
+            if (n.IsMenuEntry)
+                return s.Kind == "MenuBar" || s.Kind == "Menu" || s.Kind == "ContextMenu" ? s : (s.IsMenuEntry ? s.Parent : null);
+            if (s.Kind == "Panel" || s.Kind == "TabPage") return s;
+            if (s.Kind == "TabControl" && s.Children.Count > 0) return s.Children[ShownIndex(s)];
+            UiNode p = s == root ? root : s.Parent;
+            while (p != null && !p.IsContainer) p = p.Parent;
+            return p != null ? p : root;
+        }
+
         // 0..5: alinear a la izquierda, centro, derecha, arriba, medio, abajo del contenedor;
         // 6: traer al frente; 7: enviar al fondo.
         void Arrange(int what)
         {
-            if (selected == null || selected == root) return;
+            if (selected == null || selected == root || !selected.Movable) return;
             UiNode p = selected.Parent;
             int pw = p.Int("Width", p == root ? 800 : 100), ph = p.Int("Height", p == root ? 600 : 32);
             int w = selected.Int("Width", 100), h = selected.Int("Height", 32);
@@ -1059,7 +1248,7 @@ namespace FasetStudio.Ide
 
         int ArrangeAt(float px, float py)
         {
-            if (selected == null || selected == root) return -1;
+            if (selected == null || selected == root || !selected.Movable) return -1;
             float ty = Y + ArrangeTop;
             if (py < ty || py >= ty + 30 || px < PropsX + 18) return -1;
             int i = (int)Math.Floor((px - (PropsX + 18)) / ArrangeButtonWidth);
@@ -1083,8 +1272,11 @@ namespace FasetStudio.Ide
         string HandlerName(UiNode n, string ev)
         {
             string name = n.Get("Name");
+            if (name.Length == 0) name = Identifier(n.Get("Text"));   // elementos de menú sin nombre: por su texto
             string bare = name;
-            string pre = "btn|txt|lbl|chk|sld|prg|pnl|rad|rdo|cmb|cbo|lst|button|textBox|label|checkBox|slider|progressBar|panel|radioButton|comboBox|listBox";
+            string pre = "btn|txt|lbl|chk|sld|prg|pnl|rad|rdo|cmb|cbo|lst|pic|img|tab|tv|tree|mnu|menu|tmr|cnv|ctx|" +
+                         "button|textBox|label|checkBox|slider|progressBar|panel|radioButton|comboBox|listBox|pictureBox|tabControl|" +
+                         "treeView|menuItem|menuBar|canvas|timer|contextMenu";
             auto parts = Text.Split(pre, "|");
             for (int i = 0; i < parts.Count; i++)
                 if (name.StartsWith(parts[i]) && name.Length > parts[i].Length && Char.IsUpper((char)name[parts[i].Length]))
@@ -1106,10 +1298,51 @@ namespace FasetStudio.Ide
             return r;
         }
 
+        // Letras y dígitos ASCII de un texto ("Guardar como..." -> "GuardarComo").
+        static string Identifier(string text)
+        {
+            StringBuilder sb = new StringBuilder();
+            bool upper = true;
+            for (int i = 0; i < text.Length; i++)
+            {
+                byte c = text[i];
+                // Vocales con tilde y eñe (UTF-8 C3 xx) -> letra sin tilde
+                if (c == 0xC3 && i + 1 < text.Length)
+                {
+                    byte d = text[i + 1];
+                    byte m = d == 0xA1 ? (byte)'a' : d == 0xA9 ? (byte)'e' : d == 0xAD ? (byte)'i' : d == 0xB3 ? (byte)'o' : d == 0xBA || d == 0xBC ? (byte)'u'
+                           : d == 0xB1 ? (byte)'n' : d == 0x81 ? (byte)'A' : d == 0x89 ? (byte)'E' : d == 0x8D ? (byte)'I' : d == 0x93 ? (byte)'O'
+                           : d == 0x9A ? (byte)'U' : d == 0x91 ? (byte)'N' : (byte)0;
+                    if (m != 0)
+                    {
+                        c = m;
+                        i++;
+                    }
+                }
+                bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9' && sb.Length > 0);
+                if (!ok)
+                {
+                    upper = true;
+                    continue;
+                }
+                if (upper && c >= 'a' && c <= 'z') c = (byte)(c - 32);
+                sb.Append((char)c);
+                upper = false;
+            }
+            string r = sb.ToString();
+            delete sb;
+            return r;
+        }
+
+        // Parámetros del manejador de cada evento.
+        static string EventParams(string ev) =>
+            ev == "Paint" ? "Widget sender, Graphics g" : (ev == "MouseDown" || ev == "MouseMove" || ev == "MouseUp" ? "Widget sender, MouseArgs e" : "Widget sender");
+
         // Pide abrir (o crear) el manejador del evento principal del control.
         void OpenEvent(UiNode n, string ev)
         {
-            if (n == null || n == root) return;
+            if (n == null || n == root || ev.Length == 0) return;
+            RequestParams = EventParams(ev);
             string method = String.Copy(n.Get(ev));
             if (method.Length == 0)
             {
@@ -1124,7 +1357,9 @@ namespace FasetStudio.Ide
         }
 
         static string MainEvent(string kind) =>
-            kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed" : "Click";
+            kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed"
+            : kind == "TabControl" || kind == "TreeView" ? "SelectedChanged" : kind == "Timer" ? "Tick" : kind == "Canvas" ? "Paint"
+            : kind == "TabPage" || kind == "TreeNode" || kind == "MenuBar" || kind == "ContextMenu" || kind == "Separator" ? "" : "Click";
 
         // ------------------------------------------------------------------ propiedades
 
@@ -1159,8 +1394,25 @@ namespace FasetStudio.Ide
                 Def(l, "GradientDirection", 4, "Vertical|Horizontal", "Vertical", "Colors");
                 return l;
             }
+            if (n.IsComponent || n.IsPart || k == "MenuBar")
+            {
+                PartProps(l, n);
+                return l;
+            }
             Def(l, "Name", 7, "", "", "Control");
             if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Text", 0, "", "", "Control");
+            if (k == "PictureBox")
+            {
+                Def(l, "Source", 0, "", "", "Control");
+                Def(l, "SizeMode", 4, "Normal|Stretch|Zoom|Center|Cover", "Normal", "Control");
+            }
+            if (k == "Button") Def(l, "Icon", 0, "", "", "Control");
+            if (k == "TabControl")
+            {
+                Def(l, "SelectedIndex", 1, "", "0", "Control");
+                Def(l, "Add page", 9, "Add page", "", "Control");
+            }
+            if (k == "TreeView") Def(l, "Add node", 9, "Add node", "", "Control");
             if (k == "TextBox" || k == "ComboBox") Def(l, "Placeholder", 0, "", "", "Control");
             if (k == "ComboBox" || k == "ListBox")
             {
@@ -1172,7 +1424,8 @@ namespace FasetStudio.Ide
             Def(l, "Width", 1, "", "100", "Layout");
             Def(l, "Height", 1, "", "32", "Layout");
             Def(l, "Anchor", 5, "", "Left,Top", "Layout");
-            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
+            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton" || k == "ComboBox" || k == "ListBox" ||
+                k == "TabControl" || k == "TreeView")
             {
                 Def(l, "FontSize", 1, "", "14", "Appearance");
                 Def(l, "Bold", 3, "", "false", "Appearance");
@@ -1184,7 +1437,8 @@ namespace FasetStudio.Ide
                 Def(l, "TextAlign", 4, "Left|Center|Right", "Left", "Appearance");
             }
             if (k == "Panel") Def(l, "Style", 4, "Default|Subtle", "Default", "Appearance");
-            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar" || k == "ComboBox" || k == "ListBox")
+            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar" || k == "ComboBox" || k == "ListBox" || k == "PictureBox" ||
+                k == "TabControl" || k == "TreeView" || k == "Canvas")
                 Def(l, "CornerRadius", 1, "", "", "Appearance");
             if (k == "CheckBox" || k == "RadioButton") Def(l, "Checked", 3, "", "false", "Behavior");
             if (k == "RadioButton") Def(l, "Group", 0, "", "", "Behavior");
@@ -1194,22 +1448,112 @@ namespace FasetStudio.Ide
                 Def(l, "Min", 2, "", "0", "Behavior");
                 Def(l, "Max", 2, "", "100", "Behavior");
             }
-            bool box = k == "Panel" || k == "Button" || k == "TextBox" || k == "ComboBox" || k == "ListBox" || k == "Label";
+            bool box = k == "Panel" || k == "Button" || k == "TextBox" || k == "ComboBox" || k == "ListBox" || k == "Label" ||
+                       k == "PictureBox" || k == "TabControl" || k == "TreeView" || k == "Canvas";
             if (box || k == "Slider" || k == "ProgressBar") Def(l, "Background", 8, "", "", "Colors");
             if (box)
             {
                 Def(l, "Background2", 8, "", "", "Colors");
                 Def(l, "GradientDirection", 4, "Vertical|Horizontal", "Vertical", "Colors");
             }
-            if (k != "Panel" && k != "Slider" && k != "ProgressBar") Def(l, "Foreground", 8, "", "", "Colors");
+            if (k != "Panel" && k != "Slider" && k != "ProgressBar" && k != "PictureBox" && k != "Canvas") Def(l, "Foreground", 8, "", "", "Colors");
             if (box) Def(l, "BorderColor", 8, "", "", "Colors");
-            if (k == "CheckBox" || k == "RadioButton" || k == "Slider" || k == "ProgressBar") Def(l, "Accent", 8, "", "", "Colors");
-            Def(l, "Enabled", 3, "", "true", "Behavior");
+            if (k == "CheckBox" || k == "RadioButton" || k == "Slider" || k == "ProgressBar" || k == "TabControl") Def(l, "Accent", 8, "", "", "Colors");
+            if (k != "PictureBox") Def(l, "Enabled", 3, "", "true", "Behavior");
             Def(l, "Visible", 3, "", "true", "Behavior");
-            if (k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Click", 6, "", "", "Events");
+            ContextMenuProp(l);
+            if (k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton" || k == "PictureBox") Def(l, "Click", 6, "", "", "Events");
             if (k == "TextBox" || k == "CheckBox" || k == "Slider" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
                 Def(l, "Changed", 6, "", "", "Events");
+            if (k == "TabControl" || k == "TreeView") Def(l, "SelectedChanged", 6, "", "", "Events");
+            if (k == "TreeView") Def(l, "NodeActivated", 6, "", "", "Events");
+            if (k == "Canvas")
+            {
+                Def(l, "Paint", 6, "", "", "Events");
+                Def(l, "MouseDown", 6, "", "", "Events");
+                Def(l, "MouseMove", 6, "", "", "Events");
+                Def(l, "MouseUp", 6, "", "", "Events");
+            }
             return l;
+        }
+
+        // Propiedades de los componentes, de la barra de menús y de las partes (páginas, nodos, menús).
+        void PartProps(List<PropDef> l, UiNode n)
+        {
+            string k = n.Kind;
+            if (k != "Separator") Def(l, "Name", 7, "", "", "Control");
+            if (k == "Timer")
+            {
+                Def(l, "Interval", 1, "", "100", "Behavior");
+                Def(l, "Enabled", 3, "", "false", "Behavior");
+                Def(l, "Tick", 6, "", "", "Events");
+                return;
+            }
+            if (k == "ContextMenu" || k == "MenuBar")
+            {
+                Def(l, k == "MenuBar" ? "Add menu" : "Add item", 9, k == "MenuBar" ? "Add menu" : "Add item|Add separator|Add submenu", "", "Control");
+                Def(l, "FontSize", 1, "", "14", "Appearance");
+                if (k == "MenuBar")
+                {
+                    Def(l, "Height", 1, "", "30", "Layout");
+                    Def(l, "Background", 8, "", "", "Colors");
+                    Def(l, "Foreground", 8, "", "", "Colors");
+                    Def(l, "BorderColor", 8, "", "", "Colors");
+                    Def(l, "Visible", 3, "", "true", "Behavior");
+                }
+                return;
+            }
+            if (k == "Separator")
+            {
+                Def(l, "Visible", 3, "", "true", "Behavior");
+                return;
+            }
+            Def(l, "Text", 0, "", "", "Control");
+            if (k == "TabPage")
+            {
+                Def(l, "Add page", 9, "Add page", "", "Control");
+                Def(l, "Background", 8, "", "", "Colors");
+                Def(l, "Background2", 8, "", "", "Colors");
+                Def(l, "GradientDirection", 4, "Vertical|Horizontal", "Vertical", "Colors");
+                Def(l, "Enabled", 3, "", "true", "Behavior");
+                return;
+            }
+            if (k == "TreeNode")
+            {
+                Def(l, "Tag", 0, "", "", "Control");
+                Def(l, "Expanded", 3, "", "false", "Control");
+                Def(l, "Add node", 9, "Add node", "", "Control");
+                return;
+            }
+            // Menu / MenuItem
+            Def(l, "Shortcut", 0, "", "", "Control");
+            Def(l, "Icon", 0, "", "", "Control");
+            Def(l, "Add item", 9, "Add item|Add separator|Add submenu", "", "Control");
+            Def(l, "Checked", 3, "", "false", "Behavior");
+            Def(l, "Enabled", 3, "", "true", "Behavior");
+            Def(l, "Visible", 3, "", "true", "Behavior");
+            Def(l, "Click", 6, "", "", "Events");
+        }
+
+        // ContextMenu de un control: opciones con los <ContextMenu> de la ventana.
+        void ContextMenuProp(List<PropDef> l)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("(none)");
+            int count = 0;
+            for (int i = 0; i < root.Children.Count; i++)
+            {
+                UiNode c = root.Children[i];
+                if (c.Kind == "ContextMenu" && c.Get("Name").Length > 0)
+                {
+                    sb.Append("|").Append(c.Get("Name"));
+                    count++;
+                }
+            }
+            string opts = sb.ToString();
+            delete sb;
+            if (count > 0 && count <= 3) Def(l, "ContextMenu", 4, opts, "(none)", "Behavior");
+            else if (count > 3) Def(l, "ContextMenu", 7, "", "", "Behavior");
         }
 
         PropDef FindDef(string key)
@@ -1282,7 +1626,8 @@ namespace FasetStudio.Ide
         void SetProp(string key, string value)
         {
             string before = Snapshot();
-            selected.Set(key, value);
+            if (value == "(none)") selected.Remove(key);
+            else selected.Set(key, value);
             Commit(before);
         }
 
@@ -1516,12 +1861,25 @@ namespace FasetStudio.Ide
                 Select(inWindow ? root : null);
                 return;
             }
+            // Pestañas de un TabControl: un clic cambia la página visible; '+' añade otra.
+            if (hit.Kind == "TabControl" && py < hit.SY + TabHeader * zoom)
+            {
+                int tab = TabHeaderAt(hit, px);
+                if (tab == -2)
+                {
+                    Select(hit);
+                    RunAction("Add page");
+                    return;
+                }
+                if (tab >= 0) hit.ShownPage = tab;
+            }
             Select(hit);
             if (clicks >= 2)
             {
                 OpenEvent(hit, MainEvent(hit.Kind));
                 return;
             }
+            if (!hit.Movable) return;   // componentes y partes: solo se eligen
             dragMode = 1;
             SaveOrig(hit);
             String.Free(undoBefore);
@@ -1707,8 +2065,11 @@ namespace FasetStudio.Ide
                 if (root == null) return;
                 if (!dragMoved)
                 {
-                    // Clic: añadir dentro del panel seleccionado o de la ventana, en cascada.
-                    UiNode parent = selected != null && selected.Kind == "Panel" ? selected : root;
+                    // Clic: añadir dentro del contenedor seleccionado (panel o página) o de la ventana, en cascada.
+                    UiNode parent = root;
+                    if (selected != null && (selected.Kind == "Panel" || selected.Kind == "TabPage")) parent = selected;
+                    else if (selected != null && selected.Kind == "TabControl" && selected.Children.Count > 0)
+                        parent = selected.Children[ShownIndex(selected)];
                     int offset = (parent.Children.Count % 8) * 16;
                     AddNode(newKind, parent, 24 + offset, 24 + offset);
                     return;
@@ -1760,6 +2121,7 @@ namespace FasetStudio.Ide
             if (px < CanvasX)
             {
                 if (leftTab == 1) outlineScroll = (float)Math.Max(0.0, (double)(outlineScroll + lines * 24));
+                else toolScroll = (float)Math.Max(0.0, Math.Min((double)(toolScroll + lines * 24), (double)(KindCount * ToolRow - (H - 60))));
                 return;
             }
             if (px >= PropsX)
@@ -1790,7 +2152,7 @@ namespace FasetStudio.Ide
         {
             if (root == null) return;
             float cw = CanvasW, ch = H;
-            float contentW = (root.Int("Width", 800) + Margin * 2) * zoom, contentH = (root.Int("Height", 600) + TitleBar + Margin * 2) * zoom;
+            float contentW = (root.Int("Width", 800) + Margin * 2) * zoom, contentH = (root.Int("Height", 600) + TitleBar + Margin * 2) * zoom + TrayH + 16;
             float minX = -cw / 2, maxX = (float)Math.Max(0.0, (double)(contentW - cw)) + cw / 2;
             float minY = -ch / 2, maxY = (float)Math.Max(0.0, (double)(contentH - ch)) + ch / 2;
             scrollX = (float)Math.Clamp((double)scrollX, (double)minX, (double)maxX);
@@ -1817,7 +2179,7 @@ namespace FasetStudio.Ide
             {
                 PropRow row = rows[i];
                 if (py < row.Y || py >= row.Y + RowHeight) continue;
-                if (px < row.VX)
+                if (px < row.VX && row.Type != 9)
                 {
                     CommitEdit();
                     return;
@@ -1850,6 +2212,13 @@ namespace FasetStudio.Ide
                     auto opts = Text.Split(row.Options, "|");
                     int idx = (int)Math.Floor((px - row.VX) / (row.VW / opts.Count));
                     if (idx >= 0 && idx < opts.Count) SetProp(row.Key, opts[idx]);
+                    delete opts;
+                }
+                else if (row.Type == 9)
+                {
+                    auto opts = Text.Split(row.Options, "|");
+                    int idx = (int)Math.Floor((px - (row.VX - 94)) / ((row.VW + 94) / opts.Count));
+                    if (idx >= 0 && idx < opts.Count) RunAction(opts[idx]);
                     delete opts;
                 }
                 else if (row.Type == 5)
@@ -1915,7 +2284,8 @@ namespace FasetStudio.Ide
             }
             if (e.Ctrl && (k == Keys.Up || k == Keys.Down))
             {
-                Arrange(k == Keys.Up ? 6 : 7);
+                if (selected != null && selected.IsPart) MoveSibling(k == Keys.Up ? -1 : 1);
+                else Arrange(k == Keys.Up ? 6 : 7);
                 return true;
             }
             if (k == Keys.Tab)
@@ -2058,12 +2428,18 @@ namespace FasetStudio.Ide
                 for (float gx = gstep; gx < w; gx += gstep) r.Rect(fx + gx, originY, 1, h, line);
                 for (float gy = gstep; gy < h; gy += gstep) r.Rect(fx, originY + gy, w, 1, line);
             }
+            tabNodes.Clear();
+            tabIndex.Clear();
+            tabX.Clear();
+            tabW.Clear();
             root.SX = fx;
             root.SY = originY;
             root.SW = w;
             root.SH = h;
             for (int i = 0; i < root.Children.Count; i++) DrawNode(r, root.Children[i], originX, originY);
+            DrawMenuPreview(r);
             r.PopClip();
+            DrawTray(r, fx, originY + h + 14, w);
             // Guías inteligentes
             for (int i = 0; i < guidesX.Count; i++) r.Rect(guidesX[i], originY, 1, h, Color.Hex(0xff5fa2));
             for (int i = 0; i < guidesY.Count; i++) r.Rect(fx, guidesY[i], w, 1, Color.Hex(0xff5fa2));
@@ -2071,7 +2447,12 @@ namespace FasetStudio.Ide
             if (dropTarget != null && dragMoved && (dragMode == 3 || (dragMode == 1 && dropTarget != selected.Parent)))
                 r.RoundBorder(dropTarget.SX - 2, dropTarget.SY - 2, dropTarget.SW + 4, dropTarget.SH + 4, 8, 2, Accent);
             // Selección
-            if (selected != null && selected != root)
+            if (selected != null && selected != root && !selected.Movable)
+            {
+                // Componentes y partes: solo un marco (no se mueven ni cambian de tamaño).
+                if (selected.SW > 0) r.RoundBorder(selected.SX - 2, selected.SY - 2, selected.SW + 4, selected.SH + 4, 6, 1.5f, Accent);
+            }
+            else if (selected != null && selected != root)
             {
                 r.RectOutline(selected.SX - 1, selected.SY - 1, selected.SW + 2, selected.SH + 2, 1.5f, Accent);
                 for (int i = 0; i < 8; i++)
@@ -2141,8 +2522,14 @@ namespace FasetStudio.Ide
 
         void DrawNode(Renderer r, UiNode n, float ox, float oy)
         {
+            if (n.IsComponent) return;   // se dibujan en la bandeja (DrawTray)
             float x = ox + n.Int("X", 0) * zoom, y = oy + n.Int("Y", 0) * zoom;
             float w = n.Int("Width", 100) * zoom, h = n.Int("Height", 32) * zoom;
+            if (n.Kind == "MenuBar")
+            {
+                w = n.Int("Width", root.Int("Width", 800)) * zoom;
+                h = n.Int("Height", 30) * zoom;
+            }
             n.SX = x;
             n.SY = y;
             n.SW = w;
@@ -2162,6 +2549,11 @@ namespace FasetStudio.Ide
             {
                 r.RoundBorder(x, y, w, h, 4, 1, Color.Hex(0x808080, 0.5f));
                 CenteredText(r, r.UiSmall, n.Get("Name"), x, y, w, h, 1, Pal(6));
+                return;
+            }
+            if (k == "PictureBox" || k == "TabControl" || k == "TreeView" || k == "MenuBar" || k == "Canvas")
+            {
+                DrawNewKind(r, n, x, y, w, h, f, fg, accent, border2);
                 return;
             }
             if (k == "Panel")
@@ -2206,7 +2598,19 @@ namespace FasetStudio.Ide
                 bool custom = FillNodeBackground(r, n, x, y, w, h, rad);
                 if (!custom && style != "Subtle") r.RoundRect(x, y, w, h, rad, bg);
                 if (n.Has("BorderColor") || (border && !custom)) r.RoundBorder(x, y, w, h, rad, 1, border2);
-                CenteredText(r, f, text, x, y, w, h, 1, tc);
+                std.ui.Image icon = n.Has("Icon") ? Preview(n.Get("Icon")) : null;
+                if (icon == null) CenteredText(r, f, text, x, y, w, h, 1, tc);
+                else
+                {
+                    // Icono y texto centrados juntos (como Button.Icon en std.ui)
+                    float ih = (float)Math.Min((double)icon.Height, (double)(n.Int("Height", 32) - 12)) * zoom;
+                    float iw = icon.Width * ih / icon.Height;
+                    float tw = text.Length > 0 ? r.TextWidth(f, text) : 0;
+                    float gap = text.Length > 0 ? Z(8) : 0;
+                    float left = x + (w - iw - gap - tw) / 2;
+                    DrawPreviewImage(r, icon, 0, 0, icon.Width, icon.Height, left, y + (h - ih) / 2, iw, ih);
+                    if (text.Length > 0) CenteredText(r, f, text, left + iw + gap, y, tw + 2, h, 0, tc);
+                }
             }
             else if (k == "TextBox")
             {
@@ -2318,6 +2722,434 @@ namespace FasetStudio.Ide
             }
         }
 
+        // ------------------------------------------------------------------ controles nuevos: vista previa
+
+        static Dictionary<string, std.ui.Image> previews = new Dictionary<string, std.ui.Image>();
+        // Pestañas dibujadas en el último fotograma (para el ratón): nodo, índice (-2 = '+'), x y ancho.
+        List<UiNode> tabNodes = new List<UiNode>();
+        List<int> tabIndex = new List<int>();
+        List<float> tabX = new List<float>();
+        List<float> tabW = new List<float>();
+        // Elementos de los menús desplegados en el diseñador (para el ratón).
+        List<UiNode> popupItems = new List<UiNode>();
+
+        // Imagen de Source/Icon, relativa a la carpeta del .fstui o a una superior (la del proyecto).
+        std.ui.Image Preview(string rel)
+        {
+            if (rel.Length == 0) return null;
+            string dir = Path.GetDirectoryName(Doc.FullPath);
+            for (int up = 0; up < 4 && dir.Length > 0; up++)
+            {
+                string full = Path.Combine(dir, rel);
+                std.ui.Image img = null;
+                if (previews.TryGetValue(full, out img))
+                {
+                    if (img != null) return img;
+                }
+                else if (File.Exists(full))
+                {
+                    img = std.ui.Image.Load(full);
+                    previews.Set(String.Copy(full), img);
+                    if (img != null) return img;
+                }
+                dir = Path.GetDirectoryName(dir);
+            }
+            return null;
+        }
+
+        // Dibuja la región (sx, sy, sw, sh) de la imagen en un rectángulo de la pantalla como una rejilla
+        // de celdas de color (el renderizador solo tiene una textura de imagen: la del dispositivo Android).
+        void DrawPreviewImage(Renderer r, std.ui.Image img, float sx, float sy, float sw, float sh, float dx, float dy, float dw, float dh)
+        {
+            if (img == null || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
+            int cols = (int)Math.Clamp((double)(dw / 3), 1.0, 110.0), rows = (int)Math.Clamp((double)(dh / 3), 1.0, 110.0);
+            float cw = dw / cols, ch = dh / rows;
+            for (int j = 0; j < rows; j++)
+                for (int i = 0; i < cols; i++)
+                {
+                    uint a = 0, cr = 0, cg = 0, cb = 0;
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float u = sx + (i + 0.25f + (k % 2) * 0.5f) / cols * sw;
+                        float v = sy + (j + 0.25f + (k / 2) * 0.5f) / rows * sh;
+                        uint p = img.GetPixel((int)u, (int)v);
+                        uint pa = p >> 24;
+                        a += pa;
+                        cr += ((p >> 16) & 255) * pa;
+                        cg += ((p >> 8) & 255) * pa;
+                        cb += (p & 255) * pa;
+                    }
+                    if (a == 0) continue;
+                    uint rgb = ((cr / a) << 16) | ((cg / a) << 8) | (cb / a);
+                    r.Rect(dx + i * cw, dy + j * ch, cw, ch, Color.Hex(rgb, a / 1020.0f));
+                }
+        }
+
+        // Imagen de un PictureBox según su SizeMode (como Widget.DrawPictureBox de std.ui).
+        void DrawPicture(Renderer r, std.ui.Image img, string mode, float x, float y, float w, float h)
+        {
+            float iw = img.Width, ih = img.Height;
+            if (mode == "Stretch") DrawPreviewImage(r, img, 0, 0, iw, ih, x, y, w, h);
+            else if (mode == "Zoom")
+            {
+                float k = (float)Math.Min((double)(w / iw), (double)(h / ih));
+                DrawPreviewImage(r, img, 0, 0, iw, ih, x + (w - iw * k) / 2, y + (h - ih * k) / 2, iw * k, ih * k);
+            }
+            else if (mode == "Cover")
+            {
+                float k = (float)Math.Max((double)(w / iw), (double)(h / ih));
+                float sw = w / k, sh = h / k;
+                DrawPreviewImage(r, img, (iw - sw) / 2, (ih - sh) / 2, sw, sh, x, y, w, h);
+            }
+            else
+            {
+                // Normal / Center: tamaño natural (con el zoom del diseñador); solo la parte visible.
+                float ox = mode == "Center" ? x + (w - iw * zoom) / 2 : x, oy = mode == "Center" ? y + (h - ih * zoom) / 2 : y;
+                float vx0 = (float)Math.Max(0.0, (double)((x - ox) / zoom)), vy0 = (float)Math.Max(0.0, (double)((y - oy) / zoom));
+                float vx1 = (float)Math.Min((double)iw, (double)((x + w - ox) / zoom)), vy1 = (float)Math.Min((double)ih, (double)((y + h - oy) / zoom));
+                if (vx1 > vx0 && vy1 > vy0)
+                    DrawPreviewImage(r, img, vx0, vy0, vx1 - vx0, vy1 - vy0, ox + vx0 * zoom, oy + vy0 * zoom, (vx1 - vx0) * zoom, (vy1 - vy0) * zoom);
+            }
+        }
+
+        // Pestaña de un TabControl bajo el punto (último fotograma): índice, -2 para '+', -1 nada.
+        int TabHeaderAt(UiNode tabs, float px)
+        {
+            for (int i = 0; i < tabNodes.Count; i++)
+                if (tabNodes[i] == tabs && px >= tabX[i] && px < tabX[i] + tabW[i]) return tabIndex[i];
+            return -1;
+        }
+
+        void DrawNewKind(Renderer r, UiNode n, float x, float y, float w, float h, Font f, Color fg, Color accent, Color border2)
+        {
+            string k = n.Kind;
+            if (k == "PictureBox")
+            {
+                float rad = Z(n.Int("CornerRadius", 0));
+                FillNodeBackground(r, n, x, y, w, h, rad);
+                std.ui.Image img = Preview(n.Get("Source"));
+                r.PushClip(x, y, w, h);
+                if (img != null) DrawPicture(r, img, n.Get("SizeMode"), x, y, w, h);
+                else
+                {
+                    // Sin imagen: marco discontinuo con el nombre del archivo (o del control).
+                    Color dim = Color.Hex(0x808080, 0.45f);
+                    for (float d = 0; d < w; d += Z(10)) r.Rect(x + d, y, Z(5), 1, dim);
+                    for (float d = 0; d < w; d += Z(10)) r.Rect(x + d, y + h - 1, Z(5), 1, dim);
+                    for (float d = 0; d < h; d += Z(10)) r.Rect(x, y + d, 1, Z(5), dim);
+                    for (float d = 0; d < h; d += Z(10)) r.Rect(x + w - 1, y + d, 1, Z(5), dim);
+                    string label = n.Has("Source") ? n.Get("Source") : n.Get("Name");
+                    CenteredText(r, r.UiSmall, label, x, y, w, h, 1, Pal(6));
+                }
+                r.PopClip();
+                if (n.Has("BorderColor")) r.RoundBorder(x, y, w, h, rad, 1, border2);
+            }
+            else if (k == "Canvas")
+            {
+                float rad = Z(n.Int("CornerRadius", 0));
+                if (!FillNodeBackground(r, n, x, y, w, h, rad)) r.RoundRect(x, y, w, h, rad, Pal(4));
+                r.RoundBorder(x, y, w, h, rad, 1, n.Has("BorderColor") ? border2 : Color.Hex(0x808080, 0.35f));
+                // Ejes de ejemplo y el nombre del manejador Paint.
+                Color dim = Color.Hex(0x808080, 0.25f);
+                for (float gx = Z(24); gx < w; gx += Z(24)) r.Rect(x + gx, y + 1, 1, h - 2, dim);
+                for (float gy = Z(24); gy < h; gy += Z(24)) r.Rect(x + 1, y + gy, w - 2, 1, dim);
+                string label = n.Has("Paint") ? String.Concat("Canvas · Paint = ", n.Get("Paint")) : String.Copy("Canvas");
+                CenteredText(r, r.UiSmall, label, x, y, w, h, 1, Pal(6));
+                String.Free(label);
+            }
+            else if (k == "MenuBar")
+            {
+                if (!FillNodeBackground(r, n, x, y, w, h, 0)) r.Rect(x, y, w, h, Pal(1));
+                r.Rect(x, y + h - 1, w, 1, border2);
+                float hx = x + Z(4);
+                for (int i = 0; i < n.Children.Count; i++)
+                {
+                    UiNode m = n.Children[i];
+                    if (!m.IsMenuEntry || !m.Bool("Visible", true))
+                    {
+                        m.SW = 0;
+                        continue;
+                    }
+                    string t = m.Get("Text");
+                    float hw = r.TextWidth(f, t) + Z(22);
+                    m.SX = hx;
+                    m.SY = y;
+                    m.SW = hw;
+                    m.SH = h;
+                    bool open = selected != null && m.IsAncestorOf(selected);
+                    if (open) r.RoundRect(hx, y + Z(3), hw, h - Z(7), Z(6), Color.Hex(root.Get("Theme").ToLower() == "light" ? (uint)0xe6e6e9 : (uint)0x2b2b30));
+                    CenteredText(r, f, t, hx + Z(11), y, hw, h - 1, 0, m.Bool("Enabled", true) ? fg : Pal(6));
+                    hx += hw;
+                }
+            }
+            else if (k == "TabControl")
+            {
+                float rad = Z(n.Int("CornerRadius", 10));
+                if (!FillNodeBackground(r, n, x, y, w, h, rad)) r.RoundRect(x, y, w, h, rad, Pal(1));
+                r.RoundBorder(x, y, w, h, rad, 1, border2);
+                float th = Z(TabHeader);
+                r.Rect(x + 1, y + th - 1, w - 2, 1, border2);
+                int shown = ShownIndex(n);
+                float tx = x + Z(6);
+                r.PushClip(x, y, w, th);
+                for (int i = 0; i < n.Children.Count; i++)
+                {
+                    UiNode page = n.Children[i];
+                    string t = page.Get("Text");
+                    float tw = (float)Math.Max((double)Z(56), (double)(r.TextWidth(f, t) + Z(28)));
+                    tabNodes.Add(n);
+                    tabIndex.Add(i);
+                    tabX.Add(tx);
+                    tabW.Add(tw);
+                    bool sel = i == shown;
+                    CenteredText(r, f, t, tx, y, tw, th, 1, sel ? fg : Pal(6));
+                    if (sel) r.RoundRect(tx + Z(10), y + th - Z(3), tw - Z(20), Z(3), Z(1.5f), accent);
+                    tx += tw + Z(2);
+                }
+                // '+': añade una página
+                tabNodes.Add(n);
+                tabIndex.Add(-2);
+                tabX.Add(tx);
+                tabW.Add(Z(28));
+                bool plusHot = mouseX >= tx && mouseX < tx + Z(28) && mouseY >= y && mouseY < y + th;
+                if (plusHot) r.RoundRect(tx + Z(2), y + Z(6), Z(24), th - Z(12), Z(6), Color.Hex(0x808080, 0.25f));
+                r.Rect(tx + Z(9), y + th / 2 - 0.75f, Z(10), 1.5f, Pal(6));
+                r.Rect(tx + Z(14) - 0.75f, y + th / 2 - Z(5), 1.5f, Z(10), Pal(6));
+                r.PopClip();
+                for (int i = 0; i < n.Children.Count; i++)
+                {
+                    UiNode page = n.Children[i];
+                    if (i != shown)
+                    {
+                        page.SX = 0;
+                        page.SY = 0;
+                        page.SW = 0;
+                        page.SH = 0;
+                        continue;
+                    }
+                    page.SX = x + Z(1);
+                    page.SY = y + th;
+                    page.SW = w - Z(2);
+                    page.SH = h - th - Z(1);
+                    FillNodeBackground(r, page, page.SX, page.SY, page.SW, page.SH, 0);
+                    r.PushClip(page.SX, page.SY, page.SW, page.SH);
+                    for (int c = 0; c < page.Children.Count; c++) DrawNode(r, page.Children[c], page.SX, page.SY);
+                    r.PopClip();
+                }
+            }
+            else if (k == "TreeView")
+            {
+                float rad = Z(n.Int("CornerRadius", 8));
+                if (!FillNodeBackground(r, n, x, y, w, h, rad)) r.RoundRect(x, y, w, h, rad, Pal(4));
+                r.RoundBorder(x, y, w, h, rad, 1, border2);
+                int fs = n.Int("FontSize", 14);
+                float rh = ((float)Math.Ceiling(r.Sans(fs, false).Ascent + r.Sans(fs, false).Descent) + 12) * zoom;
+                float ry = y + Z(4);
+                r.PushClip(x + 1, y + 1, w - 2, h - 2);
+                for (int i = 0; i < n.Children.Count; i++) DrawTreeRows(r, n.Children[i], 0, x, w, rh, f, fg, ref ry, y + h, true);
+                r.PopClip();
+            }
+        }
+
+        void DrawTreeRows(Renderer r, UiNode t, int depth, float x, float w, float rh, Font f, Color fg, ref float ry, float bottom, bool shown)
+        {
+            if (t.Kind != "TreeNode") return;
+            if (!shown || ry > bottom)
+            {
+                t.SW = 0;
+                for (int i = 0; i < t.Children.Count; i++) DrawTreeRows(r, t.Children[i], depth + 1, x, w, rh, f, fg, ref ry, bottom, false);
+                return;
+            }
+            t.SX = x + Z(4);
+            t.SY = ry;
+            t.SW = w - Z(8);
+            t.SH = rh;
+            float ax = x + Z(8) + depth * Z(18), cy = ry + rh / 2;
+            bool expanded = t.Bool("Expanded", false);
+            if (t.Children.Count > 0)
+            {
+                // Triángulo: hacia abajo si está expandido
+                Color ac = Pal(6);
+                for (int i = 0; i < 4; i++)
+                {
+                    if (expanded) r.Rect(ax + Z(4 + i), cy - Z(2) + Z(i), Z(1.6f), Z(1.6f), ac);
+                    if (expanded) r.Rect(ax + Z(12 - i) - Z(1.6f), cy - Z(2) + Z(i), Z(1.6f), Z(1.6f), ac);
+                    if (!expanded) r.Rect(ax + Z(6) + Z(i), cy - Z(4) + Z(i), Z(1.6f), Z(1.6f), ac);
+                    if (!expanded) r.Rect(ax + Z(6) + Z(i), cy + Z(4) - Z(i) - Z(1.6f), Z(1.6f), Z(1.6f), ac);
+                }
+            }
+            CenteredText(r, f, t.Get("Text"), ax + Z(20), ry, w, rh, 0, fg);
+            ry += rh;
+            for (int i = 0; i < t.Children.Count; i++) DrawTreeRows(r, t.Children[i], depth + 1, x, w, rh, f, fg, ref ry, bottom, expanded);
+        }
+
+        // Menús desplegados en el diseñador: los del elemento elegido (y sus menús padre).
+        void DrawMenuPreview(Renderer r)
+        {
+            popupItems.Clear();
+            if (selected == null) return;
+            auto chain = new List<UiNode>();
+            for (UiNode p = selected; p != null && p != root; p = p.Parent)
+                if (p.Kind == "ContextMenu" || (p.IsMenuEntry && p.Kind != "Separator" && p.Children.Count > 0)) chain.Insert(0, p);
+            float px = 0, py = 0, lastRight = 0;
+            for (int c = 0; c < chain.Count; c++)
+            {
+                UiNode m = chain[c];
+                if (c == 0)
+                {
+                    if (m.Kind == "ContextMenu")
+                    {
+                        // Encima de la bandeja, dentro de la ventana.
+                        px = originX + Z(12);
+                        py = originY + root.Int("Height", 600) * zoom - PopupHeight(m) - Z(8);
+                    }
+                    else if (m.Parent != null && m.Parent.Kind == "MenuBar")
+                    {
+                        px = m.SX;
+                        py = m.SY + m.SH - 1;
+                    }
+                    else break;   // un menú suelto fuera de una barra: solo en el esquema
+                }
+                else
+                {
+                    px = lastRight - Z(4);   // a la derecha del menú padre, a la altura de la fila del submenú
+                    py = m.SY - Z(5);
+                }
+                lastRight = DrawPopup(r, m, px, py);
+            }
+            delete chain;
+        }
+
+        float PopupHeight(UiNode m)
+        {
+            float h = Z(10);
+            for (int i = 0; i < m.Children.Count; i++)
+            {
+                UiNode it = m.Children[i];
+                if (!it.IsMenuEntry || !it.Bool("Visible", true)) continue;
+                h += it.Kind == "Separator" ? Z(9) : Z(30);
+            }
+            return h < Z(40) ? Z(40) : h;
+        }
+
+        // Devuelve el borde derecho del menú dibujado.
+        float DrawPopup(Renderer r, UiNode m, float x, float y)
+        {
+            Font f = ZFont(r, m.Int("FontSize", 14), false);
+            float w = Z(180);
+            for (int i = 0; i < m.Children.Count; i++)
+            {
+                UiNode it = m.Children[i];
+                float iw = Z(36) + r.TextWidth(f, it.Get("Text")) + Z(28) + (it.Has("Shortcut") ? r.TextWidth(f, it.Get("Shortcut")) + Z(24) : 0) + Z(18);
+                if (iw > w) w = iw;
+            }
+            float h = PopupHeight(m);
+            // Pegado al borde derecho de la ventana si no cabe.
+            float right = originX + root.Int("Width", 800) * zoom;
+            if (x + w > right - 2) x = right - 2 - w;
+            r.Shadow(x, y, w, h, Z(8), 14, Color.Hex(0x000000, 0.45f));
+            r.RoundRect(x, y, w, h, Z(8), Pal(1));
+            r.RoundBorder(x, y, w, h, Z(8), 1, Pal(3));
+            float ry = y + Z(5);
+            bool light = root.Get("Theme").ToLower() == "light";
+            for (int i = 0; i < m.Children.Count; i++)
+            {
+                UiNode it = m.Children[i];
+                if (!it.IsMenuEntry || !it.Bool("Visible", true))
+                {
+                    it.SW = 0;
+                    continue;
+                }
+                float rh = it.Kind == "Separator" ? Z(9) : Z(30);
+                it.SX = x + Z(4);
+                it.SY = ry;
+                it.SW = w - Z(8);
+                it.SH = rh;
+                popupItems.Add(it);
+                if (it.Kind == "Separator")
+                {
+                    r.Rect(x + Z(10), ry + rh / 2, w - Z(20), 1, Pal(2));
+                    ry += rh;
+                    continue;
+                }
+                if (it.IsAncestorOf(selected)) r.RoundRect(x + Z(4), ry, w - Z(8), rh, Z(6), Color.Hex(light ? (uint)0xf0f0f2 : (uint)0x222226));
+                Color tc = it.Bool("Enabled", true) ? Pal(5) : Pal(6);
+                float cx = x + Z(20), cy = ry + rh / 2;
+                if (it.Bool("Checked", false))
+                {
+                    for (int k = 0; k <= 3; k++) r.Rect(cx - Z(5) + Z(k), cy + Z(k) - Z(1), Z(1.8f), Z(1.8f), tc);
+                    for (int k = 0; k <= 6; k++) r.Rect(cx - Z(2) + Z(k), cy + Z(2) - Z(k * 1.1f), Z(1.8f), Z(1.8f), tc);
+                }
+                else if (it.Has("Icon"))
+                {
+                    std.ui.Image icon = Preview(it.Get("Icon"));
+                    if (icon != null)
+                    {
+                        float ih = (float)Math.Min((double)icon.Height, 18.0) * zoom, iw = icon.Width * ih / icon.Height;
+                        DrawPreviewImage(r, icon, 0, 0, icon.Width, icon.Height, cx - iw / 2, cy - ih / 2, iw, ih);
+                    }
+                }
+                CenteredText(r, f, it.Get("Text"), x + Z(36), ry, w, rh, 0, tc);
+                if (it.Has("Shortcut"))
+                {
+                    float sw = r.TextWidth(f, it.Get("Shortcut"));
+                    CenteredText(r, f, it.Get("Shortcut"), x + w - Z(30) - sw, ry, sw + 4, rh, 0, Pal(6));
+                }
+                if (it.Children.Count > 0)
+                {
+                    float ax = x + w - Z(16);
+                    for (int k = 0; k < 4; k++)
+                    {
+                        r.Rect(ax - Z(2) + Z(k), cy - Z(4) + Z(k), Z(1.6f), Z(1.6f), Pal(6));
+                        r.Rect(ax - Z(2) + Z(k), cy + Z(4) - Z(k) - Z(1.6f), Z(1.6f), Z(1.6f), Pal(6));
+                    }
+                }
+                ry += rh;
+            }
+            return x + w;
+        }
+
+        // Elemento de un menú desplegado bajo el punto (o null).
+        UiNode PopupHit(float px, float py)
+        {
+            for (int i = popupItems.Count - 1; i >= 0; i--)
+            {
+                UiNode it = popupItems[i];
+                if (px >= it.SX && py >= it.SY && px < it.SX + it.SW && py < it.SY + it.SH) return it;
+            }
+            return null;
+        }
+
+        // Bandeja de componentes (Timer, ContextMenu...) bajo la ventana diseñada.
+        void DrawTray(Renderer r, float x, float y, float w)
+        {
+            int count = 0;
+            for (int i = 0; i < root.Children.Count; i++)
+                if (root.Children[i].IsComponent) count++;
+            if (count == 0) return;
+            r.RoundRect(x, y, w, TrayH, 8, Theme.Surface);
+            r.RoundBorder(x, y, w, TrayH, 8, 1, Theme.Border);
+            string title = L.T("COMPONENTS");
+            r.Text(r.UiSmall, x + 12, y + 15, title, Theme.TextTertiary);
+            float cx = x + 24 + r.TextWidth(r.UiSmall, title);
+            for (int i = 0; i < root.Children.Count; i++)
+            {
+                UiNode c = root.Children[i];
+                if (!c.IsComponent) continue;
+                string name = c.Has("Name") ? c.Get("Name") : L.T(c.Kind);
+                float cw = r.TextWidth(r.Ui, name) + 46;
+                c.SX = cx;
+                c.SY = y + 7;
+                c.SW = cw;
+                c.SH = TrayH - 14;
+                bool hot = mouseX >= c.SX && mouseX < c.SX + cw && mouseY >= c.SY && mouseY < c.SY + c.SH;
+                r.RoundRect(c.SX, c.SY, cw, c.SH, 7, c == selected ? Theme.Active : (hot ? Theme.Hover : Theme.Elevated));
+                DrawToolIcon(r, c.Kind, c.SX + 8, c.SY + 5);
+                r.Text(r.Ui, c.SX + 36, c.SY + 7, name, Theme.Text);
+                cx += cw + 8;
+            }
+        }
+
         void DrawToolbox(Renderer r)
         {
             r.Rect(X, Y, ToolboxWidth, H, Theme.Surface);
@@ -2339,14 +3171,19 @@ namespace FasetStudio.Ide
                 auto parts = Text.Split(kinds, "|");
                 for (int i = 0; i < parts.Count; i++)
                 {
-                    float iy = Y + 52 + i * ToolRow;
+                    float iy = Y + 52 + i * ToolRow - toolScroll;
+                    if (i == 15)
+                    {
+                        // Separación: lo que sigue son componentes (van en la bandeja, no en la ventana).
+                        r.Rect(X + 16, iy - 1, ToolboxWidth - 32, 1, Theme.Border);
+                    }
                     bool hot = toolHover == i || (dragMode == 3 && newKind == parts[i]);
                     if (hot) r.RoundRect(X + 10, iy, ToolboxWidth - 20, ToolRow - 2, 8, Theme.Hover);
                     DrawToolIcon(r, parts[i], X + 20, iy + 6);
                     r.Text(r.Ui, X + 54, iy + 8, L.T(parts[i]), hot ? Theme.White : Theme.Text);
                 }
                 delete parts;
-                float hy = Y + 52 + KindCount * ToolRow + 12;
+                float hy = Y + 52 + KindCount * ToolRow + 12 - toolScroll;
                 if (hy + 30 < Y + H)
                 {
                     r.Rect(X + 16, hy, ToolboxWidth - 32, 1, Theme.Border);
@@ -2382,7 +3219,8 @@ namespace FasetStudio.Ide
                 float ix = X + 14 + outlineDepth[i] * 14;
                 for (int d = 1; d <= outlineDepth[i]; d++) r.Rect(X + 14 + d * 14 - 8, iy, 1, OutlineRow - 2, Theme.Border);
                 bool named = n.Get("Name").Length > 0;
-                string label = n == root ? (root.Has("Class") ? root.Get("Class") : "Window") : (named ? n.Get("Name") : L.T(n.Kind));
+                string label = n == root ? (root.Has("Class") ? root.Get("Class") : "Window")
+                             : (named ? n.Get("Name") : (n.Get("Text").Length > 0 ? "\"" + n.Get("Text") + "\"" : L.T(n.Kind)));
                 if (n == root) r.Text(r.UiBold, ix, iy + 5, label, sel ? Theme.White : Theme.Text);
                 else
                 {
@@ -2445,6 +3283,58 @@ namespace FasetStudio.Ide
                 r.RoundRect(x + 3, y + 9, 16, 4, 1.5f, dim);
                 r.Rect(x + 4, y + 15, 10, 1.5f, c);
             }
+            else if (kind == "PictureBox")
+            {
+                r.RoundBorder(x, y + 2, 22, 17, 3, 1.2f, c);
+                r.RoundRect(x + 14, y + 5, 4, 4, 2, c);
+                for (int i = 0; i < 5; i++) r.Rect(x + 3 + i * 2, y + 15 - i * 1.6f, 2, 2 + i * 1.6f, c);
+                for (int i = 0; i < 4; i++) r.Rect(x + 13 + i * 2, y + 12 + i * 0.8f, 2, 4 - i * 0.8f, c);
+            }
+            else if (kind == "TabControl")
+            {
+                r.RoundBorder(x, y + 5, 22, 15, 3, 1.2f, c);
+                r.RoundRect(x, y + 1, 9, 6, 2, c);
+                r.RoundBorder(x + 10, y + 2, 8, 5, 2, 1, dim);
+            }
+            else if (kind == "TreeView")
+            {
+                r.Rect(x + 3, y + 3, 6, 3, c);
+                r.Rect(x + 5, y + 6, 1.2f, 11, dim);
+                r.Rect(x + 5, y + 10, 5, 1.2f, dim);
+                r.Rect(x + 5, y + 16, 5, 1.2f, dim);
+                r.Rect(x + 11, y + 8.5f, 9, 3, c);
+                r.Rect(x + 11, y + 14.5f, 9, 3, c);
+            }
+            else if (kind == "MenuBar")
+            {
+                r.RoundBorder(x, y + 2, 22, 17, 3, 1.2f, c);
+                r.Rect(x + 1, y + 7, 20, 1.2f, c);
+                r.Rect(x + 4, y + 4, 4, 1.5f, c);
+                r.Rect(x + 10, y + 4, 4, 1.5f, c);
+                r.Rect(x + 4, y + 11, 8, 1.5f, dim);
+                r.Rect(x + 4, y + 15, 6, 1.5f, dim);
+            }
+            else if (kind == "Canvas")
+            {
+                r.RoundBorder(x, y + 2, 22, 17, 3, 1.2f, c);
+                r.RoundRect(x + 4, y + 9, 6, 6, 3, c);
+                r.Rect(x + 11, y + 6, 7, 7, dim);
+            }
+            else if (kind == "Timer")
+            {
+                r.RoundBorder(x + 2, y + 2, 18, 18, 9, 1.4f, c);
+                r.Rect(x + 10.3f, y + 5, 1.4f, 6.5f, c);
+                r.Rect(x + 10.3f, y + 10, 5, 1.4f, c);
+            }
+            else if (kind == "ContextMenu")
+            {
+                r.RoundBorder(x + 4, y + 2, 17, 18, 3, 1.2f, c);
+                r.Rect(x + 7, y + 6, 10, 1.5f, c);
+                r.Rect(x + 7, y + 10, 10, 1.5f, c);
+                r.Rect(x + 7, y + 14, 7, 1.5f, dim);
+                r.Rect(x + 1, y + 1, 1.5f, 6, c);
+                r.Rect(x + 1, y + 1, 6, 1.5f, c);
+            }
             else
             {
                 r.RoundBorder(x, y + 1, 22, 19, 4, 1.2f, c);
@@ -2481,7 +3371,7 @@ namespace FasetStudio.Ide
             r.RoundRect(px + PropsWidth - 18 - kw, Y + 14, kw, 20, 6, Theme.Elevated);
             r.Text(r.UiSmall, px + PropsWidth - 11 - kw, Y + 16, kindLabel, Theme.TextSecondary);
             float top = Y + 44;
-            if (selected != root)
+            if (selected != root && selected.Movable)
             {
                 DrawArrangeBar(r, px + 18, Y + ArrangeTop);
                 top = Y + ArrangeTop + 38;
@@ -2509,6 +3399,23 @@ namespace FasetStudio.Ide
                 row.VW = vw;
                 row.Options = d.Options;
                 rows.Add(row);
+                if (d.Type == 9)
+                {
+                    // Botones de acción ("Añadir página"...): ocupan toda la fila.
+                    auto acts = Text.Split(d.Options, "|");
+                    float aw = (vw + (vx - lx)) / acts.Count;
+                    for (int o = 0; o < acts.Count; o++)
+                    {
+                        float bx = lx + o * aw;
+                        bool hot = mouseY >= y && mouseY < y + RowHeight && mouseX >= bx && mouseX < bx + aw - 4;
+                        r.RoundRect(bx, y + 1, aw - 4, 34, 8, hot ? Theme.Hover : Theme.Elevated);
+                        string label = String.Concat("+ ", L.T(acts[o]));
+                        r.Text(r.UiSmall, bx + (aw - 4 - r.TextWidth(r.UiSmall, label)) / 2, y + 11, label, Theme.Text);
+                    }
+                    delete acts;
+                    y += RowHeight + 4;
+                    continue;
+                }
                 r.Text(r.Ui, lx, y + 9, d.Key == "GradientDirection" ? L.T("Direction") : d.Key, Theme.TextSecondary);
                 bool has = selected.Has(d.Key);
                 string val = has ? selected.Get(d.Key) : d.Default;
