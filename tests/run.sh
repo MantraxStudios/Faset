@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Ejecuta los tests de Faset:
 #   tests/cases/*.fst      compara la salida con su .expected (y el código con .exitcode);
-#                          si hay un .panic, stderr debe contener ese texto (Faset panic: ...)
+#                          si hay un .panic, stderr debe contener ese texto (Faset panic: ...);
+#                          un programa que termina con el código 77 se omite (p. ej. sin red)
 #   tests/errors/*.fst     deben producir errores de compilación; si hay un .expected, cada
 #                          línea 'N|regex' debe aparecer como error en la línea N
 #   tests/projects/*/      compila el proyecto indicado en 'main' y compara con 'expected'
@@ -23,7 +24,9 @@ for src in tests/cases/*.fst; do
     fi
     "$TMP/$name" > "$TMP/$name.out" 2> "$TMP/$name.rerr"; code=$?
     panic="tests/cases/$name.panic"
-    if [ "$code" != "$want_code" ]; then
+    if [ "$code" = 77 ] && [ "$want_code" != 77 ]; then
+        echo "omit.  $name ($(head -n 1 "$TMP/$name.out"))"; continue   # código 77: sin red, sin TLS...
+    elif [ "$code" != "$want_code" ]; then
         echo "FALLO  $name (código de salida $code, se esperaba $want_code)"; cat "$TMP/$name.rerr"; fail=$((fail+1))
     elif ! diff -u "$expected" "$TMP/$name.out" > "$TMP/$name.diff"; then
         echo "FALLO  $name (salida distinta)"; cat "$TMP/$name.diff"; fail=$((fail+1))

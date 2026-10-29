@@ -235,7 +235,7 @@ static class Program
         delete u;
 
         HttpClient http = new HttpClient();
-        Show(http.Get("https://example.com/"));
+        Show(http.Get("ftp://example.com/"));
         Console.WriteLine(http.ErrorMessage);
         Show(http.Get("no es una url"));
         Console.WriteLine(http.Error == SocketError.InvalidUrl);

@@ -1,0 +1,17 @@
+servidor: recibido hola
+servidor: negociación rechazada
+servidor: negociación rechazada
+servidor: recibido hola
+servidor: recibido hola
+servidor: GET /datos HTTP/1.1
+servidor: negociación rechazada
+--- cliente ---
+verificado: eco: hola
+versión: TLSv1.x
+sin autoridad: error [certificado no válido] certificado no válido para 'localhost': no lo firma ninguna autoridad de confianza
+otro nombre: error [certificado no válido] certificado no válido para 'otro.ejemplo': se emitió para otro nombre de equipo
+sin verificar: eco: hola
+por IP: eco: hola
+https: 200 seguro
+https: error [certificado no válido] certificado no válido para 'localhost': no lo firma ninguna autoridad de confianza
+código de salida del cliente: 0
