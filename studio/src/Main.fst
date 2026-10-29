@@ -16,15 +16,31 @@ using FasetStudio.Platform;
 
 namespace FasetStudio
 {
+    static extern long readlink(byte* path, byte* buf, ulong size);
+
     public static class Program
     {
+        // Ruta real del ejecutable: argv[0] no sirve si se lanzó desde el PATH o con un enlace.
+        static string ExecutablePath()
+        {
+            if (!OS.IsWindows)
+            {
+                byte* buf = (byte*)Memory.AllocZeroed(4096);
+                long n = readlink("/proc/self/exe".Ptr, buf, 4095);
+                string path = n > 0 ? String.Copy(String.FromBytes(buf, n)) : "";  // FromBytes es una vista de 'buf'
+                Memory.Free(buf);
+                if (n > 0) return path;
+            }
+            return Path.GetFullPath(Environment.GetArg(0));
+        }
+
         // Busca el compilador 'faset': variable FASET, carpetas superiores al ejecutable o PATH.
         static string FindCompiler()
         {
             string env = Environment.GetVariable("FASET");
             if (env.Length > 0 && File.Exists(env)) return env;
             String.Free(env);
-            string dir = Path.GetFullPath(Environment.GetArg(0));
+            string dir = ExecutablePath();
             for (int level = 0; level < 8; level++)
             {
                 string parent = String.Copy(Path.GetDirectoryName(dir));
@@ -69,7 +85,7 @@ namespace FasetStudio
         // Carpeta de traducciones: junto al ejecutable o en studio/lang subiendo carpetas.
         static string FindLangFolder()
         {
-            string dir = Path.GetFullPath(Environment.GetArg(0));
+            string dir = ExecutablePath();
             for (int level = 0; level < 8; level++)
             {
                 string parent = String.Copy(Path.GetDirectoryName(dir));

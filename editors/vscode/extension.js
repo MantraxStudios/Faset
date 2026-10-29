@@ -10,7 +10,8 @@ const cp = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-const SELECTOR = { language: 'faset' };
+const SELECTOR = [{ language: 'faset' }, { language: 'fstproj' }, { language: 'fstui' }];
+const LANGUAGES = new Set(['faset', 'fstproj', 'fstui']);
 const CHANGE_DELAY_MS = 150;
 
 let client = null;
@@ -192,12 +193,12 @@ class LanguageClient {
     // ---- sincronización de documentos
 
     didOpen(doc) {
-        if (doc.languageId !== 'faset' || doc.uri.scheme !== 'file') return;
+        if (!LANGUAGES.has(doc.languageId) || doc.uri.scheme !== 'file') return;
         const key = doc.uri.toString();
         if (this.opened.has(key)) return;
         this.opened.add(key);
         this.notify('textDocument/didOpen', {
-            textDocument: { uri: key, languageId: 'faset', version: doc.version, text: doc.getText() },
+            textDocument: { uri: key, languageId: doc.languageId, version: doc.version, text: doc.getText() },
         });
     }
 
@@ -284,6 +285,8 @@ function completionProvider() {
                 const item = new vscode.CompletionItem(c.label, Math.max(0, (c.kind || 1) - 1));
                 if (c.detail) item.detail = c.detail;
                 if (c.sortText) item.sortText = c.sortText;
+                // Atributos y elementos de .fstproj/.fstui: fragmento con la posición del cursor ($0).
+                if (c.insertText) item.insertText = c.insertTextFormat === 2 ? new vscode.SnippetString(c.insertText) : c.insertText;
                 return item;
             });
         },
@@ -357,7 +360,7 @@ function activate(context) {
         vscode.workspace.onDidCloseTextDocument((d) => client.didClose(d)),
         vscode.languages.registerHoverProvider(SELECTOR, hoverProvider()),
         vscode.languages.registerDefinitionProvider(SELECTOR, definitionProvider()),
-        vscode.languages.registerCompletionItemProvider(SELECTOR, completionProvider(), '.', ':', '>'),
+        vscode.languages.registerCompletionItemProvider(SELECTOR, completionProvider(), '.', ':', '>', '<', '"', ' ', ','),
         vscode.languages.registerDocumentSymbolProvider(SELECTOR, symbolProvider()),
         vscode.commands.registerCommand('faset.build', () => runInTerminal('build')),
         vscode.commands.registerCommand('faset.buildRelease', () => runInTerminal('build', ['-c', 'Release'])),

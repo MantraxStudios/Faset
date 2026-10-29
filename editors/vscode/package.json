@@ -15,7 +15,8 @@
   "keywords": [
     "faset",
     "fst",
-    "fstproj"
+    "fstproj",
+    "fstui"
   ],
   "main": "./extension.js",
   "activationEvents": [
@@ -35,6 +36,17 @@
         "configuration": "./language-configuration.json"
       },
       {
+        "id": "fstui",
+        "aliases": [
+          "Interfaz Faset",
+          "fstui"
+        ],
+        "extensions": [
+          ".fstui"
+        ],
+        "configuration": "./fstproj-language-configuration.json"
+      },
+      {
         "id": "fstproj",
         "aliases": [
           "Proyecto Faset",
@@ -51,6 +63,14 @@
         "language": "faset",
         "scopeName": "source.faset",
         "path": "./syntaxes/faset.tmLanguage.json"
+      },
+      {
+        "language": "fstui",
+        "scopeName": "text.xml.fstui",
+        "path": "./syntaxes/fstui.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.xml": "xml"
+        }
       },
       {
         "language": "fstproj",

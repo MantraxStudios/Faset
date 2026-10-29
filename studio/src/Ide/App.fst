@@ -265,7 +265,7 @@ namespace FasetStudio.Ide
             }
             AddRecent(folder);
             UpdateTitle();
-            SetStatus(L.T("Ready"));
+            SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
         }
 
         void SetStatus(string text)
@@ -552,12 +552,34 @@ namespace FasetStudio.Ide
             EditorView v = Editor;
             if (v == null || !completionOpen || filtered.Count == 0) return;
             CompletionItem c = completions[filtered[completionSel]];
-            v.Anchor = completionStart;
+            TextPos start = completionStart;
+            v.Anchor = start;
             v.Cursor = v.WordEnd(v.Cursor);
-            v.InsertText(c.Label, false);
+            if (c.Insert.Length == 0) v.InsertText(c.Label, false);
+            else
+            {
+                // Fragmento de .fstproj/.fstui: "$0" marca dónde queda el cursor (p. ej. Anchor="$0").
+                int mark = c.Insert.IndexOf("$0");
+                string text = mark < 0 ? String.Copy(c.Insert) : String.Concat(c.Insert.Substring(0, mark), c.Insert.Substring(mark + 2));
+                v.InsertText(text, false);
+                if (mark >= 0)
+                {
+                    int line = start.Line, col = start.Col;
+                    for (int i = 0; i < mark; i++)
+                    {
+                        if (text[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+                    v.SetCursor(new TextPos(line, col), false);
+                }
+                String.Free(text);
+            }
+            bool valueNext = c.Insert.Contains("\"$0\"") || c.Insert.Contains(">$0</");
             CloseCompletion();
             lastEditMs = Environment.TickCount64();
             analysisPending = true;
+            // Tras insertar un atributo o una propiedad, sus valores posibles (Anchor, Style, OutputType...).
+            if (valueNext) RequestCompletion();
         }
 
         void CloseCompletion()
@@ -587,6 +609,7 @@ namespace FasetStudio.Ide
             string path = String.Copy(s.DefPath);
             EditorView target = OpenFile(path);
             String.Free(path);
+            if (target != null && target.Designer != null) target.DesignMode = false;  // control de un .fstui: su XML
             if (target != null) target.GoToLine(line, col, r);
         }
 
@@ -615,7 +638,7 @@ namespace FasetStudio.Ide
                     if (d.Line == p.Line && p.Col >= d.Col && p.Col <= Math.Max(end.Col, d.Col + 1))
                     {
                         if (sb.Length > 0) sb.Append("\n");
-                        sb.Append(d.Severity == 1 ? "error: " : "note: ").Append(d.Message);
+                        sb.Append(d.Severity == 1 ? "error: " : d.Severity == 2 ? "warning: " : "note: ").Append(d.Message);
                     }
                 }
                 if (v.Doc.AnalyzedVersion == v.Doc.Buffer.Version)
@@ -1080,7 +1103,8 @@ namespace FasetStudio.Ide
             {
                 string line = v.Doc.Buffer.LineText(v.Cursor.Line);
                 byte prev = v.Cursor.Col >= 2 ? line[v.Cursor.Col - 2] : (byte)0;
-                bool member = e.Char == '.' || (e.Char == ':' && prev == ':') || (e.Char == '>' && prev == '-');
+                bool member = v.Doc.IsXml ? XmlTrigger(line, v.Cursor.Col, e.Char, prev)
+                                          : e.Char == '.' || (e.Char == ':' && prev == ':') || (e.Char == '>' && prev == '-');
                 bool identChar = Char.IsLetterOrDigit(e.Char) || e.Char == '_';
                 if (member) RequestCompletion();
                 else if (completionOpen && identChar) FilterCompletions();
@@ -1096,6 +1120,25 @@ namespace FasetStudio.Ide
                 if (k == Keys.BackSpace) FilterCompletions();
                 else CloseCompletion();
             }
+        }
+
+        // .fstproj / .fstui: '<' abre la lista de elementos, '="' la de valores, ',' la siguiente opción
+        // de una lista (Anchor) y el espacio dentro de una etiqueta la de atributos.
+        static bool XmlTrigger(string line, int col, char ch, byte prev)
+        {
+            int quotes = 0, lt = -1, gt = -1;
+            for (int i = 0; i < col && i < line.Length; i++)
+            {
+                if (line[i] == '"') quotes++;
+                else if (line[i] == '<') lt = i;
+                else if (line[i] == '>') gt = i;
+            }
+            bool inValue = quotes % 2 == 1;
+            if (ch == '<') return !inValue;
+            if (ch == '"') return prev == '=';
+            if (ch == ',') return inValue;
+            if (ch == ' ') return !inValue && lt > gt && prev != ' ' && prev != '<';
+            return false;
         }
 
         void MarkEdited()
@@ -3073,7 +3116,9 @@ namespace FasetStudio.Ide
                 String.Free(pos);
                 String.Free(ln);
                 String.Free(col);
-                if (analyzer.LastDurationMs > 0) sb.Append("     IntelliSense ").Append(analyzer.LastDurationMs).Append(" ms");
+                if (!analyzer.Available) sb.Append("     ").Append(L.T("IntelliSense unavailable (faset not found)"));
+                else if (analyzer.LastFailed) sb.Append("     ").Append(L.T("IntelliSense failed"));
+                else if (analyzer.LastDurationMs > 0) sb.Append("     IntelliSense ").Append(analyzer.LastDurationMs).Append(" ms");
                 sb.Append("     ");
             }
             sb.Append(r.DeviceName);
@@ -3174,7 +3219,7 @@ namespace FasetStudio.Ide
             {
                 string l = lines[i];
                 bool err = l.StartsWith("error:");
-                bool note = l.StartsWith("nota:") || l.StartsWith("note:");
+                bool note = l.StartsWith("nota:") || l.StartsWith("note:") || l.StartsWith("warning:");
                 float ly = y + 8 + i * lh;
                 if (err || note) r.RoundRect(x + 12, ly + lh / 2 - 3, 6, 6, 3, err ? Theme.Error : Theme.Info);
                 r.Text(r.Code, x + (err || note ? 24 : 14), ly + 2, l, err ? Theme.Error : Theme.Text);
@@ -3788,12 +3833,17 @@ namespace FasetStudio.Ide
                 else if (k == "delete") e.Key = Keys.Delete;
                 else if (k == "f5") e.Key = Keys.F5;
                 else if (k == "f12") e.Key = Keys.F12;
-                else if (k == "space") e.Key = ' ';
+                else if (k == "space")
+                {
+                    e.Key = ' ';
+                    if (!e.Ctrl) e.Char = ' ';  // un espacio escrito (dispara los atributos en XML)
+                }
                 else e.Key = (uint)k[0];
                 HandleKey(e);
             }
             else if (verb == "hover")
             {
+                Draw();  // posiciones de los paneles (una pestaña recién abierta aún no las tiene)
                 List<string> p = Text.Split(arg, " ");
                 EditorView v = Editor;
                 if (v != null && p.Count >= 2)
