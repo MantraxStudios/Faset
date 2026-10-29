@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Motor</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Base/Base.fstproj" />
+  </ItemGroup>
+</Project>

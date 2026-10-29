@@ -358,7 +358,11 @@ void faset_sleep_ms(int64_t ms) {
 
 int64_t faset_time_unix_ms(void) {
     struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts); /* timespec_get solo existe desde la API 29 */
+#else
     timespec_get(&ts, TIME_UTC);
+#endif
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 

@@ -7,6 +7,7 @@
 //     <TargetPlatform>native</TargetPlatform>   native | linux | windows | android
 //     <TargetArch>x86_64</TargetArch>           x86_64 | x86 | arm64 | armv7
 //     <Configuration>Debug</Configuration>      Debug | Release
+//     <AndroidPackage>com.faset.miapp</AndroidPackage>   Android: ver README
 //   </PropertyGroup>
 //   <ItemGroup>
 //     <Compile Remove="pruebas/**" />
@@ -30,6 +31,7 @@ struct Project {
     std::vector<std::string> nativeLibs, libPaths;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // <NativeLibrary Include="x" Platform="windows" />
     std::vector<std::string> references;  // rutas a otros .fstproj
+    std::vector<std::string> androidPermissions;  // <AndroidPermission Include="INTERNET" />
 
     std::string prop(const std::string& name, const std::string& def = "") const;
     bool boolProp(const std::string& name, bool def) const;

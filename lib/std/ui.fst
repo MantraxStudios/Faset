@@ -13,8 +13,14 @@
 //      Application.Run(new MainWindow().Window);
 //
 //  Todo se dibuja por software (formas con antialiasing y texto con la fuente del
-//  sistema) y se copia a la ventana: X11 + FreeType en Linux, Win32 + GDI en Windows.
-//  Bibliotecas: el compilador enlaza X11 y freetype (Linux) o user32 y gdi32 (Windows).
+//  sistema) y se copia a la ventana: X11 + FreeType en Linux, Win32 + GDI en Windows,
+//  ANativeWindow + stb_truetype en Android (pantalla completa, toques = ratón).
+//  Bibliotecas: el compilador enlaza X11 y freetype (Linux), user32 y gdi32 (Windows)
+//  o android y log (Android).
+//
+//  Densidad: las coordenadas de los controles son lógicas; el lienzo multiplica por
+//  'Scale' (1 en escritorio, dpi/160 en Android) y las fuentes se rasterizan al tamaño
+//  real, así el texto se ve nítido en pantallas de alta densidad.
 // =============================================================================
 using std.collections;
 using std.text;
@@ -109,8 +115,9 @@ namespace std.ui
     public class Canvas
     {
         public uint* Pixels;
-        public int Width;
+        public int Width;         // en píxeles físicos
         public int Height;
+        public float Scale = 1;   // píxeles físicos por unidad lógica (las primitivas usan unidades lógicas)
         int clipX0;
         int clipY0;
         int clipX1;
@@ -141,6 +148,14 @@ namespace std.ui
         // Limita el dibujo a la intersección del recorte actual con el rectángulo.
         public void Clip(int x, int y, int w, int h)
         {
+            if (Scale != 1)
+            {
+                int x0 = (int)Math.Floor(x * Scale + 0.5f), y0 = (int)Math.Floor(y * Scale + 0.5f);
+                w = (int)Math.Floor((x + w) * Scale + 0.5f) - x0;
+                h = (int)Math.Floor((y + h) * Scale + 0.5f) - y0;
+                x = x0;
+                y = y0;
+            }
             clipX0 = Math.Max(clipX0, x);
             clipY0 = Math.Max(clipY0, y);
             clipX1 = Math.Min(clipX1, x + w);
@@ -189,6 +204,14 @@ namespace std.ui
 
         public void FillRect(int x, int y, int w, int h, uint color)
         {
+            if (Scale != 1)
+            {
+                int sx = (int)Math.Floor(x * Scale + 0.5f), sy = (int)Math.Floor(y * Scale + 0.5f);
+                w = (int)Math.Floor((x + w) * Scale + 0.5f) - sx;
+                h = (int)Math.Floor((y + h) * Scale + 0.5f) - sy;
+                x = sx;
+                y = sy;
+            }
             int x0 = Math.Max(x, clipX0), y0 = Math.Max(y, clipY0);
             int x1 = Math.Min(x + w, clipX1), y1 = Math.Min(y + h, clipY1);
             for (int py = y0; py < y1; py++)
@@ -208,6 +231,15 @@ namespace std.ui
         void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color)
         {
             if (w <= 0 || h <= 0) return;
+            if (Scale != 1)
+            {
+                x *= Scale;
+                y *= Scale;
+                w *= Scale;
+                h *= Scale;
+                r *= Scale;
+                if (thickness > 0) thickness *= Scale;
+            }
             float maxR = (w < h ? w : h) / 2;
             if (r > maxR) r = maxR;
             if (r < 0) r = 0;
@@ -235,6 +267,14 @@ namespace std.ui
         // Segmento con extremos redondeados.
         public void Line(float ax, float ay, float bx, float by, float thickness, uint color)
         {
+            if (Scale != 1)
+            {
+                ax *= Scale;
+                ay *= Scale;
+                bx *= Scale;
+                by *= Scale;
+                thickness *= Scale;
+            }
             float half = thickness / 2;
             int x0 = Math.Max((int)Math.Floor((ax < bx ? ax : bx) - half - 1), clipX0);
             int y0 = Math.Max((int)Math.Floor((ay < by ? ay : by) - half - 1), clipY0);
@@ -259,12 +299,12 @@ namespace std.ui
         public float Text(UiFont font, string s, float x, float baseline, uint color)
         {
             int i = 0;
-            int by = (int)Math.Floor(baseline + 0.5f);
+            int by = (int)Math.Floor(baseline * Scale + 0.5f);  // los glifos ya están a tamaño físico
             while (i < s.Length)
             {
                 char ch = UiFont.NextChar(s, ref i);
                 GlyphImage g = font.Get(ch);
-                int gx = (int)Math.Floor(x + 0.5f) + g.Left;
+                int gx = (int)Math.Floor(x * Scale + 0.5f) + g.Left;
                 int gy = by - g.Top;
                 for (int row = 0; row < g.Height; row++)
                 {
@@ -322,21 +362,27 @@ namespace std.ui
         static List<UiFont> cache = new List<UiFont>();
 
         Dictionary<char, GlyphImage> glyphs = new Dictionary<char, GlyphImage>();
-        void* handle;  // FT_Face (Linux) o HDC con la fuente seleccionada (Windows)
+        void* handle;  // FT_Face (Linux), HDC con la fuente seleccionada (Windows) o fuente de stb_truetype (Android)
+        float scale = 1;
         public int Size;
         public bool Bold;
         public float Ascent;
         public float Descent;
         public float LineHeight => Ascent + Descent;
 
+        // Densidad de la pantalla: los glifos se rasterizan a Size * Scale píxeles y las
+        // medidas (Advance, Ascent...) se dan en unidades lógicas. La fija la ventana.
+        public static float Scale = 1;
+
         public static UiFont Get(int size, bool bold)
         {
             if (size < 6) size = 6;
             for (int i = 0; i < cache.Count; i++)
-                if (cache[i].Size == size && cache[i].Bold == bold) return cache[i];
+                if (cache[i].Size == size && cache[i].Bold == bold && cache[i].scale == Scale) return cache[i];
             auto f = new UiFont();
             f.Size = size;
             f.Bold = bold;
+            f.scale = Scale;
             f.Open();
             cache.Add(f);
             return f;
@@ -437,6 +483,54 @@ namespace std.ui
             }
             Memory.Free(gm);
             Memory.Free(mat);
+            return g;
+        }
+#elif ANDROID
+        static string FindFile(string candidates)
+        {
+            auto parts = Text.Split(candidates, ";");
+            string found = "";
+            for (int i = 0; i < parts.Count; i++)
+                if (File.Exists(parts[i]))
+                {
+                    found = parts[i];
+                    break;
+                }
+            delete parts;
+            return found;
+        }
+
+        void Open()
+        {
+            // Roboto es variable desde Android 12: si no hay una negrita estática se engrosa la regular.
+            string bold = Bold ? FindFile("/system/fonts/Roboto-Bold.ttf;/system/fonts/RobotoStatic-Bold.ttf;/system/fonts/NotoSans-Bold.ttf;/system/fonts/DroidSans-Bold.ttf") : "";
+            string path = bold.Length > 0 ? bold
+                : FindFile("/system/fonts/Roboto-Regular.ttf;/system/fonts/RobotoStatic-Regular.ttf;/system/fonts/NotoSans-Regular.ttf;/system/fonts/DroidSans.ttf");
+            Ascent = Size * 0.8f;
+            Descent = Size * 0.25f;
+            if (path.Length == 0) return;
+            string p = path.ToCString();
+            float asc = 0, desc = 0;
+            handle = AndroidNative.faset_ttf_open(p.Ptr, Size * scale, Bold && bold.Length == 0 ? 1 : 0, &asc, &desc);
+            String.Free(p);
+            if (handle == null) return;
+            Ascent = asc / scale;
+            Descent = desc / scale;
+        }
+
+        GlyphImage Rasterize(char c)
+        {
+            GlyphImage g = new GlyphImage();
+            byte* cov = null;
+            int w = 0, h = 0, left = 0, top = 0;
+            float adv = 0;
+            AndroidNative.faset_ttf_glyph(handle, (uint)c, &cov, &w, &h, &left, &top, &adv);
+            g.Coverage = cov;
+            g.Width = w;
+            g.Height = h;
+            g.Left = left;
+            g.Top = top;
+            g.Advance = adv / scale;
             return g;
         }
 #else
@@ -1130,7 +1224,10 @@ namespace std.ui
         public void Render()
         {
             if (palette == null) palette = Palette.For(Theme);
-            canvas.Resize(width, height);
+            float scale = native != null ? native.Scale : 1;
+            canvas.Scale = scale;
+            UiFont.Scale = scale;
+            canvas.Resize((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale));
             canvas.ResetClip();
             canvas.Clear(palette.Background);
             for (int i = 0; i < Children.Count; i++)
@@ -1429,6 +1526,7 @@ namespace std.ui
                 while (open && native.Poll(out e)) HandleEvent(e);
                 if (!open) break;
                 bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
+                native.SetTextInput(editing);  // teclado en pantalla (Android)
                 if (editing)
                 {
                     long now = Environment.TickCount64();
@@ -1556,6 +1654,7 @@ namespace std.ui
     {
         static NativeWindow current;
 
+        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
         void* hwnd;
         byte* msg;
         byte* bmi;
@@ -1626,6 +1725,8 @@ namespace std.ui
             Win32.SetWindowTextW(hwnd, t);
             Memory.Free(t);
         }
+
+        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
 
         public void SetCursor(CursorShape shape)
         {
@@ -1856,6 +1957,146 @@ namespace std.ui
             return r;
         }
     }
+#elif ANDROID
+    // ======================================================================= Android (NativeActivity)
+
+    // Capa nativa en lib/android/faset_android.c (se compila dentro del APK).
+    static class AndroidNative
+    {
+        public static extern int faset_android_wait_window();
+        public static extern float faset_android_density();
+        public static extern int faset_android_next(int* ev);
+        public static extern void faset_android_wait(int ms);
+        public static extern void faset_android_present(uint* pixels, int w, int h);
+        public static extern void faset_android_text_input(int on);
+        public static extern int faset_android_clipboard_set(byte* text, int len);
+        public static extern int faset_android_clipboard_get(byte** text);
+        public static extern void* faset_ttf_open(byte* path, float px, int fakeBold, float* ascent, float* descent);
+        public static extern int faset_ttf_glyph(void* font, uint cp, byte** coverage, int* w, int* h, int* left, int* top, float* advance);
+    }
+
+    // La "ventana" es la actividad a pantalla completa: los toques llegan como ratón
+    // (botón 1) y el tamaño lógico es el de la pantalla dividido por la densidad.
+    class NativeWindow
+    {
+        public float Scale = 1;
+        int* ev;
+        bool textInput;
+        string clipboard = String.Copy("");
+
+        ~NativeWindow()
+        {
+            Memory.Free(ev);
+            String.Free(clipboard);
+        }
+
+        public bool Create(string title, int w, int h, bool resizable, int minW, int minH, uint background)
+        {
+            if (AndroidNative.faset_android_wait_window() == 0) return false;
+            Scale = AndroidNative.faset_android_density();
+            if (Scale <= 0) Scale = 1;
+            ev = (int*)Memory.AllocZeroed(32);
+            return true;
+        }
+
+        public void Destroy() { SetTextInput(false); }
+
+        public void SetTitle(string title) { }
+
+        public void SetCursor(CursorShape shape) { }
+
+        public void SetTextInput(bool on)
+        {
+            if (on == textInput) return;
+            textInput = on;
+            AndroidNative.faset_android_text_input(on ? 1 : 0);
+        }
+
+        public void Present(Canvas c) { AndroidNative.faset_android_present(c.Pixels, c.Width, c.Height); }
+
+        public void Wait(int ms)
+        {
+            if (ms < 0) ms = 0;
+            AndroidNative.faset_android_wait(ms);
+        }
+
+        int Logical(int px) => (int)(px / Scale);
+
+        // Códigos AKEYCODE_* de android/keycodes.h.
+        static KeyCode MapKey(int code)
+        {
+            switch (code)
+            {
+                case 67: return KeyCode.Backspace;   // DEL
+                case 112: return KeyCode.Delete;     // FORWARD_DEL
+                case 21: return KeyCode.Left;
+                case 22: return KeyCode.Right;
+                case 19: return KeyCode.Up;
+                case 20: return KeyCode.Down;
+                case 122: return KeyCode.Home;       // MOVE_HOME
+                case 123: return KeyCode.End;        // MOVE_END
+                case 66: return KeyCode.Enter;
+                case 160: return KeyCode.Enter;      // NUMPAD_ENTER
+                case 61: return KeyCode.Tab;
+                case 111: return KeyCode.Escape;
+                case 62: return KeyCode.Space;
+                case 29: return KeyCode.A;
+                case 31: return KeyCode.C;
+                case 50: return KeyCode.V;
+                case 52: return KeyCode.X;
+                default: return KeyCode.Other;
+            }
+        }
+
+        public bool Poll(out UiEvent e)
+        {
+            e = new UiEvent();
+            while (AndroidNative.faset_android_next(ev) != 0)
+            {
+                int kind = ev[0];
+                e.X = Logical(ev[1]);
+                e.Y = Logical(ev[2]);
+                int meta = ev[5];
+                e.Shift = (meta & 1) != 0;          // AMETA_SHIFT_ON
+                e.Ctrl = (meta & 0x1000) != 0;      // AMETA_CTRL_ON
+                switch (kind)
+                {
+                    case 1:
+                        e.Kind = UiEventKind.Resize;
+                        e.Width = Logical(ev[6]);
+                        e.Height = Logical(ev[7]);
+                        return true;
+                    case 2: e.Kind = UiEventKind.Expose; return true;
+                    case 3: e.Kind = UiEventKind.Close; return true;
+                    case 4: e.Kind = UiEventKind.MouseMove; return true;
+                    case 5: e.Kind = UiEventKind.MouseDown; e.Button = 1; return true;
+                    case 6: e.Kind = UiEventKind.MouseUp; e.Button = 1; return true;
+                    case 7: e.Kind = UiEventKind.MouseLeave; return true;
+                    case 8: e.Kind = UiEventKind.KeyDown; e.Key = MapKey(ev[3]); return true;
+                    case 9: e.Kind = UiEventKind.Char; e.Char = (char)ev[4]; return true;
+                    case 10: e.Kind = UiEventKind.FocusLost; return true;
+                }
+            }
+            return false;
+        }
+
+        public void SetClipboard(string text)
+        {
+            String.Free(clipboard);
+            clipboard = String.Copy(text);
+            AndroidNative.faset_android_clipboard_set(text.Ptr, text.Length);
+        }
+
+        public string GetClipboard()
+        {
+            byte* data = null;
+            int n = AndroidNative.faset_android_clipboard_get(&data);
+            if (n < 0) return String.Copy(clipboard);
+            string r = String.Copy(String.FromBytes(data, n));
+            Memory.Free(data);
+            return r;
+        }
+    }
 #else
     // ======================================================================= X11 + FreeType
 
@@ -1921,6 +2162,7 @@ namespace std.ui
 
     class NativeWindow
     {
+        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
         void* display;
         ulong window;
         int screen;
@@ -1996,6 +2238,8 @@ namespace std.ui
             String.Free(t);
             X11.XFlush(display);
         }
+
+        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
 
         public void SetCursor(CursorShape shape)
         {
