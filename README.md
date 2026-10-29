@@ -594,50 +594,58 @@ memoria.
 ### Hilos (`std.thread`)
 
 Hilos del sistema (pthreads en Linux/Android, Win32 en Windows). En Linux, `faset` enlaza
-`-lpthread` automáticamente cuando el programa usa `std.thread`. La función de un hilo es un
-`delegate*<void*, void>` que recibe el puntero que le pases:
+`-lpthread` automáticamente cuando el programa usa `std.thread`. Desde código seguro, la
+función de un hilo recibe un **argumento tipado** (`Thread.Run<T>`, `ThreadPool.Submit<T>`,
+`Parallel.For<T>`): no hace falta `memory_unsafe`.
 
 ```csharp
+using std.collections;
 using std.thread;
 
-class Datos { public Mutex M = new Mutex(); public long Suma; public int Hits; }
+class Datos { public Mutex M = new Mutex(); public long Suma; public AtomicLong Hits = new AtomicLong(); }
 
-static void Trabajo(void* p)
+void Trabajo(Datos d)
 {
-    Datos d = (Datos)p;
     for (int i = 1; i <= 1000; i++)
     {
         d.M.Lock(); d.Suma += i; d.M.Unlock();
-        Atomic.Increment(&d.Hits);                    // atómico, sin mutex
+        d.Hits.Increment();                           // atómico, sin mutex
     }
 }
 
 int main()
 {
     Datos d = new Datos();
-    Thread* hilos = new Thread[4];
-    for (int i = 0; i < 4; i++) hilos[i] = Thread.Run(&Trabajo, (void*)d);
+    List<Thread> hilos = new List<Thread>();
+    for (int i = 0; i < 4; i++) hilos.Add(Thread.Run(&Trabajo, d));   // Thread.Run<Datos>
     for (int i = 0; i < 4; i++) { hilos[i].Join(); delete hilos[i]; }
-    delete[] hilos;
+    delete hilos;
     println(d.Suma);                                  // 2002000
     return 0;
 }
 ```
 
+El argumento se copia en una caja que el hilo libera, así que `T` puede ser cualquier tipo
+(clase, struct, entero, `string`). Si es un objeto, se comparte: debe seguir vivo hasta que el
+hilo termine y su acceso debe protegerse (`Mutex`, `AtomicInt`/`AtomicLong`, `Channel<T>`).
+Las versiones con `void*` (`new Thread(fn, void*)`, `Thread.Run(fn, void*)`,
+`Submit(fn, void*)`, `Parallel.For(..., void*)`) y la clase `Atomic`, que trabaja sobre
+punteros, son `memory_unsafe`.
+
 | Tipo | Contenido |
 |------|-----------|
-| `Thread` | `new Thread(fn, arg)` + `Start()`, o `Thread.Run(fn, arg)`; `Join`, `Detach` (borrar un `Thread` sin `Join` lo desacopla), `IsStarted`; estáticos `Sleep`, `Yield`, `CurrentId`, `HardwareConcurrency` |
+| `Thread` | `Thread.Run(&F, arg)` (`F(T arg)`), `Thread.Run(&F)` (sin argumentos); `new Thread(fn, void*)` + `Start()` (memory_unsafe); `Join`, `Detach` (borrar un `Thread` sin `Join` lo desacopla), `IsStarted`; estáticos `Sleep`, `Yield`, `CurrentId`, `HardwareConcurrency` |
 | `Mutex`, `RecursiveMutex` | `Lock`, `TryLock`, `Unlock` (SRWLOCK / CRITICAL_SECTION en Windows) |
 | `ConditionVariable` | `Wait(m)`, `Wait(m, ms)` (false si vence el plazo), `NotifyOne`, `NotifyAll`; comprueba la condición en un bucle |
 | `Semaphore` | `new Semaphore(n)`, `Wait`, `Wait(ms)`, `TryWait`, `Release`, `Release(n)`, `Count` |
-| `Atomic` | `Increment`, `Decrement`, `Add`, `Load`, `Store`, `Exchange`, `CompareExchange(p, valor, comparando)` (devuelve el anterior), `Fence`; para `int*`, `long*` y `void**` (los punteros a `void*` solo en `Load`/`Store`/`Exchange`/`CompareExchange`) |
+| `Atomic` (memory_unsafe) | `Increment`, `Decrement`, `Add`, `Load`, `Store`, `Exchange`, `CompareExchange(p, valor, comparando)` (devuelve el anterior), `Fence`; para `int*`, `long*` y `void**` (los punteros a `void*` solo en `Load`/`Store`/`Exchange`/`CompareExchange`) |
 | `AtomicInt`, `AtomicLong` | contador atómico: `Value`, `Set`, `Increment`, `Add`, `Exchange`, `CompareExchange` |
-| `ThreadPool` | `new ThreadPool(n)` (o uno por procesador), `Submit(fn, arg)`, `WaitIdle`, `Pending`, `Shutdown`; `delete` termina lo pendiente y une los hilos |
-| `Parallel` | `Parallel.For(desde, hasta, &Cuerpo, arg)` con `static void Cuerpo(int i, void* arg)` |
+| `ThreadPool` | `new ThreadPool(n)` (o uno por procesador), `Submit(&F, arg)` (`F(T arg)`), `WaitIdle`, `Pending`, `Shutdown`; `delete` termina lo pendiente y une los hilos |
+| `Parallel` | `Parallel.For(desde, hasta, &Cuerpo, arg [, maxHilos])` con `void Cuerpo(int i, T arg)` |
 | `Channel<T>` | cola productor/consumidor: `new Channel<T>(capacidad)` (0 = sin límite), `Send`, `TrySend`, `Receive(out v)`, `Receive(out v, ms)`, `TryReceive`, `Close`, `Count` |
 
-Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el puntero
-`arg` debe seguir vivo mientras el hilo lo use.
+Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el objeto
+que pasas como argumento debe seguir vivo mientras el hilo lo use.
 
 ### Fechas y horas (`std.time`)
 

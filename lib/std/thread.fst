@@ -12,13 +12,18 @@
 //    Parallel            Parallel.For(desde, hasta, cuerpo, dato)
 //    Channel<T>          cola segura entre hilos (con o sin capacidad máxima)
 //
-//  Las funciones de los hilos son punteros a función 'delegate*<void*, void>'
-//  que reciben el puntero de usuario indicado al crearlos:
+//  Desde código seguro, los hilos reciben un argumento tipado (cualquier tipo T: lo
+//  normal es un objeto de clase compartido, que debe seguir vivo mientras el hilo lo use):
 //
-//    static void Trabajo(void* dato) { ... }
-//    auto t = Thread.Run(&Trabajo, (void*)miObjeto);
+//    static void Trabajo(Contador c) { ... }
+//    auto t = Thread.Run(&Trabajo, miContador);   // Thread.Run<Contador>
 //    t.Join();
 //    delete t;
+//
+//  También hay ThreadPool.Submit<T>, Parallel.For<T> y Thread.Run(&SinArgumentos).
+//  Las versiones con 'void*' (Thread(fn, void*), Thread.Run(fn, void*), Submit(fn, void*),
+//  Parallel.For(..., void*)) son 'memory_unsafe'. Para contadores compartidos usa
+//  AtomicInt / AtomicLong; la clase Atomic trabaja sobre punteros (memory_unsafe).
 //
 //  Como el resto de la biblioteca, nada se libera solo: usa 'delete'.
 //  En Linux se enlaza automáticamente con -lpthread.
@@ -111,6 +116,37 @@ namespace std.thread
     }
 #endif
 
+    // ---------------------------------------------------------------- arranque tipado
+    // Caja con la función y el argumento tipados: viaja como void* y se libera en el hilo.
+    // Copia el valor de T, así que vale cualquier tipo (clases, structs, enteros, string).
+    memory_unsafe class ThreadStart<T>
+    {
+        public delegate*<T, void> Fn;
+        public T Arg;
+
+        public static void Run(void* self)
+        {
+            ThreadStart<T> b = (ThreadStart<T>)self;
+            delegate*<T, void> fn = b.Fn;
+            T arg = b.Arg;
+            delete b;
+            fn(arg);
+        }
+    }
+
+    memory_unsafe class ThreadStart0
+    {
+        public delegate*<void> Fn;
+
+        public static void Run(void* self)
+        {
+            ThreadStart0 b = (ThreadStart0)self;
+            delegate*<void> fn = b.Fn;
+            delete b;
+            fn();
+        }
+    }
+
     // ---------------------------------------------------------------- Thread
     public memory_unsafe class Thread
     {
@@ -120,8 +156,9 @@ namespace std.thread
         bool started;
         bool finished;  // ya se hizo Join o Detach
 
-        // Prepara un hilo que ejecutará start(arg); se lanza con Start().
-        public Thread(delegate*<void*, void> start, void* arg)
+        // Prepara un hilo que ejecutará start(arg); se lanza con Start(). memory_unsafe: el
+        // argumento es un puntero sin tipo (desde código seguro usa Thread.Run<T>).
+        public memory_unsafe Thread(delegate*<void*, void> start, void* arg)
         {
             this.start = start;
             this.arg = arg;
@@ -135,7 +172,7 @@ namespace std.thread
         }
 
         // Crea y lanza un hilo en un solo paso (null si el sistema no pudo crearlo).
-        public static Thread Run(delegate*<void*, void> start, void* arg)
+        public memory_unsafe static Thread Run(delegate*<void*, void> start, void* arg)
         {
             Thread t = new Thread(start, arg);
             if (!t.Start())
@@ -143,6 +180,28 @@ namespace std.thread
                 delete t;
                 return null;
             }
+            return t;
+        }
+
+        // Versión segura: lanza start(arg) con un argumento tipado (se copia; si es un objeto,
+        // debe seguir vivo hasta que el hilo termine). null si el sistema no pudo crearlo.
+        public static Thread Run<T>(delegate*<T, void> start, T arg)
+        {
+            ThreadStart<T> b = new ThreadStart<T>();
+            b.Fn = start;
+            b.Arg = arg;
+            Thread t = Run(&ThreadStart<T>.Run, (void*)b);
+            if (t == null) delete b;
+            return t;
+        }
+
+        // Lanza start() sin argumentos.
+        public static Thread Run(delegate*<void> start)
+        {
+            ThreadStart0 b = new ThreadStart0();
+            b.Fn = start;
+            Thread t = Run(&ThreadStart0.Run, (void*)b);
+            if (t == null) delete b;
             return t;
         }
 
@@ -564,7 +623,7 @@ namespace std.thread
     // ---------------------------------------------------------------- ThreadPool
     // Hilos fijos que ejecutan trabajos en orden de llegada:
     //    auto pool = new ThreadPool(4);
-    //    pool.Submit(&Trabajo, dato);
+    //    pool.Submit(&Trabajo, dato);   // Submit<T>: seguro; Submit(fn, void*): memory_unsafe
     //    pool.WaitIdle();     // espera a que no quede nada pendiente
     //    delete pool;         // termina lo pendiente y une los hilos
     public memory_unsafe struct WorkItem
@@ -607,8 +666,19 @@ namespace std.thread
 
         public int ThreadCount => workerCount;
 
+        // Encola fn(arg) con un argumento tipado; false si el grupo ya se está cerrando.
+        public bool Submit<T>(delegate*<T, void> fn, T arg)
+        {
+            ThreadStart<T> b = new ThreadStart<T>();
+            b.Fn = fn;
+            b.Arg = arg;
+            if (Submit(&ThreadStart<T>.Run, (void*)b)) return true;
+            delete b;
+            return false;
+        }
+
         // Encola fn(arg); devuelve false si el grupo ya se está cerrando.
-        public bool Submit(delegate*<void*, void> fn, void* arg)
+        public memory_unsafe bool Submit(delegate*<void*, void> fn, void* arg)
         {
             WorkItem w = new WorkItem();
             w.Fn = fn;
@@ -685,17 +755,46 @@ namespace std.thread
     }
 
     // ---------------------------------------------------------------- Parallel
+    memory_unsafe class ParallelBody<T>
+    {
+        public delegate*<int, T, void> Fn;
+        public T Arg;
+
+        public static void Call(int i, void* self)
+        {
+            ParallelBody<T> b = (ParallelBody<T>)self;
+            b.Fn(i, b.Arg);
+        }
+    }
+
     public memory_unsafe static class Parallel
     {
         // Ejecuta body(i, arg) para cada i en [fromInclusive, toExclusive) repartiendo los
-        // índices entre los procesadores; vuelve cuando han terminado todos. El orden no está definido.
-        public static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg)
+        // índices entre los procesadores; vuelve cuando han terminado todos. El orden no está
+        // definido. 'arg' se comparte entre los hilos: si es un objeto, protégelo (Mutex,
+        // AtomicLong...) o escribe en posiciones distintas.
+        public static void For<T>(int fromInclusive, int toExclusive, delegate*<int, T, void> body, T arg)
+        {
+            For<T>(fromInclusive, toExclusive, body, arg, faset_cpu_count());
+        }
+
+        // Igual, con un número máximo de hilos (incluido el que llama).
+        public static void For<T>(int fromInclusive, int toExclusive, delegate*<int, T, void> body, T arg, int maxThreads)
+        {
+            ParallelBody<T> b = new ParallelBody<T>();
+            b.Fn = body;
+            b.Arg = arg;
+            For(fromInclusive, toExclusive, &ParallelBody<T>.Call, (void*)b, maxThreads);
+            delete b;
+        }
+
+        // Versiones con puntero sin tipo (memory_unsafe).
+        public memory_unsafe static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg)
         {
             For(fromInclusive, toExclusive, body, arg, faset_cpu_count());
         }
 
-        // Igual, con un número máximo de hilos (incluido el que llama).
-        public static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg, int maxThreads)
+        public memory_unsafe static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg, int maxThreads)
         {
             int n = toExclusive - fromInclusive;
             if (n <= 0) return;

@@ -1,0 +1,4 @@
+9|usar 'Thread.Run', marcado como 'memory_unsafe'
+11|usar 'ThreadPool.Submit', marcado como 'memory_unsafe'
+12|usar 'Parallel.For', marcado como 'memory_unsafe'
+13|el constructor de 'Thread', marcado como 'memory_unsafe'
