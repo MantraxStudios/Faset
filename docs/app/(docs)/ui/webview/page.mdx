@@ -1,0 +1,114 @@
+export const metadata = {
+  title: "WebView",
+  description: "Navegador web incrustado en una ventana de std.ui: Source, Navigate, LoadHtml, ExecuteScript, eventos y el puente JavaScript window.faset.",
+};
+
+# WebView
+
+<p className="lead">
+  <code>&lt;WebView&gt;</code> incrusta un navegador web de verdad en la ventana: WebKitGTK en Linux y
+  <code>android.webkit.WebView</code> en Android. La página y tu código se hablan con mensajes de texto
+  a través de <code>window.faset</code>.
+</p>
+
+```fstui
+<WebView Name="web" X="0" Y="40" Width="800" Height="560" Anchor="Left,Top,Right,Bottom"
+         Source="https://example.com/" Navigated="OnNavegado" TitleChanged="OnTitulo" MessageReceived="OnMensaje" />
+```
+
+| Atributo | Descripción |
+|---|---|
+| `Source` | Dirección que carga (`https://…`, `http://…`, `file://…`). |
+| `Html` | Documento HTML que se muestra en vez de `Source`. |
+| `Navigated` | `void Nombre(Widget sender)`: terminó de cargar una página. |
+| `TitleChanged` | `void Nombre(Widget sender)`: cambió el título del documento. |
+| `MessageReceived` | `void Nombre(Widget sender, string message)`: la página llamó a `window.faset.postMessage`. |
+| `Name`, `X`, `Y`, `Width`, `Height`, `Anchor`, `Visible`, `FontSize`, `CornerRadius`, `Background`, `Foreground`, `BorderColor` | Comunes (los colores se usan en el marco de vista previa). |
+
+## Navegar
+
+El campo generado es un `Widget`; estos son sus miembros de WebView:
+
+| Miembro | Descripción |
+|---|---|
+| `Source` | Dirección actual; asignarla navega. |
+| `Url` | Dirección actual (solo lectura; se actualiza al seguir enlaces y redirecciones). |
+| `Navigate(url)` | Carga una dirección. |
+| `LoadHtml(html)`, `LoadHtml(html, baseUrl)` | Muestra un documento; las rutas relativas se resuelven contra `baseUrl`. |
+| `GoBack()`, `GoForward()`, `Reload()`, `Stop()` | Historial, recargar y detener la carga. |
+| `CanGoBack`, `CanGoForward` | Si hay historial en cada sentido. |
+| `Title` | Título del documento cargado. |
+| `IsLoading` | Si está cargando. |
+| `HasNativeWebView` | `true` si hay un navegador nativo de verdad (no el marco de vista previa). |
+
+```fst
+void OnNavegado(Widget sender)
+{
+    txtUrl.Text = web.Url;
+    btnAtras.Enabled = web.CanGoBack;
+}
+
+void OnTitulo(Widget sender) { Window.Title = web.Title; }
+
+void OnIr(Widget sender) { web.Navigate(txtUrl.Text); }
+void OnAtras(Widget sender) { web.GoBack(); }
+```
+
+## JavaScript y mensajes
+
+`ExecuteScript(js)` ejecuta código en la página **sin esperar resultado**; si la página aún no ha
+terminado su primera carga, el script se encola y se ejecuta después. Para devolver datos, la página
+envía un mensaje:
+
+| Sentido | Página (JavaScript) | Faset |
+|---|---|---|
+| Página → Faset | `window.faset.postMessage("texto")` | evento `MessageReceived(sender, message)`; el último mensaje queda también en `web.Message` |
+| Faset → página | `window.faset.onmessage = e => …` o `window.faset.addEventListener("message", f)`; el texto llega en `e.data` | `web.PostMessage("texto")` |
+
+Los mensajes son texto: para datos estructurados, envía JSON y léelo con [`std.json`](/std/json/).
+
+```fstui
+<WebView Name="web" X="16" Y="16" Width="480" Height="300" MessageReceived="OnMensaje"
+         Html="&lt;button onclick=&quot;window.faset.postMessage('hola')&quot;&gt;Saludar&lt;/button&gt;" />
+```
+
+Con HTML largo es más cómodo cargarlo desde el código:
+
+```fst
+public MainWindow()
+{
+    InitializeComponent();
+    web.LoadHtml("<h1 id='t'>Esperando...</h1>" +
+                 "<button onclick=\"window.faset.postMessage('hola')\">Saludar</button>" +
+                 "<script>window.faset.onmessage = function(e) {" +
+                 "  document.getElementById('t').textContent = e.data; };</script>");
+}
+
+void OnMensaje(Widget sender, string message)
+{
+    lblEstado.Text = "La página dice: " + message;
+    web.PostMessage("Faset recibió: " + message);    // llega a window.faset.onmessage
+}
+
+void OnColor(Widget sender) { web.ExecuteScript("document.body.style.background = '#1e1e2c';"); }
+```
+
+## Plataformas
+
+| Sistema | Navegador | Requisitos |
+|---|---|---|
+| Linux | WebKitGTK 4.1 + GTK 3, incrustado en la ventana X11 | Se carga con `dlopen` al crear el primer `WebView`: el programa compila y arranca sin él, pero en el equipo donde se ejecute tiene que estar instalado (`libwebkit2gtk-4.1-0` en Debian/Ubuntu). Si falta, el control muestra *«WebView no disponible: instala WebKitGTK 4.1»*. |
+| Android | `android.webkit.WebView` en un panel sobre la actividad | Nada: el compilador añade el permiso `INTERNET` al APK cuando la app usa un `WebView`. |
+| Windows | — | Aún no hay backend (WebView2 necesita su cargador COM): el control dibuja el aviso *«WebView no disponible en esta plataforma»*. |
+
+Sin pantalla (`FASET_UI_SCREENSHOT`) y en el diseñador de FasetStudio se dibuja un **marco de vista
+previa** con la dirección, en vez del navegador:
+
+<Screenshot src="/screenshots/multimedia.png" width={820} height={420} alt="Ventana con el marco de vista previa de un WebView a la izquierda y un VideoPlayer con su barra de controles a la derecha" caption="Captura sin pantalla: el WebView se dibuja como marco con la dirección; el VideoPlayer muestra su primer fotograma y la barra de controles." />
+
+<Callout type="aviso" title="Limitaciones">
+El navegador es una vista nativa que se coloca <b>encima</b> del lienzo de <code>std.ui</code>: lo que
+std.ui dibuje en su rectángulo (una lista desplegable abierta, un menú, un control solapado) queda
+tapado, y no se recorta con su contenedor. Deja su zona libre y no lo pongas parcialmente fuera de un
+panel o de una página. Mientras la página tiene el foco, el teclado es suyo.
+</Callout>

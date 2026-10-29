@@ -1,0 +1,39 @@
+export const metadata = {
+  title: "Limitaciones de std.ui",
+  description: "Lo que todavía no funciona en std.ui, el WebView, el vídeo y el audio en cada plataforma.",
+};
+
+# Limitaciones de `std.ui`
+
+<p className="lead">
+  Lo que sabemos que falta o que no se ha probado. Si dependes de algo de esta lista, compruébalo en
+  tu plataforma antes de publicar.
+</p>
+
+## Por plataforma
+
+| | Linux | Android | Windows |
+|---|---|---|---|
+| Controles básicos (`Label`, `Button`, `TextBox`…) | Sí | Sí | Sí |
+| `PictureBox`, `TabControl`, `TreeView`, menús, `Timer`, `Canvas` | Sí | Sí (sin `ContextMenu` con el dedo) | Escritos, **nunca compilados** en Windows |
+| `WebView` | WebKitGTK 4.1 (hay que tenerlo instalado) | `android.webkit` | Aviso *«no disponible»* |
+| `VideoPlayer` | GStreamer 1.0 (hay que tenerlo instalado) | MediaCodec | Aviso *«no disponible»* y evento `Failed` |
+| [`std.audio`](/std/audio/) | PulseAudio o ALSA | AAudio u OpenSL ES | `waveOut` escrito, **nunca probado** |
+
+## Detalles
+
+- **Windows.** El `WebView` y el `VideoPlayer` dibujan un aviso de «no disponible» en su rectángulo. El
+  audio y los controles nuevos (imágenes, pestañas, árbol, menús, temporizador y lienzo) usan el mismo
+  código que en Linux, pero todavía no se han compilado ni probado en Windows.
+- **Android.** No hay pulsación larga, así que un `ContextMenu` no se abre con el dedo (sí con
+  `Window.ShowContextMenu` desde el código). El audio sigue sonando cuando la app pasa a segundo plano.
+  `std.ui` no conoce los recortes de la pantalla ni redimensiona la ventana al aparecer el teclado.
+- **Sin recorte de hijos.** Los controles dentro de un `Panel` o de un `TabPage` no se recortan con su
+  contenedor: uno que se salga de él se dibuja por fuera. Mantén los hijos dentro de su contenedor.
+- **El `WebView` va encima.** El navegador es una vista nativa sobre el lienzo de `std.ui`: tapa los
+  menús, listas desplegables y controles que se solapen con él, y no se recorta con su contenedor.
+- **Dependencias en tiempo de ejecución.** WebKitGTK y GStreamer se cargan con `dlopen`: el programa
+  compila y arranca sin ellos, pero el equipo donde se ejecute debe tenerlos para que haya navegador y
+  vídeo. Si faltan, el control lo dice en su rectángulo.
+- **Atajos.** Los `Shortcut` de los menús reconocen `Ctrl` y `Shift`, pero todavía no `Alt`.
+- **GIF.** Solo se muestra el primer fotograma.

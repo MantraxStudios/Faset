@@ -1,0 +1,96 @@
+Sonido para juegos y aplicaciones: **WAV, OGG Vorbis y MP3** con un mezclador propio escrito en C
+(`lib/audio/faset_audio.c`, con `stb_vorbis` y `minimp3`, de dominio público) que corre en su propio
+hilo. `Sound` guarda un efecto decodificado en memoria y puede sonar muchas veces a la vez; `Music`
+guarda el archivo codificado y lo decodifica mientras suena; cada `Play()` devuelve una `Voice` con su
+volumen, panorama, velocidad, bucle y posición; `Audio` controla la salida. No hay excepciones: si un
+archivo no carga, `IsLoaded` es `false`, `Error` dice por qué (en español) y `Play()` no hace nada.
+
+```fst
+using std.audio;
+
+Sound clic = Sound.Load("sonidos/clic.wav");     // WAV, OGG o MP3, decodificado entero
+clic.Play();                                     // suena en paralelo con lo demás
+Voice v = clic.Play(0.5f, -1);                   // volumen y panorama propios
+v.Speed = 1.5f;                                  // más rápido y más agudo
+
+Music tema = Music.Load("musica/tema.ogg");      // se decodifica mientras suena
+tema.Loop = true;
+tema.Play();                                     // la voz "actual": Pause, Resume, Position...
+tema.Position = 30;                              // salta al segundo 30
+
+Audio.MasterVolume = 0.8f;
+Audio.PauseAll();                                // p. ej. al minimizar un juego
+```
+
+La salida se abre sola en el primer `Play()`. Con `Audio.Open("offline")` no hay hilo ni dispositivo:
+el programa mezcla con `Audio.Render(fotogramas)`, que devuelve las muestras estéreo entrelazadas.
+Sirve para pruebas (este ejemplo se ejecuta igual en un servidor sin tarjeta de sonido) y para
+procesar o guardar la mezcla:
+
+```faset
+using std.audio;
+
+int main()
+{
+    Audio.Open("offline");                     // sin dispositivo: mezclamos con Audio.Render
+    println(Audio.Driver);                     // offline
+
+    Sound pitido = Sound.Tone(440, 0.5);       // la4 de medio segundo
+    println(pitido.Duration);                  // 0.5
+    println(pitido.Channels);                  // 1
+
+    Voice v = pitido.Play();
+    v.Pan = -0.5f;                             // un poco a la izquierda
+    println(Audio.ActiveVoices);               // 1
+
+    Audio.Render(12000);                       // 0,25 s
+    println(v.IsPlaying);                      // true
+    Audio.Render(14400);                       // 0,3 s más: ya terminó
+    println(v.IsPlaying);                      // false
+    println(Audio.ActiveVoices);               // 0
+
+    Sound falta = Sound.Load("no-existe.wav");
+    println(falta.IsLoaded);                   // false
+    println(falta.Error);                      // no se puede leer el archivo de audio: no-existe.wav
+    falta.Play();                              // no hace nada
+    return 0;
+}
+```
+
+## Salidas
+
+| Sistema | Controladores (en orden de preferencia) |
+|---|---|
+| Linux | `pulse` (PulseAudio, también PipeWire) y `alsa`. Los dos se cargan con `dlopen` (`libpulse-simple.so.0`, `libasound.so.2`): no hacen falta paquetes `-dev` y el programa arranca aunque no estén. |
+| Android | `aaudio` (Android 8.0+, cargado con `dlopen`) y `opensl` (OpenSL ES). Se enlaza `OpenSLES` automáticamente. |
+| Windows | `winmm` (`waveOut`; se enlaza solo). **Escrito pero sin probar en Windows.** |
+| Todos | `null`: sin sonido, pero el tiempo avanza y las voces terminan (se usa si no hay dispositivo). `offline`: sin hilo, mezcla con `Audio.Render`. |
+
+`Audio.Open(controlador)` elige uno (`""` = automático) y devuelve `false` si no se pudo abrir el
+pedido (entonces se usa `null`); `Audio.Driver` dice cuál está en uso y `Audio.SampleRate`, a qué
+frecuencia (48 000 Hz salvo que el dispositivo pida otra). Cada voz se remuestrea a esa frecuencia.
+
+| Variable de entorno | Efecto |
+|---|---|
+| `FASET_AUDIO_DRIVER` | Controlador cuando el programa no pide ninguno (`pulse`, `alsa`, `null`, `offline`…). |
+| `FASET_AUDIO_RATE` | Frecuencia de salida en Hz (mínimo 8000). |
+| `FASET_ALSA_DEVICE` | Dispositivo de ALSA (por defecto `default`). |
+| `FASET_AUDIO_APP` | Nombre de la aplicación en PulseAudio (por defecto, el del ejecutable). |
+| `FASET_AUDIO_DEBUG` | Escribe los errores de audio en `stderr`. |
+
+## Archivos
+
+`Load` prueba la ruta tal cual (relativa a la carpeta actual), luego **junto al ejecutable** y, en
+Android, **dentro del APK**. Declara los archivos con [`<Asset Include="sonidos/*.wav"/>`](/empezar/proyectos/#recursos-asset)
+en el `.fstproj` y el compilador los copia a esos sitios. `FromBytes` carga un archivo que ya está en
+memoria y `Sound.FromSamples` / `Sound.Tone` crean sonidos a partir de muestras.
+
+## En una ventana
+
+En un `.fstui`, `<Sound Name="sndClic" Source="clic.wav" Volume="0.8"/>` y `<Music ... Loop="true"
+AutoPlay="true"/>` generan campos `Sound` y `Music` ya cargados (ver [Vídeo y audio](/ui/multimedia/#sound-y-music)).
+El [diseñador](/studio/disenador/#componentes) los muestra en la bandeja de componentes.
+
+**Limitaciones:** en Android el sonido sigue con la app en segundo plano (usa `Audio.PauseAll()` si
+hace falta); la salida de Windows no se ha probado; no hay grabación ni efectos (reverberación,
+filtros).

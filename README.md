@@ -163,9 +163,14 @@ faset clean
     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
     <NativeLibrary Include="user32" />                           <!-- -luser32 -->
     <LibraryPath Include="libs" />                               <!-- -Llibs -->
+    <Asset Include="sonidos/**" />                               <!-- recursos junto al ejecutable / en el APK -->
   </ItemGroup>
 </Project>
 ```
+
+`<Asset Include="..." Remove="..."/>` (con `*`, `**`, carpetas o listas con `;`) copia recursos junto
+al ejecutable, o a `assets/` dentro del APK, con la misma ruta relativa; `Sound.Load`,
+`Image.FromFile` y `VideoPlayer` los buscan en la carpeta actual, junto al ejecutable y en el APK.
 
 Se ignoran `bin/`, `obj/`, las carpetas ocultas y las subcarpetas que tienen su propio
 `.fstproj`. Las propiedades desconocidas dan error, así una errata no pasa desapercibida.
@@ -541,6 +546,8 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 | `std.os`          | `Process` (`Start` con argv sin shell, stdin/stdout/stderr, `WaitForExit(ms)`, `ExitCode`, `Kill`, `Execute`, `Run`, `Capture`), `ProcessStartInfo`, `ChildProcess` (salida en vivo), `CommandLine` (comillas), `Environment` (`SetVariable`, `UnsetVariable`, `GetVariables`, `GetMachineName`, `GetUserName`, `GetHomeDirectory`, `ProcessorCount`, `ProcessId`), `OS` (`Name`, `Version`, `Architecture`) |
 | `std.json`        | `Json.Parse`, `JsonValue` (`Get`, `At`, `AsString`…), `Json.WriteString` |
 | `std.net`         | `IPAddress`, `IPEndPoint`, `Dns`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `Uri`, `HttpClient` (ver abajo) |
+| `std.ui`          | `Window`, `Widget`, `Application`: ventanas descritas en `.fstui` y dibujadas por software (X11, Win32, Android). Controles básicos, `PictureBox`/`Image`, `TabControl`, `TreeView`, `MenuBar`/`ContextMenu`, `Timer`, `Canvas` (`Graphics`), `WebView` (ver abajo) |
+| `std.video`       | `VideoPlayer` para std.ui (GStreamer en Linux, MediaCodec en Android), `VideoTime` |
 | `std.audio`       | `Sound`, `Music`, `Voice`, `Audio` (WAV, OGG Vorbis y MP3; mezclador propio; ver abajo) |
 
 Toda la biblioteca está escrita en Faset: puedes leerla y ampliarla en `lib/std/`.
@@ -644,6 +651,60 @@ compatibilidad, pero ya no hacen falta. Las clases que poseen un recurso del sis
 sockets, `Process`, ventanas…) lo cierran en su destructor: con `delete`, en ese momento; si no,
 cuando el recolector recupera el objeto.
 
+### Interfaz (`std.ui`)
+
+Una aplicación AppUI (`faset new MiUi --ui`) describe cada ventana en un `.fstui` (XML) y escribe los
+eventos en una clase parcial; el compilador genera los controles y `std.ui` los dibuja con su propio
+renderizador por software. El diseñador de FasetStudio edita los `.fstui` visualmente.
+
+```xml
+<Window Class="MainWindow" Namespace="Controles" Title="Controles" Width="900" Height="600">
+  <MenuBar>
+    <Menu Text="Archivo">
+      <MenuItem Text="Guardar" Shortcut="Ctrl+S" Icon="Assets/guardar.png" Click="OnGuardar" />
+    </Menu>
+  </MenuBar>
+  <TreeView Name="tvProyecto" X="16" Y="46" Width="220" Height="470" ContextMenu="menuArbol" NodeActivated="OnNodo">
+    <TreeNode Text="Proyecto" Expanded="true"> <TreeNode Text="Program.fst" Tag="src/Program.fst" /> </TreeNode>
+  </TreeView>
+  <TabControl Name="tabs" X="252" Y="46" Width="632" Height="470">
+    <TabPage Text="Imágenes"> <PictureBox X="16" Y="16" Width="360" Height="230" Source="Assets/paisaje.jpg" SizeMode="Zoom" /> </TabPage>
+    <TabPage Text="Lienzo"> <Canvas Name="lienzo" X="12" Y="12" Width="606" Height="404" Paint="OnPintar" MouseDown="OnRaton" /> </TabPage>
+    <TabPage Text="Web"> <WebView Name="web" X="0" Y="0" Width="632" Height="434" Source="https://example.com/" MessageReceived="OnMensaje" /> </TabPage>
+  </TabControl>
+  <Timer Name="reloj" Interval="40" Enabled="true" Tick="OnTick" />
+  <ContextMenu Name="menuArbol"> <MenuItem Text="Borrar" Shortcut="Supr" Click="OnBorrar" /> </ContextMenu>
+  <Sound Name="sndClic" Source="sonidos/clic.wav" />
+</Window>
+```
+
+- **Controles:** `Panel`, `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`,
+  `Slider`, `ProgressBar`, `PictureBox` (PNG, JPEG, BMP y GIF con `SizeMode`; `Icon` en botones y
+  menús), `TabControl`/`TabPage`, `TreeView`/`TreeNode`, `MenuBar`/`Menu`/`MenuItem`/`Separator`
+  (atajos, submenús, `Checked`), `Canvas` (`Paint(Widget, Graphics)`, `MouseDown`/`MouseMove`/`MouseUp`
+  con `MouseArgs`, `Invalidate()`), `WebView` y `VideoPlayer`.
+- **Componentes** (dentro de `<Window>`, sin posición): `Timer`, `ContextMenu`, `Sound` y `Music`.
+- **WebView:** WebKitGTK 4.1 en Linux (cargado con `dlopen`: tiene que estar instalado) y
+  `android.webkit` en Android (el permiso `INTERNET` se añade solo). `Navigate`, `LoadHtml`,
+  `ExecuteScript`, `GoBack`/`GoForward`/`Reload`/`Stop`, eventos `Navigated`, `TitleChanged` y
+  `MessageReceived(Widget sender, string message)`; la página habla con
+  `window.faset.postMessage(...)` y recibe `web.PostMessage(...)` en `window.faset.onmessage`.
+- **VideoPlayer:** `Play`/`Pause`/`Stop`/`Seek`, `Position`, `Duration`, `Volume`, `Loop`,
+  `ShowControls`, `Stretch`, `AutoPlay`, eventos `Opened`/`Ended`/`Failed`. GStreamer en Linux
+  (`dlopen`), MediaCodec en Android (también abre los `<Asset>` del APK).
+- **Archivos:** el compilador copia junto al ejecutable (y mete en el APK) la carpeta `Assets/` y los
+  archivos que nombran los `.fstui` (`Source`, `Icon`); el resto se declara con
+  `<Asset Include="..."/>`. Las rutas relativas se buscan en la carpeta actual, junto al ejecutable
+  y, en Android, dentro del APK.
+- **Limitaciones:** en Windows, `WebView` y `VideoPlayer` muestran un aviso «no disponible», y el audio
+  y los controles nuevos están escritos pero nunca se han compilado allí. En Android no hay pulsación
+  larga (un `ContextMenu` no se abre con el dedo) y el audio sigue sonando en segundo plano. Los hijos
+  de `Panel` y `TabPage` no se recortan con su contenedor, y el `WebView` se dibuja siempre encima de
+  `std.ui`.
+
+El ejemplo `examples/controles` usa todos estos controles. Más detalles en la documentación
+(`docs/`, sección *std.ui y el diseñador*).
+
 ### Audio (`std.audio`)
 
 ```csharp
@@ -661,7 +722,7 @@ Audio.MasterVolume = 0.8f;
 Un mezclador en C (`lib/audio/faset_audio.c`, con `stb_vorbis` y `minimp3`, de dominio público)
 corre en su propio hilo y remuestrea cada voz a la frecuencia del dispositivo. Salidas:
 PulseAudio o ALSA en Linux (cargadas con `dlopen`: no hacen falta paquetes `-dev`), `waveOut`
-en Windows (`winmm`, se enlaza solo) y AAudio u OpenSL ES en Android. Sin dispositivo se usa
+en Windows (`winmm`, se enlaza solo; escrito pero aún sin probar) y AAudio u OpenSL ES en Android. Sin dispositivo se usa
 `null` (no suena, pero el tiempo avanza); `FASET_AUDIO_DRIVER` elige una salida y
 `Audio.Open("offline")` + `Audio.Render(n)` mezclan sin hilo (pruebas, o para procesar la mezcla).
 `Load` busca la ruta tal cual, junto al ejecutable y, en Android, en `assets/` del APK: añade los

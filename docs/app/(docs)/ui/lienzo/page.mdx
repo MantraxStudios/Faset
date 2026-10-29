@@ -1,0 +1,155 @@
+export const metadata = {
+  title: "Lienzo y temporizador",
+  description: "Canvas para dibujo libre con Graphics, eventos de ratón con MouseArgs, Invalidate y el componente Timer para animaciones.",
+};
+
+# Lienzo y temporizador
+
+<p className="lead">
+  <code>&lt;Canvas&gt;</code> es un control de dibujo libre: tu método <code>Paint</code> recibe un
+  <code>Graphics</code> y pinta lo que quiera (gráficos, juegos, editores). <code>&lt;Timer&gt;</code> es
+  un componente que llama a un método cada cierto tiempo; juntos dan animaciones.
+</p>
+
+<Screenshot src="/screenshots/controles-lienzo.png" width={900} height={600} alt="Lienzo con un gráfico de barras en degradado, una onda, una bola que rebota y estrellas puestas con el ratón" caption="examples/controles: pestaña Lienzo. El Timer mueve la bola y la onda; cada clic pone una estrella (un PNG con transparencia)." />
+
+## `<Canvas>`
+
+```fstui
+<Canvas Name="lienzo" X="12" Y="12" Width="606" Height="404" Anchor="Left,Top,Right,Bottom"
+        Paint="OnPintar" MouseDown="OnLienzoAbajo" MouseMove="OnLienzoMover" />
+```
+
+| Atributo | Descripción |
+|---|---|
+| `Paint` | `void Nombre(Widget sender, Graphics g)`: dibuja el control. |
+| `MouseDown`, `MouseMove`, `MouseUp` | `void Nombre(Widget sender, MouseArgs e)`: ratón (o dedo, en Android) sobre el lienzo. |
+| `CornerRadius`, `Background`, `Background2`, `GradientDirection`, `BorderColor` | Fondo y borde, que se dibujan antes y después de `Paint`. |
+| `ContextMenu`, `Enabled`, `Visible`, `Anchor` | Como en el resto de controles. |
+
+Estos cuatro eventos solo existen en `<Canvas>`: ponerlos en otro control es un error de compilación. El
+[diseñador](/studio/disenador/) crea los manejadores con la firma correcta.
+
+```fst
+void OnPintar(Widget sender, Graphics g)
+{
+    g.FillGradient(0, 0, g.Width, g.Height, Rgb.Of(0x14141c), Rgb.Of(0x1e1e2c), false);
+    g.DrawText("Ventas", 20, 16, Rgb.Of(0xececee), 16, true);
+    for (int i = 0; i < 6; i++)
+    {
+        float bh = (40 + i * 10) * 1.4f;
+        uint color = Rgb.Mix(Rgb.Of(0x4c8dff), Rgb.Of(0x22c55e), i / 5.0f);
+        g.FillRoundRect(24 + i * 34, 180 - bh, 24, bh, 4, color);
+    }
+    g.DrawLine(16, 181, 230, 181, Rgb.Of(0x8e8e96), 1.5f);
+    g.FillCircle(bolaX, bolaY, 16, Rgb.Of(0xe5484d));
+    g.DrawCircle(bolaX, bolaY, 16, Rgb.Of(0xffffff), 1.5f);
+}
+```
+
+Las coordenadas de `Graphics` son **relativas al control** y el dibujo queda recortado a su rectángulo.
+Los colores son `uint` `0xAARRGGBB`: `Rgb.Of(0xRRGGBB)` da uno opaco, `Rgb.Alpha(0xRRGGBB, 0.35f)` uno
+semitransparente y `Rgb.Mix(a, b, t)` mezcla dos.
+
+### `Graphics`
+
+| Método | Descripción |
+|---|---|
+| `Width`, `Height` | Tamaño del control en este fotograma. |
+| `Clear(color)` | Rellena todo el control (opaco). |
+| `FillRect(x, y, w, h, color)`, `DrawRect(x, y, w, h, color[, grosor])` | Rectángulos. |
+| `FillRoundRect(x, y, w, h, radio, color)`, `DrawRoundRect(x, y, w, h, radio, color, grosor)` | Rectángulos redondeados con antialiasing. |
+| `FillGradient(x, y, w, h, desde, hasta, horizontal)`, `FillRoundGradient(x, y, w, h, radio, desde, hasta, horizontal)` | Degradados lineales. |
+| `DrawLine(x1, y1, x2, y2, color[, grosor])` | Líneas con antialiasing. |
+| `FillCircle(cx, cy, radio, color)`, `DrawCircle(cx, cy, radio, color[, grosor])` | Círculos. |
+| `DrawText(texto, x, y, color[, tamaño[, negrita]])` | Texto UTF-8 con la esquina superior izquierda en `(x, y)`; devuelve el ancho dibujado. Por defecto, tamaño 14. |
+| `MeasureText(texto, tamaño[, negrita])` | Ancho que ocuparía el texto. |
+| `DrawImage(img, x, y)`, `DrawImage(img, x, y, w, h)`, `DrawImage(img, x, y, w, h, opacidad)` | Una [`Image`](/ui/imagenes/#la-clase-image) a su tamaño, escalada o semitransparente. |
+| `DrawImage(img, sx, sy, sw, sh, x, y, w, h)` | La región `(sx, sy, sw, sh)` de la imagen en el rectángulo `(x, y, w, h)`: hojas de sprites. |
+| `SetClip(x, y, w, h)`, `ResetClip()` | Limita el dibujo siguiente a un rectángulo dentro del control. |
+| `Canvas` | El lienzo de toda la ventana, para dibujar con coordenadas absolutas. |
+
+### Ratón: `MouseArgs`
+
+| Campo | Descripción |
+|---|---|
+| `X`, `Y` | Posición relativa al control. |
+| `Button` | `1` izquierdo, `2` central, `3` derecho; `0` en `MouseMove` sin botón pulsado. |
+| `Clicks` | `2` en un doble clic. |
+| `Ctrl`, `Shift` | Modificadores pulsados. |
+
+```fst
+List<int> estrellasX = new List<int>();
+List<int> estrellasY = new List<int>();
+
+void OnLienzoAbajo(Widget sender, MouseArgs e)
+{
+    estrellasX.Add(e.X);
+    estrellasY.Add(e.Y);
+    sender.Invalidate();          // pide otro fotograma
+}
+```
+
+### Redibujar con `Invalidate`
+
+`Paint` se llama cuando la ventana se redibuja. Si cambias el estado que dibujas, llama a
+`Invalidate()` del lienzo (o del `sender`) para pedir otro fotograma. Con un `Timer` que llama a
+`Invalidate()` en cada `Tick` se consigue una animación.
+
+## `<Timer>`
+
+```fstui
+<Timer Name="reloj" Interval="40" Enabled="true" Tick="OnTick" />
+```
+
+Como `<ContextMenu>`, es un **componente**: va directamente dentro de `<Window>`, no se ve y no tiene
+posición. Su campo es un `Widget` de tipo `WidgetKind.Timer`.
+
+| Miembro | Descripción |
+|---|---|
+| `Interval` | Milisegundos entre dos `Tick` (mínimo 1). |
+| `Enabled` | Si está en marcha. |
+| `Start()`, `Stop()` | Lo pone en marcha (empezando a contar desde ahora) o lo detiene. |
+| `Tick` (evento) | `void Nombre(Widget sender)`. |
+
+El `Tick` llega en el **hilo de la interfaz**, desde el bucle de `Application.Run` (la espera de eventos
+se acorta para despertar a tiempo), así que el manejador puede tocar los controles sin cerrojos. Si el
+programa se retrasa, no se acumulan disparos atrasados.
+
+```fst
+void OnTick(Widget sender)
+{
+    float w = lienzo.ActualWidth > 0 ? lienzo.ActualWidth : lienzo.Width;
+    float h = lienzo.ActualHeight > 0 ? lienzo.ActualHeight : lienzo.Height;
+    bolaX = bolaX + velX;
+    bolaY = bolaY + velY;
+    if (bolaX < 18 || bolaX > w - 18) velX = -velX;
+    if (bolaY < 18 || bolaY > h - 18) velY = -velY;
+    lienzo.Invalidate();
+}
+
+void OnAnimar(Widget sender) { reloj.Enabled = !reloj.Enabled; }   // pausa y reanuda
+```
+
+`ActualWidth` y `ActualHeight` dan el tamaño real del control después de aplicar los anclajes (el
+lienzo del ejemplo crece con la ventana).
+
+## Desde el código
+
+```fst
+Widget lienzo = pagina.Add(Widget.Create(WidgetKind.Canvas, "lienzo", 0, 0, 380, 240));
+Widget reloj = window.AddComponent(Widget.Create(WidgetKind.Timer, "reloj", 0, 0, 0, 0));
+reloj.Interval = 16;
+reloj.Start();
+```
+
+Los eventos `Paint`, `MouseDown`, `MouseMove`, `MouseUp` y `Tick` se conectan con `SetEvents` y
+`SetEvent(WidgetEvent.Paint, n)`; durante el evento, `sender.Graphics` y `sender.Mouse` tienen el
+contexto de dibujo y el último evento de ratón. Ver
+[Código de la ventana](/ui/codigo/#conectar-eventos-a-mano).
+
+<Callout type="consejo">
+En las capturas sin pantalla, el verbo <code>wait MS</code> de <code>FASET_UI_SCRIPT</code> avanza el
+reloj de los <code>Timer</code> sin esperar de verdad: <code>FASET_UI_SCRIPT="wait 1000"</code> dispara
+los <code>Tick</code> de un segundo al instante.
+</Callout>

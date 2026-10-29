@@ -1,0 +1,129 @@
+export const metadata = {
+  title: "Imágenes (PictureBox)",
+  description: "PictureBox, la clase Image (PNG, JPEG, BMP y GIF), SizeMode, iconos en botones y menús, y dónde se buscan los archivos.",
+};
+
+# Imágenes (`PictureBox`)
+
+<p className="lead">
+  <code>std.ui</code> lee PNG, JPEG, BMP y GIF (el primer fotograma) y los dibuja escalados con filtro
+  bilineal. Un <code>&lt;PictureBox&gt;</code> muestra una imagen; <code>Button</code> y
+  <code>MenuItem</code> aceptan un <code>Icon</code>; y la clase <code>Image</code> sirve también para
+  dibujar en un <a href="/ui/lienzo/">Canvas</a>.
+</p>
+
+<Screenshot src="/screenshots/controles-imagenes.png" width={900} height={600} alt="Ventana con un árbol a la izquierda y una pestaña Imágenes con un paisaje en modo Zoom y en modo Cover, un tablero centrado y un GIF" caption="examples/controles: PictureBox con SizeMode Zoom, Center y Cover, junto a un TreeView y un TabControl. Captura real generada con FASET_UI_SCREENSHOT." />
+
+## `<PictureBox>`
+
+```fstui
+<PictureBox Name="picPaisaje" X="16" Y="16" Width="360" Height="230" Source="Assets/paisaje.jpg"
+            SizeMode="Zoom" Background="#0b0b0d" BorderColor="#3a3a41" Click="OnImagen" />
+```
+
+| Atributo | Valor | Descripción |
+|---|---|---|
+| `Source` | ruta | Archivo de la imagen. Ver [dónde se buscan los archivos](#donde-se-buscan-los-archivos). |
+| `SizeMode` | `Normal`, `Stretch`, `Zoom`, `Center`, `Cover` | Cómo se coloca la imagen en el rectángulo (por defecto `Normal`). |
+| `CornerRadius`, `Background`, `Background2`, `GradientDirection`, `BorderColor` | | Fondo y borde del control (ver [Colores y degradados](/ui/colores/)). |
+| `ContextMenu` | nombre | [Menú contextual](/ui/menus/#menu-contextual). |
+| `Click` | método | `void Nombre(Widget sender)`. |
+
+| `SizeMode` | Resultado |
+|---|---|
+| `Normal` | Tamaño original, arriba a la izquierda. |
+| `Stretch` | Estirada a todo el control (puede deformarse). |
+| `Zoom` | Cabe entera sin deformarse (quedan bandas si la proporción no coincide). |
+| `Center` | Tamaño original, centrada. |
+| `Cover` | Llena el control sin deformarse y recorta lo que sobra. |
+
+Desde el código, `Source` carga otra imagen y `SizeMode` cambia el modo. En `examples/controles`,
+una lista desplegable con `Items="Normal;Stretch;Zoom;Center;Cover"` elige el modo:
+
+```fst
+void OnModo(Widget sender)
+{
+    picPaisaje.SizeMode = (PictureSizeMode)cmbModo.SelectedIndex;
+    picPaisaje.Invalidate();
+}
+
+void OnNodoActivado(Widget sender)
+{
+    TreeNode n = tvProyecto.SelectedNode;
+    if (n != null && n.Tag.StartsWith("Assets/")) picPaisaje.Source = n.Tag;   // carga la imagen
+}
+```
+
+Si el archivo no se puede leer, `Image` queda en `null` y `Image.LastError` explica por qué
+(`no se encontró la imagen 'foto.png'`):
+
+```fst
+if (picPaisaje.Image == null) lblEstado.Text = Image.LastError;
+```
+
+## Iconos en botones y menús
+
+`Icon` dibuja una imagen a la izquierda del texto en un `Button`, un `MenuItem` o un `Menu`. Si es más
+alta que el control, se reduce conservando la proporción.
+
+```fstui
+<Button Name="btnGuardar" X="162" Y="140" Width="130" Height="38" Text="Guardar" Style="Primary" Icon="Assets/guardar.png" Click="OnGuardar" />
+<MenuItem Text="Abrir..." Shortcut="Ctrl+O" Icon="Assets/abrir.png" Click="OnAbrir" />
+```
+
+En código, `Icon` es una propiedad `Image`: `btnGuardar.Icon = Image.FromFile("iconos/guardar.png");`.
+
+## La clase `Image`
+
+Un mapa de píxeles `0xAARRGGBB` (alfa sin premultiplicar), fila a fila.
+
+| Miembro | Descripción |
+|---|---|
+| `Image.FromFile(ruta)` | Carga un archivo y lo guarda en una caché: pedir otra vez la misma ruta devuelve la misma imagen. `null` si falla. |
+| `Image.Load(ruta)` | Igual, pero sin caché (siempre lee el archivo). |
+| `Image.FromMemory(datos, longitud)` | Decodifica un PNG, JPEG, BMP o GIF que ya está en memoria (`memory_unsafe`: recibe un `byte*`). |
+| `Image.Resolve(ruta)` | Ruta real del archivo, o `""` si no está en ninguna de las carpetas de búsqueda. |
+| `Image.LastError` | Motivo del último `Load`/`FromFile` fallido. |
+| `new Image(ancho, alto)` | Imagen vacía (transparente). |
+| `Width`, `Height`, `Path` | Tamaño y archivo de origen (`""` si se creó en memoria). |
+| `GetPixel(x, y)`, `SetPixel(x, y, argb)`, `Fill(argb)` | Leer y escribir píxeles. |
+| `Changed()` | Avisa de que cambiaste `Pixels` directamente (así se rehacen las copias para dibujar). |
+| `Clone()` | Copia independiente. |
+
+```fst
+Image punto = new Image(16, 16);
+punto.Fill(Rgb.Of(0x4c8dff));          // opaco
+punto.SetPixel(0, 0, 0xffff0000);      // esquina roja
+picMuestra.Image = punto;
+```
+
+Para dibujarla en un lienzo, `Graphics.DrawImage` admite la imagen entera, escalada, con opacidad o
+una región (hojas de sprites): ver [Lienzo y temporizador](/ui/lienzo/#graphics).
+
+## Dónde se buscan los archivos
+
+Una ruta relativa (`Assets/foto.png`) se busca, por orden:
+
+1. en la **carpeta actual**;
+2. **junto al ejecutable**;
+3. en Android, **dentro del APK** (carpeta `assets/`).
+
+Para que eso funcione sin copiar nada a mano, al compilar un programa que usa `std.ui` el compilador
+copia junto al ejecutable (y mete en el APK) **la carpeta `Assets/` del proyecto** y **los archivos que
+nombran los `.fstui`** con `Source` o `Icon`, conservando la ruta relativa:
+
+```text
+MiApp/
+├── Assets/abrir.png          → bin/Debug/linux-x86_64/Assets/abrir.png
+├── MainWindow.fstui          (Source="Assets/paisaje.jpg", Icon="Assets/abrir.png")
+└── ...
+```
+
+Las imágenes que solo cargas desde el código con un nombre calculado, fuera de `Assets/`, añádelas al
+proyecto con [`<Asset Include="..."/>`](/empezar/proyectos/#recursos-asset).
+
+<Callout type="nota">
+La decodificación la hace <code>lib/std/ui/faset_image.c</code> con <code>stb_image</code> (dominio
+público), que se enlaza en todos los programas que usan <code>std.ui</code>: no hace falta ninguna
+biblioteca del sistema. De un GIF animado solo se muestra el primer fotograma.
+</Callout>

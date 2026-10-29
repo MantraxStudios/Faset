@@ -154,7 +154,7 @@ const features: Feature[] = [
   },
   {
     title: "std.ui con degradados",
-    text: "Renderizador por software escrito en Faset: antialiasing, degradados, temas claro y oscuro, X11 y Win32 con el mismo código.",
+    text: "Renderizador por software escrito en Faset: antialiasing, degradados, temas, pestañas, árboles, menús, imágenes y un lienzo de dibujo. X11, Win32 y Android con el mismo código.",
     href: "/ui/introduccion/",
     icon: I.gradient,
   },
@@ -391,7 +391,8 @@ export default function Home() {
               </p>
               <ul className="check-list">
                 <li>
-                  <b>Diseñador visual</b> de .fstui con zoom, cuadrícula, alineación, esquema y colores.
+                  <b>Diseñador visual</b> de .fstui con zoom, cuadrícula, alineación, esquema, colores, menús, pestañas y bandeja de
+                  componentes.
                 </li>
                 <li>
                   <b>IntelliSense real</b>: errores en vivo, autocompletado, hover e ir a la definición.
@@ -432,7 +433,8 @@ export default function Home() {
               <h2>Interfaces nativas en XML</h2>
               <p className="section-sub" style={{ marginBottom: 24 }}>
                 Describe la ventana en un .fstui y escribe los eventos en una clase parcial. El compilador genera los controles; std.ui
-                los dibuja con su propio renderizador, en Linux y en Windows.
+                los dibuja con su propio renderizador, en Linux, Windows y Android. Incluye imágenes, pestañas, árboles, menús, un
+                lienzo con temporizador, un navegador web incrustado, vídeo y sonido.
               </p>
               <div className="studio-shot">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

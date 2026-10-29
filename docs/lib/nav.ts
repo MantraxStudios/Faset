@@ -60,6 +60,13 @@ export const nav: NavSection[] = [
       { title: "Formato .fstui", href: "/ui/fstui/" },
       { title: "Colores y degradados", href: "/ui/colores/" },
       { title: "Código de la ventana", href: "/ui/codigo/" },
+      { title: "Imágenes (PictureBox)", href: "/ui/imagenes/" },
+      { title: "Pestañas y árboles", href: "/ui/pestanas-y-arboles/" },
+      { title: "Menús", href: "/ui/menus/" },
+      { title: "Lienzo y temporizador", href: "/ui/lienzo/" },
+      { title: "WebView", href: "/ui/webview/" },
+      { title: "Vídeo y audio", href: "/ui/multimedia/" },
+      { title: "Limitaciones de std.ui", href: "/ui/limitaciones/" },
     ],
   },
   {

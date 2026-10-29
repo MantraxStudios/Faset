@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Proyectos .fstproj",
-  description: "Referencia del formato .fstproj: propiedades, archivos, referencias a proyectos y bibliotecas nativas.",
+  description: "Referencia del formato .fstproj: propiedades, archivos, recursos (Asset), referencias a proyectos y bibliotecas nativas.",
 };
 
 # Proyectos `.fstproj`
@@ -26,6 +26,7 @@ export const metadata = {
     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
     <NativeLibrary Include="user32" Platform="windows" />        <!-- -luser32 solo en Windows -->
     <LibraryPath Include="libs" />                               <!-- -Llibs -->
+    <Asset Include="sonidos/**" />                               <!-- recursos junto al ejecutable / en el APK -->
   </ItemGroup>
 </Project>
 ```
@@ -62,6 +63,51 @@ desapercibida.
 | `NativeLibrary` | `Include`, `Platform` (opcional) | Biblioteca nativa a enlazar (`-l`). Con `Platform` solo se usa para ese objetivo. |
 | `LibraryPath` | `Include` | Carpeta de bibliotecas nativas (`-L`), relativa al proyecto. |
 | `AndroidPermission` | `Include` | Permisos de Android (`INTERNET;CAMERA` → `android.permission.*`); se heredan de las bibliotecas referenciadas. |
+| `Asset` | `Include`, `Remove` | Recursos que el programa lee en ejecución (sonidos, imágenes, vídeos, datos). Ver [Recursos](#recursos-asset). |
+
+## Recursos (`<Asset>`)
+
+`<Asset Include="..."/>` declara archivos que el programa abre en ejecución. Al compilar se copian
+**junto al ejecutable** (escritorio) o a **`assets/` dentro del APK** (Android), conservando la ruta
+relativa al proyecto:
+
+```fstproj
+<ItemGroup>
+  <Asset Include="sonidos/*.wav" />          <!-- comodines: * y ** -->
+  <Asset Include="niveles" />                <!-- una carpeta incluye todo lo que contiene -->
+  <Asset Include="datos/config.json;datos/textos.json" />
+  <Asset Include="video/**" Remove="video/borradores/**" />
+</ItemGroup>
+```
+
+```text
+MiJuego/sonidos/clic.wav  →  bin/Debug/linux-x86_64/sonidos/clic.wav
+                          →  MiJuego.apk: assets/sonidos/clic.wav
+```
+
+En escritorio solo se copian los archivos que han cambiado. Un `Include` que nombra un archivo que no
+existe es un error de compilación. En el APK los recursos van sin comprimir, así Android los puede leer
+directamente.
+
+### Cómo se resuelven las rutas relativas
+
+`Sound.Load`, `Music.Load`, `Image.FromFile`, `PictureBox.Source` y `VideoPlayer.Source` buscan una ruta
+relativa (`sonidos/clic.wav`), por orden:
+
+1. en la **carpeta actual**;
+2. **junto al ejecutable** (donde `<Asset>` la copió);
+3. en Android, **dentro del APK** (`assets/sonidos/clic.wav`).
+
+Así el programa encuentra sus archivos se ejecute desde donde se ejecute. Las funciones de
+[`std.io`](/std/io/) (`File.ReadAllText`…) solo usan la carpeta actual; en Android, esa carpeta es el
+almacenamiento interno de la app, no el APK.
+
+### Lo que se copia sin `<Asset>`
+
+En un programa que usa `std.ui`, el compilador copia también (y empaqueta en el APK) **la carpeta
+`Assets/` del proyecto** y **los archivos que nombran los `.fstui`** con `Source` o `Icon`: imágenes de
+`PictureBox`, iconos, vídeos de `VideoPlayer` y sonidos de `<Sound>`/`<Music>`. `<Asset>` hace falta
+para lo que solo se carga desde el código, y para cualquier recurso de un programa sin `std.ui`.
 
 ## Qué archivos se compilan
 
@@ -96,5 +142,7 @@ independiente, compila el proyecto `Library` por sí solo (genera `libNombre.so`
 ## Bibliotecas que enlaza el compilador por ti
 
 Si un programa usa `std.ui`, `faset` añade automáticamente `X11` y `freetype` (Linux), `user32` y
-`gdi32` (Windows) o `android` y `log` (Android). `std.net` añade `ws2_32` en Windows y `std.thread`
+`gdi32` (Windows) o `android` y `log` (Android); si además usa un `WebView`, en Android añade el permiso
+`INTERNET`. `std.audio` añade `winmm` en Windows y `OpenSLES` en Android; en Linux, PulseAudio, ALSA,
+WebKitGTK y GStreamer se cargan con `dlopen` y no hace falta enlazarlos. `std.net` añade `ws2_32` en Windows y `std.thread`
 añade `pthread` en Linux. Siempre se enlaza `libm`.

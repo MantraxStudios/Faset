@@ -31,6 +31,11 @@ namespace MiApp
 }
 ```
 
+Casi todos los campos son `Widget`. Las excepciones: un `<VideoPlayer>` genera un campo
+[`VideoPlayer`](/ui/multimedia/#videoplayer), un `<TreeNode>` con `Name` uno
+[`TreeNode`](/ui/pestanas-y-arboles/#treeview-y-treenode), y `<Sound>`/`<Music>` campos `Sound` y `Music`
+de [`std.audio`](/std/audio/) (en ese caso la mitad generada añade `using std.audio;`).
+
 Los eventos se conectan con un [puntero a función](/lenguaje/delegados/) y un puntero a la instancia:
 no hay reflexión ni asignaciones extra. El código generado mantiene las líneas del XML, así que los
 errores de un manejador mal escrito apuntan a la línea correcta del `.fstui`.
@@ -83,6 +88,12 @@ namespace MiApp
 | `X`, `Y`, `Width`, `Height`, `Anchor` | Disposición. |
 | `Background`, `Background2`, `GradientHorizontal`, `Foreground`, `BorderColor`, `Accent` | Colores (ver [Colores y degradados](/ui/colores/)). |
 | `Tag` | `void*` libre para tus datos. |
+| `Source`, `SizeMode`, `Image`, `Icon` | Imágenes de `PictureBox`, `Button` y `MenuItem` (ver [Imágenes](/ui/imagenes/)); `Source` también navega en un `WebView`. |
+| `SelectedPage`, `AddPage`, `Nodes`, `AddNode`, `SelectedNode` | `TabControl` y `TreeView` (ver [Pestañas y árboles](/ui/pestanas-y-arboles/)). |
+| `Shortcut`, `AddMenuItem`, `ContextMenu`, `SourceControl` | Menús (ver [Menús](/ui/menus/)). |
+| `Interval`, `Start()`, `Stop()` | `Timer` (ver [Lienzo y temporizador](/ui/lienzo/)). |
+| `Invalidate()` | Pide redibujar el control (un `Canvas` vuelve a llamar a `Paint`). |
+| `ActualWidth`, `ActualHeight` | Tamaño real tras aplicar los anclajes. |
 
 ## API más usada de `Window`
 
@@ -94,8 +105,71 @@ namespace MiApp
 | `Focus(widget)` | Mueve el foco del teclado. |
 | `Close()` | Cierra la ventana; `Application.Run` devuelve. |
 | `Add(widget)` | Añade un control creado a mano con `Widget.Create`. |
+| `AddComponent(widget)`, `FindComponent("nombre")`, `Components` | Componentes (`Timer`, `ContextMenu`). |
+| `ShowContextMenu(menu, x, y)`, `CloseMenus()` | Menús contextuales desde el código. |
 
 La referencia completa, extraída del código fuente, está en [`std.ui`](/std/ui/).
+
+## Conectar eventos a mano
+
+Los controles creados con `Widget.Create` no tienen eventos hasta que les das una función y un número
+por evento, que es justo lo que hace el código generado. `SetEvents(funcion, objeto, click, changed)`
+fija la función (un [puntero a función](/lenguaje/delegados/) estático que recibe el objeto como
+`void*`) y los números de `Click` y `Changed`; `SetEvent(WidgetEvent.X, numero)` añade el resto
+(`SelectedChanged`, `NodeActivated`, `Paint`, `MouseDown`, `MouseMove`, `MouseUp`, `Tick`). Como usa
+`void*`, va en un bloque `memory_unsafe`:
+
+```faset
+using std.ui;
+
+class Demo
+{
+    public Window Window = new Window("Eventos a mano", 420, 260);
+    Widget lienzo;
+    Widget reloj;
+    int ticks;
+
+    memory_unsafe static void Evento(void* self, Widget sender, int ev) { ((Demo)self).OnEvento(sender, ev); }
+
+    void OnEvento(Widget sender, int ev)
+    {
+        if (ev == 1) { ticks++; lienzo.Invalidate(); }                        // Tick
+        if (ev == 2)                                                          // Paint
+        {
+            Graphics g = sender.Graphics;
+            g.Clear(Rgb.Of(0x101018));
+            g.FillCircle(40 + ticks % 300, 100, 20, Rgb.Of(0x4c8dff));
+        }
+        if (ev == 3) println("clic en " + sender.Mouse.X + ", " + sender.Mouse.Y);  // MouseDown
+    }
+
+    public Demo()
+    {
+        lienzo = Window.Add(Widget.Create(WidgetKind.Canvas, "lienzo", 10, 10, 400, 240));
+        reloj = Window.AddComponent(Widget.Create(WidgetKind.Timer, "reloj", 0, 0, 0, 0));
+        reloj.Interval = 16;
+        memory_unsafe
+        {
+            lienzo.SetEvents(&Evento, (void*)this, 0, 0);
+            lienzo.SetEvent(WidgetEvent.Paint, 2);
+            lienzo.SetEvent(WidgetEvent.MouseDown, 3);
+            reloj.SetEvents(&Evento, (void*)this, 0, 0);
+            reloj.SetEvent(WidgetEvent.Tick, 1);
+        }
+        reloj.Start();
+    }
+}
+
+int main()
+{
+    auto demo = new Demo();
+    return Application.Run(demo.Window);
+}
+```
+
+Durante `Paint`, `sender.Graphics` es el contexto de dibujo; durante un evento de ratón, `sender.Mouse`
+tiene el último `MouseArgs`. Un `WebView` usa además `SetWebEvents(navigated, titleChanged, message)` y
+un `VideoPlayer`, su propio `SetEvents(funcion, objeto, opened, ended, failed)`.
 
 ## Varias ventanas
 

@@ -1,0 +1,22 @@
+Reproducción de vídeo para el control [`VideoPlayer`](/ui/multimedia/#videoplayer) de `std.ui`.
+No se usa con `using`: el control y sus tipos (`VideoPlayer`, `VideoStretch`) viven en el namespace
+`std.ui` y se cargan junto con él; `using std.video;` solo hace falta para `VideoTime.Format`. Los
+fotogramas se decodifican al formato del lienzo y se copian escalados al rectángulo del control.
+
+```fst
+using std.ui;
+
+auto video = VideoPlayer.Create("video", 20, 20, 640, 360);
+window.Add(video.View);
+video.Source = "Media/intro.mp4";      // ruta (junto al ejecutable, o en el APK) o URI http(s)://, file://
+video.Loop = true;
+video.Play();
+```
+
+| Sistema | Motor |
+|---|---|
+| Linux | GStreamer 1.0 cargado con `dlopen`: hacen falta `gstreamer1.0-plugins-base` y `-good`, y `gstreamer1.0-libav` para H.264/AAC, pero no paquetes `-dev`. |
+| Android | `AMediaExtractor` + `AMediaCodec` y AAudio para el sonido. Abre rutas del dispositivo, URL y archivos del APK (`<Asset>`). |
+| Windows | Todavía no disponible: el control muestra un aviso y lanza `Failed`. |
+
+Sin pantalla (`FASET_UI_SCREENSHOT`) el sonido se descarta y la captura espera al primer fotograma.

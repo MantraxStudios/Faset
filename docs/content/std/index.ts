@@ -15,6 +15,8 @@ import mem from "./mem.mdx";
 import ui from "./ui.mdx";
 import net from "./net.mdx";
 import thread from "./thread.mdx";
+import audio from "./audio.mdx";
+import video from "./video.mdx";
 
 export const intros: Record<string, ComponentType> = {
   core,
@@ -31,4 +33,6 @@ export const intros: Record<string, ComponentType> = {
   ui,
   net,
   thread,
+  audio,
+  video,
 };

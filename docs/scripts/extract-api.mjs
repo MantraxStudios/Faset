@@ -426,6 +426,31 @@ function main() {
     .sort()
     .map((f) => path.join(libDir, f));
   const modules = files.map(parseFile);
+  // Un módulo puede repartirse en una carpeta con su nombre (lib/std/ui/*.fst junto a ui.fst):
+  // sus tipos se suman al módulo, y las clases parciales (Widget, Window...) juntan sus miembros.
+  for (const mod of modules) {
+    const sub = path.join(libDir, mod.id);
+    if (!fs.existsSync(sub) || !fs.statSync(sub).isDirectory()) continue;
+    const parts = fs
+      .readdirSync(sub)
+      .filter((f) => f.endsWith(".fst"))
+      .sort()
+      .map((f) => parseFile(path.join(sub, f)));
+    for (const part of parts) {
+      for (const t of part.types) {
+        const same = mod.types.find((o) => o.name === t.name && o.namespace === t.namespace && o.kind === t.kind);
+        if (!same) {
+          mod.types.push(t);
+          continue;
+        }
+        const seen = new Set(same.members.map((m) => m.signature));
+        for (const m of t.members) if (!seen.has(m.signature)) same.members.push(m);
+        if (!same.doc && t.doc) same.doc = t.doc;
+      }
+      mod.functions.push(...part.functions);
+      mod.lines += part.lines;
+    }
+  }
   // 'core' primero; el resto por orden alfabético.
   modules.sort((a, b) => (a.id === "core" ? -1 : b.id === "core" ? 1 : a.id.localeCompare(b.id)));
   fs.mkdirSync(outDir, { recursive: true });

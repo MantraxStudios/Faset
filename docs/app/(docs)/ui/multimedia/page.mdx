@@ -1,0 +1,159 @@
+export const metadata = {
+  title: "Vídeo y audio",
+  description: "El control VideoPlayer (GStreamer en Linux, MediaCodec en Android) y los componentes Sound y Music de std.audio en un .fstui.",
+};
+
+# Vídeo y audio
+
+<p className="lead">
+  <code>&lt;VideoPlayer&gt;</code> reproduce vídeo con sonido dentro de la ventana, con su propia barra
+  de controles. <code>&lt;Sound&gt;</code> y <code>&lt;Music&gt;</code> cargan efectos y música de
+  <a href="/std/audio/"><code>std.audio</code></a> sin escribir código de carga.
+</p>
+
+<Screenshot src="/screenshots/multimedia.png" width={820} height={420} alt="Ventana con un WebView en vista previa y un VideoPlayer con botón de reproducir, barra de posición y tiempo 0:00 / 0:01" caption="VideoPlayer en una captura sin pantalla: primer fotograma, botón central y barra de controles. El texto de abajo lo escribe el evento Opened." />
+
+## `<VideoPlayer>`
+
+```fstui
+<VideoPlayer Name="video" X="412" Y="16" Width="392" Height="240" Source="Media/clip.mp4"
+             AutoPlay="false" Loop="true" ShowControls="true" Stretch="Uniform" Volume="0.8"
+             Opened="OnVideoListo" Ended="OnVideoFin" Failed="OnVideoError" />
+```
+
+| Atributo | Valor | Descripción |
+|---|---|---|
+| `Source` | ruta o URI | Archivo (`Media/clip.mp4`) o URI (`file://`, `http://`, `https://`…). Las rutas relativas se buscan en la carpeta actual y junto al ejecutable; en Android, también dentro del APK. |
+| `AutoPlay` | `true`, `false` | Empieza en cuanto se carga. |
+| `Loop` | `true`, `false` | Vuelve a empezar al llegar al final. |
+| `ShowControls` | `true`, `false` | Barra de controles: reproducir/pausa, posición (se puede arrastrar) y tiempo. Por defecto `true`. |
+| `Stretch` | `Uniform`, `Fill`, `None` | Cabe entero sin deformarse (bandas negras), ocupa todo el control, o tamaño original centrado. |
+| `Volume` | 0 a 1 | Volumen del sonido del vídeo. |
+| `Opened`, `Ended`, `Failed` | método | `void Nombre(Widget sender)`: listo para reproducir, terminó (sin `Loop`) o no se pudo abrir. |
+| `Name`, `X`, `Y`, `Width`, `Height`, `Anchor`, `Visible`, `Background`, `BorderColor`, `Accent` | | Comunes. |
+
+Un clic sobre la imagen reproduce o pausa. A diferencia del resto de controles, el campo generado es un
+**`VideoPlayer`**, no un `Widget`; el control que se añade a la ventana es `video.View`.
+
+| Miembro de `VideoPlayer` | Descripción |
+|---|---|
+| `Play()`, `Pause()`, `TogglePlay()` | Reproducir y pausar. |
+| `Stop()` | Detiene y vuelve al principio (se ve el primer fotograma). |
+| `Seek(segundos)`, `Position` | Saltar; posición actual en segundos (asignarla equivale a `Seek`). |
+| `Duration` | Duración en segundos (0 si aún no se conoce o es un directo). |
+| `Source`, `AutoPlay`, `Loop`, `ShowControls`, `Stretch`, `Volume` | Como los atributos. Asignar `Source` carga otro vídeo. |
+| `IsPlaying`, `IsOpened`, `HasEnded`, `HasFailed` | Estado. |
+| `Error` | Mensaje del último error (`""` si no hubo). |
+| `NaturalWidth`, `NaturalHeight` | Tamaño original del vídeo (0 hasta el primer fotograma). |
+| `View` | El `Widget` del control (posición, anclaje, visibilidad…). |
+| `Close()` | Libera el vídeo (se hace solo al cerrar la ventana). |
+
+```fst
+using std.ui;
+using std.video;      // VideoTime
+
+namespace Multi
+{
+    public partial class MainWindow
+    {
+        void OnVideoListo(Widget sender)
+        {
+            lblEstado.Text = "Vídeo de " + video.NaturalWidth + "x" + video.NaturalHeight +
+                             ", " + VideoTime.Format(video.Duration);      // "0:01", "1:02:05"
+        }
+
+        void OnVideoFin(Widget sender) { lblEstado.Text = "Fin del vídeo"; }
+
+        void OnVideoError(Widget sender) { lblEstado.Text = "Error: " + video.Error; }
+
+        void OnSaltar(Widget sender) { video.Seek(video.Position + 10); }
+    }
+}
+```
+
+Sin diseñador:
+
+```fst
+auto video = VideoPlayer.Create("video", 20, 20, 640, 360);
+window.Add(video.View);
+video.Stretch = VideoStretch.Fill;
+video.Source = "/ruta/a/clip.mp4";
+video.Play();
+```
+
+### Plataformas
+
+| Sistema | Motor | Requisitos |
+|---|---|---|
+| Linux | GStreamer 1.0 (`playbin`), cargado con `dlopen` | Las bibliotecas y los plugins en el equipo donde se ejecuta: `gstreamer1.0-plugins-base` y `-good`, y `gstreamer1.0-libav` para H.264/AAC. No hacen falta paquetes `-dev`. |
+| Android | `AMediaExtractor` + `AMediaCodec` (libmediandk), sonido con AAudio | `Source` puede ser una ruta del dispositivo, una URL `http(s)` o un archivo del APK: añádelo con [`<Asset Include="..."/>`](/empezar/proyectos/#recursos-asset) (los que nombra el `.fstui` se empaquetan solos). |
+| Windows | — | Todavía no disponible: el control muestra un aviso *«no disponible»* y lanza `Failed`. |
+
+Sin pantalla (`FASET_UI_SCREENSHOT`) el sonido se descarta y la captura espera al primer fotograma, así
+que se puede probar un reproductor en CI.
+
+## `<Sound>` y `<Music>`
+
+Son **componentes** de [`std.audio`](/std/audio/): van directamente dentro de `<Window>`, no se ven, y
+cada uno genera un campo de tipo `Sound` o `Music` ya cargado en `InitializeComponent`. El código
+generado añade `using std.audio;` por ti; tu mitad de la clase también lo necesita para usar sus
+miembros.
+
+```fstui
+<Window Class="MainWindow" Namespace="Multi" Title="Multimedia" Width="820" Height="420">
+  <Button Name="btnClic" X="412" Y="272" Width="120" Height="36" Text="Clic" Click="OnClic" />
+  <Button Name="btnMusica" X="544" Y="272" Width="140" Height="36" Text="Música" Click="OnMusica" />
+  <Sound Name="sndClic" Source="Media/clic.wav" Volume="0.8" />
+  <Music Name="musTema" Source="Media/tema.ogg" Loop="true" Volume="0.5" />
+</Window>
+```
+
+| Atributo | Descripción |
+|---|---|
+| `Source` | **Obligatorio.** Archivo WAV, OGG o MP3. |
+| `Volume` | 1 = original, 0 = silencio. |
+| `Pan` | -1 izquierda, 0 centro, 1 derecha. |
+| `Speed` | Velocidad (también cambia el tono): 1 normal. |
+| `Loop` | Repetir al llegar al final. |
+| `AutoPlay` | Empezar a sonar al crear la ventana. |
+
+```fst
+using std.ui;
+using std.audio;
+
+namespace Multi
+{
+    public partial class MainWindow
+    {
+        void OnClic(Widget sender) { sndClic.Play(); }        // puede sonar varias veces a la vez
+
+        void OnMusica(Widget sender)
+        {
+            if (musTema.IsPlaying) musTema.Pause();
+            else musTema.Resume();                            // si no estaba sonando, empieza
+        }
+    }
+}
+```
+
+`Sound` decodifica el archivo entero en memoria (efectos cortos); `Music` lo decodifica mientras suena
+(pistas largas). Si un archivo no se puede cargar no hay excepción: `IsLoaded` es `false`, `Error` dice
+por qué y `Play()` no hace nada. La API completa, los controladores de salida y el modo sin dispositivo
+están en [`std.audio`](/std/audio/).
+
+## Dónde van los archivos
+
+Los archivos que nombra un `.fstui` con `Source` (vídeos, sonidos, imágenes) se copian junto al
+ejecutable al compilar, y en Android se empaquetan en el APK, con la misma ruta relativa. En el ejemplo
+de arriba, `Media/clip.mp4`, `Media/clic.wav` y `Media/tema.ogg` acaban en
+`bin/Debug/linux-x86_64/Media/`. Los que cargues solo desde el código, decláralos con
+[`<Asset>`](/empezar/proyectos/#recursos-asset).
+
+<Callout type="aviso" title="Limitaciones">
+<ul>
+  <li><b>Windows:</b> <code>VideoPlayer</code> todavía no reproduce (muestra el aviso). La salida de audio
+  (<code>waveOut</code>) está escrita pero no se ha probado nunca en Windows.</li>
+  <li><b>Android:</b> el audio sigue sonando con la app en segundo plano; páralo tú si hace falta
+  (<code>Audio.PauseAll()</code>).</li>
+</ul>
+</Callout>

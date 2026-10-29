@@ -1,0 +1,149 @@
+export const metadata = {
+  title: "Menús",
+  description: "MenuBar, Menu, MenuItem y Separator, submenús, atajos de teclado, Checked e iconos, y ContextMenu con SourceControl.",
+};
+
+# Menús
+
+<p className="lead">
+  <code>&lt;MenuBar&gt;</code> pone una barra de menús desplegables arriba de la ventana y
+  <code>&lt;ContextMenu&gt;</code> define un menú que se abre con el botón derecho. Los dos se llenan con
+  <code>&lt;Menu&gt;</code>, <code>&lt;MenuItem&gt;</code> y <code>&lt;Separator&gt;</code>.
+</p>
+
+<Screenshot src="/screenshots/controles-menu.png" width={900} height={600} alt="Menú Archivo desplegado con Abrir y Guardar con icono y atajo, un separador, el submenú Recientes y Salir" caption="examples/controles: menú Archivo con iconos, atajos, separadores y un submenú." />
+
+## Barra de menús
+
+```fstui
+<MenuBar Name="menu">
+  <Menu Text="Archivo">
+    <MenuItem Name="mnuAbrir" Text="Abrir..." Shortcut="Ctrl+O" Icon="Assets/abrir.png" Click="OnAbrir" />
+    <MenuItem Name="mnuGuardar" Text="Guardar" Shortcut="Ctrl+S" Icon="Assets/guardar.png" Click="OnGuardar" />
+    <Separator />
+    <Menu Text="Recientes">
+      <MenuItem Text="notas.txt" Click="OnReciente" />
+      <MenuItem Text="lista.txt" Click="OnReciente" />
+    </Menu>
+    <Separator />
+    <MenuItem Text="Salir" Shortcut="Ctrl+Q" Click="OnSalir" />
+  </Menu>
+  <Menu Text="Ver">
+    <MenuItem Name="mnuAnimar" Text="Animación" Shortcut="F5" Checked="true" Click="OnAnimar" />
+    <MenuItem Name="mnuDeshabilitado" Text="Opción deshabilitada" Enabled="false" />
+  </Menu>
+</MenuBar>
+```
+
+Sin `X`, `Y`, `Width` ni `Height`, la barra ocupa todo el ancho de la ventana, mide 30 de alto y se ancla
+a `Left,Top,Right`. Deja libres esos 30 píxeles de arriba para el resto de controles.
+
+| Elemento | Dónde va | Atributos |
+|---|---|---|
+| `<MenuBar>` | En `<Window>` o en un contenedor | `Name`, `X`, `Y`, `Width`, `Height`, `Anchor`, `Visible`, `FontSize`, `Background`, `Foreground`, `BorderColor` |
+| `<Menu>` | En `<MenuBar>`, `<ContextMenu>` u otro `<Menu>` (submenú) | `Name`, `Text`, `Enabled`, `Visible`, `Icon` |
+| `<MenuItem>` | Igual que `<Menu>` | `Name`, `Text`, `Shortcut`, `Icon`, `Checked`, `Enabled`, `Visible`, evento `Click` |
+| `<Separator>` | Igual que `<Menu>` | `Name`, `Visible` |
+
+`Menu` y `MenuItem` son el mismo tipo de control (`WidgetKind.MenuItem`): un elemento con hijos abre un
+submenú. Un separador es un `MenuItem` cuyo `Text` es `"-"`. El compilador rechaza cualquier otro
+control dentro de un menú.
+
+### Atajos de teclado
+
+`Shortcut` se muestra a la derecha del texto y **funciona aunque el menú esté cerrado**: pulsar
+<Kbd>Ctrl+S</Kbd> en cualquier parte de la ventana lanza el `Click` de `Guardar`. Se escribe con `+`:
+`Ctrl+S`, `Ctrl+Shift+N`, `F1`…`F12`, `Supr` (o `Del`), `Intro`, `Esc`, `Tab`, flechas, `Inicio`,
+`Fin`, `RePág`/`AvPág`… Los modificadores reconocidos son `Ctrl` y `Shift`; `Alt` todavía no.
+
+Con un menú abierto: <Kbd>↑</Kbd>/<Kbd>↓</Kbd> eligen, <Kbd>←</Kbd>/<Kbd>→</Kbd> pasan al menú
+vecino o entran y salen de un submenú, <Kbd>Intro</Kbd> activa y <Kbd>Esc</Kbd> cierra.
+
+### `Checked`, `Enabled` y el manejador
+
+`Checked="true"` dibuja una marca junto al elemento. El menú no la cambia solo: hazlo en el manejador.
+El `sender` es el propio `MenuItem`, así que un mismo método puede servir a varios elementos:
+
+```fst
+void OnAnimar(Widget sender)
+{
+    mnuAnimar.Checked = !mnuAnimar.Checked;
+    reloj.Enabled = mnuAnimar.Checked;
+}
+
+void OnReciente(Widget sender) { lblEstado.Text = "Reciente: " + sender.Text; }
+
+void OnSalir(Widget sender) { Window.Close(); }
+```
+
+Un elemento con `Enabled="false"` se ve atenuado y no se puede elegir.
+
+## Menú contextual
+
+Un `<ContextMenu>` es un **componente**: va directamente dentro de `<Window>`, no se dibuja en la
+ventana y no lleva posición. Los controles que lo nombran en su atributo `ContextMenu` lo abren con el
+botón derecho (también al pulsar sobre sus hijos):
+
+```fstui
+<TreeView Name="tvProyecto" X="16" Y="46" Width="220" Height="470" ContextMenu="menuArbol" />
+
+<ContextMenu Name="menuArbol">
+  <MenuItem Text="Abrir" Click="OnMenuArbol" />
+  <MenuItem Text="Renombrar" Click="OnMenuArbol" />
+  <Separator />
+  <MenuItem Text="Borrar" Shortcut="Supr" Click="OnBorrarNodo" />
+</ContextMenu>
+```
+
+<Screenshot src="/screenshots/controles-contextual.png" width={900} height={600} alt="Menú contextual con Abrir, Renombrar y Borrar abierto sobre un nodo del árbol" caption="Clic derecho sobre un nodo del TreeView: el ContextMenu menuArbol." />
+
+`ContextMenu` lo admiten los controles visuales (`TreeView`, `TabControl`, `PictureBox`, `Canvas`,
+`ListBox`…). Si el nombre no corresponde a ningún `<ContextMenu>` de la ventana, el compilador da un
+error en esa línea. `<ContextMenu>` admite `Name` y `FontSize`.
+
+En el manejador, `SourceControl` del menú dice sobre qué control se abrió:
+
+```fst
+void OnMenuArbol(Widget sender)
+{
+    TreeNode n = tvProyecto.SelectedNode;
+    lblEstado.Text = sender.Text + ": " + (n != null ? n.Text : "(nada)") +
+                     " en " + menuArbol.SourceControl.Name;
+}
+```
+
+<Callout type="aviso">
+En Android no hay pulsación larga todavía, así que un <code>ContextMenu</code> no se puede abrir con el
+dedo. Ábrelo desde el código con <code>Window.ShowContextMenu</code> si lo necesitas.
+</Callout>
+
+## Desde el código
+
+| Miembro | Descripción |
+|---|---|
+| `AddMenuItem("texto")` | En un `MenuBar`, `MenuItem` o `ContextMenu`: añade un elemento y lo devuelve. `"-"` añade un separador. |
+| `Shortcut` | Atajo del elemento. |
+| `Icon`, `Checked`, `Enabled`, `Visible` | Estado del elemento. |
+| `IsSeparator`, `HasSubmenu` | Si es un separador y si tiene hijos visibles. |
+| `ContextMenu` | En cualquier control: el `ContextMenu` que abre con el botón derecho. |
+| `SourceControl` | En un `ContextMenu`: control sobre el que se abrió por última vez. |
+| `Window.ShowContextMenu(menu, x, y)` | Abre un menú contextual en un punto de la ventana. |
+| `Window.CloseMenus()`, `Window.MenuOpen` | Cierra los menús abiertos; si hay alguno abierto. |
+| `Window.AddComponent(w)`, `Window.FindComponent("nombre")` | Añade o busca un componente (`ContextMenu`, `Timer`). |
+
+```fst
+Widget menu = window.Add(Widget.Create(WidgetKind.MenuBar, "menu", 0, 0, 640, 30));
+menu.Anchor = Anchor.Left | Anchor.Top | Anchor.Right;
+Widget archivo = menu.AddMenuItem("Archivo");
+Widget abrir = archivo.AddMenuItem("Abrir");
+abrir.Shortcut = "Ctrl+O";
+archivo.AddMenuItem("-");
+archivo.AddMenuItem("Salir");
+
+Widget ctx = window.AddComponent(Widget.Create(WidgetKind.ContextMenu, "ctx", 0, 0, 0, 0));
+ctx.AddMenuItem("Borrar");
+lista.ContextMenu = ctx;
+```
+
+Para conectar el `Click` de un elemento creado a mano se usa `SetEvents`, igual que con cualquier otro
+control (ver [Código de la ventana](/ui/codigo/#conectar-eventos-a-mano)).

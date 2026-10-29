@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Diseñador visual",
-  description: "Diseñador de .fstui en FasetStudio: herramientas, esquema, propiedades, colores, alineación, zoom, cuadrícula y atajos.",
+  description: "Diseñador de .fstui en FasetStudio: herramientas, bandeja de componentes, pestañas, árboles y menús, esquema, propiedades, colores, alineación, zoom, cuadrícula y atajos.",
 };
 
 # Diseñador visual
@@ -17,12 +17,48 @@ El botón **Diseño | Código** alterna entre el lienzo y el XML del archivo.
 ## Paneles del diseñador
 
 - **Herramientas**: `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`,
-  `Slider`, `ProgressBar` y `Panel`. Se arrastran a la ventana o se añaden con un clic.
+  `Slider`, `ProgressBar`, `Panel`, `WebView`, `VideoPlayer`, `PictureBox`, `TabControl`, `TreeView`,
+  `MenuBar` y `Canvas`; tras una línea, los componentes `Timer`, `ContextMenu`, `Sound` y `Music`. Se
+  arrastran a la ventana o se añaden con un clic (con la interfaz en español aparecen como *Navegador
+  web*, *Reproductor de vídeo*, *Imagen*, *Pestañas*, *Árbol*, *Barra de menús*, *Lienzo*,
+  *Temporizador*, *Menú contextual*, *Sonido* y *Música*).
 - **Esquema**: árbol de todos los controles. Un clic selecciona; un doble clic va al evento.
 - **Propiedades** por categorías (*Control*, *Disposición*, *Apariencia*, *Colores*…). `Items` usa `;`
   como separador (`Rojo;Verde;Azul`).
 - **Colores**: muestra, campo `#RRGGBB` (o `#RRGGBBAA`) y paleta. `Background` + `Background2` crean
   un degradado y `GradientDirection` elige su dirección; la ventana también los admite.
+
+## Componentes
+
+`Timer`, `ContextMenu`, `Sound` y `Music` no tienen posición en la ventana: el diseñador los pone en la
+**bandeja de componentes**, una franja bajo la ventana con una ficha por componente. Un clic en la ficha
+lo elige (sus propiedades aparecen en el panel) y un doble clic va a su evento (`Tick` en un `Timer`).
+`Supr`, `Ctrl+C`/`Ctrl+V` y `Ctrl+D` funcionan igual que con los controles.
+
+Al añadir un `Sound` o una `Music`, el diseñador le da un nombre (`sound1`, `music1`…) y rellena `Source`
+con el primer archivo de audio que encuentra junto al `.fstui` (prefiere `.wav` para `Sound` y `.ogg` o
+`.mp3` para `Music`); sus propiedades son `Source`, `Volume`, `Pan`, `Speed`, `Loop` y `AutoPlay`.
+
+<Screenshot src="/screenshots/studio-designer-controles.png" width={1680} height={980} alt="Diseñador con la caja de herramientas completa, el menú Archivo desplegado en el lienzo, la bandeja de componentes con reloj, menuArbol, sndClic y musTema, y las propiedades del menú con los botones Añadir elemento, separador y submenú" caption="examples/controles en el diseñador: menú Archivo desplegado para editarlo, bandeja de componentes (Timer, ContextMenu, Sound y Music) y caja de herramientas completa." />
+
+## Pestañas, árboles y menús
+
+- **TabControl**: un clic en una pestaña muestra esa página en el lienzo, y los controles que sueltas
+  encima van a ella. El botón `+` junto a las pestañas (o *Añadir página* en las propiedades) crea otra.
+- **TreeView**: *Añadir nodo* en las propiedades crea un `<TreeNode>` dentro del árbol o del nodo
+  elegido (que queda expandido).
+- **MenuBar y ContextMenu**: un clic en una cabecera de la barra despliega ese menú en el lienzo, y un
+  clic en un elemento lo elige (doble clic: su manejador `Click`). Los botones *Añadir menú / elemento /
+  separador / submenú* del panel de propiedades crean entradas. Un `ContextMenu` se edita eligiendo su
+  ficha en la bandeja.
+- Las páginas, nodos y elementos de menú se reordenan con <Kbd>Ctrl+↑</Kbd> / <Kbd>Ctrl+↓</Kbd> y se
+  borran con <Kbd>Supr</Kbd>. El **Esquema** muestra el árbol completo (páginas, nodos y menús) y la
+  vista de código, el XML.
+
+Un `PictureBox` y los `Icon` se dibujan en el lienzo con su imagen; un `VideoPlayer` se ve como un icono
+de película con el nombre del archivo y un `WebView`, como un marco de navegador. Al hacer
+doble clic, los manejadores se crean con la firma correcta (`Paint` con `Graphics`, `MouseDown` con
+`MouseArgs`, `MessageReceived` con `string message`).
 
 ## Editar controles
 

@@ -110,10 +110,17 @@ defecto.
   <AndroidPermission Include="INTERNET;CAMERA" />  <!-- android.permission.* -->
   <NativeLibrary Include="miotra" />               <!-- libmiotra.so entra en el APK si está en LibraryPath -->
   <LibraryPath Include="libs/$(AndroidAbi)" />
+  <Asset Include="sonidos/**" />                   <!-- assets/sonidos/... dentro del APK -->
 </ItemGroup>
 ```
 
-Los `AndroidPermission` de las bibliotecas referenciadas con `ProjectReference` se heredan.
+Los `AndroidPermission` de las bibliotecas referenciadas con `ProjectReference` se heredan. Si la app
+usa un `WebView`, el compilador añade `INTERNET` por su cuenta.
+
+Los recursos de [`<Asset>`](/empezar/proyectos/#recursos-asset) van a `assets/` dentro del APK, sin
+comprimir, junto con la carpeta `Assets/` del proyecto y los archivos que nombran los `.fstui`
+(`Source`, `Icon`). `Image.FromFile`, `PictureBox`, `Sound.Load`, `Music.Load` y `VideoPlayer` los leen
+de ahí cuando la ruta relativa no existe en el almacenamiento de la app.
 
 ## Firma del APK
 
@@ -146,7 +153,9 @@ El mismo `.fstui` funciona en el escritorio y en el móvil:
   el portapapeles es el del sistema;
 - **densidad**: las coordenadas son lógicas (dp) y todo se escala por `dpi / 160`; el texto se
   rasteriza al tamaño real con `/system/fonts/Roboto-Regular.ttf` mediante stb_truetype (el NDK no
-  ofrece FreeType), así se ve nítido.
+  ofrece FreeType), así se ve nítido;
+- **multimedia**: el `WebView` es un `android.webkit.WebView` sobre la actividad, el `VideoPlayer` usa
+  `AMediaCodec` y `std.audio` sale por AAudio u OpenSL ES (ver [Vídeo y audio](/ui/multimedia/)).
 
 ## FasetStudio y Android
 
@@ -178,4 +187,6 @@ JAVA_HOME=~/android-studio/jbr ANDROID_HOME=~/Android/Sdk \
 - `std.ui` no conoce los recortes de la pantalla (la barra de navegación se dibuja encima) ni
   redimensiona la ventana cuando aparece el teclado.
 - La entrada de texto usa eventos de tecla: sin autocorrección ni métodos de entrada complejos.
+- No hay pulsación larga: un `ContextMenu` no se abre con el dedo (sí con `Window.ShowContextMenu`).
+- El audio sigue sonando cuando la app pasa a segundo plano.
 - Más allá de `std.ui` no hay bindings de Android incluidos: las APIs del NDK se declaran con `extern`.

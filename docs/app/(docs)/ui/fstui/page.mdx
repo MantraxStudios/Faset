@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Formato .fstui",
-  description: "Referencia del formato .fstui: elemento Window, controles, atributos, anclajes, estilos y eventos.",
+  description: "Referencia del formato .fstui: elemento Window, controles, componentes, reglas de anidamiento, atributos, anclajes, estilos y eventos.",
 };
 
 # Formato `.fstui`
@@ -50,10 +50,47 @@ export const metadata = {
 | `<ListBox>` | Lista con desplazamiento y teclado | `Items`, `SelectedIndex`, evento `Changed` |
 | `<Slider>` | Deslizador | `Value`, `Min`, `Max`, evento `Changed` |
 | `<ProgressBar>` | Barra de progreso | `Value`, `Min`, `Max` |
-| `<Panel>` | Contenedor (el único que admite hijos) | — |
+| `<Panel>` | Contenedor de otros controles | — |
+| `<PictureBox>` | Imagen PNG, JPEG, BMP o GIF | `Source`, `SizeMode`. Ver [Imágenes](/ui/imagenes/) |
+| `<TabControl>` | Páginas con pestañas; contiene `<TabPage>` | `SelectedIndex`, evento `SelectedChanged`. Ver [Pestañas y árboles](/ui/pestanas-y-arboles/) |
+| `<TreeView>` | Árbol; contiene `<TreeNode>` | eventos `SelectedChanged` y `NodeActivated` |
+| `<MenuBar>` | Barra de menús; contiene `<Menu>` | Ver [Menús](/ui/menus/) |
+| `<Canvas>` | Dibujo libre | eventos `Paint`, `MouseDown`, `MouseMove`, `MouseUp`. Ver [Lienzo y temporizador](/ui/lienzo/) |
+| `<WebView>` | Navegador web incrustado | `Source`, `Html`, eventos `Navigated`, `TitleChanged`, `MessageReceived`. Ver [WebView](/ui/webview/) |
+| `<VideoPlayer>` | Reproductor de vídeo | `Source`, `AutoPlay`, `Loop`, `ShowControls`, `Stretch`, `Volume`, eventos `Opened`, `Ended`, `Failed`. Ver [Vídeo y audio](/ui/multimedia/) |
 
 Los `RadioButton` con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. En
-`ComboBox` y `ListBox`, `Items` separa los elementos con `;` (`Items="Rojo;Verde;Azul"`).
+`ComboBox` y `ListBox`, `Items` separa los elementos con `;` (`Items="Rojo;Verde;Azul"`). `Button`
+admite además un `Icon` (ver [Imágenes](/ui/imagenes/#iconos-en-botones-y-menus)).
+
+### Elementos que van dentro de otros
+
+| Elemento | Va dentro de | Atributos |
+|---|---|---|
+| `<TabPage>` | `<TabControl>` | `Name`, `Text`, `Enabled`, `Background`, `Background2`, `GradientDirection` (contiene controles) |
+| `<TreeNode>` | `<TreeView>` u otro `<TreeNode>` | `Name`, `Text`, `Expanded`, `Tag` |
+| `<Menu>` | `<MenuBar>`, `<ContextMenu>` u otro `<Menu>` | `Name`, `Text`, `Enabled`, `Visible`, `Icon` |
+| `<MenuItem>` | igual que `<Menu>` | `Name`, `Text`, `Shortcut`, `Icon`, `Checked`, `Enabled`, `Visible`, evento `Click` |
+| `<Separator>` | igual que `<Menu>` | `Name`, `Visible` |
+
+### Componentes
+
+Los componentes no se dibujan en la ventana ni tienen posición: van **directamente dentro de
+`<Window>`** y el [diseñador](/studio/disenador/#componentes) los muestra en una bandeja bajo el lienzo.
+
+| Elemento | Uso | Campo generado | Atributos |
+|---|---|---|---|
+| `<Timer>` | Llama a `Tick` cada `Interval` ms | `Widget` | `Name`, `Interval`, `Enabled`, evento `Tick` |
+| `<ContextMenu>` | Menú del botón derecho; contiene `<Menu>`, `<MenuItem>`, `<Separator>` | `Widget` | `Name`, `FontSize` |
+| `<Sound>` | Sonido de [`std.audio`](/std/audio/) en memoria | `Sound` | `Name`, `Source`, `Volume`, `Pan`, `Speed`, `Loop`, `AutoPlay` |
+| `<Music>` | Música de `std.audio` que se decodifica al sonar | `Music` | los mismos que `<Sound>` |
+
+### Reglas de anidamiento
+
+Solo `<Window>`, `<Panel>` y `<TabPage>` contienen controles. Un `<TabControl>` solo contiene
+`<TabPage>`; un `<TreeView>`, solo `<TreeNode>`; un `<MenuBar>` o un `<ContextMenu>`, solo
+`<Menu>`, `<MenuItem>` y `<Separator>`. Los componentes no pueden ir dentro de otro control. Cualquier
+otra combinación es un error de compilación en la línea del elemento.
 
 ## Atributos comunes
 
@@ -70,6 +107,7 @@ Los `RadioButton` con el mismo `Group` dentro del mismo contenedor se excluyen e
 | `CornerRadius` | entero | Radio de las esquinas (por defecto, según el control). |
 | `Enabled`, `Visible` | `true`, `false` | Estado. |
 | `Value`, `Min`, `Max` | número | Para `Slider` y `ProgressBar` (por defecto 0–100). |
+| `ContextMenu` | nombre | `Name` de un `<ContextMenu>` de la ventana que se abre con el botón derecho (ver [Menús](/ui/menus/#menu-contextual)). |
 | `Background`, `Background2`, `GradientDirection`, `Foreground`, `BorderColor`, `Accent` | color / dirección | Ver [Colores y degradados](/ui/colores/). |
 
 Los valores se validan al compilar: un número mal escrito, un `Style` desconocido o un atributo que no
@@ -77,12 +115,23 @@ existe dan un error en la línea correspondiente del `.fstui`.
 
 ## Eventos
 
-| Atributo | Cuándo se dispara |
-|---|---|
-| `Click` | Al activar el control: clic, `Espacio`, o `Intro` en un `TextBox`. |
-| `Changed` | Cuando cambia el valor: texto, casilla, opción, selección o deslizador. |
+| Atributo | En | Firma del manejador |
+|---|---|---|
+| `Click` | Controles, `MenuItem` | `void Nombre(Widget sender)`: clic, `Espacio`, `Intro` en un `TextBox`, o elegir el elemento de menú. |
+| `Changed` | `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`, `Slider` | `void Nombre(Widget sender)`: cambió el valor. |
+| `SelectedChanged` | `TabControl`, `TreeView`, `ListBox`, `ComboBox` | `void Nombre(Widget sender)`: cambió la selección. |
+| `NodeActivated` | `TreeView` | `void Nombre(Widget sender)`: doble clic o `Intro` en un nodo. |
+| `Tick` | `Timer` | `void Nombre(Widget sender)`. |
+| `Paint` | `Canvas` | `void Nombre(Widget sender, Graphics g)`. |
+| `MouseDown`, `MouseMove`, `MouseUp` | `Canvas` | `void Nombre(Widget sender, MouseArgs e)`. |
+| `Navigated`, `TitleChanged` | `WebView` | `void Nombre(Widget sender)`. |
+| `MessageReceived` | `WebView` | `void Nombre(Widget sender, string message)`. |
+| `Opened`, `Ended`, `Failed` | `VideoPlayer` | `void Nombre(Widget sender)`. |
 
-El valor es el nombre de un método de la clase con la firma `void Nombre(Widget sender)`:
+Un evento en un control que no lo tiene (`Tick` en un `Button`, `Paint` fuera de un `Canvas`) es un
+error de compilación.
+
+El valor es el nombre de un método de la clase con la firma de la tabla:
 
 ```faset
 using std.ui;

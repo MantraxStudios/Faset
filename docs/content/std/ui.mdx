@@ -4,6 +4,12 @@ líneas y texto (FreeType en Linux, GDI en Windows). Normalmente no se usa a man
 ventana en un `.fstui` y el compilador genera los controles. Consulta
 [Aplicaciones AppUI](/ui/introduccion/) y el [formato .fstui](/ui/fstui/).
 
+Además de los controles básicos, el módulo incluye imágenes (`Image`, `PictureBox`), pestañas
+(`TabControl`), árboles (`TreeView`, `TreeNode`), menús (`MenuBar`, `ContextMenu`), temporizadores
+(`Timer`), dibujo libre (`Canvas` con `Graphics` y `MouseArgs`), un navegador incrustado (`WebView`) y
+el reproductor de [`std.video`](/std/video/). Esta referencia junta `lib/std/ui.fst` y los archivos de
+`lib/std/ui/` (las clases parciales `Widget` y `Window` se reparten entre ellos).
+
 ```faset
 using std.ui;
 

@@ -69,13 +69,26 @@ se muestran con la línea del XML, igual que los del código.
 - portapapeles del sistema en los cuadros de texto (`Ctrl+C`, `Ctrl+X`, `Ctrl+V`, `Ctrl+A`).
 
 No depende de ninguna biblioteca de interfaz: en Linux solo enlaza `X11` y `freetype`; en Windows,
-`user32` y `gdi32`.
+`user32` y `gdi32`. Las imágenes se decodifican con `stb_image`, incluido en `std.ui`. El `WebView`
+(WebKitGTK) y el `VideoPlayer` (GStreamer) se cargan con `dlopen` solo si la ventana los usa.
 
 ## Controles
 
-`Panel`, `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`, `Slider`
-y `ProgressBar`. Consulta el [formato .fstui](/ui/fstui/) para sus atributos y
-[Colores y degradados](/ui/colores/) para personalizarlos.
+| Grupo | Controles | Página |
+|---|---|---|
+| Básicos | `Panel`, `Label`, `Button`, `TextBox`, `CheckBox`, `RadioButton`, `ComboBox`, `ListBox`, `Slider`, `ProgressBar` | [Formato .fstui](/ui/fstui/), [Colores y degradados](/ui/colores/) |
+| Imágenes | `PictureBox`, iconos en `Button` y `MenuItem`, clase `Image` | [Imágenes](/ui/imagenes/) |
+| Organización | `TabControl` / `TabPage`, `TreeView` / `TreeNode` | [Pestañas y árboles](/ui/pestanas-y-arboles/) |
+| Menús | `MenuBar` / `Menu` / `MenuItem` / `Separator`, `ContextMenu` | [Menús](/ui/menus/) |
+| Dibujo y tiempo | `Canvas` (con `Graphics`), `Timer` | [Lienzo y temporizador](/ui/lienzo/) |
+| Multimedia | `WebView`, `VideoPlayer`, `Sound`, `Music` | [WebView](/ui/webview/), [Vídeo y audio](/ui/multimedia/) |
+
+`Timer`, `ContextMenu`, `Sound` y `Music` son **componentes**: van dentro de `<Window>` pero no se
+dibujan. El ejemplo [`examples/controles`](https://github.com/MantraxStudios/Faset/tree/main/examples/controles)
+usa menús, árbol, pestañas, imágenes, lienzo y temporizador en una sola ventana. Lo que todavía no
+funciona en cada plataforma está en [Limitaciones de std.ui](/ui/limitaciones/).
+
+<Screenshot src="/screenshots/controles-lienzo.png" width={900} height={600} alt="Ventana de examples/controles con barra de menús, árbol de proyecto y la pestaña Lienzo con un gráfico animado" caption="examples/controles: MenuBar, TreeView, TabControl y un Canvas animado por un Timer." />
 
 ## Capturas sin pantalla
 
@@ -87,5 +100,7 @@ FASET_UI_SCREENSHOT=captura.bmp ./bin/Debug/linux-x86_64/MiApp
 FASET_UI_SCREENSHOT=captura.bmp FASET_UI_SCRIPT="click 120 80 | type Hola | key tab" ./MiApp
 ```
 
-`FASET_UI_SCRIPT` simula entrada antes de la captura: `click X Y`, `move X Y`, `scroll N`,
-`type texto`, `key tab|enter|space|…` y `resize W H`, separados por `|`.
+`FASET_UI_SCRIPT` simula entrada antes de la captura: `click X Y`, `rclick X Y` (botón derecho),
+`dblclick X Y`, `down X Y` / `up X Y` / `drag X Y`, `move X Y`, `scroll N`, `type texto`,
+`key tab|enter|space|…` (también con modificadores: `key ctrl+s`, `key ctrl+shift+tab`, `key f5`),
+`resize W H` y `wait MS`, separados por `|`. `wait` avanza el reloj de los `Timer` sin esperar de verdad.
