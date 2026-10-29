@@ -83,8 +83,8 @@ namespace FasetStudio.Ide
 
         public bool Modified => Buffer.Modified;
 
-        // .fstproj y .fstui: el IntelliSense es el del esquema XML (elementos, atributos y valores).
-        public bool IsXml => FullPath.EndsWith(".fstproj") || FullPath.EndsWith(".fstui");
+        // .fstproj, .fstp y .fstui: el IntelliSense es el del esquema XML (elementos, atributos y valores).
+        public bool IsXml => FullPath.EndsWith(".fstproj") || FullPath.EndsWith(".fstp") || FullPath.EndsWith(".fstui");
 
         public void ClearDiagnostics()
         {
@@ -134,6 +134,8 @@ namespace FasetStudio.Ide
         public bool Available;
         public long LastDurationMs;
         public bool LastFailed;   // el último análisis no devolvió resultado (el compilador falló)
+        // Solución abierta (.fstp, "" si no hay): el analizador elige con ella el proyecto de cada archivo.
+        public string Solution = "";
 
         public string Compiler => faset;
 
@@ -183,6 +185,11 @@ namespace FasetStudio.Ide
             StringBuilder req = new StringBuilder();
             req.Append("{\"focus\":");
             Json.WriteString(req, focus.FullPath);
+            if (Solution.Length > 0)
+            {
+                req.Append(",\"solution\":");
+                Json.WriteString(req, Solution);
+            }
             req.Append(",\"overrides\":{");
             bool first = true;
             for (int i = 0; i < open.Count; i++)
@@ -237,8 +244,12 @@ namespace FasetStudio.Ide
         // Aplica diagnósticos y referencias de un resultado a los documentos abiertos.
         public void Apply(JsonValue result, List<Document> open)
         {
+            // Solo se renuevan los documentos analizados: en una solución, los de otros proyectos
+            // conservan sus errores hasta que se analicen.
+            JsonValue analyzed = result.Get("analyzed");
             for (int i = 0; i < open.Count; i++)
             {
+                if (analyzed != null && !Listed(analyzed, open[i].FullPath)) continue;
                 open[i].ClearDiagnostics();
                 open[i].ClearRefs();
             }
@@ -272,6 +283,13 @@ namespace FasetStudio.Ide
                 doc.Refs.Add(s);
             }
             for (int i = 0; i < open.Count; i++) open[i].AnalyzedVersion = open[i].Buffer.Version;
+        }
+
+        static bool Listed(JsonValue list, string path)
+        {
+            for (int i = 0; i < list.Count; i++)
+                if (list.At(i).AsString() == path) return true;
+            return false;
         }
 
         // Diagnósticos sin documento abierto (por ejemplo de otros archivos del proyecto).

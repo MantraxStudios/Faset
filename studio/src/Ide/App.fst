@@ -57,7 +57,8 @@ namespace FasetStudio.Ide
     public enum Overlay
     {
         None, QuickOpen, Find, GoToLine, NewFile, NewFolder, Rename, ConfirmQuit, ConfirmCloseTab,
-        ConfirmDelete, ConfirmCloseProject, ConfirmDeleteProject, NewProject, OpenFolder, ProjectProperties, About
+        ConfirmDelete, ConfirmCloseProject, ConfirmDeleteProject, NewProject, OpenFolder, ProjectProperties, About,
+        SolutionFolder, RenameSolution
     }
 
     public class App
@@ -199,8 +200,20 @@ namespace FasetStudio.Ide
 
         string status = "";
         long statusMs;
-        string projectFile = "";   // ruta del .fstproj ("" si no hay)
+        string projectFile = "";   // ruta del .fstproj ("" si no hay; en una solución, el de inicio)
         string projectName = "";
+
+        // Solución (.fstp): varios proyectos en el explorador; compilar y ejecutar actúan sobre todos.
+        string solutionFile = "";      // ruta del .fstp ("" si se abrió un proyecto o una carpeta)
+        string solutionName = "";
+        JsonValue solutionInfo;        // 'faset sln list --json'
+        string contextProject = "";    // proyecto sobre el que se abrió el menú contextual
+        string contextFolder = "";     // carpeta de solución del menú contextual ("" = raíz)
+        float contextX;
+        float contextY;
+        bool newProjectInSolution;     // el diálogo de nuevo proyecto añade el proyecto a la solución
+        bool createSolution;           // casilla "Crear una solución" del diálogo de nuevo proyecto
+        bool browseForProject;         // el diálogo de abrir elige un proyecto para añadirlo a la solución
         string rootFolder = "";
         string configuration = "Debug";
         bool needsRedraw = true;
@@ -235,9 +248,33 @@ namespace FasetStudio.Ide
             analyzer = null;
         }
 
-        // Abre una carpeta, un .fstproj o un archivo .fst.
+        // El único .fstp de una carpeta ("" si no hay ninguno o hay varios).
+        static string SolutionIn(string folder)
+        {
+            string found = "";
+            int count = 0;
+            List<DirEntry> entries = Directory.GetEntries(folder);
+            for (int i = 0; i < entries.Count; i++)
+                if (!entries[i].IsDirectory && entries[i].Name.EndsWith(".fstp"))
+                {
+                    found = Path.Combine(folder, entries[i].Name);
+                    count++;
+                }
+            Directory.FreeEntries(entries);
+            return count == 1 ? found : "";
+        }
+
+        // Abre una carpeta, un .fstproj, una solución .fstp o un archivo .fst. Una carpeta con un
+        // .fstp se abre como solución; un .fstproj suelto, como siempre.
         public void OpenWorkspace(string target)
         {
+            string sln = target.EndsWith(".fstp") && File.Exists(target) ? Path.GetFullPath(target)
+                       : Directory.Exists(target) ? SolutionIn(Path.GetFullPath(target)) : "";
+            if (sln.Length > 0)
+            {
+                OpenSolution(sln);
+                return;
+            }
             if (explorer.IsLoaded) CloseWorkspaceNow();
             HubMode = false;
             projectFile = "";
@@ -287,6 +324,179 @@ namespace FasetStudio.Ide
             AddRecent(folder);
             UpdateTitle();
             SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
+        }
+
+        // ------------------------------------------------------------------ soluciones (.fstp)
+
+        void OpenSolution(string sln)
+        {
+            if (explorer.IsLoaded) CloseWorkspaceNow();
+            HubMode = false;
+            solutionFile = String.Copy(sln);
+            rootFolder = String.Copy(Path.GetDirectoryName(sln));
+            analyzer.Solution = solutionFile;
+            if (!LoadSolutionInfo())
+            {
+                // Sin compilador o con un .fstp no válido: al menos se ven los archivos.
+                explorer.Load(rootFolder);
+                OpenFile(sln);
+            }
+            else
+            {
+                // El primer .fst del proyecto de inicio (Program.fst / Main.fst si existe).
+                string dir = projectFile.Length > 0 ? Path.GetDirectoryName(projectFile) : rootFolder;
+                List<string> files = new List<string>();
+                explorer.CollectFiles(files);
+                string pick = "";
+                for (int i = 0; i < files.Count && pick.Length == 0; i++)
+                    if (files[i].StartsWith(dir) && (files[i].EndsWith("/Program.fst") || files[i].EndsWith("/Main.fst"))) pick = files[i];
+                for (int i = 0; i < files.Count && pick.Length == 0; i++)
+                    if (files[i].StartsWith(dir) && files[i].EndsWith(".fst")) pick = files[i];
+                if (pick.Length > 0) OpenFile(pick);
+                delete files;
+            }
+            buildTarget = "native";
+            string projText;
+            if (projectFile.Length > 0 && File.TryReadAllText(projectFile, out projText))
+            {
+                if (projText.Contains("<TargetPlatform>android</TargetPlatform>")) SetBuildTarget("android");
+            }
+            AddRecent(solutionFile);
+            UpdateTitle();
+            SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
+        }
+
+        // Lee la solución con 'faset sln list --json' y rehace el árbol del explorador.
+        bool LoadSolutionInfo()
+        {
+            if (solutionFile.Length == 0 || !analyzer.Available) return false;
+            string output;
+            int code = Process.Capture(SolutionCommandLine("list --json"), out output);
+            JsonValue info = code == 0 ? Json.Parse(output) : null;
+            if (info == null)
+            {
+                SetStatus(L.T("Could not read the solution file"));
+                return false;
+            }
+            delete solutionInfo;
+            solutionInfo = info;
+            solutionName = String.Copy(info.GetString("name"));
+            projectName = solutionName;
+            projectFile = "";
+            JsonValue projects = info.Get("projects");
+            for (int i = 0; projects != null && i < projects.Count; i++)
+                if (projects.At(i).Get("startup") != null && projects.At(i).Get("startup").AsBool())
+                    projectFile = String.Copy(projects.At(i).GetString("path"));
+            explorer.LoadSolution(info, solutionFile);
+            UpdateTitle();
+            return true;
+        }
+
+        // 'cd <solución> && faset sln <x.fstp> <orden>' (con los errores en la misma salida).
+        string SolutionCommandLine(string arguments)
+        {
+            string qf = Analyzer.Quote(analyzer.Compiler), qd = Analyzer.Quote(rootFolder), qs = Analyzer.Quote(solutionFile);
+            StringBuilder cmd = new StringBuilder();
+            cmd.Append("cd ").Append(qd).Append(" && ").Append(qf).Append(" sln ").Append(qs).Append(" ").Append(arguments).Append(" 2>&1");
+            string r = cmd.ToString();
+            delete cmd;
+            return r;
+        }
+
+        // Ejecuta una orden 'faset sln' y vuelve a leer la solución. Si falla, muestra el error del compilador.
+        bool RunSolutionCommand(string arguments, string successStatus)
+        {
+            if (!analyzer.Available)
+            {
+                SetStatus(L.T("Compiler 'faset' not found"));
+                return false;
+            }
+            string output;
+            int code = Process.Capture(SolutionCommandLine(arguments), out output);
+            if (code != 0)
+            {
+                // "faset: error: ..." -> el mensaje
+                string msg = output.Trim();
+                int k = msg.IndexOf("error: ");
+                if (k >= 0) msg = msg.Substring(k + 7);
+                int nl = msg.IndexOf("\n");
+                if (nl >= 0) msg = msg.Substring(0, nl);
+                SetStatus(msg.Length > 0 ? msg : L.T("The solution could not be updated"));
+                return false;
+            }
+            LoadSolutionInfo();
+            analysisPending = true;
+            SetStatus(successStatus);
+            return true;
+        }
+
+        // Nombre del proyecto que contiene una carpeta (para el namespace de los archivos nuevos).
+        string ProjectNameFor(string folder)
+        {
+            if (solutionInfo == null) return projectName;
+            JsonValue projects = solutionInfo.Get("projects");
+            string best = "", bestDir = "";
+            for (int i = 0; projects != null && i < projects.Count; i++)
+            {
+                string dir = Path.GetDirectoryName(projects.At(i).GetString("path"));
+                if ((folder == dir || folder.StartsWith(String.Concat(dir, "/"))) && dir.Length > bestDir.Length)
+                {
+                    bestDir = dir;
+                    best = projects.At(i).GetString("name");
+                }
+            }
+            return best.Length > 0 ? best : projectName;
+        }
+
+        // Datos de un proyecto de la solución (o null).
+        JsonValue SolutionProjectInfo(string path)
+        {
+            if (solutionInfo == null) return null;
+            JsonValue projects = solutionInfo.Get("projects");
+            for (int i = 0; projects != null && i < projects.Count; i++)
+                if (projects.At(i).GetString("path") == path) return projects.At(i);
+            return null;
+        }
+
+        // Proyecto a añadir con 'faset sln add' (en la carpeta de solución del menú contextual).
+        void AddProjectToSolution(string projPath)
+        {
+            if (SolutionProjectInfo(projPath) != null)
+            {
+                SetStatus(L.T("That project is already in the solution"));
+                return;
+            }
+            StringBuilder args = new StringBuilder();
+            args.Append("add ").Append(Analyzer.Quote(projPath));
+            if (contextFolder.Length > 0) args.Append(" --folder ").Append(Analyzer.Quote(contextFolder));
+            RunSolutionCommand(args.View(), L.T("Project added to the solution"));
+            delete args;
+        }
+
+        // Menú con los demás proyectos de la solución para añadir una referencia (<ProjectReference>).
+        void OpenReferenceMenu()
+        {
+            if (solutionInfo == null) return;
+            JsonValue self = SolutionProjectInfo(contextProject);
+            JsonValue projects = solutionInfo.Get("projects");
+            Menu m = new Menu();
+            int added = 0;
+            for (int i = 0; projects != null && i < projects.Count; i++)
+            {
+                JsonValue p = projects.At(i);
+                string path = p.GetString("path");
+                if (path == contextProject) continue;
+                bool referenced = false;
+                JsonValue refs = self != null ? self.Get("references") : null;
+                for (int k = 0; refs != null && k < refs.Count; k++)
+                    if (refs.At(k).AsString() == path) referenced = true;
+                bool library = p.GetString("outputType") == "Library";
+                string hint = referenced ? "✓" : (library ? "" : L.T("not a library"));
+                m.Add(p.GetString("name"), hint, 400 + i, library && !referenced);
+                added++;
+            }
+            if (added == 0) m.Add(L.T("No other projects in the solution"), "", 0, false);
+            ShowMenu(m, contextX, contextY, -1);
         }
 
         void SetStatus(string text)
@@ -685,7 +895,12 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ compilar / ejecutar
 
-        void StartProcess(bool run)
+        // Compila o ejecuta: la solución si hay una abierta (todos sus proyectos en orden de
+        // dependencias y después el proyecto de inicio), si no el proyecto o el archivo actual.
+        void StartProcess(bool run) { StartProcessFor(run, solutionFile); }
+
+        // 'input': .fstproj o .fstp concreto ("" = el proyecto de la carpeta o el archivo actual).
+        void StartProcessFor(bool run, string input)
         {
             if (process != null && process.IsRunning)
             {
@@ -705,7 +920,12 @@ namespace FasetStudio.Ide
             StringBuilder cmd = new StringBuilder();
             cmd.Append(faset).Append(run ? " run" : " build");
             string cwd = rootFolder;
-            if (projectFile.Length == 0)
+            if (input.Length > 0)
+            {
+                string qi = Analyzer.Quote(input);
+                cmd.Append(" ").Append(qi);
+            }
+            else if (projectFile.Length == 0)
             {
                 EditorView v = Editor;
                 if (v == null)
@@ -725,7 +945,9 @@ namespace FasetStudio.Ide
                 cmd.Append(" --device ").Append(qd);
                 String.Free(qd);
             }
-            output.Append("> ").Append(run ? "faset run" : "faset build").Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget).Append("\n");
+            output.Append("> ").Append(run ? "faset run" : "faset build");
+            if (input.Length > 0) output.Append(" ").Append(Path.GetFileName(input));
+            output.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget).Append("\n");
             if (process == null) process = new ChildProcess();
             if (!process.Start(cmd.View(), cwd)) output.Append(L.T("Could not start the compiler.")).Append("\n");
             processIsRun = run;
@@ -743,7 +965,7 @@ namespace FasetStudio.Ide
                 // En Android 'faset run' solo sigue el log: también hay que cerrar la app del dispositivo.
                 if (processIsRun && buildTarget == "android" && projectFile.Length > 0)
                 {
-                    string qf = Analyzer.Quote(analyzer.Compiler), qr = Analyzer.Quote(rootFolder);
+                    string qf = Analyzer.Quote(analyzer.Compiler), qr = Analyzer.Quote(Path.GetDirectoryName(projectFile));
                     StringBuilder stop = new StringBuilder();
                     stop.Append("cd ").Append(qr).Append(" && ").Append(qf).Append(" android stop");
                     String.Free(qr);
@@ -851,7 +1073,8 @@ namespace FasetStudio.Ide
                 else
                 {
                     StringBuilder template = new StringBuilder();
-                    string ns = projectName.Length > 0 ? projectName : "App";
+                    string owner = ProjectNameFor(Path.GetDirectoryName(path));
+                    string ns = owner.Length > 0 ? owner : "App";
                     string cls = Path.GetFileNameWithoutExtension(path);
                     template.Append("namespace ").Append(ns).Append("\n{\n    public class ").Append(cls).Append("\n    {\n    }\n}\n");
                     File.WriteAllText(path, template.View());
@@ -874,6 +1097,39 @@ namespace FasetStudio.Ide
                 String.Free(path);
             }
             else if (o == Overlay.Rename && input.Trim().Length > 0) RenamePath(targetPath, input.Trim());
+            else if (o == Overlay.SolutionFolder && input.Trim().Length > 0)
+            {
+                string name = contextFolder.Length > 0 ? String.Concat(contextFolder, "/", input.Trim()) : String.Copy(input.Trim());
+                StringBuilder args = new StringBuilder();
+                args.Append("folder ").Append(Analyzer.Quote(name));
+                RunSolutionCommand(args.View(), L.T("Solution folder created"));
+                delete args;
+            }
+            else if (o == Overlay.RenameSolution && input.Trim().Length > 0)
+            {
+                string name = String.Copy(input.Trim());
+                StringBuilder args = new StringBuilder();
+                args.Append("rename ").Append(Analyzer.Quote(name));
+                string old = String.Copy(solutionFile);
+                string renamed = Path.Combine(rootFolder, String.Concat(name, ".fstp"));
+                // 'faset sln rename' también cambia el nombre del archivo si no existe otro igual.
+                string output;
+                int code = Process.Capture(SolutionCommandLine(args.View()), out output);
+                if (code == 0)
+                {
+                    if (!File.Exists(old) && File.Exists(renamed))
+                    {
+                        solutionFile = renamed;
+                        analyzer.Solution = solutionFile;
+                        RemoveRecent(old);
+                        AddRecent(solutionFile);
+                    }
+                    LoadSolutionInfo();
+                    SetStatus(L.T("Solution renamed"));
+                }
+                else SetStatus(L.T("Could not rename the solution"));
+                delete args;
+            }
         }
 
         void FindNext()
@@ -1257,7 +1513,8 @@ namespace FasetStudio.Ide
                 }
                 bool insidePalette = x >= overlayInputX - 12 && x < overlayInputX + overlayInputW + 12 && y >= TitleHeight && y < overlayInputY + 60;
                 if (insidePalette) return;
-                if (overlay == Overlay.QuickOpen || overlay == Overlay.Find || overlay == Overlay.GoToLine || overlay == Overlay.NewFile)
+                if (overlay == Overlay.QuickOpen || overlay == Overlay.Find || overlay == Overlay.GoToLine || overlay == Overlay.NewFile ||
+                    overlay == Overlay.SolutionFolder || overlay == Overlay.RenameSolution)
                     overlay = Overlay.None;
                 return;
             }
@@ -1628,12 +1885,12 @@ namespace FasetStudio.Ide
             if (pressRow >= 0 && e.Button == 1)
             {
                 if (!draggingFile && Math.Abs(mouseX - pressX) + Math.Abs(mouseY - pressY) > 6 && pressRow < explorer.RowCount &&
-                    !explorer.RowIsRoot(pressRow))
+                    explorer.RowDraggable(pressRow))
                     draggingFile = true;
                 if (draggingFile)
                 {
                     int over = explorer.RowAt(mouseX, mouseY);
-                    explorer.DropTarget = over >= 0 && explorer.RowIsDir(over) && over != pressRow ? over : -1;
+                    explorer.DropTarget = over >= 0 && explorer.RowDropTarget(over) && over != pressRow ? over : -1;
                 }
             }
             if (dockTool >= 0 && e.Button == 1)
@@ -1782,13 +2039,14 @@ namespace FasetStudio.Ide
             else win.SetTitle("FasetStudio");
         }
 
-        // Proyectos recientes: carpetas separadas por '|' en la configuración.
+        // Proyectos recientes: carpetas (o soluciones .fstp) separadas por '|' en la configuración.
         List<string> RecentProjects()
         {
             List<string> result = new List<string>();
             List<string> parts = Text.Split(Settings.Get("recent", ""), "|");
             for (int i = 0; i < parts.Count; i++)
-                if (parts[i].Trim().Length > 0 && Directory.Exists(parts[i])) result.Add(String.Copy(parts[i]));
+                if (parts[i].Trim().Length > 0 && (Directory.Exists(parts[i]) || (parts[i].EndsWith(".fstp") && File.Exists(parts[i]))))
+                    result.Add(String.Copy(parts[i]));
             delete parts;
             return result;
         }
@@ -1852,6 +2110,11 @@ namespace FasetStudio.Ide
             projectFile = "";
             projectName = "";
             rootFolder = "";
+            solutionFile = "";
+            solutionName = "";
+            delete solutionInfo;
+            solutionInfo = null;
+            analyzer.Solution = "";
         }
 
         public void ShowHub()
@@ -1993,6 +2256,7 @@ namespace FasetStudio.Ide
         {
             CloseMenu();
             OpenOverlay(Overlay.NewProject);
+            newProjectInSolution = false;
             projectTemplate = 0;
             fieldName.Set("MiProyecto");
             string folder = DefaultProjectsFolder();
@@ -2000,6 +2264,14 @@ namespace FasetStudio.Ide
             String.Free(folder);
             fieldExtra.Set("");
             FocusField(fieldName);
+        }
+
+        // Nuevo proyecto dentro de la carpeta de la solución, que se añade a ella (y a 'contextFolder').
+        void OpenAddNewProjectDialog()
+        {
+            OpenNewProjectDialog();
+            newProjectInSolution = true;
+            fieldLocation.Set(rootFolder);
         }
 
         void CreateProject()
@@ -2025,9 +2297,11 @@ namespace FasetStudio.Ide
                 return;
             }
             string kind = projectTemplate == 1 ? " --lib" : (projectTemplate == 2 ? " --winexe" : (projectTemplate == 3 ? " --ui" : (projectTemplate == 4 ? " --android" : "")));
+            bool withSolution = createSolution && !newProjectInSolution;
             string qf = Analyzer.Quote(analyzer.Compiler), qloc = Analyzer.Quote(location), qname = Analyzer.Quote(name);
             StringBuilder cmd = new StringBuilder();
             cmd.Append("cd ").Append(qloc).Append(" && ").Append(qf).Append(" new ").Append(qname).Append(kind);
+            if (withSolution) cmd.Append(" --solution");   // Nombre/Nombre.fstp + Nombre/Nombre/Nombre.fstproj
             string outText;
             int code = Process.Capture(cmd.View(), out outText);
             String.Free(outText);
@@ -2036,13 +2310,22 @@ namespace FasetStudio.Ide
             String.Free(qname);
             delete cmd;
             overlay = Overlay.None;
-            if (code == 0 && Directory.Exists(dest))
+            if (code == 0 && Directory.Exists(dest) && newProjectInSolution)
             {
-                Settings.Set("projects.location", location);
+                // Añadir el proyecto nuevo a la solución abierta.
+                AddProjectToSolution(Path.Combine(dest, String.Concat(name, ".fstproj")));
+                string first = Path.Combine(dest, projectTemplate == 3 || projectTemplate == 4 ? "MainWindow.fstui"
+                                                : projectTemplate == 1 ? "Biblioteca.fst" : "Program.fst");
+                if (File.Exists(first)) OpenFile(first);
+            }
+            else if (code == 0 && Directory.Exists(dest))
+            {
+                if (!newProjectInSolution) Settings.Set("projects.location", location);
+                string projectDir = withSolution ? Path.Combine(dest, name) : String.Copy(dest);
                 OpenWorkspace(dest);
                 if (projectTemplate == 3 || projectTemplate == 4)
                 {
-                    string ui = Path.Combine(dest, "MainWindow.fstui");
+                    string ui = Path.Combine(projectDir, "MainWindow.fstui");
                     OpenFile(ui);
                     String.Free(ui);
                 }
@@ -2068,6 +2351,7 @@ namespace FasetStudio.Ide
         {
             CloseMenu();
             OpenOverlay(Overlay.OpenFolder);
+            browseForProject = false;
             string start = rootFolder.Length > 0 ? String.Copy(Path.GetDirectoryName(rootFolder)) : DefaultProjectsFolder();
             if (!Directory.Exists(start))
             {
@@ -2079,16 +2363,26 @@ namespace FasetStudio.Ide
             fieldExtra.Focused = true;
         }
 
-        void OpenPropertiesDialog()
+        // Diálogo de abrir para elegir un .fstproj existente y añadirlo a la solución.
+        void OpenAddExistingProjectDialog()
+        {
+            OpenFolderDialog();
+            browseForProject = true;
+            BrowseTo(rootFolder);
+        }
+
+        void OpenPropertiesDialog() { OpenPropertiesFor(projectFile); }
+
+        void OpenPropertiesFor(string path)
         {
             CloseMenu();
-            if (projectFile.Length == 0)
+            if (path.Length == 0)
             {
                 SetStatus(L.T("This folder has no .fstproj project"));
                 return;
             }
             delete props;
-            props = ProjectFile.Load(projectFile);
+            props = ProjectFile.Load(path);
             if (props == null)
             {
                 SetStatus(L.T("Could not read the project file"));
@@ -2110,7 +2404,8 @@ namespace FasetStudio.Ide
             if (name.Length > 0) props.AssemblyName = String.Copy(name);
             if (props.Save())
             {
-                projectName = String.Copy(props.AssemblyName);
+                if (solutionFile.Length > 0) LoadSolutionInfo();   // el tipo de salida puede haber cambiado
+                else projectName = String.Copy(props.AssemblyName);
                 UpdateTitle();
                 explorer.Refresh();
                 analysisPending = true;
@@ -2190,10 +2485,11 @@ namespace FasetStudio.Ide
             }
             else if (index == 3)
             {
-                m.Add(L.T("Build"), "Ctrl+B", 130, ws && !running);
+                bool sln = solutionFile.Length > 0;
+                m.Add(sln ? L.T("Build solution") : L.T("Build"), "Ctrl+B", 130, ws && !running);
                 m.Add(L.T("Run"), "F5", 131, ws && !running);
                 m.Add(L.T("Stop"), "Shift+F5", 132, running);
-                m.Add(L.T("Clean"), "", 133, ws && !running && projectFile.Length > 0);
+                m.Add(sln ? L.T("Clean solution") : L.T("Clean"), "", 133, ws && !running && (projectFile.Length > 0 || sln));
                 m.Separator();
                 m.Add("Debug", configuration == "Debug" ? "✓" : "", 135, ws);
                 m.Add("Release", configuration == "Release" ? "✓" : "", 136, ws);
@@ -2204,6 +2500,13 @@ namespace FasetStudio.Ide
                 m.Separator();
                 m.Add(L.T("Add new file…"), "", 141, ws);
                 m.Add(L.T("Add new folder…"), "", 142, ws);
+                if (solutionFile.Length > 0)
+                {
+                    contextFolder = "";
+                    m.Separator();
+                    m.Add(L.T("Add new project…"), "", 301, ws);
+                    m.Add(L.T("Add existing project…"), "", 302, ws);
+                }
                 m.Add(L.T("Reload project"), "", 144, ws);
             }
             else
@@ -2230,6 +2533,64 @@ namespace FasetStudio.Ide
             bool isDir = explorer.RowIsDir(row), isRoot = explorer.RowIsRoot(row);
             SetTarget(explorer.RowPath(row), isDir);
             SetTargetFolder(explorer.RowFolder(row));
+            contextX = x;
+            contextY = y;
+            int kind = explorer.RowKind(row);
+            bool running = process != null && process.IsRunning;
+            if (kind == 1)
+            {
+                // La solución
+                contextFolder = "";
+                SetTarget(solutionFile, false);
+                m.Add(L.T("Build solution"), "Ctrl+B", 130, !running);
+                m.Add(L.T("Run startup project"), "F5", 131, !running && projectFile.Length > 0);
+                m.Add(L.T("Clean solution"), "", 133, !running);
+                m.Separator();
+                m.Add(L.T("Add new project…"), "", 301, true);
+                m.Add(L.T("Add existing project…"), "", 302, true);
+                m.Add(L.T("Add solution folder…"), "", 303, true);
+                m.Separator();
+                m.Add(L.T("Rename…"), "", 304, true);
+                m.Add(L.T("Open solution file"), "", 160, true);
+                m.Add(L.T("Copy path"), "", 164, true);
+                m.Add(L.T("Close solution"), "", 105, true);
+                ShowMenu(m, x, y, -1);
+                return;
+            }
+            if (kind == 2)
+            {
+                // Carpeta de solución
+                contextFolder = String.Copy(explorer.RowSolutionFolder(row));
+                m.Add(L.T("Add new project…"), "", 301, true);
+                m.Add(L.T("Add existing project…"), "", 302, true);
+                m.Add(L.T("Add solution folder…"), "", 303, true);
+                m.Separator();
+                m.AddDanger(L.T("Remove folder"), "", 305);
+                ShowMenu(m, x, y, -1);
+                return;
+            }
+            if (kind == 3)
+            {
+                // Proyecto de la solución
+                contextProject = String.Copy(explorer.RowProject(row));
+                contextFolder = String.Copy(explorer.RowSolutionFolder(row));
+                SetTarget(contextProject, false);
+                JsonValue info = SolutionProjectInfo(contextProject);
+                bool exists = info != null && info.Get("exists") != null && info.Get("exists").AsBool();
+                bool library = info != null && info.GetString("outputType") == "Library";
+                m.Add(L.T("Set as startup project"), "", 310, exists && !library && !explorer.RowIsStartup(row));
+                m.Add(L.T("Build only this project"), "", 311, exists && !running);
+                m.Add(L.T("Add project reference…"), "", 313, exists);
+                m.Separator();
+                m.Add(L.T("New file…"), "", 165, exists);
+                m.Add(L.T("New folder…"), "", 166, exists);
+                m.Separator();
+                m.Add(L.T("Properties…"), "", 314, exists);
+                m.Add(L.T("Copy path"), "", 164, true);
+                m.AddDanger(L.T("Remove from solution"), "", 315);
+                ShowMenu(m, x, y, -1);
+                return;
+            }
             if (isRoot)
             {
                 m.Add(L.T("Build"), "Ctrl+B", 130, true);
@@ -2381,15 +2742,59 @@ namespace FasetStudio.Ide
             else if (id == 165) OpenOverlay(Overlay.NewFile);
             else if (id == 166) OpenOverlay(Overlay.NewFolder);
             else if (id == 167) GoToDefinition();
+            else if (id == 301) OpenAddNewProjectDialog();
+            else if (id == 302) OpenAddExistingProjectDialog();
+            else if (id == 303) OpenOverlay(Overlay.SolutionFolder);
+            else if (id == 304)
+            {
+                OpenOverlay(Overlay.RenameSolution);
+                overlayInput.Append(solutionName);
+            }
+            else if (id == 305)
+            {
+                StringBuilder args = new StringBuilder();
+                args.Append("folder ").Append(Analyzer.Quote(contextFolder)).Append(" --remove");
+                RunSolutionCommand(args.View(), L.T("Solution folder removed"));
+                delete args;
+            }
+            else if (id == 310)
+            {
+                StringBuilder args = new StringBuilder();
+                args.Append("startup ").Append(Analyzer.Quote(contextProject));
+                RunSolutionCommand(args.View(), L.T("Startup project changed"));
+                delete args;
+            }
+            else if (id == 311) StartProcessFor(false, contextProject);
+            else if (id == 313) OpenReferenceMenu();
+            else if (id == 314) OpenPropertiesFor(contextProject);
+            else if (id == 315)
+            {
+                StringBuilder args = new StringBuilder();
+                args.Append("remove ").Append(Analyzer.Quote(contextProject));
+                RunSolutionCommand(args.View(), L.T("Project removed from the solution (its files are kept)"));
+                delete args;
+            }
+            else if (id >= 400 && id < 600 && solutionInfo != null)
+            {
+                JsonValue projects = solutionInfo.Get("projects");
+                if (projects != null && id - 400 < projects.Count)
+                {
+                    StringBuilder args = new StringBuilder();
+                    args.Append("ref ").Append(Analyzer.Quote(contextProject)).Append(" ").Append(Analyzer.Quote(projects.At(id - 400).GetString("path")));
+                    RunSolutionCommand(args.View(), L.T("Project reference added"));
+                    delete args;
+                }
+            }
             else DoAction(id);
         }
 
         void RunClean()
         {
-            if (projectFile.Length == 0) return;
+            if (projectFile.Length == 0 && solutionFile.Length == 0) return;
             string qf = Analyzer.Quote(analyzer.Compiler);
             StringBuilder cmd = new StringBuilder();
             cmd.Append(qf).Append(" clean");
+            if (solutionFile.Length > 0) cmd.Append(" ").Append(Analyzer.Quote(solutionFile));
             output.Clear();
             ShowTool(1);
             if (process == null) process = new ChildProcess();
@@ -2480,6 +2885,7 @@ namespace FasetStudio.Ide
             if (overlay == Overlay.NewProject)
             {
                 if (id >= 10 && id <= 14) projectTemplate = id - 10;
+                else if (id == 22) createSolution = !createSolution;
                 else if (id == 20) overlay = Overlay.None;
                 else if (id == 21) CreateProject();
                 return;
@@ -2491,7 +2897,8 @@ namespace FasetStudio.Ide
                 {
                     string folder = String.Copy(browsePath);
                     overlay = Overlay.None;
-                    OpenWorkspace(folder);
+                    if (browseForProject) AddProjectToSolution(folder);   // la carpeta de un proyecto
+                    else OpenWorkspace(folder);
                     String.Free(folder);
                 }
                 else if (id == 32)
@@ -2505,7 +2912,12 @@ namespace FasetStudio.Ide
                     DirEntry e = browseEntries[id - 1000];
                     string path = Path.Combine(browsePath, e.Name);
                     if (e.IsDirectory) BrowseTo(path);
-                    else if (e.Name.EndsWith(".fstproj"))
+                    else if (e.Name.EndsWith(".fstproj") && browseForProject)
+                    {
+                        overlay = Overlay.None;
+                        AddProjectToSolution(path);
+                    }
+                    else if (e.Name.EndsWith(".fstproj") || e.Name.EndsWith(".fstp"))
                     {
                         overlay = Overlay.None;
                         OpenWorkspace(path);
@@ -3464,6 +3876,8 @@ namespace FasetStudio.Ide
                            : overlay == Overlay.GoToLine ? L.T("Go to line")
                            : overlay == Overlay.NewFolder ? L.T("New folder name")
                            : overlay == Overlay.Rename ? L.T("New name")
+                           : overlay == Overlay.SolutionFolder ? L.T("New solution folder name")
+                           : overlay == Overlay.RenameSolution ? L.T("New solution name")
                                                          : L.T("New file name (e.g. Player.fst or Models/Player.fst)");
             float w2 = (float)Math.Min(640.0, W - 40);
             float x2 = (W - w2) / 2, y2 = TitleHeight + 10;
@@ -3604,20 +4018,26 @@ namespace FasetStudio.Ide
                 if (hover) r.RoundBorder(x0, y, listW, rowH, 12, 1, Theme.BorderStrong);
                 r.RoundRect(x0 + 14, y + 13, 32, 32, 9, Theme.Active);
                 r.Logo(x0 + 20, y + 19, 20, Theme.White);
-                r.Text(r.UiBold, x0 + 60, y + 10, Path.GetFileName(path), Theme.White);
+                bool isSolution = path.EndsWith(".fstp");
+                float nameEnd = r.Text(r.UiBold, x0 + 60, y + 10, isSolution ? Path.GetFileNameWithoutExtension(path) : Path.GetFileName(path), Theme.White);
+                if (isSolution) r.Text(r.UiSmall, nameEnd + 10, y + 12, L.T("solution"), Theme.TextTertiary);
                 r.PushClip(x0 + 60, y, listW - 240, rowH);
                 r.Text(r.UiSmall, x0 + 60, y + 32, path, Theme.TextTertiary);
                 r.PopClip();
                 AddHit(x0, y, listW - 170, rowH, i, -6, false);
                 if (hover)
                 {
+                    // Una solución no se borra desde aquí (su carpeta puede contener otras cosas).
                     string removeLabel = L.T("Remove from list"), deleteLabel = L.T("Delete");
-                    float dw = PillWidth(deleteLabel, "");
+                    float dw = isSolution ? 0 : PillWidth(deleteLabel, "");
                     float bx = x0 + listW - 14 - dw;
                     bool delHover = mouseX >= bx && mouseX < bx + dw && mouseY >= y + 15 && mouseY < y + 43;
-                    if (delHover) r.RoundRect(bx, y + 15, dw, 28, 14, Color.Hex(0xf04f4f, 0.16f));
-                    r.Text(r.Ui, bx + 13, y + 21, deleteLabel, Theme.Error);
-                    AddHit(bx, y + 15, dw, 28, i, -8, false);
+                    if (!isSolution)
+                    {
+                        if (delHover) r.RoundRect(bx, y + 15, dw, 28, 14, Color.Hex(0xf04f4f, 0.16f));
+                        r.Text(r.Ui, bx + 13, y + 21, deleteLabel, Theme.Error);
+                        AddHit(bx, y + 15, dw, 28, i, -8, false);
+                    }
                     float rw = PillWidth(removeLabel, "");
                     bx -= rw + 4;
                     bool remHover = mouseX >= bx && mouseX < bx + rw && mouseY >= y + 15 && mouseY < y + 43;
@@ -3634,7 +4054,7 @@ namespace FasetStudio.Ide
             float cardW = cw - listW - 40;
             r.Text(r.UiBold, cx, ly, L.T("Get started"), Theme.Text);
             HubCard(cx, ly + 34, cardW, L.T("Create a new project"), L.T("Console, library, desktop or Android app"), ActNewProject, 0);
-            HubCard(cx, ly + 34 + 92, cardW, L.T("Open a project or folder"), L.T("Browse your folders for a .fstproj project"), ActOpenFolder, 1);
+            HubCard(cx, ly + 34 + 92, cardW, L.T("Open a project or folder"), L.T("A .fstproj project or a .fstp solution"), ActOpenFolder, 1);
             r.PushClip(cx, ly + 230, cardW, 40);
             r.Text(r.UiSmall, cx, ly + 234, L.T("Tip: right-click files in the explorer to rename, move or delete them."), Theme.TextTertiary);
             r.PopClip();
@@ -3810,7 +4230,7 @@ namespace FasetStudio.Ide
         {
             float w = 1000, h = 590, x, y;
             DialogFrame(w, h, out x, out y);
-            r.Text(r.Title, x + 28, y + 24, L.T("Create a new project"), Theme.White);
+            r.Text(r.Title, x + 28, y + 24, newProjectInSolution ? L.T("Add a new project") : L.T("Create a new project"), Theme.White);
 
             // Columna izquierda: buscador y lista de plantillas.
             float lx = x + 28, lw = 560;
@@ -3859,11 +4279,33 @@ namespace FasetStudio.Ide
             fieldName.Draw(r, cx, fy + 20, cw, "MiProyecto");
             r.Text(r.UiSmall, cx, fy + 70, L.T("LOCATION"), Theme.TextTertiary);
             fieldLocation.Draw(r, cx, fy + 90, cw, "~/FasetProjects");
+            bool withSolution = createSolution && !newProjectInSolution;
             r.Text(r.UiSmall, cx, fy + 140, L.T("The project will be created in:"), Theme.TextTertiary);
             StringBuilder where = new StringBuilder();
             where.Append(fieldLocation.Text).Append("/").Append(fieldName.Text);
-            WrapPath(r.UiSmall, cx, fy + 160, cw, where.View(), Theme.TextSecondary, 4);
+            if (withSolution) where.Append("/").Append(fieldName.Text);
+            WrapPath(r.UiSmall, cx, fy + 160, cw, where.View(), Theme.TextSecondary, 3);
             delete where;
+            // Como en Visual Studio: el proyecto puede ir dentro de una solución nueva (o de la abierta).
+            if (newProjectInSolution)
+            {
+                string into = L.F("It will be added to the solution '{0}'.", solutionName, "");
+                r.PushClip(cx, fy + 222, cw, 40);
+                r.Text(r.UiSmall, cx, fy + 226, into, Theme.Text);
+                r.PopClip();
+            }
+            else
+            {
+                Toggle(cx, fy + 220, createSolution, 22);
+                r.Text(r.Ui, cx + 52, fy + 221, L.T("Create a solution"), Theme.Text);
+                if (createSolution)
+                {
+                    string sln = L.F("{0}.fstp groups this and future projects", fieldName.Text, "");
+                    r.PushClip(cx + 52, fy + 242, cw - 52, 20);
+                    r.Text(r.UiSmall, cx + 52, fy + 244, sln, Theme.TextTertiary);
+                    r.PopClip();
+                }
+            }
 
             string create = L.T("Create"), cancel = L.T("Cancel");
             float bx = x + w - 28 - PillWidth(create, "");
@@ -3876,7 +4318,7 @@ namespace FasetStudio.Ide
         {
             float w = 760, h = 540, x, y;
             DialogFrame(w, h, out x, out y);
-            r.Text(r.Title, x + 28, y + 24, L.T("Open a project or folder"), Theme.White);
+            r.Text(r.Title, x + 28, y + 24, browseForProject ? L.T("Add an existing project") : L.T("Open a project or folder"), Theme.White);
             float up = Pill(x + 28, y + 70, L.T("Up"), "▲", 32, 0);
             hits.Pop();
             AddHit(x + 28, y + 70, up, 28, 32, -5, false);
@@ -3892,18 +4334,19 @@ namespace FasetStudio.Ide
                 {
                     DirEntry e = browseEntries[i];
                     bool proj = e.Name.EndsWith(".fstproj");
-                    if ((!e.IsDirectory && !proj) || e.Name.StartsWith(".")) continue;
+                    bool sln = e.Name.EndsWith(".fstp") && !browseForProject;
+                    if ((!e.IsDirectory && !proj && !sln) || e.Name.StartsWith(".")) continue;
                     float ry = ly + 6 + rowsShown * 32;
                     rowsShown++;
                     if (ry > ly + listH) break;
                     bool hover = mouseX >= x + 28 && mouseX < x + w - 28 && mouseY >= ry && mouseY < ry + 30;
                     if (hover) r.RoundRect(x + 34, ry, w - 68, 30, 7, Theme.Hover);
-                    if (proj)
+                    if (proj || sln)
                     {
                         r.RoundRect(x + 46, ry + 7, 16, 16, 4, Theme.White);
                         r.Logo(x + 48, ry + 9, 12, Theme.Black);
                         r.Text(r.UiBold, x + 72, ry + 6, e.Name, Theme.White);
-                        r.Text(r.UiSmall, x + 80 + r.TextWidth(r.UiBold, e.Name), ry + 8, L.T("project"), Theme.TextTertiary);
+                        r.Text(r.UiSmall, x + 80 + r.TextWidth(r.UiBold, e.Name), ry + 8, sln ? L.T("solution") : L.T("project"), Theme.TextTertiary);
                     }
                     else
                     {
@@ -3916,7 +4359,7 @@ namespace FasetStudio.Ide
             }
             if (rowsShown == 0) r.Text(r.Ui, x + 46, ly + 16, L.T("This folder is empty."), Theme.TextTertiary);
             r.PopClip();
-            string open = L.T("Open this folder"), cancel = L.T("Cancel");
+            string open = browseForProject ? L.T("Add the project in this folder") : L.T("Open this folder"), cancel = L.T("Cancel");
             float bx = x + w - 28 - PillWidth(open, "");
             DialogButton(bx, y + h - 50, open, 31, 1);
             bx -= PillWidth(cancel, "") + 8;
@@ -4268,12 +4711,19 @@ namespace FasetStudio.Ide
             else if (verb == "openfolder") OpenFolderDialog();
             else if (verb == "properties") OpenPropertiesDialog();
             else if (verb == "about") OpenOverlay(Overlay.About);
-            else if (verb == "action") ExecuteAction(arg.ToInt());
+            else if (verb == "action")
+            {
+                CloseMenu();   // como al pulsar una opción del menú
+                ExecuteAction(arg.ToInt());
+            }
             else if (verb == "context")
             {
                 Draw();
+                int found = -1;
+                for (int i = 0; i < explorer.RowCount && found < 0; i++)
+                    if (explorer.RowMatches(i, arg)) found = i;
                 for (int i = 0; i < explorer.RowCount; i++)
-                    if (explorer.RowPath(i).EndsWith(arg))
+                    if (i == found || (found < 0 && explorer.RowPath(i).EndsWith(arg)))
                     {
                         OpenContextMenu(i, explorer.X + 80, explorer.Y + Explorer.HeaderHeight + (i - explorer.Scroll) * Explorer.RowHeight + 12);
                         break;

@@ -66,6 +66,32 @@ for dir in tests/projects/*/; do
     fi
 done
 
+# Soluciones (.fstp): 'faset new sln', 'faset sln add/remove/ref/startup/list' y 'faset run' de la solución.
+sln_check() {
+    local d="$TMP/sln" F="$PWD/$FASET"
+    rm -rf "$d" && mkdir -p "$d" && cd "$d" || return 1
+    "$F" new sln Sol > /dev/null && cd Sol || { echo "new sln"; return 1; }
+    "$F" new Base --lib > /dev/null && "$F" new App > /dev/null || { echo "new proyectos"; return 1; }
+    "$F" sln add Base/Base.fstproj --folder Bibliotecas/Nucleo > /dev/null || { echo "sln add"; return 1; }
+    "$F" sln add App > /dev/null || { echo "sln add carpeta"; return 1; }
+    "$F" sln add App/App.fstproj | grep -q "ya está" || { echo "sln add repetido"; return 1; }
+    grep -q '<Folder Name="Bibliotecas">' Sol.fstp && grep -q '<Folder Name="Nucleo">' Sol.fstp || { echo "carpetas"; return 1; }
+    "$F" sln startup App > /dev/null && grep -q 'Path="App/App.fstproj" Startup="true"' Sol.fstp || { echo "sln startup"; return 1; }
+    "$F" sln startup Base > /dev/null 2>&1 && { echo "startup de una biblioteca"; return 1; }
+    "$F" sln ref App Base > /dev/null && grep -q 'ProjectReference Include="../Base/Base.fstproj"' App/App.fstproj || { echo "sln ref"; return 1; }
+    "$F" sln ref Base App > /dev/null 2>&1 && { echo "sln ref a un Exe"; return 1; }
+    "$F" sln list | grep -q "^\* *App" || { echo "sln list"; return 1; }
+    "$F" sln list --json | grep -q '"startup":true' || { echo "sln list --json"; return 1; }
+    "$F" run 2> /dev/null | grep -q "Hola desde Faset" || { echo "run de la solución"; return 1; }
+    "$F" sln remove Base > /dev/null && ! grep -q "Base.fstproj" Sol.fstp && [ -f Base/Base.fstproj ] || { echo "sln remove"; return 1; }
+    "$F" sln remove Nada > /dev/null 2>&1 && { echo "sln remove inexistente"; return 1; }
+    cd "$d" && "$F" new Juego --solution > /dev/null && [ -f Juego/Juego.fstp ] && [ -f Juego/Juego/Juego.fstproj ] || { echo "new --solution"; return 1; }
+    "$F" build Juego/Juego.fstp > /dev/null 2>&1 || { echo "build de new --solution"; return 1; }
+    return 0
+}
+if why=$(sln_check); then echo "ok     soluciones"; pass=$((pass+1)); else echo "FALLO  soluciones ($why)"; fail=$((fail+1)); fi
+cd "$(dirname "$0")/.." 2>/dev/null || true
+
 if command -v node > /dev/null; then
     if out=$(timeout 60 node tests/lsp/test.js "$PWD/$FASET" 2>&1); then
         echo "ok     lsp"; pass=$((pass+1))

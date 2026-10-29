@@ -27,6 +27,7 @@
 #include "Frontend.h"
 #include "Json.h"
 #include "Project.h"
+#include "Solution.h"
 #include "XmlIntel.h"
 
 namespace fs = std::filesystem;
@@ -155,11 +156,16 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
     std::string projectError, projectPath;
     for (const Json& p : req.get("inputs").elements())
         if (xmlDocKind(p.asString()) != XmlDocKind::Project) fo.inputs.push_back(p.asString());
-    // Sin 'inputs': se usa el proyecto (.fstproj) del archivo 'focus'.
-    if (fo.inputs.empty() && req.has("focus")) {
+    // Sin 'inputs': se usa el proyecto (.fstproj) del archivo 'focus'. Con una solución ('solution',
+    // o la .fstp más cercana) se elige el proyecto de la solución que compila ese archivo.
+    std::string solutionHint = req.has("solution") ? req.get("solution").asString() : "";
+    if (!solutionHint.empty()) interest.insert(remember(solutionHint));
+    if (fo.inputs.empty() && req.has("focus") && xmlDocKind(req.get("focus").asString()) == XmlDocKind::Solution) {
+        interest.insert(remember(req.get("focus").asString()));  // una .fstp solo se valida
+    } else if (fo.inputs.empty() && req.has("focus")) {
         std::string focus = remember(req.get("focus").asString());
         bool focusIsProject = xmlDocKind(focus) == XmlDocKind::Project;
-        projectPath = focusIsProject ? focus : findProjectFor(focus);
+        projectPath = focusIsProject ? focus : projectForFile(focus, solutionHint);
         if (!projectPath.empty()) {
             projectPath = normalizePath(projectPath);
             projects.insert(projectPath);
@@ -221,6 +227,12 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
         for (const XmlDiagnostic& d : list) addDiag(p, d.line, d.col, d.severity, d.message);
         if (p == projectPath && !projectError.empty() && list.empty()) addDiag(p, 1, 1, 1, projectError);
     }
+    std::set<std::string> solutions;
+    for (const std::string& p : interest)
+        if (xmlDocKind(p) == XmlDocKind::Solution) solutions.insert(p);
+    for (const std::string& p : solutions)
+        for (const XmlDiagnostic& d : xmlValidateSolution(p, textOf(p))) addDiag(p, d.line, d.col, d.severity, d.message);
+    for (const std::string& p : solutions) projects.insert(p);  // también cuentan como analizados
     out["diagnostics"] = std::move(diags);
 
     Json analyzed = Json::array();

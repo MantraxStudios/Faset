@@ -1,0 +1,6 @@
+<Solution Name="MiJuego">
+  <Project Path="Juego/Juego.fstproj" Startup="true" />
+  <Folder Name="Bibliotecas">
+    <Project Path="Utilidades/Utilidades.fstproj" />
+  </Folder>
+</Solution>
