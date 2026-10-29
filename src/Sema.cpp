@@ -127,6 +127,7 @@ bool Sema::run() {
     // para ofrecer información de símbolos y autocompletado mientras se escribe.
     if (diag.errorCount && !ideMode) return false;
     for (FileScope* f : prog_.files) resolveUsings(f);
+    excSetupHierarchy();  // [ExceptionBase]: campos heredados de la excepción base (Exceptions.cpp)
     size_t initial = prog_.types.size();
     for (size_t i = 0; i < initial; i++)
         if (!prog_.types[i]->isTemplate()) resolveClassSignatures(prog_.types[i]);
@@ -905,6 +906,7 @@ VarInfo* Sema::declareLocal(const std::string& name, Type* t, SourceLoc loc, con
     v->type = t;
     v->loc = loc;
     v->fnDepth = (int)lambdaStack_.size();
+    v->excDepth = ctx_.excTryDepth;
     ctx_.scopes.back()[name] = v;
     return v;
 }
@@ -1035,12 +1037,15 @@ void Sema::checkStmt(Stmt* s) {
         }
         case SK::Break:
             if (ctx_.loopDepth == 0 && ctx_.switchDepth == 0) diag.error(s->loc, "'break' fuera de un bucle o 'switch'");
+            else excCheckJump(s);
             break;
         case SK::Continue:
             if (ctx_.loopDepth == 0) diag.error(s->loc, "'continue' fuera de un bucle");
+            else excCheckJump(s);
             break;
         case SK::Return: {
             auto* rs = static_cast<ReturnStmt*>(s);
+            excCheckJump(s);
             if (lambdaReturn(rs)) break;  // 'return' dentro del cuerpo de una lambda
             MethodDecl* m = ctx_.method;
             Type* ret = m ? m->ret : tc_.get(TK::Void);
@@ -1106,6 +1111,8 @@ void Sema::checkStmt(Stmt* s) {
             if (target && !ds->isArray) useMethod(target->dtor);
             break;
         }
+        case SK::Try: checkTry(static_cast<TryStmt*>(s)); break;
+        case SK::Throw: checkThrow(static_cast<ThrowStmt*>(s)); break;
     }
 }
 
@@ -1121,6 +1128,7 @@ bool Sema::containsBreak(Stmt* s) {
             auto* is = static_cast<IfStmt*>(s);
             return containsBreak(is->then) || containsBreak(is->els);
         }
+        case SK::Try: return excContainsBreak(static_cast<TryStmt*>(s));
         default: return false;
     }
 }
@@ -1129,6 +1137,8 @@ bool Sema::alwaysReturns(Stmt* s) {
     if (!s) return false;
     switch (s->kind) {
         case SK::Return: return true;
+        case SK::Throw: return true;
+        case SK::Try: return excAlwaysReturns(static_cast<TryStmt*>(s));
         case SK::Block:
             for (Stmt* c : static_cast<BlockStmt*>(s)->stmts)
                 if (alwaysReturns(c)) return true;
@@ -1174,7 +1184,7 @@ bool Sema::sectionEnds(const std::vector<Stmt*>& body) {
     if (body.empty()) return false;
     Stmt* last = body.back();
     switch (last->kind) {
-        case SK::Break: case SK::Continue: case SK::Return: return true;
+        case SK::Break: case SK::Continue: case SK::Return: case SK::Throw: return true;
         case SK::Block: return sectionEnds(static_cast<BlockStmt*>(last)->stmts) || alwaysReturns(last);
         default: return alwaysReturns(last);
     }
@@ -1208,6 +1218,7 @@ bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr() || to->isDelegate();
     if (to->isVoidPointer() && from->isPointer()) return true;
     if (from->isNumeric() && to->isNumeric() && implicitNumeric(from, to)) return true;
+    if (from->isClass() && to->isClass() && excIsSubclass(from->decl, to->decl)) return true;  // excepción -> su base
     int64_t v;
     if (e && from->is(TK::Int) && to->isIntegral() && !to->is(TK::Char) && constEval(e, v) && fits(v, to)) return true;
     if (e && to->isEnum() && e->kind == EK::IntLit && static_cast<IntLitExpr*>(e)->value == 0) return true;
@@ -1301,6 +1312,7 @@ bool Sema::isConstTarget(Expr* e) {
 }
 
 bool Sema::isLValue(Expr* e) {
+    excNoteWrite(e);  // se va a modificar (o a enlazar por referencia): ¿debe ser 'volatile'?
     switch (e->kind) {
         case EK::Name: {
             auto r = static_cast<NameExpr*>(e)->ref;
@@ -1918,6 +1930,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 return tc_.get(TK::Void);
             }
         }
+        if (Type* r = primitiveStaticMember(e, T)) return r;  // int.Parse, char.IsDigit... (Exceptions.cpp)
         diag.error(e->loc, "'" + T->str() + "' no contiene una definición para '" + e->name + "'");
         return tc_.error();
     }

@@ -1,0 +1,311 @@
+export const metadata = {
+  title: "Errores y excepciones",
+  description: "try, catch, when, finally y throw; las excepciones de std, las propias, los errores del runtime y su coste.",
+};
+
+# Errores y excepciones
+
+<p className="lead">
+  Faset tiene excepciones al estilo de C#: <code>try</code>, <code>catch</code> (con filtros
+  <code>when</code>), <code>finally</code> y <code>throw</code>. Los métodos <code>Try...</code> que
+  devuelven <code>bool</code> siguen siendo la forma más barata de tratar errores esperados; las
+  excepciones son para los casos excepcionales.
+</p>
+
+## `try`, `catch` y `finally`
+
+```faset
+int Dividir(int a, int b)
+{
+    if (b == 0) throw new ArgumentException("el divisor no puede ser cero", "b");
+    return a / b;
+}
+
+int main()
+{
+    try
+    {
+        println(Dividir(10, 2));   // 5
+        println(Dividir(1, 0));    // lanza: el resto del bloque no se ejecuta
+    }
+    catch (ArgumentException e)
+    {
+        println(e.Message);        // el divisor no puede ser cero (Parámetro 'b')
+    }
+    finally
+    {
+        println("siempre");        // se ejecuta haya o no excepción
+    }
+    return 0;
+}
+```
+
+- Las cláusulas `catch` se prueban **en orden**; la primera cuyo tipo coincide (el mismo tipo o una
+  clase derivada) se ejecuta. Poner una cláusula que nunca se puede ejecutar (por ejemplo
+  `catch (FormatException)` después de `catch (Exception)`) es un error de compilación.
+- `catch (Exception e)` y `catch { }` atrapan cualquier excepción; `catch (FormatException)` sin
+  nombre de variable también vale.
+- `finally` se ejecuta siempre: al terminar el bloque, cuando sale una excepción (atrapada o no) y
+  cuando se sale del `try` con `return`, `break` o `continue`. No se puede salir de un `finally` con
+  `return`, `break` o `continue`.
+
+```faset
+int Leer(int n)
+{
+    try
+    {
+        if (n < 0) return -1;            // el finally se ejecuta antes de volver
+        return n * 2;
+    }
+    finally
+    {
+        println("finally de Leer(" + n + ")");
+    }
+}
+
+int main()
+{
+    println(Leer(4));                    // finally de Leer(4) y luego 8
+    for (int i = 0; i < 5; i++)
+    {
+        try
+        {
+            if (i == 1) continue;        // pasa por el finally
+            if (i == 3) break;           // también
+            println("vuelta " + i);
+        }
+        finally { println("fin de la vuelta " + i); }
+    }
+    return 0;
+}
+```
+
+## `throw`, `throw;` y filtros `when`
+
+`throw expresión;` lanza un objeto de excepción. Dentro de un `catch`, `throw;` relanza **la misma**
+excepción (conserva su tipo y su `StackTrace`, al que añade la línea del relanzamiento). Un filtro
+`when (condición)` decide si la cláusula atrapa la excepción; si es falso, se prueba la siguiente.
+
+```faset
+void Abrir(string ruta)
+{
+    throw new FileNotFoundException("no existe " + ruta, ruta);
+}
+
+void Cargar(string ruta)
+{
+    try { Abrir(ruta); }
+    catch (Exception e)
+    {
+        println("registro: " + e.TypeName);
+        throw;                                   // la deja seguir hacia arriba
+    }
+}
+
+int main()
+{
+    try { Cargar("datos.txt"); }
+    catch (IOException e) when (e.Message.Length > 100) { println("mensaje largo"); }
+    catch (FileNotFoundException e) { println("falta " + e.FileName); }
+    return 0;
+}
+```
+
+`InnerException` encadena la causa: `throw new InvalidOperationException("no se pudo cargar", e);`.
+`ToString()` devuelve el tipo, el mensaje, las excepciones internas y dónde se lanzó.
+
+## Excepciones de la biblioteca estándar
+
+Todas están en `std` (disponible sin `using`). `Exception` es la raíz y tiene `Message`,
+`InnerException`, `StackTrace`, `TypeName` (el nombre de la clase real) y `ToString()`.
+
+| Clase | Base | Uso |
+|---|---|---|
+| `Exception` | — | Raíz: `catch (Exception e)` atrapa todas |
+| `ArgumentException` | `Exception` | Argumento no válido; tiene `ParamName` |
+| `ArgumentNullException` | `ArgumentException` | Argumento nulo o vacío: `new ArgumentNullException("nombre")` |
+| `ArgumentOutOfRangeException` | `ArgumentException` | Índices de `List`, `Substring`, fechas fuera de rango |
+| `InvalidOperationException` | `Exception` | Estado no válido: `List.First()` o `Queue.Dequeue()` vacíos |
+| `FormatException` | `Exception` | `int.Parse`, `Convert.ToInt32`, `DateTime.ParseIso`, `IPAddress.Parse` |
+| `KeyNotFoundException` | `Exception` | `Dictionary.Get` con una clave que no existe |
+| `IOException` | `Exception` | Errores de E/S: `File.ReadAllText` |
+| `FileNotFoundException` | `IOException` | Archivo que no existe; tiene `FileName` |
+| `DirectoryNotFoundException` | `IOException` | Carpeta que no existe |
+| `NullReferenceException` | `Exception` | Acceso a través de `null` (error del runtime) |
+| `IndexOutOfRangeException` | `Exception` | `s[i]` fuera de la cadena, índice de `Span` |
+| `ArithmeticException` | `Exception` | Base de las dos siguientes |
+| `DivideByZeroException` | `ArithmeticException` | División entera por cero |
+| `OverflowException` | `ArithmeticException` | `int.MinValue / -1`, `int.Parse` de un número que no cabe |
+| `NotImplementedException`, `NotSupportedException`, `TimeoutException`, `OperationCanceledException`, `InvalidCastException` | `Exception` | Para tu código |
+
+Los métodos que pueden fallar tienen las dos versiones: `int.Parse(s)` lanza `FormatException`;
+`int.TryParse(s, out n)` devuelve `false` y no lanza nada (igual `long`, `double` y `bool`).
+
+```faset
+int main()
+{
+    int n = 0;
+    if (!int.TryParse("12a", out n)) println("no es un número");   // sin excepción
+    try
+    {
+        println(int.Parse("42") + 1);                               // 43
+        println(int.Parse("12a"));
+    }
+    catch (FormatException e) { println(e.Message); }
+    return 0;
+}
+```
+
+<Callout type="nota">
+El indexador de `Dictionary` conserva la semántica de C++: `dic[clave]` crea la entrada si no existe
+(así funciona `dic[clave] = valor`). Para leer una clave que debe existir usa `dic.Get(clave)`, que
+lanza `KeyNotFoundException`, o `TryGetValue`.
+</Callout>
+
+## Excepciones propias
+
+Mientras Faset no tenga herencia, una clase es una excepción si lleva el atributo
+`[ExceptionBase("Base")]`. Recibe los campos de la base (`Message`, `InnerException`, `ParamName`…),
+se puede usar donde se espera la base y la atrapan los `catch` de la base:
+
+```faset
+[ExceptionBase("Exception")]
+class SaldoInsuficienteException
+{
+    public double Falta;
+
+    public SaldoInsuficienteException(double falta)
+    {
+        Message = "saldo insuficiente";
+        Falta = falta;
+    }
+
+    public string ToString() => Exception.Describe(this);
+}
+
+void Retirar(double saldo, double cantidad)
+{
+    if (cantidad > saldo) throw new SaldoInsuficienteException(cantidad - saldo);
+}
+
+int main()
+{
+    try { Retirar(100, 130); }
+    catch (SaldoInsuficienteException e) { println(e.Message + ": faltan " + e.Falta); }
+
+    try { Retirar(10, 20); }
+    catch (Exception e) { println("genérica: " + e.TypeName); }   // SaldoInsuficienteException
+    return 0;
+}
+```
+
+- Solo se pueden lanzar excepciones: `throw` con otro tipo es un error de compilación.
+- La base puede ser cualquier excepción: `[ExceptionBase("ArgumentException")]` hereda también
+  `ParamName` y la atrapa `catch (ArgumentException)`.
+- Se heredan los **campos**, no los métodos: si quieres `ToString()` en tu clase, decláralo con
+  `Exception.Describe(this)` como en el ejemplo.
+
+<Callout type="nota">
+`[ExceptionBase]` es provisional: cuando llegue la herencia se escribirá
+`class SaldoInsuficienteException : Exception` y el atributo seguirá aceptándose como sinónimo.
+</Callout>
+
+## Errores del runtime
+
+Las comprobaciones del runtime (consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecución))
+se lanzan como excepciones **cuando hay un `try` activo en el hilo**; si no lo hay, siguen siendo el
+`Faset panic` de siempre, sin ningún coste añadido:
+
+| Error | Excepción |
+|---|---|
+| Acceso a través de una referencia `null`, llamada a un `delegate*` nulo | `NullReferenceException` |
+| `s[i]` fuera de la cadena | `IndexOutOfRangeException` |
+| División entera (`/`, `%`, `/=`, `%=`) por cero | `DivideByZeroException` |
+| `int.MinValue / -1` | `OverflowException` |
+
+```faset
+class Nodo { public int Valor; }
+
+int main()
+{
+    Nodo n = null;
+    try { println(n.Valor); }
+    catch (NullReferenceException e) { println("atrapada: " + e.Message); }
+    int cero = 0;
+    try { println(10 / cero); }
+    catch (ArithmeticException e) { println(e.TypeName); }       // DivideByZeroException
+    return 0;
+}
+```
+
+`panic(mensaje)`, `assert` y los diagnósticos de `delete` (uso después de `delete`, `delete` doble)
+**no** son excepciones: terminan el programa siempre.
+
+## Excepciones no controladas
+
+Una excepción que ningún `catch` atrapa termina el programa como un panic, con **código 101**: primero
+se ejecutan los `finally` pendientes y después se escribe en la salida de error el mensaje, el tipo,
+las excepciones internas y dónde se lanzó.
+
+```faset
+void Cargar(string ruta)
+{
+    throw new InvalidOperationException("no se pudo cargar " + ruta);
+}
+
+int main()
+{
+    Cargar("config.txt");                 // termina aquí con código 101
+    return 0;
+}
+```
+
+```text
+Faset panic: no se pudo cargar config.txt at programa.fst:3
+Excepción no controlada: InvalidOperationException: no se pudo cargar config.txt
+   en Cargar (programa.fst:3)
+```
+
+La primera línea tiene el mismo formato que cualquier panic. Con `FASET_PANIC_ABORT=1` llama a
+`abort()` para depurar.
+
+## Hilos
+
+Cada hilo tiene su propia pila de `try`: una excepción nunca salta a un `try` de otro hilo. Si una
+excepción no se atrapa en un hilo secundario, el programa entero termina (como en .NET) con
+`Excepción no controlada en un hilo secundario: ...`. Atrapa las excepciones dentro de la función
+del hilo si quieres que siga.
+
+## Cómo funcionan y cuánto cuestan
+
+Las excepciones se implementan con `setjmp`/`longjmp` (portable a Linux, Windows y Android): cada
+`try` guarda su marco en la pila del hilo y `throw` salta al marco más cercano. Un método **sin
+`try` no paga nada**: ni código extra ni tablas. Medido con `examples/benchmark_excepciones.fst`
+(Release, x86-64 Linux):
+
+| Operación | Coste |
+|---|---|
+| Llamada sin `try` | 0,4 ns |
+| Entrar y salir de un `try` (sin lanzar) | +3,3 ns |
+| `throw` + `catch` (con el objeto y su `StackTrace`) | ~110 ns |
+| Error del runtime atrapado (división por cero) | ~145 ns |
+
+Entrar en un `try` es barato, pero no gratis: en un bucle muy caliente, pon el `try` fuera del bucle.
+Las variables locales que se modifican dentro de un `try` y se leen después se guardan en memoria
+(`volatile` en el C generado) para que conserven su valor tras el salto; en el resto del método no
+cambia nada.
+
+## Diferencias con C#
+
+- Los filtros `when` se evalúan después de salir de los métodos internos (sus `finally` ya se
+  ejecutaron); si el filtro lanza una excepción, esta sustituye a la original.
+- `StackTrace` contiene la línea del `throw` y la de cada `throw;`, no la pila de llamadas completa.
+- `throw` es una instrucción: no hay expresiones `throw` (`x ?? throw ...`).
+- Hasta que llegue la herencia, las excepciones heredan solo campos (`[ExceptionBase]`) y no se puede
+  convertir una `Exception` a una clase derivada: usa `catch (Derivada e)` o `e.TypeName`.
+- Un destructor que ejecuta el recolector no puede lanzar una excepción al código que estaba
+  reservando memoria: si lanza, el programa termina (como un finalizador en .NET). Con `delete` el
+  destructor es código normal y sus excepciones se pueden atrapar.
+- Las excepciones no atraviesan código C: no las dejes salir de una función que llama una biblioteca
+  nativa (por ejemplo, un `delegate*` que se pasa a `qsort`) ni de una biblioteca compartida de Faset
+  (`.so`/`.dll`) a otra.

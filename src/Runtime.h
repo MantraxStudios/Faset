@@ -11,3 +11,6 @@ extern const char* const kRuntimeOsSource;
 extern const char* const kRuntimeGcSource;
 // Reproducción de vídeo de std.ui (VideoPlayer): se añade al runtime cuando se usa std.video.
 extern const char* const kRuntimeVideoSource;
+// Excepciones: cabecera (se añade a faset_rt.h) y runtime (al final de faset_rt.c); ver RuntimeExc.cpp.
+extern const char* const kRuntimeExcHeader;
+extern const char* const kRuntimeExcSource;

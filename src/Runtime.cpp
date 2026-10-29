@@ -67,6 +67,8 @@ typedef struct faset_obj_hdr { uint64_t magic; void (*dtor)(void*); } faset_obj_
 #define FASET_OBJ_DEAD 0xDEADDEADFA5E7DEDULL
 FASET_NORETURN void faset_panic_obj(void* p, const char* file, int32_t line);
 FASET_NORETURN void faset_panic_index(int64_t i, int64_t len, const char* file, int32_t line);
+/* Error del runtime: si hay un 'try' activo en el hilo se lanza como excepción (ver faset_exc_*). */
+FASET_NORETURN void faset_panic_rt(int32_t kind, const char* msg, const char* file, int32_t line);
 
 /* Referencia a objeto: no nula (siempre) y, en Debug, no usada después de 'delete'. */
 FASET_CHECK_FN void* faset_chk_obj(void* p, const char* f, int32_t l) {
@@ -78,7 +80,7 @@ FASET_CHECK_FN void* faset_chk_obj(void* p, const char* f, int32_t l) {
     return p;
 }
 FASET_CHECK_FN void* faset_chk_fn(void* p, const char* f, int32_t l) {
-    if (FASET_UNLIKELY(!p)) faset_panic_msg("llamada a través de un puntero a función nulo", f, l);
+    if (FASET_UNLIKELY(!p)) faset_panic_rt(1, "llamada a través de un puntero a función nulo", f, l);
     return p;
 }
 FASET_CHECK_FN uint8_t faset_str_at(faset_string s, int64_t i, const char* f, int32_t l) {
@@ -87,12 +89,12 @@ FASET_CHECK_FN uint8_t faset_str_at(faset_string s, int64_t i, const char* f, in
 }
 #define FASET_DIV_FN(T, N, MIN)                                                                       \
     FASET_CHECK_FN T faset_div_##N(T a, T b, const char* f, int32_t l) {                                \
-        if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);                  \
-        if (MIN && FASET_UNLIKELY(b == (T)-1 && a == (T)MIN)) faset_panic_msg("desbordamiento en la división entera", f, l); \
+        if (FASET_UNLIKELY(b == 0)) faset_panic_rt(3, "división entera por cero", f, l);                  \
+        if (MIN && FASET_UNLIKELY(b == (T)-1 && a == (T)MIN)) faset_panic_rt(4, "desbordamiento en la división entera", f, l); \
         return a / b;                                                                                 \
     }                                                                                                 \
     FASET_CHECK_FN T faset_mod_##N(T a, T b, const char* f, int32_t l) {                                \
-        if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero (operador %)", f, l);     \
+        if (FASET_UNLIKELY(b == 0)) faset_panic_rt(3, "división entera por cero (operador %)", f, l);     \
         if (MIN && FASET_UNLIKELY(b == (T)-1)) return 0;                                              \
         return a % b;                                                                                 \
     }
@@ -102,11 +104,11 @@ FASET_DIV_FN(uint32_t, u32, 0)
 FASET_DIV_FN(uint64_t, u64, 0)
 /* Divisor de '/=' y '%=': solo se comprueba el cero. */
 FASET_CHECK_FN int64_t faset_divisor_i64(int64_t b, const char* f, int32_t l) {
-    if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);
+    if (FASET_UNLIKELY(b == 0)) faset_panic_rt(3, "división entera por cero", f, l);
     return b;
 }
 FASET_CHECK_FN uint64_t faset_divisor_u64(uint64_t b, const char* f, int32_t l) {
-    if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);
+    if (FASET_UNLIKELY(b == 0)) faset_panic_rt(3, "división entera por cero", f, l);
     return b;
 }
 /* Conversión de real a entero sin comportamiento indefinido: NaN da 0 y se satura. */
@@ -417,7 +419,7 @@ void faset_panic_msg(const char* msg, const char* file, int32_t line) {
 }
 
 void faset_panic_obj(void* p, const char* file, int32_t line) {
-    if (!p) faset_panic_msg("referencia nula (null): el objeto no existe", file, line);
+    if (!p) faset_panic_rt(1, "referencia nula (null): el objeto no existe", file, line);
     if (FASET_CHECKS && ((faset_obj_hdr*)p)[-1].magic == FASET_OBJ_DEAD)
         faset_panic_msg("uso de un objeto después de 'delete'", file, line);
     faset_panic_msg("referencia no válida: no apunta a un objeto creado con 'new'", file, line);
@@ -426,7 +428,7 @@ void faset_panic_obj(void* p, const char* file, int32_t line) {
 void faset_panic_index(int64_t i, int64_t len, const char* file, int32_t line) {
     char buf[96];
     snprintf(buf, sizeof buf, "índice fuera de rango: %lld (longitud %lld)", (long long)i, (long long)len);
-    faset_panic_msg(buf, file, line);
+    faset_panic_rt(2, buf, file, line);
 }
 
 void faset_write_err_str(faset_string s) { if (s.len) fwrite(s.ptr, 1, (size_t)s.len, stderr); }

@@ -22,13 +22,13 @@ namespace std.mem
 
         [TrackCaller] public T& operator[](int index)
         {
-            if (index < 0 || index >= Length) panic("Span: índice fuera de rango");
+            if (index < 0 || index >= Length) throw new IndexOutOfRangeException("Span: índice fuera de rango");
             return Data[index];
         }
 
         [TrackCaller] public Span<T> Slice(int start, int length)
         {
-            if (start < 0 || length < 0 || start + length > Length) panic("Span.Slice: rango fuera de la vista");
+            if (start < 0 || length < 0 || start + length > Length) throw new ArgumentOutOfRangeException("Span.Slice: rango fuera de la vista", null);
             return new Span<T>(Data + start, length);
         }
 
@@ -41,7 +41,7 @@ namespace std.mem
 
         [TrackCaller] public void CopyTo(Span<T> destination)
         {
-            if (destination.Length < Length) panic("Span.CopyTo: destino demasiado pequeño");
+            if (destination.Length < Length) throw new ArgumentException("Span.CopyTo: destino demasiado pequeño");
             Memory.CopyItems<T>(destination.Data, Data, Length);
         }
     }

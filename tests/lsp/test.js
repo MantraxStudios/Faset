@@ -62,6 +62,20 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const symbols = await request('textDocument/documentSymbol', { textDocument: { uri } });
     assert.deepStrictEqual(symbols.map((s) => s.name), ['Punto', 'Doble', 'main'], 'esquema');
 
+    // ---- excepciones: hover de la variable de un catch y miembros de la excepción
+    lines[0] = 'using std::collections;';
+    const exc = ['void Probar()', '{', '    try { Doble(1); }', '    catch (FormatException error) when (error.Message.Length > 0)',
+                 '    {', '        error.', '    }', '    finally { }', '}'];
+    const b = lines.length;
+    change(lines.concat(exc).join('\n'));
+    const eh = await request('textDocument/hover', at(b + 3, exc[3].indexOf('error') + 2));
+    assert.match(eh.contents.value, /variable local\) FormatException error/, 'hover de la variable del catch');
+    const et = await request('textDocument/hover', at(b + 3, exc[3].indexOf('FormatException') + 2));
+    assert.match(et.contents.value, /FormatException/, 'hover del tipo del catch');
+    items = await request('textDocument/completion', { ...at(b + 5, 14), context: { triggerKind: 2, triggerCharacter: '.' } });
+    assert.ok(['Message', 'InnerException', 'StackTrace', 'TypeName', 'ToString'].every((m) => items.some((i) => i.label === m)),
+              'miembros de una excepción');
+
     // ---- .fstui (clase partial generada) y .fstproj
     const dir = path.join(__dirname, 'ui');
     const open = (name, languageId) => {

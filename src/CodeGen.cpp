@@ -108,7 +108,8 @@ std::string CodeGen::signature(MethodDecl* m) {
     std::string s = (hasExportAttr(m) ? "FASET_EXPORT " : "") + ret + " " + m->cname + "(";
     std::vector<std::string> ps;
     if (!m->isStatic()) ps.push_back(m->owner->cname + "* self");
-    for (Param& p : m->params) ps.push_back(ctype(p.type) + (p.isRef() ? "*" : "") + " p_" + p.name);
+    for (Param& p : m->params)
+        ps.push_back(ctype(p.type) + (p.isRef() ? "*" : "") + (p.var && p.var->isVolatile ? " volatile" : "") + " p_" + p.name);
     // [TrackCaller]: parámetros ocultos con la ubicación de la llamada.
     if (m->trackCaller) {
         ps.push_back("const char* fs_file");
@@ -154,7 +155,7 @@ std::string CodeGen::chkObj(Expr* obj, const std::string& code) {
 std::string CodeGen::generate(bool shared) {
     out_ << "/* Generado por fasetc. No editar a mano. */\n";
     if (checks) out_ << "#ifndef FASET_CHECKS\n#define FASET_CHECKS 1\n#endif\n";
-    out_ << kRuntimeHeader << "\n";
+    out_ << kRuntimeHeader << kRuntimeExcHeader << "\n";
     out_ << kDelegateRuntime << "\n";
     // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
     for (size_t i = 0; i < diag.files.size(); i++)
@@ -183,6 +184,7 @@ std::string CodeGen::generate(bool shared) {
         out_ << "};\n\n";
     }
     emitDelegateSupport();
+    emitExcDecls();  // descriptores de las clases de excepción (Exceptions.cpp)
 
     std::vector<MethodDecl*> allMethods;
     for (ClassDecl* c : prog_.types) {
@@ -239,9 +241,12 @@ std::string CodeGen::generate(bool shared) {
         }
     emitLambdaBodies();
 
+    emitExcHelpers();
+
     // Inicialización estática, en orden.
     out_ << "static void fs__static_init(void) {\n";
     indent_ = 1;
+    if (sema_.exceptionClass) line("fs__exc_setup();");
     for (FieldDecl* f : sema_.staticInits) {
         curClass_ = f->owner;
         line(f->cname + " = " + expr(f->init) + ";");
@@ -273,6 +278,7 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
     out_ << "static void " << c->cname << "__init(" << c->cname << "* self) {\n";
     indent_ = 1;
     line("(void)self;");
+    emitExcInit(c);  // excepciones: tipo dinámico y nombre del tipo
     for (FieldDecl* f : c->fields)
         if (!f->isStatic() && f->init) line("self->" + f->cname + " = " + expr(f->init) + ";");
     indent_ = 0;
@@ -348,9 +354,10 @@ void CodeGen::emitStmt(Stmt* s) {
             auto* d = static_cast<VarDeclStmt*>(s);
             for (auto& dc : d->decls) {
                 Type* t = dc.var->type;
-                if (dc.var->captured) declareLocalVar(dc.var, dc.init ? expr(dc.init) : "");
+                std::string vq = dc.var->isVolatile ? " volatile " : " ";  // modificada dentro de un 'try'
+                if (dc.var->captured) declareLocalVar(dc.var, dc.init ? expr(dc.init) : "");  // caja compartida con lambdas
                 else if (dc.var->isRef) line(ctype(t) + "* " + dc.var->cname + " = &" + expr(dc.init) + ";");
-                else line(ctype(t) + " " + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
+                else line(ctype(t) + vq + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
             }
             break;
         }
@@ -392,10 +399,11 @@ void CodeGen::emitStmt(Stmt* s) {
             line("}");
             break;
         }
-        case SK::Break: line("break;"); break;
-        case SK::Continue: line("continue;"); break;
+        case SK::Break: if (!emitExcJump(s)) line("break;"); break;
+        case SK::Continue: if (!emitExcJump(s)) line("continue;"); break;
         case SK::Return: {
             auto* rs = static_cast<ReturnStmt*>(s);
+            if (emitExcJump(s)) break;  // sale de un 'try': pasa por los 'finally' (Exceptions.cpp)
             if (!rs->value) line("return;");
             else if (curMethod_ && curMethod_->retIsRef()) line("return &" + expr(rs->value) + ";");
             else line("return " + expr(rs->value) + ";");
@@ -440,6 +448,8 @@ void CodeGen::emitStmt(Stmt* s) {
             }
             break;
         }
+        case SK::Try: emitTry(static_cast<TryStmt*>(s)); break;
+        case SK::Throw: emitThrow(static_cast<ThrowStmt*>(s)); break;
     }
 }
 

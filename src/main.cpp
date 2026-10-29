@@ -560,7 +560,9 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     fs::path gcC = tmp / "faset_gc.c";
     std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource;
     if (o.video) runtime += kRuntimeVideoSource;
-    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, runtime) ||
+    runtime += kRuntimeExcSource;
+    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", std::string(kRuntimeHeader) + kRuntimeExcHeader) ||
+        !writeFile(rtC, runtime) ||
         !writeFile(gcC, kRuntimeGcSource)) {
         diag.fatal("no se pudo escribir en " + tmp.string());
         return 1;

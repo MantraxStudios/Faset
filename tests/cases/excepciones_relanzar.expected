@@ -1,0 +1,21 @@
+  intermedio vio FileNotFoundException, relanza
+  registro 1: FileNotFoundException
+E/S: no encontrado
+  intermedio vio InvalidOperationException, relanza
+  registro 2: InvalidOperationException
+genérica: error del servidor
+  intermedio vio ArgumentException, relanza
+  registro 3: ArgumentException
+argumento: código 7 (Parámetro 'codigo')
+InvalidOperationException
+   en Lanzar (tests/cases/excepciones_relanzar.fst:7)
+   en main (tests/cases/excepciones_relanzar.fst:48)
+tipo real conservado: x.txt
+misma excepción: True
+menor: valor 0 (Parámetro 'i')
+menor: valor 1 (Parámetro 'i')
+resto: ArgumentOutOfRangeException
+resto: ArgumentOutOfRangeException
+fuera: lento
+catch sin tipo
+relanzada: pendiente

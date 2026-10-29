@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, foreach, interpolación de cadenas, excepciones…",
+  description: "Qué no admite todavía Faset: herencia, interfaces, foreach, interpolación de cadenas…",
 };
 
 # Limitaciones actuales
@@ -15,7 +15,7 @@ export const metadata = {
 | Herencia, `interface`, `virtual`/`override` | Composición y [delegados](/lenguaje/delegados/). Están en la hoja de ruta. |
 | `foreach` | `for (int i = 0; i < lista.Count; i++)` |
 | Interpolación `$"..."` | Concatenación con `+` (`"x = " + x`) o `StringBuilder` |
-| Excepciones (`try`, `catch`, `throw`) | Devolver `bool`/códigos de error y `out` (no se añadirán) |
+| Expresiones `throw` (`x ?? throw ...`) | Una instrucción `throw` (las [excepciones](/lenguaje/excepciones/) sí existen) |
 | `is` / `as` | Un campo `Kind` (enum) en tus tipos |
 | Operador `??` | `x != null ? x : y` |
 | Parámetros con valor por defecto, `params` | Sobrecargas |

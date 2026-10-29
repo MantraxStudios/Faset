@@ -293,6 +293,14 @@ el objeto ya se había liberado`.
 Con `FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb o
 generar un volcado de memoria.
 
+<Callout type="nota">
+Dentro de un `try`, estos errores se lanzan como excepciones que puedes atrapar
+(`NullReferenceException`, `IndexOutOfRangeException`, `DivideByZeroException`, `OverflowException`;
+los límites de `List`, `Dictionary.Get`, `Substring`… lanzan `ArgumentOutOfRangeException`,
+`KeyNotFoundException`, etc.). Consulta [Errores y excepciones](/lenguaje/excepciones/#errores-del-runtime).
+Los diagnósticos de `delete` y `panic` siempre terminan el programa.
+</Callout>
+
 ### `[TrackCaller]`: la línea de tu código
 
 La línea que se informa es la de **tu** código, no la de la biblioteca. Los métodos con

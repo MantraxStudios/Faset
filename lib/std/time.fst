@@ -182,14 +182,14 @@ namespace std.time
 
         void Init(long t, DateTimeKind k)
         {
-            if (t < MinTicks || t > MaxTicks) panic("DateTime: fuera del intervalo 0001-9999");
+            if (t < MinTicks || t > MaxTicks) throw new ArgumentOutOfRangeException("DateTime: fuera del intervalo 0001-9999", null);
             ticks = t;
             kind = k;
         }
 
         void InitDate(int year, int month, int day, int hour, int minute, int second, int ms, DateTimeKind k)
         {
-            if (!IsValid(year, month, day, hour, minute, second, ms)) panic("DateTime: fecha u hora no válida");
+            if (!IsValid(year, month, day, hour, minute, second, ms)) throw new ArgumentOutOfRangeException("DateTime: fecha u hora no válida", null);
             Init(DateTicks(year, month, day) + hour * TimeSpan.TicksPerHour + minute * TimeSpan.TicksPerMinute +
                      second * TimeSpan.TicksPerSecond + ms * TimeSpan.TicksPerMillisecond, k);
         }
@@ -386,7 +386,7 @@ namespace std.time
             int d = 0;
             Civil(out y, out m, out d);
             long total = (long)y * 12 + (m - 1) + months;
-            if (total < 12 || total >= 120000) panic("DateTime.AddMonths: fuera del intervalo 0001-9999");
+            if (total < 12 || total >= 120000) throw new ArgumentOutOfRangeException("DateTime.AddMonths: fuera del intervalo 0001-9999", null);
             int ny = (int)(total / 12);
             int nm = (int)(total % 12) + 1;
             int dim = DaysInMonth(ny, nm);
@@ -441,7 +441,7 @@ namespace std.time
         public static DateTime ParseIso(string s)
         {
             DateTime d = new DateTime(0);
-            if (!TryParseIso(s, out d)) panic("DateTime.ParseIso: formato no válido");
+            if (!TryParseIso(s, out d)) throw new FormatException("DateTime.ParseIso: formato no válido");
             return d;
         }
 
