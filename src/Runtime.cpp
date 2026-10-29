@@ -684,4 +684,105 @@ int32_t faset_platform(void) {
     return 4;
 #endif
 }
+/* ---- atómicos (std.thread) y reloj de alta resolución / zona horaria (std.time) */
+
+int32_t faset_atomic_add_i32(int32_t* p, int32_t v) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_add_i64(int64_t* p, int64_t v) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+int32_t faset_atomic_load_i32(int32_t* p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_load_i64(int64_t* p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+void* faset_atomic_load_ptr(void** p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_i32(int32_t* p, int32_t v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_i64(int64_t* p, int64_t v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_ptr(void** p, void* v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+int32_t faset_atomic_xchg_i32(int32_t* p, int32_t v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_xchg_i64(int64_t* p, int64_t v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+void* faset_atomic_xchg_ptr(void** p, void* v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+/* Devuelven el valor anterior (como Interlocked.CompareExchange). */
+int32_t faset_atomic_cas_i32(int32_t* p, int32_t desired, int32_t expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+int64_t faset_atomic_cas_i64(int64_t* p, int64_t desired, int64_t expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+void* faset_atomic_cas_ptr(void** p, void* desired, void* expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+void faset_atomic_fence(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
+
+/* Escribe en 'out' (struct timespec del sistema) el instante CLOCK_REALTIME + ms. */
+void faset_timespec_after_ms(void* out, int64_t ms) {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    if (ms < 0) ms = 0;
+    int64_t ns = (int64_t)ts.tv_nsec + (ms % 1000) * 1000000;
+    ts.tv_sec += (time_t)(ms / 1000 + ns / 1000000000);
+    ts.tv_nsec = (long)(ns % 1000000000);
+    memcpy(out, &ts, sizeof ts);
+}
+
+int32_t faset_cpu_count(void) {
+#if defined(_WIN32)
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int32_t)si.dwNumberOfProcessors;
+#else
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int32_t)n : 1;
+#endif
+}
+
+/* Nanosegundos de un reloj monótono de alta resolución. */
+int64_t faset_ticks_ns(void) {
+#if defined(_WIN32)
+    static LARGE_INTEGER freq;
+    LARGE_INTEGER now;
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq); /* idempotente: carrera benigna */
+    QueryPerformanceCounter(&now);
+    return (int64_t)(now.QuadPart / freq.QuadPart) * 1000000000 +
+           (int64_t)(now.QuadPart % freq.QuadPart) * 1000000000 / freq.QuadPart;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
+}
+
+int64_t faset_time_unix_ns(void) {
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+static int64_t faset_days_from_tm(const struct tm* t) {
+    int64_t y = (int64_t)t->tm_year + 1900, m = t->tm_mon + 1, d = t->tm_mday;
+    y -= m <= 2;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int64_t yoe = y - era * 400;
+    int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+/* Desfase (segundos) de la hora local respecto a UTC en el instante 'unix_sec'. */
+int32_t faset_tz_offset_sec(int64_t unix_sec) {
+    time_t t = (time_t)unix_sec;
+    struct tm lt, gt;
+#if defined(_WIN32)
+    /* En el CRT de Windows localtime/gmtime usan almacenamiento por hilo. */
+    struct tm* p = localtime(&t);
+    if (!p) return 0;
+    lt = *p;
+    p = gmtime(&t);
+    if (!p) return 0;
+    gt = *p;
+#else
+    if (!localtime_r(&t, &lt) || !gmtime_r(&t, &gt)) return 0;
+#endif
+    int64_t a = faset_days_from_tm(&lt) * 86400 + lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec;
+    int64_t b = faset_days_from_tm(&gt) * 86400 + gt.tm_hour * 3600 + gt.tm_min * 60 + gt.tm_sec;
+    return (int32_t)(a - b);
+}
 )FASET";

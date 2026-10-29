@@ -264,7 +264,8 @@ LibC.printf("%d\n".Ptr, 42);
 | `std.collections` | `List<T>` (`Add`, `Insert`, `Remove`, `Sort`, `Where`, `Select`, `Any`, `Sum`, `Min`, `Max`…), `Stack<T>`, `Queue<T>`, `Dictionary<K,V>` (con `dict[k]` al estilo de C++), `HashSet<T>`, `Algorithms` (`Sort`, `BinarySearch`, `Swap`, `Reverse`, `Fill`) |
 | `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight` |
 | `std.io`          | `File` (`ReadAllText`, `WriteAllText`, `AppendAllText`, `Exists`, `Delete`), `Directory` (`GetEntries`…), `Path` (`GetFullPath`, `Combine`…) |
-| `std.time`        | `Time` (`TickMs`, `NowUnixMs`, `Sleep`), `Stopwatch` |
+| `std.time`        | `Time` (`TickMs`, `TickNs`, `NowUnixMs`, `Sleep`), `DateTime`, `TimeSpan`, `TimeZone`, `Stopwatch` (alta resolución) |
+| `std.thread`      | `Thread`, `Mutex`, `RecursiveMutex`, `ConditionVariable`, `Semaphore`, `Atomic`, `AtomicInt`/`AtomicLong`, `ThreadPool`, `Parallel.For`, `Channel<T>` |
 | `std.random`      | `Random` (xorshift64*: `Next`, `NextDouble`, `Shuffle<T>`) |
 | `std.math`        | `Vec2`, `Vec3`, `Rect` con operadores; `Interp` (`Lerp`, `Remap`, `SmoothStep`) |
 | `std.mem`         | `Span<T>` con comprobación de límites, `Arena`, `Box<T>` |
@@ -280,6 +281,89 @@ Para añadir tu propio módulo, crea `lib/<raiz>/<modulo>.fst`; `using raiz.modu
 liberar con `String.Free` o `delete`. Las vistas (`Substring`, `Trim`, `Split`) no reservan
 memoria.
 
+### Hilos (`std.thread`)
+
+Hilos del sistema (pthreads en Linux/Android, Win32 en Windows). En Linux, `faset` enlaza
+`-lpthread` automáticamente cuando el programa usa `std.thread`. La función de un hilo es un
+`delegate*<void*, void>` que recibe el puntero que le pases:
+
+```csharp
+using std.thread;
+
+class Datos { public Mutex M = new Mutex(); public long Suma; public int Hits; }
+
+static void Trabajo(void* p)
+{
+    Datos d = (Datos)p;
+    for (int i = 1; i <= 1000; i++)
+    {
+        d.M.Lock(); d.Suma += i; d.M.Unlock();
+        Atomic.Increment(&d.Hits);                    // atómico, sin mutex
+    }
+}
+
+int main()
+{
+    Datos d = new Datos();
+    Thread* hilos = new Thread[4];
+    for (int i = 0; i < 4; i++) hilos[i] = Thread.Run(&Trabajo, (void*)d);
+    for (int i = 0; i < 4; i++) { hilos[i].Join(); delete hilos[i]; }
+    delete[] hilos;
+    println(d.Suma);                                  // 2002000
+    return 0;
+}
+```
+
+| Tipo | Contenido |
+|------|-----------|
+| `Thread` | `new Thread(fn, arg)` + `Start()`, o `Thread.Run(fn, arg)`; `Join`, `Detach` (borrar un `Thread` sin `Join` lo desacopla), `IsStarted`; estáticos `Sleep`, `Yield`, `CurrentId`, `HardwareConcurrency` |
+| `Mutex`, `RecursiveMutex` | `Lock`, `TryLock`, `Unlock` (SRWLOCK / CRITICAL_SECTION en Windows) |
+| `ConditionVariable` | `Wait(m)`, `Wait(m, ms)` (false si vence el plazo), `NotifyOne`, `NotifyAll`; comprueba la condición en un bucle |
+| `Semaphore` | `new Semaphore(n)`, `Wait`, `Wait(ms)`, `TryWait`, `Release`, `Release(n)`, `Count` |
+| `Atomic` | `Increment`, `Decrement`, `Add`, `Load`, `Store`, `Exchange`, `CompareExchange(p, valor, comparando)` (devuelve el anterior), `Fence`; para `int*`, `long*` y `void**` (los punteros a `void*` solo en `Load`/`Store`/`Exchange`/`CompareExchange`) |
+| `AtomicInt`, `AtomicLong` | contador atómico: `Value`, `Set`, `Increment`, `Add`, `Exchange`, `CompareExchange` |
+| `ThreadPool` | `new ThreadPool(n)` (o uno por procesador), `Submit(fn, arg)`, `WaitIdle`, `Pending`, `Shutdown`; `delete` termina lo pendiente y une los hilos |
+| `Parallel` | `Parallel.For(desde, hasta, &Cuerpo, arg)` con `static void Cuerpo(int i, void* arg)` |
+| `Channel<T>` | cola productor/consumidor: `new Channel<T>(capacidad)` (0 = sin límite), `Send`, `TrySend`, `Receive(out v)`, `Receive(out v, ms)`, `TryReceive`, `Close`, `Count` |
+
+Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el puntero
+`arg` debe seguir vivo mientras el hilo lo use.
+
+### Fechas y horas (`std.time`)
+
+```csharp
+using std.time;
+
+DateTime d = new DateTime(2024, 2, 29, 13, 45, 30);   // sin zona (Unspecified)
+DateTime ahora = DateTime.Now;                          // local; DateTime.UtcNow en UTC
+TimeSpan dif = d.AddMonths(1) - d;                      // 29.00:00:00
+println(dif.TotalHours);                                // 696
+println((int)d.DayOfWeek);                              // 4 (jueves)
+string s = d.ToString("dddd dd/MM/yyyy HH:mm");         // "Thursday 29/02/2024 13:45"
+string iso = DateTime.UtcNow.ToIsoString();             // "2026-10-29T14:57:00.3807657Z"
+DateTime p;
+if (DateTime.TryParseIso("2024-02-29T15:45:30+02:00", out p)) println(p.Hour);   // 13 (UTC)
+DateTime.TryParseExact("29/02/2024 13:45", "dd/MM/yyyy HH:mm", out p);
+long unix = d.ToUnixSeconds();                          // y DateTime.FromUnixSeconds / FromUnixMs
+TimeSpan zona = TimeZone.LocalOffset;                   // p. ej. 01:00:00 para UTC+1
+Stopwatch sw = Stopwatch.StartNew();                    // reloj monótono en ns
+println(sw.ElapsedMs);                                  // también ElapsedNs, Elapsed (TimeSpan)
+```
+
+- `DateTime` guarda ticks de 100 ns desde 0001-01-01 (como C#) y un `Kind` (`Utc`, `Local`,
+  `Unspecified`). Componentes: `Year`, `Month`, `Day`, `Hour`, `Minute`, `Second`,
+  `Millisecond`, `DayOfWeek`, `DayOfYear`, `Date`, `TimeOfDay`. Aritmética: `Add*`
+  (`AddDays`, `AddMonths` recorta al último día del mes…), `+`/`-` con `TimeSpan`, `a - b`.
+  Comparaciones `== < >…` por ticks, sin convertir zonas. `ToUniversalTime`/`ToLocalTime`
+  usan la zona del sistema (con horario de verano).
+- Formatos propios: `yyyy yy MMMM MMM MM M dddd ddd dd d HH H hh h mm m ss s f…fffffff tt zzz K`,
+  `'literal'` y `\x`. Los nombres de meses y días están en inglés (invariante).
+- ISO-8601: `ToIsoString` escribe `Z` (UTC), `±hh:mm` (local) o nada (sin zona); `TryParseIso`
+  acepta fecha, fecha y hora con `T` o espacio, fracción y `Z`/`±hh:mm`/`±hhmm` (con zona el
+  resultado se convierte a UTC).
+- `TimeSpan`: `FromDays/Hours/Minutes/Seconds/Milliseconds`, `Days`…`Milliseconds`,
+  `TotalDays`…`TotalMilliseconds`, operadores y `ToString()` (`[-][d.]hh:mm:ss[.fffffff]`).
+
 ## Limitaciones actuales
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
@@ -287,6 +371,8 @@ memoria.
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los APK de Android y los bindings de Win32 y Android aún no vienen incluidos: se usan con `extern`.
+- `std.thread` en Windows supone x86-64/ARM64 (los `extern` no declaran `__stdcall`, como en `std.ui`).
+  Varios hilos que escriben con `println` a la vez pueden intercalar líneas: protégelo con un `Mutex`.
 
 ## Estructura
 
