@@ -1,0 +1,148 @@
+export const metadata = {
+  title: "Depurador",
+  description: "Puntos de interrupción, paso a paso, variables, pila de llamadas, inspección y parada en los panic, con gdb y las líneas de tus archivos .fst.",
+};
+
+# Depurador
+
+<p className="lead">
+  FasetStudio depura tus programas línea a línea sobre el código Faset: puntos de interrupción,
+  paso a paso, variables, pila de llamadas, expresiones de inspección y parada en los
+  <code>panic</code> y en los fallos de memoria. Por debajo usa <strong>gdb</strong>.
+</p>
+
+<Screenshot src="/screenshots/studio-depurador.png" width={1440} height={880} alt="FasetStudio detenido en un punto de interrupción: flecha amarilla en la línea 23, panel Variables con this expandido (Nombre, Vida, Estado.Herido y la lista Golpes), el valor de Vida al pasar el ratón y la pila de llamadas con Jugador.Recibir y Program.Main" caption="Detenido en Jugador.Recibir: variables con el objeto expandido (el enum se muestra por nombre y lo que cambió desde la última parada, en rojo), valor al pasar el ratón y pila de llamadas." />
+
+## Empezar
+
+1. Pon un **punto de interrupción**: haz clic en el margen izquierdo del editor (junto a los números
+   de línea) o pulsa <Kbd>F9</Kbd> en la línea. Aparece un punto rojo.
+2. Pulsa <Kbd>F5</Kbd> (o el botón **Depurar**). FasetStudio compila con información de depuración,
+   arranca el programa bajo gdb y se detiene en el punto: la línea queda marcada con una flecha
+   amarilla y se abren los paneles *Variables* y *Pila de llamadas*.
+3. Avanza con <Kbd>F10</Kbd> / <Kbd>F11</Kbd> / <Kbd>Shift+F11</Kbd> o sigue con <Kbd>F5</Kbd>.
+
+<Kbd>Ctrl+F5</Kbd> sigue ejecutando el programa sin depurar, como antes.
+
+| Atajo | Acción |
+|---|---|
+| <Kbd>F5</Kbd> | Iniciar la depuración / continuar hasta el siguiente punto |
+| <Kbd>Shift+F5</Kbd> | Detener la depuración (termina el programa) |
+| <Kbd>F9</Kbd> | Poner o quitar un punto de interrupción en la línea del cursor |
+| <Kbd>F10</Kbd> | Paso a paso por procedimientos: ejecuta la línea sin entrar en las llamadas |
+| <Kbd>F11</Kbd> | Paso a paso por instrucciones: entra en el método que se llama (también en los constructores) |
+| <Kbd>Shift+F11</Kbd> | Salir: termina el método actual y vuelve al que lo llamó |
+
+Mientras depuras, el buscador de la barra superior se convierte en la **barra de depuración**:
+continuar, pausar, detener, reiniciar y los tres pasos, con el estado (*Detenido*, *En ejecución…*) a
+la derecha. Las mismas órdenes están en el menú **Compilar**.
+
+## Puntos de interrupción
+
+- **Clic en el margen** o <Kbd>F9</Kbd>: poner o quitar.
+- **Botón derecho en el margen**: *Condición…* para que solo se detenga cuando se cumpla una
+  expresión de Faset, por ejemplo `i == 3` o `jugador.Vida < 10`. Los puntos con condición llevan
+  una raya blanca.
+- Si la línea no tiene código (una línea en blanco, una llave), gdb lo mueve a la siguiente línea
+  ejecutable y el punto se mueve con él.
+- Se guardan **por proyecto** (en `~/.config/fasetstudio/settings.ini`) y siguen a su línea cuando
+  insertas o borras líneas por encima.
+- *Compilar → Eliminar todos los puntos de interrupción* los quita de una vez.
+
+## Variables, pila e inspección
+
+Son [paneles acoplables](/studio/paneles/) como *Salida* y *Problemas*: se pueden mover a otro lado,
+y **Ver → Variables / Pila de llamadas / Inspección** los muestra u oculta.
+
+- **Variables**: los parámetros y variables locales del marco seleccionado (y `this` en los
+  métodos). Las que todavía no se han declarado en esa línea no aparecen.
+  - Los objetos se expanden con <Kbd>▸</Kbd> para ver sus campos; también los `struct`.
+  - `string` se muestra como texto (`"Ana"`), `List<T>` como `Count = 3` y, al expandirla, sus
+    elementos `[0]`, `[1]`…
+  - Los `enum` se muestran por nombre (`Estado.Herido`) y `null` como `null`.
+  - Lo que cambió desde la última parada aparece en rojo. Lo expandido se conserva al avanzar.
+- **Pila de llamadas**: los métodos activos con su archivo y línea (`Juego.Jugador.Recibir`,
+  `Juego.Program.Main`). Un clic en un marco lo selecciona: el editor muestra esa línea con una flecha
+  verde y *Variables* pasa a sus variables.
+- **Inspección**: expresiones que se recalculan en cada parada. Añádelas con *+ Agregar expresión de
+  inspección*, con *Agregar inspección* en el menú contextual del editor (usa la selección o la
+  palabra bajo el cursor) o escribiéndolas: `heroe.Vida * 2`, `ataques[i]`, `nombre.Length`. La
+  <Kbd>×</Kbd> de cada una la quita.
+- **Al pasar el ratón** sobre una variable o un miembro (`heroe.Nombre`) mientras el programa está
+  detenido se muestra su valor; si es un objeto, también sus primeros campos.
+
+La salida del programa (`Console.WriteLine`) aparece en el panel **Salida**, y al terminar se
+indica el código de salida.
+
+## Panics y fallos
+
+No hace falta poner nada: si el programa produce un `panic` (una referencia nula, un índice fuera
+de rango, una división entera por cero, un `panic("...")` propio) o recibe una señal como `SIGSEGV`
+(por ejemplo, al escribir en un puntero nulo dentro de `memory_unsafe`), el depurador se detiene en
+**la línea de Faset que lo provocó**. La línea se marca en rojo, el mensaje aparece arriba del panel
+*Variables* y en *Salida*, y puedes revisar las variables y la pila en ese momento.
+
+```faset
+class Jugador
+{
+    public string Nombre = "Ana";
+}
+
+static class Program
+{
+    static void Main()
+    {
+        Jugador j = null;
+        Console.WriteLine(j.Nombre);   // el depurador se detiene aquí; sin él, el programa termina aquí
+                                       // con: Faset panic: referencia nula (null): el objeto no existe
+    }
+}
+```
+
+## Solo mi código
+
+Con *Compilar → Solo mi código* (activado por defecto), <Kbd>F11</Kbd> no entra en la biblioteca
+estándar (`Console.WriteLine`, `List<T>.Add`…): pasa por encima y entra en tu siguiente método.
+Desactívalo para seguir también el código de `lib/std`. El cambio se aplica en la siguiente sesión.
+
+## Proyectos, soluciones y configuraciones
+
+- En una **solución** (`.fstp`) se compila toda la solución y se depura el **proyecto de inicio**;
+  puedes poner puntos de interrupción en cualquier proyecto (por ejemplo, en una biblioteca
+  referenciada) y entrar en él con <Kbd>F11</Kbd>.
+- El ejecutable de depuración se guarda en `obj/debug/` de la carpeta abierta; el programa se ejecuta
+  en la carpeta de su proyecto.
+- Se depura la configuración elegida. En `Debug` (sin optimizar) el paso a paso sigue exactamente
+  tus líneas; en `Release` funciona, pero el optimizador puede saltarse líneas o eliminar variables.
+
+## Cómo funciona
+
+En `Debug` el compilador escribe en el C intermedio una directiva `#line N "archivo.fst"` delante de
+cada sentencia, así que la información de depuración (DWARF) apunta a tus `.fst`, no al C generado.
+Con `faset build -g` se añade también en `Release` (ver la [línea de órdenes](/cli/#faset-build)).
+Cualquier depurador de C sirve:
+
+```bash
+faset build -o juego
+gdb ./juego
+(gdb) break Program.fst:23
+(gdb) run
+(gdb) info locals          # l_total = 42 (las locales llevan el prefijo l_, los parámetros p_)
+(gdb) print self->f_Vida   # this = self, los campos llevan el prefijo f_
+```
+
+FasetStudio lanza `gdb --interpreter=mi3` y traduce de vuelta los nombres del C: `l_x` / `p_x` → `x`,
+`self` → `this`, `f_Campo` → `Campo`, `Ns_Clase__m_Metodo` → `Ns.Clase.Metodo`, `faset_string` → texto.
+
+## Requisitos y limitaciones
+
+- **Linux** con **gdb** 9 o posterior (`sudo apt install gdb`). Si no está instalado, FasetStudio lo
+  indica en la barra de estado y en *Salida*; <Kbd>Ctrl+F5</Kbd> sigue funcionando.
+- **Android y la depuración remota no están soportados**: con un dispositivo Android como destino,
+  <Kbd>F5</Kbd> lo avisa. Windows tampoco por ahora.
+- El programa depurado no recibe entrada por teclado (su entrada estándar es `/dev/null`).
+- Las expresiones de inspección se traducen a C de forma sencilla: variables, miembros (`a.b.c`),
+  índices de `List<T>` y de `string`, `Count`, `Length` y operadores aritméticos y de comparación.
+  No se pueden llamar métodos ni propiedades calculadas.
+- Los cambios en los puntos de interrupción mientras el programa se ejecuta se aplican al momento,
+  pero editar el código durante la depuración no recompila: vuelve a empezar con *Reiniciar*.

@@ -70,6 +70,7 @@ struct Options {
     int androidApi = 0;
     int shared = -1, debug = -1, gui = -1, staticLink = -1;  // -1 = no indicado
     int checks = -1;          // comprobaciones en ejecución; -1 = según la configuración
+    int debugInfo = -1;       // -g: '#line' de Faset y DWARF (1); 2 = implícito en Debug; -1 = sin decidir
     bool allowUnsafe = false;  // --allow-unsafe: todos los archivos son memory_unsafe
     std::set<std::string> unsafeFiles;  // archivos de proyectos con <AllowUnsafe>
     bool keepC = false, verbose = false, sanitize = false;
@@ -141,6 +142,8 @@ static void usage() {
         "  --gui                Windows: aplicación de ventana (sin consola)\n"
         "  --static             Enlazado estático\n"
         "  --debug / --release  Atajos de -c Debug / -c Release\n"
+        "  -g, --debug-info     Información de depuración con las líneas de Faset (por defecto en Debug;\n"
+        "                       --no-debug-info la quita)\n"
         "  --cc <compilador>    Compilador de C (también: variable FASET_CC)\n"
         "  -l <lib>  -L <dir>   Bibliotecas nativas\n"
         "  --checks/--no-checks Diagnósticos extra: uso tras delete y delete doble (por defecto\n"
@@ -451,6 +454,8 @@ static bool frontEnd(Options& o, std::string* csrc) {
     if (csrc) {
         CodeGen cg(*r.prog, *r.sema, *r.tc);
         cg.checks = o.checks == 1;
+        // 'emit-c' solo lleva las directivas si se piden con -g (el C se lee mejor sin ellas).
+        cg.lineDirectives = o.debugInfo == 1 || (o.debugInfo == 2 && o.command != "emit-c");
         *csrc = cg.generate(o.shared == 1);
     }
     return true;
@@ -587,6 +592,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
         cmd.push_back("-fno-omit-frame-pointer");
         if (o.debug != 1) cmd.push_back("-g");
     }
+    if (o.debugInfo >= 1 && o.debug != 1 && !o.sanitize) cmd.push_back("-g");
     cmd.push_back(mainC.string());
     cmd.push_back(rtC.string());
     cmd.push_back(gcC.string());
@@ -1098,6 +1104,8 @@ int main(int argc, char** argv) {
         else if (a == "--static") o.staticLink = 1;
         else if (a == "--debug") o.configuration = "Debug";
         else if (a == "--release") o.configuration = "Release";
+        else if (a == "-g" || a == "--debug-info") o.debugInfo = 1;
+        else if (a == "--no-debug-info") o.debugInfo = 0;
         else if (a == "--keep-c") o.keepC = true;
         else if (a == "--sanitize") o.sanitize = true;
         else if (a == "--checks" || a == "--runtime-checks") o.checks = 1;
@@ -1154,6 +1162,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (o.debug < 0) o.debug = o.configuration == "Debug";
+    if (o.debugInfo < 0) o.debugInfo = o.debug == 1 ? 2 : 0;
     if (o.checks < 0) o.checks = o.configuration == "Debug";
     for (auto& [lib, platform] : o.platformLibs)
         if (platform == o.target) o.libs.push_back(lib);

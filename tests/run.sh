@@ -6,6 +6,8 @@
 #   tests/errors/*.fst     deben producir errores de compilación; si hay un .expected, cada
 #                          línea 'N|regex' debe aparecer como error en la línea N
 #   tests/projects/*/      compila el proyecto indicado en 'main' y compara con 'expected'
+#   tests/debug/           información de depuración: '#line' en el C de Debug y gdb (si está) para
+#                          en una línea de Faset, muestra sus variables y avanza paso a paso
 #   tests/lsp/test.js      servidor de lenguaje (si hay Node)
 set -u
 cd "$(dirname "$0")/.."
@@ -68,6 +70,30 @@ for dir in tests/projects/*/; do
         echo "FALLO  projects/$name (salida distinta)"; cat "$TMP/proj_$name.diff"; fail=$((fail+1))
     fi
 done
+
+# Depurador: el C de Debug (o con -g) lleva '#line N "archivo.fst"', el de Release no, y gdb
+# pone un punto de interrupción en una línea de Faset, lee las variables y entra en una llamada.
+debug_check() {
+    local src=tests/debug/depurar.fst
+    $FASET emit-c -g "$src" -o "$TMP/dbg.c" 2> /dev/null || { echo "emit-c -g"; return 1; }
+    grep -qE '^#line 12 ".*/tests/debug/depurar\.fst"$' "$TMP/dbg.c" || { echo "falta '#line 12' en el C con -g"; return 1; }
+    $FASET emit-c --release "$src" -o "$TMP/rel.c" 2> /dev/null || { echo "emit-c --release"; return 1; }
+    grep -q '^#line' "$TMP/rel.c" && { echo "Release no debe llevar '#line'"; return 1; }
+    $FASET build "$src" -o "$TMP/depurar" > /dev/null 2>&1 || { echo "build Debug"; return 1; }
+    [ "$("$TMP/depurar")" = "total 22" ] || { echo "salida del programa"; return 1; }
+    command -v gdb > /dev/null || return 0
+    local out
+    out=$(LC_ALL=C timeout 60 gdb -q -nx -batch -ex "set debuginfod enabled off" -ex "skip -rfu ^faset_" \
+          -ex "break depurar.fst:13" -ex "run > /dev/null" -ex "info locals" -ex "step" -ex "info args" \
+          -ex "finish" -ex "next" -ex "info locals" "$TMP/depurar" 2>&1)
+    echo "$out" | grep -qE "Breakpoint 1, .* at .*depurar\.fst:13" || { echo "gdb no paró en depurar.fst:13"; echo "$out"; return 1; }
+    echo "$out" | grep -q "^l_total = 20" || { echo "gdb no ve 'total' (l_total = 20)"; echo "$out"; return 1; }
+    echo "$out" | grep -qE "Doble .* at .*depurar\.fst:6" || { echo "'step' no entró en Doble (depurar.fst:6)"; echo "$out"; return 1; }
+    echo "$out" | grep -q "^p_n = 1" || { echo "gdb no ve el parámetro n (p_n = 1)"; echo "$out"; return 1; }
+    echo "$out" | grep -q "^l_total = 22" || { echo "'next' no completó la línea 13 (l_total = 22)"; echo "$out"; return 1; }
+    return 0
+}
+if why=$(debug_check); then echo "ok     depurador"; pass=$((pass+1)); else echo "FALLO  depurador ($why)"; fail=$((fail+1)); fi
 
 # Soluciones (.fstp): 'faset new sln', 'faset sln add/remove/ref/startup/list' y 'faset run' de la solución.
 sln_check() {

@@ -69,6 +69,7 @@ faset build -c Release --checks   # Release con los diagnósticos de 'delete' de
 faset build --allow-unsafe     # todo el proyecto como memory_unsafe
 faset build --target android   # APK firmado en bin/<Config>/android/
 faset build -v                 # muestra la orden del compilador de C
+faset build -c Release -g      # Release con información de depuración (líneas de Faset)
 ```
 
 `Debug` compila el C con `-O0 -g` y `Release` con `-O2`. Las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion)
@@ -76,6 +77,11 @@ faset build -v                 # muestra la orden del compilador de C
 [diagnósticos](/lenguaje/seguridad-de-memoria/#diagnosticos-de-debug) de uso después de `delete` y
 `delete` doble (`--checks` / `--no-checks` lo cambian). Siempre se usa
 `-std=c11 -fwrapv -fno-strict-aliasing`.
+
+En `Debug` el C lleva además directivas `#line N "archivo.fst"`, así que gdb y lldb trabajan con las
+líneas de tus `.fst` (puntos de interrupción, paso a paso, pila). `-g` / `--debug-info` las añade
+también en `Release` y `--no-debug-info` las quita. Es lo que usa el
+[depurador de FasetStudio](/studio/depurador/).
 
 ## faset run
 
@@ -102,6 +108,7 @@ Escribe el C11 intermedio en la salida estándar o en un archivo:
 
 ```bash
 faset emit-c hola.fst -o hola.c
+faset emit-c -g hola.fst -o hola.c   # con las directivas #line de depuración
 ```
 
 `faset build --keep-c` conserva el C junto al ejecutable.

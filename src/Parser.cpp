@@ -887,6 +887,7 @@ BlockStmt* Parser::parseBlock() {
             skipTo(";");
         }
     }
+    b->endLoc = cur().loc;
     expectP("}");
     return b;
 }

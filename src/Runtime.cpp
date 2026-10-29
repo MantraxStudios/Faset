@@ -34,7 +34,13 @@ int32_t faset_str_cmp(faset_string a, faset_string b);
 #if defined(__GNUC__) || defined(__clang__)
 #  define FASET_UNLIKELY(x) __builtin_expect(!!(x), 0)
 #  define FASET_NORETURN __attribute__((noreturn))
-#  define FASET_CHECK_FN static inline __attribute__((always_inline))
+#  if defined(FASET_DEBUG_INFO)
+/* Con información de depuración no se fuerza la expansión en línea: gdb salta estas
+   funciones al avanzar paso a paso (skip faset_*) y la pila no muestra marcos en línea. */
+#    define FASET_CHECK_FN static inline
+#  else
+#    define FASET_CHECK_FN static inline __attribute__((always_inline))
+#  endif
 #else
 #  define FASET_UNLIKELY(x) (x)
 #  define FASET_NORETURN

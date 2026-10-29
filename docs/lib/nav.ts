@@ -91,6 +91,7 @@ export const nav: NavSection[] = [
       { title: "Diseñador visual", href: "/studio/disenador/" },
       { title: "Paneles acoplables", href: "/studio/paneles/" },
       { title: "IntelliSense", href: "/studio/intellisense/" },
+      { title: "Depurador", href: "/studio/depurador/" },
       { title: "Atajos de teclado", href: "/studio/atajos/" },
     ],
   },
