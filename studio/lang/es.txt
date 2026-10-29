@@ -1,0 +1,183 @@
+# Traducción de FasetStudio al español.
+# Formato: Texto en inglés = Traducción. Para añadir un idioma, crea otro archivo
+# lang/<código>.txt (por ejemplo fr.txt) con las mismas claves.
+@name = Español
+
+Ready = Listo
+EXPLORER = EXPLORADOR
+Search files = Buscar archivos
+Build = Compilar
+Run = Ejecutar
+Stop = Detener
+Output = Salida
+Problems = Problemas
+Clear = Limpiar
+Split view = Dividir vista
+Open file = Abrir archivo
+New file = Nuevo archivo
+Build project = Compilar proyecto
+Go to definition = Ir a la definición
+Go to line = Ir a la línea
+Native code with the elegance of C# and the power of C++ = Código nativo con la elegancia de C# y la potencia de C++
+Build or run the project to see its output here. = Compila o ejecuta el proyecto para ver aquí su salida.
+No problems have been detected in the workspace. = No se han detectado problemas en el proyecto.
+Ln {0}, Col {1} = Lín {0}, Col {1}
+Spaces: 4 = Espacios: 4
+{0} error = {0} error
+{0} errors = {0} errores
+Language changed = Idioma cambiado
+
+Saved = Guardado
+All files saved = Todos los archivos guardados
+Could not save the file = No se pudo guardar el archivo
+Could not open the file = No se pudo abrir el archivo
+Analysis failed = El análisis falló
+No definition found under the cursor = No hay ninguna definición bajo el cursor
+This symbol has no source definition = Este símbolo no tiene una definición en código fuente
+A build is already running = Ya hay una compilación en marcha
+Compiler 'faset' not found = No se encontró el compilador 'faset'
+Compiler 'faset' not found: IntelliSense and builds are disabled = No se encontró el compilador 'faset': IntelliSense y compilación desactivados
+Could not start the compiler. = No se pudo iniciar el compilador.
+Building… = Compilando…
+Building and running… = Compilando y ejecutando…
+Build succeeded = Compilación correcta
+Build failed = La compilación falló
+Program finished successfully = El programa terminó correctamente
+Program exited with errors = El programa terminó con errores
+process stopped = proceso detenido
+[program exited with code {0} in {1} ms] = [el programa terminó con código {0} en {1} ms]
+[build finished with code {0} in {1} ms] = [compilación terminada con código {0} en {1} ms]
+File created = Archivo creado
+That file already exists = Ese archivo ya existe
+Text not found = No se encontró el texto
+
+Open a project file = Abrir un archivo del proyecto
+Find in file  (Enter: next · F3: repeat) = Buscar en el archivo  (Enter: siguiente · F3: repetir)
+New file (path relative to the project folder) = Nuevo archivo (ruta relativa a la carpeta del proyecto)
+Unsaved changes = Cambios sin guardar
+Do you want to save your changes before quitting? = ¿Quieres guardar los cambios antes de salir?
+Do you want to save this file before closing it? = ¿Quieres guardar este archivo antes de cerrarlo?
+Save all and quit = Guardar todo y salir
+Save = Guardar
+Don't save = No guardar
+Cancel = Cancelar
+FasetStudio: could not open the window (is an X server or XWayland running?) = FasetStudio: no se pudo abrir la ventana (¿hay un servidor X o XWayland?)
+
+# Menús
+File = Archivo
+Edit = Editar
+View = Ver
+Project = Proyecto
+Help = Ayuda
+New project… = Nuevo proyecto…
+Open project or folder… = Abrir proyecto o carpeta…
+Save all = Guardar todo
+Close project = Cerrar proyecto
+Start window = Ventana de inicio
+Exit = Salir
+Undo = Deshacer
+Redo = Rehacer
+Cut = Cortar
+Copy = Copiar
+Paste = Pegar
+Select all = Seleccionar todo
+Find = Buscar
+Toggle comment = Comentar / descomentar
+Duplicate line = Duplicar línea
+Quick open = Abrir rápido
+Join views = Unir vistas
+Change language = Cambiar idioma
+Clean = Limpiar
+Cleaning… = Limpiando…
+Properties… = Propiedades…
+Add new file… = Agregar archivo nuevo…
+Add new folder… = Agregar carpeta nueva…
+Reload project = Recargar proyecto
+Keyboard shortcuts = Atajos de teclado
+About FasetStudio = Acerca de FasetStudio
+Ctrl+P open · Ctrl+B build · F5 run · F12 definition · Ctrl+\ split = Ctrl+P abrir · Ctrl+B compilar · F5 ejecutar · F12 definición · Ctrl+\ dividir
+
+# Menú contextual y archivos
+Open = Abrir
+New file… = Nuevo archivo…
+New folder… = Nueva carpeta…
+Rename… = Renombrar…
+Duplicate = Duplicar
+Copy path = Copiar ruta
+Delete = Eliminar
+Path copied = Ruta copiada
+Renamed = Renombrado
+Moved = Movido
+Deleted = Eliminado
+File duplicated = Archivo duplicado
+Folder created = Carpeta creada
+Could not rename = No se pudo renombrar
+Could not move = No se pudo mover
+Could not delete = No se pudo eliminar
+Cannot move it there = No se puede mover ahí
+That name is already in use = Ese nombre ya está en uso
+That folder already exists = Esa carpeta ya existe
+The name cannot contain '/' = El nombre no puede contener '/'
+New file name (e.g. Player.fst or Models/Player.fst) = Nombre del archivo nuevo (p. ej. Jugador.fst o Modelos/Jugador.fst)
+New folder name = Nombre de la carpeta nueva
+New name = Nombre nuevo
+Delete '{0}'? = ¿Eliminar «{0}»?
+The file will be deleted from disk. This cannot be undone. = El archivo se borrará del disco. No se puede deshacer.
+The folder and all of its contents will be deleted from disk. = La carpeta y todo su contenido se borrarán del disco.
+The project folder and all of its files will be deleted from disk. = La carpeta del proyecto y todos sus archivos se borrarán del disco.
+
+# Ventana de inicio
+Open recent = Abrir recientes
+Get started = Comenzar
+No recent projects yet. = Todavía no hay proyectos recientes.
+Create a new project or open an existing folder to get started. = Crea un proyecto nuevo o abre una carpeta existente para empezar.
+Remove from list = Quitar de la lista
+Create a new project = Crear un proyecto nuevo
+Console app, class library or window app = Aplicación de consola, biblioteca o aplicación de ventana
+Open a project or folder = Abrir un proyecto o carpeta
+Browse your folders for a .fstproj project = Busca en tus carpetas un proyecto .fstproj
+Tip: right-click files in the explorer to rename, move or delete them. = Consejo: haz clic derecho en el explorador para renombrar, mover o eliminar archivos.
+Project deleted = Proyecto eliminado
+Could not delete the project = No se pudo eliminar el proyecto
+Do you want to save your changes before closing the project? = ¿Quieres guardar los cambios antes de cerrar el proyecto?
+Save all and close = Guardar todo y cerrar
+
+# Nuevo proyecto / abrir carpeta
+Console app = Aplicación de consola
+Class library = Biblioteca de clases
+Window app = Aplicación de ventana
+A program that runs in the terminal = Un programa que se ejecuta en la terminal
+Reusable code for other projects = Código reutilizable para otros proyectos
+A Windows app without a console = Una aplicación de Windows sin consola
+PROJECT NAME = NOMBRE DEL PROYECTO
+LOCATION = UBICACIÓN
+Create = Crear
+Project created = Proyecto creado
+Could not create the project = No se pudo crear el proyecto
+A folder with that name already exists = Ya existe una carpeta con ese nombre
+Use only letters, digits, '-', '_' or '.' in the project name = Usa solo letras, dígitos, '-', '_' o '.' en el nombre del proyecto
+Up = Subir
+Open this folder = Abrir esta carpeta
+This folder is empty. = Esta carpeta está vacía.
+project = proyecto
+
+# Propiedades del proyecto
+Project properties = Propiedades del proyecto
+Assembly name = Nombre del ensamblado
+Output type = Tipo de salida
+Library = Biblioteca
+Target platform = Plataforma de destino
+Architecture = Arquitectura
+Configuration = Configuración
+Static linking = Enlazado estático
+Project references = Referencias de proyecto
+Native libraries = Bibliotecas nativas
+Add = Agregar
+Project properties saved = Propiedades del proyecto guardadas
+Could not save the project file = No se pudo guardar el archivo del proyecto
+Could not read the project file = No se pudo leer el archivo del proyecto
+This folder has no .fstproj project = Esta carpeta no tiene un proyecto .fstproj
+
+# Acerca de
+Close = Cerrar
+Version 0.3 — written in Faset, rendered with Vulkan = Versión 0.3 — escrito en Faset, dibujado con Vulkan

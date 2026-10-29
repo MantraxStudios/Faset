@@ -1,0 +1,5 @@
+{
+  "name": "Proyecto Faset",
+  "scopeName": "text.xml.fstproj",
+  "patterns": [{ "include": "text.xml" }]
+}

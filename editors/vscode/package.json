@@ -1,0 +1,152 @@
+{
+  "name": "faset",
+  "displayName": "Faset",
+  "description": "Soporte para el lenguaje Faset: resaltado, IntelliSense, errores en vivo, ir a la definición y proyectos .fstproj",
+  "version": "0.2.0",
+  "publisher": "faset",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "faset",
+    "fst",
+    "fstproj"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "workspaceContains:**/*.fstproj"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "faset",
+        "aliases": [
+          "Faset",
+          "faset"
+        ],
+        "extensions": [
+          ".fst"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "fstproj",
+        "aliases": [
+          "Proyecto Faset",
+          "fstproj"
+        ],
+        "extensions": [
+          ".fstproj"
+        ],
+        "configuration": "./fstproj-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "faset",
+        "scopeName": "source.faset",
+        "path": "./syntaxes/faset.tmLanguage.json"
+      },
+      {
+        "language": "fstproj",
+        "scopeName": "text.xml.fstproj",
+        "path": "./syntaxes/fstproj.tmLanguage.json",
+        "embeddedLanguages": {
+          "text.xml": "xml"
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "faset",
+        "path": "./snippets/faset.json"
+      },
+      {
+        "language": "fstproj",
+        "path": "./snippets/fstproj.json"
+      }
+    ],
+    "configuration": {
+      "title": "Faset",
+      "properties": {
+        "faset.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Ruta del ejecutable `faset`. Vacío = buscarlo en el `PATH`."
+        },
+        "faset.trace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Muestra los mensajes del servidor de lenguaje en el canal de salida 'Faset'."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "faset.build",
+        "title": "Compilar",
+        "category": "Faset"
+      },
+      {
+        "command": "faset.run",
+        "title": "Ejecutar",
+        "category": "Faset"
+      },
+      {
+        "command": "faset.buildRelease",
+        "title": "Compilar (Release)",
+        "category": "Faset"
+      },
+      {
+        "command": "faset.restartServer",
+        "title": "Reiniciar el servidor de lenguaje",
+        "category": "Faset"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "faset.run",
+          "when": "resourceLangId == faset",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "faset.run",
+        "key": "ctrl+f5",
+        "when": "editorLangId == faset"
+      },
+      {
+        "command": "faset.build",
+        "key": "ctrl+shift+b",
+        "when": "editorLangId == faset"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "faset",
+        "owner": "faset",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+?):(\\d+):(\\d+):\\s+(error|nota):\\s+(.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "severity": 4,
+          "message": 5
+        }
+      }
+    ]
+  },
+  "icon": "images/icon.png"
+}

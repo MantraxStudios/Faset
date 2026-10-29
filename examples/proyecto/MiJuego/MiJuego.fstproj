@@ -1,0 +1,14 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>MiJuego</AssemblyName>
+    <RootNamespace>MiJuego</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />
+    <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
+  </ItemGroup>
+</Project>

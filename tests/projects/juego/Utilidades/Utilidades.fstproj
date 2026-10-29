@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Utilidades</AssemblyName>
+    <RootNamespace>Utilidades</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+
+  <!-- Todos los .fst de esta carpeta se compilan automáticamente.
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />
+    <NativeLibrary Include="user32" />
+    <ProjectReference Include="../OtraBiblioteca/OtraBiblioteca.fstproj" />
+  </ItemGroup>
+  -->
+</Project>

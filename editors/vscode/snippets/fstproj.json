@@ -1,0 +1,71 @@
+{
+  "Proyecto Faset": {
+    "prefix": "fstproj",
+    "body": [
+      "<Project>",
+      "  <PropertyGroup>",
+      "    <OutputType>${1|Exe,WinExe,Library|}</OutputType>",
+      "    <AssemblyName>${2:${TM_FILENAME_BASE}}</AssemblyName>",
+      "    <TargetPlatform>${3|native,linux,windows,android|}</TargetPlatform>",
+      "    <Configuration>${4|Debug,Release|}</Configuration>",
+      "  </PropertyGroup>",
+      "  <ItemGroup>",
+      "    $0",
+      "  </ItemGroup>",
+      "</Project>"
+    ],
+    "description": "Proyecto .fstproj completo"
+  },
+  "PropertyGroup": {
+    "prefix": "PropertyGroup",
+    "body": ["<PropertyGroup>", "  $0", "</PropertyGroup>"]
+  },
+  "ItemGroup": {
+    "prefix": "ItemGroup",
+    "body": ["<ItemGroup>", "  $0", "</ItemGroup>"]
+  },
+  "OutputType": {
+    "prefix": "OutputType",
+    "body": ["<OutputType>${1|Exe,WinExe,Library|}</OutputType>"]
+  },
+  "TargetPlatform": {
+    "prefix": "TargetPlatform",
+    "body": ["<TargetPlatform>${1|native,linux,windows,android|}</TargetPlatform>"]
+  },
+  "TargetArch": {
+    "prefix": "TargetArch",
+    "body": ["<TargetArch>${1|x86_64,x86,arm64,armv7|}</TargetArch>"]
+  },
+  "Configuration": {
+    "prefix": "Configuration",
+    "body": ["<Configuration>${1|Debug,Release|}</Configuration>"]
+  },
+  "AndroidApi": {
+    "prefix": "AndroidApi",
+    "body": ["<AndroidApi>${1:24}</AndroidApi>"]
+  },
+  "StaticLink": {
+    "prefix": "StaticLink",
+    "body": ["<StaticLink>${1|true,false|}</StaticLink>"]
+  },
+  "ProjectReference": {
+    "prefix": "ProjectReference",
+    "body": ["<ProjectReference Include=\"${1:../Biblioteca/Biblioteca.fstproj}\" />"]
+  },
+  "NativeLibrary": {
+    "prefix": "NativeLibrary",
+    "body": ["<NativeLibrary Include=\"${1:user32}\" />"]
+  },
+  "LibraryPath": {
+    "prefix": "LibraryPath",
+    "body": ["<LibraryPath Include=\"${1:libs}\" />"]
+  },
+  "Compile Remove": {
+    "prefix": "CompileRemove",
+    "body": ["<Compile Remove=\"${1:carpeta/**}\" />"]
+  },
+  "Compile Include": {
+    "prefix": "CompileInclude",
+    "body": ["<Compile Include=\"${1:../compartido/*.fst}\" />"]
+  }
+}

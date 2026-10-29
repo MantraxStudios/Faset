@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>FasetStudio</AssemblyName>
+    <RootNamespace>FasetStudio</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Release</Configuration>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="pruebas/**" />
+    <NativeLibrary Include="X11" />
+    <NativeLibrary Include="freetype" />
+    <!-- Solo existe libvulkan.so.1 (sin el paquete de desarrollo): se enlaza por nombre exacto. -->
+    <NativeLibrary Include=":libvulkan.so.1" />
+  </ItemGroup>
+</Project>

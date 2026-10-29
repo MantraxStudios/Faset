@@ -1,0 +1,13 @@
+# Compilador
+/build/
+/faset
+/faset.exe
+*.o
+
+# Salidas de los proyectos Faset (como en .NET)
+bin/
+obj/
+
+# Herramientas
+node_modules/
+*.ppm

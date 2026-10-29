@@ -1,0 +1,139 @@
+{
+  "Programa (main)": {
+    "prefix": "main",
+    "body": ["int main()", "{", "\t$0", "\treturn 0;", "}"],
+    "description": "Punto de entrada al estilo C++"
+  },
+  "Programa (clase Program)": {
+    "prefix": "program",
+    "body": [
+      "namespace ${1:MiApp}",
+      "{",
+      "\tpublic static class Program",
+      "\t{",
+      "\t\tpublic static void Main()",
+      "\t\t{",
+      "\t\t\t$0",
+      "\t\t}",
+      "\t}",
+      "}"
+    ],
+    "description": "Punto de entrada al estilo C#"
+  },
+  "namespace": {
+    "prefix": "namespace",
+    "body": ["namespace ${1:Nombre}", "{", "\t$0", "}"]
+  },
+  "class": {
+    "prefix": "class",
+    "body": [
+      "public class ${1:Nombre}",
+      "{",
+      "public:",
+      "\t${1}()",
+      "\t{",
+      "\t\t$0",
+      "\t}",
+      "",
+      "\t~${1}()",
+      "\t{",
+      "\t}",
+      "",
+      "private:",
+      "}"
+    ],
+    "description": "Clase con constructor, destructor y secciones de acceso"
+  },
+  "struct": {
+    "prefix": "struct",
+    "body": ["public struct ${1:Nombre}", "{", "\t$0", "}"]
+  },
+  "enum": {
+    "prefix": "enum",
+    "body": ["public enum ${1:Nombre} { ${2:A}, ${3:B} }"]
+  },
+  "Clase genérica": {
+    "prefix": "classT",
+    "body": ["public class ${1:Nombre}<${2:T}>", "{", "\t${2} valor;", "\t$0", "}"]
+  },
+  "Método genérico": {
+    "prefix": "methodT",
+    "body": ["public static ${1:T} ${2:Nombre}<${1:T}>(${1:T} a)", "{", "\t$0", "}"]
+  },
+  "Constructor": {
+    "prefix": "ctor",
+    "body": ["public ${1:Clase}($2)", "{", "\t$0", "}"]
+  },
+  "Destructor": {
+    "prefix": "dtor",
+    "body": ["~${1:Clase}()", "{", "\t$0", "}"]
+  },
+  "Propiedad": {
+    "prefix": "prop",
+    "body": ["public ${1:int} ${2:Nombre} => ${3:campo};"]
+  },
+  "Operador": {
+    "prefix": "operator",
+    "body": ["public static ${1:Tipo} operator ${2:+}(${1} a, ${1} b) => $0;"]
+  },
+  "Indexador": {
+    "prefix": "indexer",
+    "body": ["public ${1:T}& operator[](int index)", "{", "\treturn ${2:datos}[index];", "}"]
+  },
+  "Método de extensión": {
+    "prefix": "ext",
+    "body": ["public static ${1:bool} ${2:Nombre}(this ${3:string} s)", "{", "\t$0", "}"]
+  },
+  "for": {
+    "prefix": "for",
+    "body": ["for (int ${1:i} = 0; ${1} < ${2:n}; ${1}++)", "{", "\t$0", "}"]
+  },
+  "for inverso": {
+    "prefix": "forr",
+    "body": ["for (int ${1:i} = ${2:n} - 1; ${1} >= 0; ${1}--)", "{", "\t$0", "}"]
+  },
+  "Recorrer lista": {
+    "prefix": "forlist",
+    "body": ["for (int ${1:i} = 0; ${1} < ${2:lista}.Count; ${1}++)", "{", "\tauto ${3:item} = ${2}[${1}];", "\t$0", "}"]
+  },
+  "while": {
+    "prefix": "while",
+    "body": ["while (${1:condicion})", "{", "\t$0", "}"]
+  },
+  "if": {
+    "prefix": "if",
+    "body": ["if (${1:condicion})", "{", "\t$0", "}"]
+  },
+  "if / else": {
+    "prefix": "ifelse",
+    "body": ["if (${1:condicion})", "{", "\t$2", "}", "else", "{", "\t$0", "}"]
+  },
+  "switch": {
+    "prefix": "switch",
+    "body": ["switch (${1:valor})", "{", "\tcase ${2:0}:", "\t\t$0", "\t\tbreak;", "\tdefault:", "\t\tbreak;", "}"]
+  },
+  "Nueva lista": {
+    "prefix": "list",
+    "body": ["auto ${1:lista} = new List<${2:int}>();", "$0", "delete ${1};"]
+  },
+  "Nuevo diccionario": {
+    "prefix": "dict",
+    "body": ["auto ${1:mapa} = new Dictionary<${2:string}, ${3:int}>();", "$0", "delete ${1};"]
+  },
+  "println": {
+    "prefix": "pl",
+    "body": ["println($0);"]
+  },
+  "Console.WriteLine": {
+    "prefix": "cw",
+    "body": ["Console::WriteLine($0);"]
+  },
+  "Función externa de C": {
+    "prefix": "extern",
+    "body": ["public static extern ${1:int} ${2:funcion}(${3});"]
+  },
+  "using": {
+    "prefix": "using",
+    "body": ["using std::${1|collections,text,io,time,random,math,mem,hash,os|};"]
+  }
+}
