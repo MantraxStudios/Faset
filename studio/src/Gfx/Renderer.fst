@@ -921,10 +921,19 @@ namespace FasetStudio.Gfx
                 i++;
                 return (char)b;
             }
-            int extra = b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : 1);
+            int extra = b >= 0xF8 ? 0 : (b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : (b >= 0xC2 ? 1 : 0)));
+            // Secuencia inválida (p. ej. un archivo en Latin-1): el byte vale por sí mismo.
+            bool valid = extra > 0 && i + extra < s.Length;
+            for (int k = 1; valid && k <= extra; k++)
+                if ((s[i + k] & 0xC0) != 0x80) valid = false;
+            if (!valid)
+            {
+                i++;
+                return (char)b;
+            }
             uint cp = (uint)(b & (0x3F >> extra));
             i++;
-            for (int k = 0; k < extra && i < s.Length; k++)
+            for (int k = 0; k < extra; k++)
             {
                 cp = (cp << 6) | (uint)(s[i] & 0x3F);
                 i++;

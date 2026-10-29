@@ -352,6 +352,9 @@ namespace FasetStudio.Ide
         public const float PropsWidth = 330;
         public const float RowHeight = 36;
         const float TitleBar = 34;
+        const float ToolRow = 36;      // alto de cada herramienta
+        const float OutlineRow = 28;   // alto de cada fila del esquema
+        const float ArrangeTop = 46;   // barra de alinear / orden (relativa a Y)
         const float Margin = 48;
         const int Grid = 8;
 
@@ -395,12 +398,22 @@ namespace FasetStudio.Ide
         TextField field = new TextField();
         string editingKey = String.Copy("");
         int toolHover = -1;
+        int leftTab;                  // 0 herramientas, 1 esquema
+        float outlineScroll;
+        List<UiNode> outline = new List<UiNode>();
+        List<int> outlineDepth = new List<int>();
+        int arrangeHover = -1;
+
+        // Portapapeles de controles (XML), compartido entre diseñadores.
+        static string clipboard = "";
+        static bool clipboardOwned;
 
         public string RequestHandler = String.Copy("");   // método que la aplicación debe abrir en el código (copia)
         public string Status = "";           // mensaje para la barra de estado (vista de literal)
         public bool SwitchToCode;            // pide pasar a la vista de código
 
-        static string kinds = "Label|Button|TextBox|CheckBox|Slider|ProgressBar|Panel";
+        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel";
+        const int KindCount = 10;
 
         public Designer(Document doc) { Doc = doc; }
 
@@ -415,6 +428,8 @@ namespace FasetStudio.Ide
             delete guidesX;
             delete guidesY;
             delete rows;
+            delete outline;
+            delete outlineDepth;
             delete field;
             String.Free(editingKey);
             String.Free(RequestHandler);
@@ -606,12 +621,13 @@ namespace FasetStudio.Ide
             if (dragMode == 1) return CursorKind.Arrow;
             if (px >= PropsX)
             {
+                if (ArrangeAt(px, py) >= 0) return CursorKind.Hand;
                 for (int i = 0; i < rows.Count; i++)
                     if (py >= rows[i].Y && py < rows[i].Y + RowHeight && px >= rows[i].VX)
                         return rows[i].Type <= 2 || rows[i].Type == 7 ? CursorKind.Text : CursorKind.Hand;
                 return CursorKind.Arrow;
             }
-            if (px < CanvasX) return ToolAt(px, py) >= 0 ? CursorKind.Hand : CursorKind.Arrow;
+            if (px < CanvasX) return ToolAt(px, py) >= 0 || OutlineAt(px, py) >= 0 || TabAt(px, py) >= 0 ? CursorKind.Hand : CursorKind.Arrow;
             int h = HandleAt(px, py);
             if (h == 3 || h == 7) return CursorKind.ResizeHorizontal;
             if (h == 1 || h == 5) return CursorKind.ResizeVertical;
@@ -621,9 +637,31 @@ namespace FasetStudio.Ide
 
         int ToolAt(float px, float py)
         {
-            if (px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
-            int i = (int)Math.Floor((py - (Y + 52)) / 40);
-            return py >= Y + 52 && i >= 0 && i < 7 ? i : -1;
+            if (leftTab != 0 || px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
+            int i = (int)Math.Floor((py - (Y + 52)) / ToolRow);
+            return py >= Y + 52 && i >= 0 && i < KindCount ? i : -1;
+        }
+
+        // Pestaña (0 herramientas, 1 esquema) bajo el punto, o -1.
+        int TabAt(float px, float py)
+        {
+            if (py < Y + 10 || py >= Y + 38 || px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
+            return px < X + ToolboxWidth / 2 ? 0 : 1;
+        }
+
+        // Fila del esquema bajo el punto, o -1.
+        int OutlineAt(float px, float py)
+        {
+            if (leftTab != 1 || px < X + 6 || px >= X + ToolboxWidth - 6 || py < Y + 52) return -1;
+            int i = (int)Math.Floor((py - (Y + 52) + outlineScroll) / OutlineRow);
+            return i >= 0 && i < outline.Count ? i : -1;
+        }
+
+        void BuildOutline(UiNode n, int depth)
+        {
+            outline.Add(n);
+            outlineDepth.Add(depth);
+            for (int i = 0; i < n.Children.Count; i++) BuildOutline(n.Children[i], depth + 1);
         }
 
         static string KindAt(int i)
@@ -647,7 +685,8 @@ namespace FasetStudio.Ide
         string UniqueName(string kind)
         {
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
-                          : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar" : "panel";
+                          : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar"
+                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : "panel";
             for (int i = 1; ; i++)
             {
                 string num = Convert.ToString(i);
@@ -684,6 +723,25 @@ namespace FasetStudio.Ide
             {
                 w = 160;
                 n.Set("Text", "Check box");
+            }
+            else if (kind == "RadioButton")
+            {
+                w = 160;
+                n.Set("Text", "Option");
+                n.Set("Group", "group1");
+            }
+            else if (kind == "ComboBox")
+            {
+                w = 200;
+                h = 36;
+                n.Set("Items", "Option 1;Option 2;Option 3");
+                n.Set("SelectedIndex", "0");
+            }
+            else if (kind == "ListBox")
+            {
+                w = 200;
+                h = 160;
+                n.Set("Items", "Item 1;Item 2;Item 3;Item 4");
             }
             else if (kind == "Slider")
             {
@@ -763,12 +821,119 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
+        void CopySelected()
+        {
+            if (selected == null || selected == root) return;
+            if (clipboardOwned) String.Free(clipboard);
+            clipboard = UiXml.Write(selected);
+            clipboardOwned = true;
+            Status = "Copied";
+        }
+
+        // Pega dentro del panel seleccionado o junto al control seleccionado.
+        void Paste()
+        {
+            if (clipboard.Length == 0) return;
+            string err;
+            UiNode n = UiXml.Parse(clipboard, out err);
+            String.Free(err);
+            if (n == null) return;
+            if (n.Kind == "Window")
+            {
+                delete n;
+                return;
+            }
+            UiNode parent = root;
+            if (selected != null && selected.Kind == "Panel") parent = selected;
+            else if (selected != null && selected != root) parent = selected.Parent;
+            string before = Snapshot();
+            RenameConflicts(n);
+            // Si ocupa el mismo sitio que un hermano, se desplaza en cascada.
+            for (int guard = 0; guard < 64; guard++)
+            {
+                bool clash = false;
+                for (int i = 0; i < parent.Children.Count; i++)
+                    if (parent.Children[i].Int("X", 0) == n.Int("X", 0) && parent.Children[i].Int("Y", 0) == n.Int("Y", 0)) clash = true;
+                if (!clash) break;
+                n.SetInt("X", n.Int("X", 0) + 16);
+                n.SetInt("Y", n.Int("Y", 0) + 16);
+            }
+            n.Parent = parent;
+            parent.Children.Add(n);
+            selected = n;
+            Commit(before);
+        }
+
+        void RenameConflicts(UiNode n)
+        {
+            if (n.Has("Name") && root.FindByName(n.Get("Name")) != null)
+            {
+                string name = UniqueName(n.Kind);
+                n.Set("Name", name);
+                String.Free(name);
+            }
+            for (int i = 0; i < n.Children.Count; i++) RenameConflicts(n.Children[i]);
+        }
+
+        // 0..5: alinear a la izquierda, centro, derecha, arriba, medio, abajo del contenedor;
+        // 6: traer al frente; 7: enviar al fondo.
+        void Arrange(int what)
+        {
+            if (selected == null || selected == root) return;
+            UiNode p = selected.Parent;
+            int pw = p.Int("Width", p == root ? 800 : 100), ph = p.Int("Height", p == root ? 600 : 32);
+            int w = selected.Int("Width", 100), h = selected.Int("Height", 32);
+            int margin = p == root ? 24 : 16;
+            string before = Snapshot();
+            if (what == 0) selected.SetInt("X", margin);
+            else if (what == 1) selected.SetInt("X", (pw - w) / 2);
+            else if (what == 2) selected.SetInt("X", pw - w - margin);
+            else if (what == 3) selected.SetInt("Y", margin);
+            else if (what == 4) selected.SetInt("Y", (ph - h) / 2);
+            else if (what == 5) selected.SetInt("Y", ph - h - margin);
+            else if (what == 6 || what == 7)
+            {
+                p.Children.Remove(selected);
+                if (what == 6) p.Children.Add(selected);
+                else p.Children.Insert(0, selected);
+            }
+            Commit(before);
+        }
+
+        static string ArrangeTip(int i) =>
+            i == 0 ? "Align left" : i == 1 ? "Center horizontally" : i == 2 ? "Align right" : i == 3 ? "Align top"
+            : i == 4 ? "Center vertically" : i == 5 ? "Align bottom" : i == 6 ? "Bring to front" : "Send to back";
+
+        float ArrangeButtonWidth => (PropsWidth - 36) / 8;
+
+        int ArrangeAt(float px, float py)
+        {
+            if (selected == null || selected == root) return -1;
+            float ty = Y + ArrangeTop;
+            if (py < ty || py >= ty + 30 || px < PropsX + 18) return -1;
+            int i = (int)Math.Floor((px - (PropsX + 18)) / ArrangeButtonWidth);
+            return i >= 0 && i < 8 ? i : -1;
+        }
+
+        // Selecciona el siguiente (o anterior) control en el orden del esquema.
+        void SelectNext(bool back)
+        {
+            outline.Clear();
+            outlineDepth.Clear();
+            BuildOutline(root, 0);
+            int i = outline.IndexOf(selected);
+            int n = outline.Count;
+            if (n <= 1) return;
+            i = back ? (i <= 1 ? n - 1 : i - 1) : (i < 0 || i >= n - 1 ? 1 : i + 1);
+            Select(outline[i]);
+        }
+
         // Nombre del método para un evento: btnSave + Click -> OnSaveClick.
         string HandlerName(UiNode n, string ev)
         {
             string name = n.Get("Name");
             string bare = name;
-            string pre = "btn|txt|lbl|chk|sld|prg|pnl|button|textBox|label|checkBox|slider|progressBar|panel";
+            string pre = "btn|txt|lbl|chk|sld|prg|pnl|rad|rdo|cmb|cbo|lst|button|textBox|label|checkBox|slider|progressBar|panel|radioButton|comboBox|listBox";
             auto parts = Text.Split(pre, "|");
             for (int i = 0; i < parts.Count; i++)
                 if (name.StartsWith(parts[i]) && name.Length > parts[i].Length && Char.IsUpper((char)name[parts[i].Length]))
@@ -807,7 +972,8 @@ namespace FasetStudio.Ide
             RequestHandler = method;
         }
 
-        static string MainEvent(string kind) => kind == "TextBox" || kind == "Slider" ? "Changed" : "Click";
+        static string MainEvent(string kind) =>
+            kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed" : "Click";
 
         // ------------------------------------------------------------------ propiedades
 
@@ -840,14 +1006,19 @@ namespace FasetStudio.Ide
                 return l;
             }
             Def(l, "Name", 7, "", "", "Control");
-            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox") Def(l, "Text", 0, "", "", "Control");
-            if (k == "TextBox") Def(l, "Placeholder", 0, "", "", "Control");
+            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Text", 0, "", "", "Control");
+            if (k == "TextBox" || k == "ComboBox") Def(l, "Placeholder", 0, "", "", "Control");
+            if (k == "ComboBox" || k == "ListBox")
+            {
+                Def(l, "Items", 0, "", "", "Control");
+                Def(l, "SelectedIndex", 1, "", "-1", "Control");
+            }
             Def(l, "X", 1, "", "0", "Layout");
             Def(l, "Y", 1, "", "0", "Layout");
             Def(l, "Width", 1, "", "100", "Layout");
             Def(l, "Height", 1, "", "32", "Layout");
             Def(l, "Anchor", 5, "", "Left,Top", "Layout");
-            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox")
+            if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
             {
                 Def(l, "FontSize", 1, "", "14", "Appearance");
                 Def(l, "Bold", 3, "", "false", "Appearance");
@@ -859,8 +1030,10 @@ namespace FasetStudio.Ide
                 Def(l, "TextAlign", 4, "Left|Center|Right", "Left", "Appearance");
             }
             if (k == "Panel") Def(l, "Style", 4, "Default|Subtle", "Default", "Appearance");
-            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar") Def(l, "CornerRadius", 1, "", "", "Appearance");
-            if (k == "CheckBox") Def(l, "Checked", 3, "", "false", "Behavior");
+            if (k == "Button" || k == "Panel" || k == "TextBox" || k == "ProgressBar" || k == "ComboBox" || k == "ListBox")
+                Def(l, "CornerRadius", 1, "", "", "Appearance");
+            if (k == "CheckBox" || k == "RadioButton") Def(l, "Checked", 3, "", "false", "Behavior");
+            if (k == "RadioButton") Def(l, "Group", 0, "", "", "Behavior");
             if (k == "Slider" || k == "ProgressBar")
             {
                 Def(l, "Value", 2, "", k == "Slider" ? "50" : "0", "Behavior");
@@ -869,8 +1042,9 @@ namespace FasetStudio.Ide
             }
             Def(l, "Enabled", 3, "", "true", "Behavior");
             Def(l, "Visible", 3, "", "true", "Behavior");
-            if (k == "Button" || k == "CheckBox" || k == "TextBox") Def(l, "Click", 6, "", "", "Events");
-            if (k == "TextBox" || k == "CheckBox" || k == "Slider") Def(l, "Changed", 6, "", "", "Events");
+            if (k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Click", 6, "", "", "Events");
+            if (k == "TextBox" || k == "CheckBox" || k == "Slider" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
+                Def(l, "Changed", 6, "", "", "Events");
             return l;
         }
 
@@ -931,7 +1105,7 @@ namespace FasetStudio.Ide
             else if (v != selected.Get(key))
             {
                 string before = Snapshot();
-                if (v.Length == 0 && key != "Text" && key != "Placeholder") selected.Remove(key);
+                if (v.Length == 0 && key != "Text" && key != "Placeholder" && key != "Items") selected.Remove(key);
                 else selected.Set(key, v);
                 Commit(before);
             }
@@ -988,6 +1162,19 @@ namespace FasetStudio.Ide
             CommitEdit();
             if (px < CanvasX)
             {
+                int tab = TabAt(px, py);
+                if (tab >= 0)
+                {
+                    leftTab = tab;
+                    return;
+                }
+                int o = OutlineAt(px, py);
+                if (o >= 0)
+                {
+                    Select(outline[o]);
+                    if (clicks >= 2 && outline[o] != root) OpenEvent(outline[o], MainEvent(outline[o].Kind));
+                    return;
+                }
                 int t = ToolAt(px, py);
                 if (t >= 0)
                 {
@@ -1059,6 +1246,7 @@ namespace FasetStudio.Ide
             if (!down || dragMode == 0)
             {
                 toolHover = px < CanvasX ? ToolAt(px, py) : -1;
+                arrangeHover = ArrangeAt(px, py);
                 return;
             }
             float dx = px - pressX, dy = py - pressY;
@@ -1253,6 +1441,11 @@ namespace FasetStudio.Ide
 
         public void Scroll(float px, int lines, bool shift)
         {
+            if (px < CanvasX)
+            {
+                if (leftTab == 1) outlineScroll = (float)Math.Max(0.0, (double)(outlineScroll + lines * 24));
+                return;
+            }
             if (px >= PropsX)
             {
                 propsScroll = (float)Math.Max(0.0, (double)(propsScroll + lines * 24));
@@ -1265,6 +1458,13 @@ namespace FasetStudio.Ide
         void PropsMouse(float px, float py)
         {
             if (selected == null) return;
+            int a = ArrangeAt(px, py);
+            if (a >= 0)
+            {
+                CommitEdit();
+                Arrange(a);
+                return;
+            }
             for (int i = 0; i < rows.Count; i++)
             {
                 PropRow row = rows[i];
@@ -1336,6 +1536,27 @@ namespace FasetStudio.Ide
             if (e.Ctrl && k == 'd')
             {
                 DuplicateSelected();
+                return true;
+            }
+            if (e.Ctrl && (k == 'c' || k == 'x'))
+            {
+                CopySelected();
+                if (k == 'x') DeleteSelected();
+                return true;
+            }
+            if (e.Ctrl && k == 'v')
+            {
+                Paste();
+                return true;
+            }
+            if (e.Ctrl && (k == Keys.Up || k == Keys.Down))
+            {
+                Arrange(k == Keys.Up ? 6 : 7);
+                return true;
+            }
+            if (k == Keys.Tab)
+            {
+                SelectNext(e.Shift);
                 return true;
             }
             if (k == Keys.Delete || k == Keys.BackSpace)
@@ -1508,6 +1729,16 @@ namespace FasetStudio.Ide
             return r;
         }
 
+        // Elemento i de una lista "a;b;c" (copia; "" si no existe).
+        static string ItemAt(string list, int i)
+        {
+            if (i < 0 || list.Length == 0) return String.Copy("");
+            auto parts = Text.Split(list, ";");
+            string r = i < parts.Count ? String.Copy(parts[i].Trim()) : String.Copy("");
+            delete parts;
+            return r;
+        }
+
         void CenteredText(Renderer r, Font f, string s, float x, float y, float w, float h, int align, Color c)
         {
             float tw = r.TextWidth(f, s);
@@ -1603,6 +1834,57 @@ namespace FasetStudio.Ide
                 }
                 CenteredText(r, f, text, x + 28, y, w - 28, h, 0, fg);
             }
+            else if (k == "RadioButton")
+            {
+                float cy = y + h / 2;
+                if (n.Bool("Checked", false))
+                {
+                    r.RoundRect(x, cy - 9, 18, 18, 9, Pal(7));
+                    r.RoundRect(x + 5.5f, cy - 3.5f, 7, 7, 3.5f, Pal(8));
+                }
+                else
+                {
+                    r.RoundRect(x, cy - 9, 18, 18, 9, Pal(4));
+                    r.RoundBorder(x, cy - 9, 18, 18, 9, 1.2f, Pal(3));
+                }
+                CenteredText(r, f, text, x + 28, y, w - 28, h, 0, fg);
+            }
+            else if (k == "ComboBox")
+            {
+                float rad = n.Int("CornerRadius", 8);
+                r.RoundRect(x, y, w, h, rad, Pal(1));
+                r.RoundBorder(x, y, w, h, rad, 1, Pal(2));
+                string item = ItemAt(n.Get("Items"), n.Int("SelectedIndex", -1));
+                r.PushClip(x + 10, y, w - 44, h);
+                if (item.Length > 0) CenteredText(r, f, item, x + 12, y, w - 44, h, 0, fg);
+                else CenteredText(r, f, n.Get("Placeholder"), x + 12, y, w - 44, h, 0, Pal(6));
+                r.PopClip();
+                String.Free(item);
+                r.Text(r.Icons, x + w - 24, y + (h - (r.Icons.Ascent + r.Icons.Descent)) / 2 - 1, "▾", Pal(6));
+            }
+            else if (k == "ListBox")
+            {
+                float rad = n.Int("CornerRadius", 8);
+                r.RoundRect(x, y, w, h, rad, Pal(4));
+                r.RoundBorder(x, y, w, h, rad, 1, Pal(2));
+                auto items = Text.Split(n.Get("Items"), ";");
+                int sel = n.Int("SelectedIndex", -1);
+                float rh = (float)Math.Ceiling(f.Ascent + f.Descent) + 14;
+                r.PushClip(x + 1, y + 1, w - 2, h - 2);
+                for (int i = 0; i < items.Count && 4 + i * rh < h; i++)
+                {
+                    float ry = y + 4 + i * rh;
+                    if (i == sel)
+                    {
+                        Color hl = Pal(5);
+                        hl.A = 0.16f;
+                        r.RoundRect(x + 4, ry, w - 8, rh, 6, hl);
+                    }
+                    CenteredText(r, f, items[i].Trim(), x + 14, ry, w - 28, rh, 0, fg);
+                }
+                r.PopClip();
+                delete items;
+            }
             else if (k == "Slider" || k == "ProgressBar")
             {
                 float min = n.Num("Min", 0), max = n.Num("Max", 100);
@@ -1632,23 +1914,74 @@ namespace FasetStudio.Ide
         {
             r.Rect(X, Y, ToolboxWidth, H, Theme.Surface);
             r.Rect(X + ToolboxWidth - 1, Y, 1, H, Theme.Border);
-            r.Text(r.UiSmall, X + 16, Y + 18, L.T("TOOLBOX"), Theme.TextTertiary);
-            auto parts = Text.Split(kinds, "|");
-            for (int i = 0; i < parts.Count; i++)
+            // Pestañas: herramientas | esquema
+            float tw = (ToolboxWidth - 20) / 2;
+            r.RoundRect(X + 10, Y + 10, ToolboxWidth - 20, 28, 8, Theme.Base);
+            for (int t = 0; t < 2; t++)
             {
-                float iy = Y + 52 + i * 40;
-                bool hot = toolHover == i || (dragMode == 3 && newKind == parts[i]);
-                if (hot) r.RoundRect(X + 10, iy, ToolboxWidth - 20, 36, 8, Theme.Hover);
-                DrawToolIcon(r, parts[i], X + 20, iy + 8);
-                r.Text(r.Ui, X + 54, iy + 9, L.T(parts[i]), hot ? Theme.White : Theme.Text);
+                string label = L.T(t == 0 ? "TOOLBOX" : "OUTLINE");
+                float lx = X + 10 + t * tw;
+                if (leftTab == t) r.RoundRect(lx + 2, Y + 12, tw - 4, 24, 6, Theme.Active);
+                r.Text(r.UiSmall, lx + (tw - r.TextWidth(r.UiSmall, label)) / 2, Y + 16, label, leftTab == t ? Theme.White : Theme.TextTertiary);
             }
-            delete parts;
-            float hy = Y + 52 + 7 * 40 + 16;
-            r.Rect(X + 16, hy, ToolboxWidth - 32, 1, Theme.Border);
-            r.Text(r.UiSmall, X + 16, hy + 14, L.T("Drag a control onto the window"), Theme.TextTertiary);
-            r.Text(r.UiSmall, X + 16, hy + 32, L.T("Double-click: go to its event"), Theme.TextTertiary);
-            r.Text(r.UiSmall, X + 16, hy + 50, L.T("Ctrl while dragging: no snapping"), Theme.TextTertiary);
-            r.Text(r.UiSmall, X + 16, hy + 68, L.T("Ctrl+D duplicate · Del delete"), Theme.TextTertiary);
+            r.PushClip(X, Y + 46, ToolboxWidth, H - 46);
+            if (leftTab == 1) DrawOutline(r);
+            else
+            {
+                auto parts = Text.Split(kinds, "|");
+                for (int i = 0; i < parts.Count; i++)
+                {
+                    float iy = Y + 52 + i * ToolRow;
+                    bool hot = toolHover == i || (dragMode == 3 && newKind == parts[i]);
+                    if (hot) r.RoundRect(X + 10, iy, ToolboxWidth - 20, ToolRow - 2, 8, Theme.Hover);
+                    DrawToolIcon(r, parts[i], X + 20, iy + 6);
+                    r.Text(r.Ui, X + 54, iy + 8, L.T(parts[i]), hot ? Theme.White : Theme.Text);
+                }
+                delete parts;
+                float hy = Y + 52 + KindCount * ToolRow + 12;
+                r.Rect(X + 16, hy, ToolboxWidth - 32, 1, Theme.Border);
+                r.Text(r.UiSmall, X + 16, hy + 14, L.T("Drag a control onto the window"), Theme.TextTertiary);
+                r.Text(r.UiSmall, X + 16, hy + 32, L.T("Double-click: go to its event"), Theme.TextTertiary);
+                r.Text(r.UiSmall, X + 16, hy + 50, L.T("Ctrl while dragging: no snapping"), Theme.TextTertiary);
+                r.Text(r.UiSmall, X + 16, hy + 68, L.T("Ctrl+D duplicate · Del delete"), Theme.TextTertiary);
+                r.Text(r.UiSmall, X + 16, hy + 86, L.T("Ctrl+C / Ctrl+V copy and paste"), Theme.TextTertiary);
+                r.Text(r.UiSmall, X + 16, hy + 104, L.T("Tab: next control"), Theme.TextTertiary);
+            }
+            r.PopClip();
+        }
+
+        // Árbol de controles: clic para seleccionar, doble clic para ir al evento.
+        void DrawOutline(Renderer r)
+        {
+            outline.Clear();
+            outlineDepth.Clear();
+            BuildOutline(root, 0);
+            float total = outline.Count * OutlineRow;
+            float room = H - 60;
+            if (outlineScroll > total - room) outlineScroll = (float)Math.Max(0.0, (double)(total - room));
+            int hover = OutlineAt(mouseX, mouseY);
+            for (int i = 0; i < outline.Count; i++)
+            {
+                UiNode n = outline[i];
+                float iy = Y + 52 + i * OutlineRow - outlineScroll;
+                if (iy + OutlineRow < Y + 46 || iy > Y + H) continue;
+                bool sel = n == selected;
+                if (sel) r.RoundRect(X + 6, iy, ToolboxWidth - 12, OutlineRow - 2, 6, Theme.Active);
+                else if (i == hover) r.RoundRect(X + 6, iy, ToolboxWidth - 12, OutlineRow - 2, 6, Theme.Hover);
+                float ix = X + 14 + outlineDepth[i] * 14;
+                for (int d = 1; d <= outlineDepth[i]; d++) r.Rect(X + 14 + d * 14 - 8, iy, 1, OutlineRow - 2, Theme.Border);
+                bool named = n.Get("Name").Length > 0;
+                string label = n == root ? (root.Has("Class") ? root.Get("Class") : "Window") : (named ? n.Get("Name") : L.T(n.Kind));
+                if (n == root) r.Text(r.UiBold, ix, iy + 5, label, sel ? Theme.White : Theme.Text);
+                else
+                {
+                    float lw = r.TextWidth(r.Ui, label);
+                    r.Text(r.Ui, ix, iy + 5, label, sel ? Theme.White : (named ? Theme.Text : Theme.TextSecondary));
+                    string kind = L.T(n.Kind);
+                    if (ix + lw + 8 + r.TextWidth(r.UiSmall, kind) < X + ToolboxWidth - 12)
+                        r.Text(r.UiSmall, ix + lw + 8, iy + 7, kind, Theme.TextTertiary);
+                }
+            }
         }
 
         void DrawToolIcon(Renderer r, string kind, float x, float y)
@@ -1683,6 +2016,23 @@ namespace FasetStudio.Ide
             {
                 r.RoundRect(x, y + 8, 22, 5, 2.5f, dim);
                 r.RoundRect(x, y + 8, 14, 5, 2.5f, c);
+            }
+            else if (kind == "RadioButton")
+            {
+                r.RoundRect(x + 3, y + 3, 16, 16, 8, c);
+                r.RoundRect(x + 8, y + 8, 6, 6, 3, Theme.Surface);
+            }
+            else if (kind == "ComboBox")
+            {
+                r.RoundBorder(x, y + 3, 22, 15, 4, 1.2f, c);
+                r.Text(r.Icons, x + 11, y + 2, "▾", c);
+            }
+            else if (kind == "ListBox")
+            {
+                r.RoundBorder(x, y + 1, 22, 19, 4, 1.2f, c);
+                r.Rect(x + 4, y + 6, 14, 1.5f, c);
+                r.RoundRect(x + 3, y + 9, 16, 4, 1.5f, dim);
+                r.Rect(x + 4, y + 15, 10, 1.5f, c);
             }
             else
             {
@@ -1719,9 +2069,15 @@ namespace FasetStudio.Ide
             float kw = r.TextWidth(r.UiSmall, kindLabel) + 14;
             r.RoundRect(px + PropsWidth - 18 - kw, Y + 14, kw, 20, 6, Theme.Elevated);
             r.Text(r.UiSmall, px + PropsWidth - 11 - kw, Y + 16, kindLabel, Theme.TextSecondary);
-            r.PushClip(px, Y + 44, PropsWidth, H - 44);
+            float top = Y + 44;
+            if (selected != root)
+            {
+                DrawArrangeBar(r, px + 18, Y + ArrangeTop);
+                top = Y + ArrangeTop + 38;
+            }
+            r.PushClip(px, top, PropsWidth, H - (top - Y));
             auto defs = PropsFor(selected);
-            float y = Y + 48 - propsScroll;
+            float y = top + 4 - propsScroll;
             string section = "";
             float lx = px + 18, vx = px + 112, vw = PropsWidth - 112 - 16;
             for (int i = 0; i < defs.Count; i++)
@@ -1815,6 +2171,65 @@ namespace FasetStudio.Ide
             float total = y + propsScroll - Y;
             if (propsScroll > 0 && total < H) propsScroll = (float)Math.Max(0.0, (double)(propsScroll - (H - total)));
             r.PopClip();
+            if (arrangeHover >= 0 && selected != root) DrawTip(r, L.T(ArrangeTip(arrangeHover)), px + 18 + arrangeHover * ArrangeButtonWidth, Y + ArrangeTop + 34);
+        }
+
+        void DrawTip(Renderer r, string tip, float x, float y)
+        {
+            float tw = r.TextWidth(r.UiSmall, tip) + 16;
+            if (x + tw > X + W - 8) x = X + W - 8 - tw;
+            r.Shadow(x, y, tw, 24, 6, 10, Color.Hex(0x000000, 0.5f));
+            r.RoundRect(x, y, tw, 24, 6, Theme.Elevated);
+            r.RoundBorder(x, y, tw, 24, 6, 1, Theme.BorderStrong);
+            r.Text(r.UiSmall, x + 8, y + 5, tip, Theme.Text);
+        }
+
+        // Alinear en el contenedor (izq., centro, der., arriba, medio, abajo) y orden (frente, fondo).
+        void DrawArrangeBar(Renderer r, float x, float y)
+        {
+            float bw = ArrangeButtonWidth;
+            r.RoundRect(x, y, bw * 8, 30, 8, Theme.Base);
+            r.Rect(x + bw * 6, y + 6, 1, 18, Theme.Border);
+            for (int i = 0; i < 8; i++)
+            {
+                float bx = x + i * bw;
+                bool hot = arrangeHover == i;
+                if (hot) r.RoundRect(bx + 2, y + 2, bw - 4, 26, 6, Theme.Hover);
+                Color c = hot ? Theme.White : Theme.TextSecondary;
+                float cx = bx + bw / 2, cy = y + 15;
+                if (i <= 2)
+                {
+                    // Barras horizontales alineadas a una guía vertical
+                    float gx = i == 0 ? cx - 7 : (i == 1 ? cx : cx + 7);
+                    r.Rect(gx - 0.75f, cy - 8, 1.5f, 16, c);
+                    float a = i == 0 ? gx + 2 : (i == 1 ? cx - 6 : gx - 2 - 12);
+                    float b = i == 0 ? gx + 2 : (i == 1 ? cx - 4 : gx - 2 - 8);
+                    r.RoundRect(a, cy - 6, 12, 4, 1.5f, c);
+                    r.RoundRect(b, cy + 2, 8, 4, 1.5f, c);
+                }
+                else if (i <= 5)
+                {
+                    float gy = i == 3 ? cy - 7 : (i == 4 ? cy : cy + 7);
+                    r.Rect(cx - 8, gy - 0.75f, 16, 1.5f, c);
+                    float a = i == 3 ? gy + 2 : (i == 4 ? cy - 6 : gy - 2 - 12);
+                    float b = i == 3 ? gy + 2 : (i == 4 ? cy - 4 : gy - 2 - 8);
+                    r.RoundRect(cx - 6, a, 4, 12, 1.5f, c);
+                    r.RoundRect(cx + 2, b, 4, 8, 1.5f, c);
+                }
+                else
+                {
+                    // Dos cuadrados superpuestos; el relleno indica cuál queda delante
+                    bool front = i == 6;
+                    r.RoundBorder(cx - 7, cy - 7, 10, 10, 2, 1.3f, c);
+                    if (front) r.RoundRect(cx - 3, cy - 3, 10, 10, 2, c);
+                    else
+                    {
+                        r.RoundRect(cx - 3, cy - 3, 10, 10, 2, Theme.Base);
+                        r.RoundBorder(cx - 3, cy - 3, 10, 10, 2, 1.3f, c);
+                        r.RoundRect(cx - 7, cy - 7, 10, 10, 2, c);
+                    }
+                }
+            }
         }
     }
 }

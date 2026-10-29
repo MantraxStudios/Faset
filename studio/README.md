@@ -44,6 +44,29 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
 - `Ctrl+P` abrir rápido, `Ctrl+N` nuevo archivo, `Ctrl+F`/`F3` buscar, `Ctrl+G` ir a la línea,
   `Ctrl+S` guardar (`Ctrl+Shift+S` todo), `Ctrl+W` cerrar pestaña, `Ctrl+Tab` cambiar de pestaña
 
+## Diseñador de interfaces (`.fstui`)
+
+Al abrir un `.fstui` se muestra el diseñador visual (botón **Diseño | Código** para ver el XML).
+
+- **Herramientas:** Label, Button, TextBox, CheckBox, RadioButton, ComboBox, ListBox, Slider,
+  ProgressBar y Panel. Se arrastran a la ventana o se añaden con un clic.
+- **Esquema:** árbol de todos los controles. Un clic selecciona y un doble clic va al evento.
+- **Mover y redimensionar** con asas, ajustando a la cuadrícula y a guías inteligentes (`Ctrl` desactiva el ajuste).
+- **Barra de alinear** en el contenedor (izquierda, centro, derecha, arriba, medio, abajo) y de orden (frente/fondo).
+- **Propiedades** por categorías. `Items` usa `;` como separador (`Rojo;Verde;Azul`).
+- **Atajos:**
+  - `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copiar, cortar y pegar controles.
+  - `Ctrl+D` duplicar y `Supr` borrar.
+  - `Ctrl+Z` / `Ctrl+Y` deshacer y rehacer.
+  - `Tab` pasa al siguiente control.
+  - `Ctrl+↑` / `Ctrl+↓` traer al frente o enviar al fondo.
+  - Flechas para mover (`Shift`: de 8 en 8).
+- **Doble clic** en un control crea su manejador (`OnGuardarClick`…) en el código de la ventana.
+
+Los RadioButton con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. ComboBox y
+ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `SelectedIndex` y
+`SelectedItem`, y lanzan `Changed` al elegir.
+
 ## Arquitectura
 
 | Archivo                | Contenido                                                          |

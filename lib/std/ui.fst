@@ -23,7 +23,7 @@ using std.os;
 
 namespace std.ui
 {
-    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar }
+    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox }
     public enum WidgetStyle { Default, Primary, Subtle, Danger }
     public enum TextAlign { Left, Center, Right }
     public enum UiTheme { Dark, Light }
@@ -373,10 +373,20 @@ namespace std.ui
                 i++;
                 return (char)b;
             }
-            int extra = b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : 1);
+            int extra = b >= 0xF8 ? 0 : (b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : (b >= 0xC2 ? 1 : 0)));
+            // Secuencia incompleta o inválida (p. ej. texto Latin-1): el byte vale por sí mismo,
+            // sin tragarse los siguientes (si no, "é" + dos letras se vería como un ideograma).
+            bool valid = extra > 0 && i + extra < s.Length;
+            for (int k = 1; valid && k <= extra; k++)
+                if ((s[i + k] & 0xC0) != 0x80) valid = false;
+            if (!valid)
+            {
+                i++;
+                return (char)b;
+            }
             uint cp = (uint)(b & (0x3F >> extra));
             i++;
-            for (int k = 0; k < extra && i < s.Length; k++)
+            for (int k = 0; k < extra; k++)
             {
                 cp = (cp << 6) | (uint)(s[i] & 0x3F);
                 i++;
@@ -551,6 +561,12 @@ namespace std.ui
         int clickEvent;
         int changedEvent;
 
+        // Listas (ComboBox, ListBox) y grupo de los RadioButton.
+        List<string> items = new List<string>();
+        int selectedIndex = -1;
+        int firstVisible;   // ListBox: primer elemento visible
+        string group = String.Copy("");
+
         public static Widget Create(WidgetKind kind, string name, int x, int y, int w, int h)
         {
             auto wd = new Widget();
@@ -573,6 +589,9 @@ namespace std.ui
             String.Free(Name);
             String.Free(text);
             String.Free(placeholder);
+            for (int i = 0; i < items.Count; i++) String.Free(items[i]);
+            delete items;
+            String.Free(group);
         }
 
         public int X { get => x; set { x = value; Invalidate(); } }
@@ -627,6 +646,132 @@ namespace std.ui
         // Fracción 0..1 del valor entre Min y Max.
         public float Fraction => max > min ? (value - min) / (max - min) : 0;
 
+        // RadioButton: al marcar uno se desmarcan los del mismo contenedor con el mismo grupo.
+        public string Group
+        {
+            get => group;
+            set
+            {
+                string old = group;
+                group = String.Copy(value);
+                String.Free(old);
+            }
+        }
+
+        // ------------------------------------------------------------- listas (ComboBox, ListBox)
+
+        public int ItemCount => items.Count;
+
+        // Elemento i (vista) o "" si no existe.
+        public string Item(int i) => i >= 0 && i < items.Count ? items[i] : "";
+
+        // Elemento seleccionado (vista) o "".
+        public string SelectedItem => Item(selectedIndex);
+
+        public void AddItem(string s)
+        {
+            items.Add(String.Copy(s));
+            Invalidate();
+        }
+
+        public void RemoveItemAt(int i)
+        {
+            if (i < 0 || i >= items.Count) return;
+            String.Free(items[i]);
+            items.RemoveAt(i);
+            if (i == selectedIndex) selectedIndex = -1;
+            else if (i < selectedIndex) selectedIndex--;
+            ClampScroll();
+            Invalidate();
+        }
+
+        public void ClearItems()
+        {
+            for (int i = 0; i < items.Count; i++) String.Free(items[i]);
+            items.Clear();
+            selectedIndex = -1;
+            firstVisible = 0;
+            Invalidate();
+        }
+
+        // Reemplaza los elementos por los de una lista separada por ';' ("Rojo;Verde;Azul").
+        public void SetItems(string list)
+        {
+            ClearItems();
+            if (list.Length == 0) return;
+            auto parts = std.text.Text.Split(list, ";");
+            for (int i = 0; i < parts.Count; i++) items.Add(String.Copy(parts[i].Trim()));
+            delete parts;
+        }
+
+        // Índice del elemento seleccionado (-1 = ninguno). Asignarlo no lanza 'Changed'.
+        public int SelectedIndex
+        {
+            get => selectedIndex;
+            set
+            {
+                int v = value < -1 ? -1 : value;
+                if (v >= items.Count) v = items.Count - 1;
+                selectedIndex = v;
+                EnsureVisible();
+                Invalidate();
+            }
+        }
+
+        // Selecciona por interacción del usuario (lanza 'Changed' si cambia).
+        internal void Choose(int i)
+        {
+            if (i < 0 || i >= items.Count || i == selectedIndex) return;
+            selectedIndex = i;
+            EnsureVisible();
+            Invalidate();
+            RaiseChanged();
+        }
+
+        internal int RowHeight => (int)UiFont.Get(FontSize, Bold).LineHeight + 14;
+
+        internal int VisibleRows
+        {
+            get
+            {
+                int h = ActualHeight > 0 ? ActualHeight : height;
+                int n = (h - 8) / RowHeight;
+                return n < 1 ? 1 : n;
+            }
+        }
+
+        internal void ClampScroll()
+        {
+            int most = items.Count - VisibleRows;
+            if (firstVisible > most) firstVisible = most;
+            if (firstVisible < 0) firstVisible = 0;
+        }
+
+        internal void ScrollList(int rows)
+        {
+            firstVisible += rows;
+            ClampScroll();
+            Invalidate();
+        }
+
+        void EnsureVisible()
+        {
+            if (Kind != WidgetKind.ListBox || selectedIndex < 0) return;
+            if (selectedIndex < firstVisible) firstVisible = selectedIndex;
+            int rows = VisibleRows;
+            if (selectedIndex >= firstVisible + rows) firstVisible = selectedIndex - rows + 1;
+            ClampScroll();
+        }
+
+        // ListBox: fila bajo la coordenada y de la ventana, o -1.
+        internal int RowAt(int py)
+        {
+            int local = py - ScreenY - 4;
+            if (local < 0) return -1;
+            int i = firstVisible + local / RowHeight;
+            return i < items.Count ? i : -1;
+        }
+
         public Widget Add(Widget child)
         {
             child.Parent = this;
@@ -657,7 +802,9 @@ namespace std.ui
         }
 
         public bool Focusable => Visible && Enabled && (Kind == WidgetKind.TextBox || Kind == WidgetKind.Button ||
-                                                       Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider);
+                                                       Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider ||
+                                                       Kind == WidgetKind.RadioButton || Kind == WidgetKind.ComboBox ||
+                                                       Kind == WidgetKind.ListBox);
 
         internal void RaiseClick()
         {
@@ -807,6 +954,44 @@ namespace std.ui
                     c.FillCircle(pos, cy, 3, p.Background);
                     break;
                 }
+                case WidgetKind.RadioButton:
+                {
+                    float box = 18;
+                    float cx = fx + box / 2, cy = fy + fh / 2;
+                    if (isChecked)
+                    {
+                        c.FillCircle(cx, cy, box / 2, Enabled ? p.Primary : p.TextMuted);
+                        c.FillCircle(cx, cy, 3.5f, p.PrimaryText);
+                    }
+                    else
+                    {
+                        c.FillCircle(cx, cy, box / 2, hot ? p.TextMuted : p.BorderStrong);
+                        c.FillCircle(cx, cy, box / 2 - 1.2f, p.Input);
+                    }
+                    if (focused && w.FocusVisible) c.StrokeRoundRect(fx - 3, cy - box / 2 - 3, box + 6, box + 6, box / 2 + 3, 2, p.Focus);
+                    DrawLabelText(c, font, text, fx + box + 10, fy, fw - box - 10, fh, textColor);
+                    break;
+                }
+                case WidgetKind.ComboBox:
+                {
+                    float r = CornerRadius >= 0 ? CornerRadius : 8;
+                    bool open = w.DropDown == this;
+                    c.FillRoundRect(fx, fy, fw, fh, r, hot || open ? p.SurfaceHover : p.Surface);
+                    c.StrokeRoundRect(fx, fy, fw, fh, r, open ? 1.5f : 1, open ? p.Focus : (hot ? p.BorderStrong : p.Border));
+                    if (focused && w.FocusVisible && !open) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
+                    float baseline = fy + (fh - font.LineHeight) / 2 + font.Ascent;
+                    c.Clip(ScreenX + 1, ScreenY + 1, ActualWidth - 34, ActualHeight - 2);
+                    if (selectedIndex >= 0) c.Text(font, items[selectedIndex], fx + 12, baseline, textColor);
+                    else c.Text(font, placeholder, fx + 12, baseline, p.TextMuted);
+                    c.ResetClip();
+                    float ax = fx + fw - 18, ay = fy + fh / 2;
+                    c.Line(ax - 4.5f, ay - 2, ax, ay + 2.5f, 1.6f, p.TextMuted);
+                    c.Line(ax, ay + 2.5f, ax + 4.5f, ay - 2, 1.6f, p.TextMuted);
+                    break;
+                }
+                case WidgetKind.ListBox:
+                    DrawListBox(c, p, w, font, fx, fy, fw, fh, focused, textColor);
+                    break;
                 case WidgetKind.ProgressBar:
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : fh / 2;
@@ -844,6 +1029,35 @@ namespace std.ui
                 c.Text(font, part, tx, top + line * lh + font.Ascent, color);
                 start = end + 1;
             }
+        }
+
+        void DrawListBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, uint textColor)
+        {
+            float r = CornerRadius >= 0 ? CornerRadius : 8;
+            c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
+            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : p.Border);
+            ClampScroll();
+            int rh = RowHeight, rows = VisibleRows;
+            bool bar = items.Count > rows;
+            float inner = fw - 8 - (bar ? 8 : 0);
+            int hotRow = w.Hot == this ? RowAt(w.MouseY) : -1;
+            c.Clip(ScreenX + 1, ScreenY + 1, ActualWidth - 2, ActualHeight - 2);
+            for (int i = firstVisible; i < items.Count && i <= firstVisible + rows; i++)
+            {
+                float ry = fy + 4 + (i - firstVisible) * rh;
+                if (i == selectedIndex) c.FillRoundRect(fx + 4, ry, inner, rh, 6, focused ? p.Selection : p.SurfacePressed);
+                else if (i == hotRow) c.FillRoundRect(fx + 4, ry, inner, rh, 6, p.SurfaceHover);
+                c.Text(font, items[i], fx + 14, ry + (rh - font.LineHeight) / 2 + font.Ascent, textColor);
+            }
+            if (bar)
+            {
+                float track = fh - 8;
+                float th = track * rows / items.Count;
+                if (th < 24) th = 24;
+                float ty = fy + 4 + (track - th) * firstVisible / (items.Count - rows);
+                c.FillRoundRect(fx + fw - 9, ty, 4, th, 2, p.BorderStrong);
+            }
+            c.ResetClip();
         }
 
         void DrawTextBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, bool hot)
@@ -1045,6 +1259,14 @@ namespace std.ui
         public Widget Focused;
         public bool FocusVisible;
         public bool CaretOn = true;
+        public int MouseX = -1;
+        public int MouseY = -1;
+
+        // ComboBox con la lista abierta (se dibuja encima de todo).
+        public Widget DropDown;
+        int dropHot = -1;
+        int dropScroll;
+        const int DropMaxRows = 8;
 
         public Window(string title, int width, int height)
         {
@@ -1138,7 +1360,100 @@ namespace std.ui
                 Children[i].Layout(0, 0, width - designWidth, height - designHeight);
                 Children[i].Draw(canvas, palette, this);
             }
+            if (DropDown != null) DrawDropDown();
             dirty = false;
+        }
+
+        // ------------------------------------------------------------- lista desplegable
+
+        void OpenDropDown(Widget combo)
+        {
+            DropDown = combo;
+            dropHot = combo.SelectedIndex;
+            dropScroll = 0;
+            if (combo.SelectedIndex >= DropMaxRows) dropScroll = combo.SelectedIndex - DropMaxRows + 1;
+            dirty = true;
+        }
+
+        void CloseDropDown()
+        {
+            DropDown = null;
+            dropHot = -1;
+            dirty = true;
+        }
+
+        int DropRows => DropDown.ItemCount < DropMaxRows ? DropDown.ItemCount : DropMaxRows;
+
+        // Rectángulo de la lista: debajo del ComboBox, o encima si no cabe.
+        void DropRect(out int x, out int y, out int w, out int h)
+        {
+            Widget d = DropDown;
+            int rows = DropRows < 1 ? 1 : DropRows;
+            h = rows * d.RowHeight + 8;
+            w = d.ActualWidth;
+            x = d.ScreenX;
+            y = d.ScreenY + d.ActualHeight + 4;
+            if (y + h > height && d.ScreenY - h - 4 >= 0) y = d.ScreenY - h - 4;
+        }
+
+        bool InDropDown(int px, int py)
+        {
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            return px >= x && py >= y && px < x + w && py < y + h;
+        }
+
+        int DropIndexAt(int px, int py)
+        {
+            if (!InDropDown(px, py)) return -1;
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            int local = py - y - 4;
+            if (local < 0) return -1;
+            int i = dropScroll + local / DropDown.RowHeight;
+            return i < DropDown.ItemCount ? i : -1;
+        }
+
+        void ScrollDropDown(int rows)
+        {
+            int most = DropDown.ItemCount - DropRows;
+            dropScroll += rows;
+            if (dropScroll > most) dropScroll = most;
+            if (dropScroll < 0) dropScroll = 0;
+            dirty = true;
+        }
+
+        void DrawDropDown()
+        {
+            Widget d = DropDown;
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            UiFont font = UiFont.Get(d.FontSize, d.Bold);
+            int rh = d.RowHeight;
+            canvas.FillRoundRect(x - 2, y, w + 4, h + 6, 11, Rgb.Alpha(0x000000, 0.18f));
+            canvas.FillRoundRect(x, y, w, h, 8, palette.Surface);
+            canvas.StrokeRoundRect(x, y, w, h, 8, 1, palette.BorderStrong);
+            canvas.Clip(x + 1, y + 1, w - 2, h - 2);
+            for (int i = dropScroll; i < d.ItemCount && i < dropScroll + DropMaxRows; i++)
+            {
+                float ry = y + 4 + (i - dropScroll) * rh;
+                if (i == dropHot) canvas.FillRoundRect(x + 4, ry, w - 8, rh, 6, palette.SurfaceHover);
+                canvas.Text(font, d.Item(i), x + 14, ry + (rh - font.LineHeight) / 2 + font.Ascent, palette.Text);
+                if (i == d.SelectedIndex)
+                {
+                    float cx = x + w - 22, cy = ry + rh / 2.0f;
+                    canvas.Line(cx - 4, cy, cx - 1, cy + 3, 1.6f, palette.Text);
+                    canvas.Line(cx - 1, cy + 3, cx + 5, cy - 3.5f, 1.6f, palette.Text);
+                }
+            }
+            if (d.ItemCount > DropMaxRows)
+            {
+                float track = h - 8;
+                float th = track * DropMaxRows / d.ItemCount;
+                float ty = y + 4 + (track - th) * dropScroll / (d.ItemCount - DropMaxRows);
+                canvas.FillRoundRect(x + w - 9, ty, 4, th, 2, palette.BorderStrong);
+            }
+            canvas.ResetClip();
         }
 
         public Canvas Canvas => canvas;
@@ -1196,6 +1511,21 @@ namespace std.ui
                 w.Checked = !w.Checked;
                 w.RaiseChanged();
             }
+            else if (w.Kind == WidgetKind.RadioButton && !w.Checked)
+            {
+                List<Widget> siblings = w.Parent != null ? w.Parent.Children : Children;
+                for (int i = 0; i < siblings.Count; i++)
+                {
+                    Widget s = siblings[i];
+                    if (s != w && s.Kind == WidgetKind.RadioButton && s.Checked && s.Group == w.Group)
+                    {
+                        s.Checked = false;
+                        s.RaiseChanged();
+                    }
+                }
+                w.Checked = true;
+                w.RaiseChanged();
+            }
             w.RaiseClick();
         }
 
@@ -1216,6 +1546,17 @@ namespace std.ui
                     break;
                 case UiEventKind.MouseMove:
                 {
+                    MouseX = e.X;
+                    MouseY = e.Y;
+                    if (DropDown != null)
+                    {
+                        int over = DropIndexAt(e.X, e.Y);
+                        if (over >= 0 && over != dropHot)
+                        {
+                            dropHot = over;
+                            dirty = true;
+                        }
+                    }
                     if (Pressed != null)
                     {
                         if (Pressed.Kind == WidgetKind.Slider) SetSlider(Pressed, e.X);
@@ -1227,13 +1568,15 @@ namespace std.ui
                     }
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
-                    if (hit != Hot)
+                    if (hit != Hot || (hit != null && hit.Kind == WidgetKind.ListBox))
                     {
                         Hot = hit;
                         dirty = true;
                     }
                     if (native != null)
-                        native.SetCursor(hit == null ? CursorShape.Arrow : (hit.Kind == WidgetKind.TextBox ? CursorShape.Text : CursorShape.Hand));
+                        native.SetCursor(DropDown != null && InDropDown(e.X, e.Y) ? CursorShape.Hand
+                                         : hit == null || hit.Kind == WidgetKind.ListBox ? CursorShape.Arrow
+                                         : (hit.Kind == WidgetKind.TextBox ? CursorShape.Text : CursorShape.Hand));
                     break;
                 }
                 case UiEventKind.MouseLeave:
@@ -1246,13 +1589,31 @@ namespace std.ui
                 case UiEventKind.MouseDown:
                 {
                     if (e.Button != 1) break;
+                    MouseX = e.X;
+                    MouseY = e.Y;
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
+                    if (DropDown != null)
+                    {
+                        // Con la lista abierta, el clic elige un elemento o la cierra.
+                        Widget combo = DropDown;
+                        bool inside = InDropDown(e.X, e.Y);
+                        int idx = DropIndexAt(e.X, e.Y);
+                        CloseDropDown();
+                        if (inside)
+                        {
+                            if (idx >= 0) combo.Choose(idx);
+                            break;
+                        }
+                        if (hit == combo) break;
+                    }
                     Pressed = hit;
                     FocusVisible = false;
                     if (hit == null || hit.Focusable) Focus(hit);
                     if (hit != null && hit.Kind == WidgetKind.TextBox) hit.TextMouseDown(e.X, e.Shift);
                     if (hit != null && hit.Kind == WidgetKind.Slider) SetSlider(hit, e.X);
+                    if (hit != null && hit.Kind == WidgetKind.ComboBox) OpenDropDown(hit);
+                    if (hit != null && hit.Kind == WidgetKind.ListBox) hit.Choose(hit.RowAt(e.Y));
                     dirty = true;
                     break;
                 }
@@ -1262,7 +1623,24 @@ namespace std.ui
                     Widget p = Pressed;
                     Pressed = null;
                     dirty = true;
-                    if (p != null && p.Contains(e.X, e.Y) && (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox)) Activate(p);
+                    if (p != null && p.Contains(e.X, e.Y) &&
+                        (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox || p.Kind == WidgetKind.RadioButton)) Activate(p);
+                    break;
+                }
+                case UiEventKind.Scroll:
+                {
+                    if (DropDown != null)
+                    {
+                        if (InDropDown(MouseX, MouseY)) ScrollDropDown(e.Delta);
+                        else CloseDropDown();
+                        break;
+                    }
+                    Widget over = HitTest(MouseX, MouseY);
+                    if (over != null && over.Kind == WidgetKind.ListBox)
+                    {
+                        over.ScrollList(e.Delta);
+                        dirty = true;
+                    }
                     break;
                 }
                 case UiEventKind.KeyDown:
@@ -1281,6 +1659,7 @@ namespace std.ui
                     break;
                 case UiEventKind.FocusLost:
                     Pressed = null;
+                    if (DropDown != null) CloseDropDown();
                     dirty = true;
                     break;
             }
@@ -1289,6 +1668,28 @@ namespace std.ui
         void HandleKey(UiEvent e)
         {
             Widget f = Focused;
+            if (DropDown != null)
+            {
+                Widget d = DropDown;
+                dirty = true;
+                if (e.Key == KeyCode.Down || e.Key == KeyCode.Up)
+                {
+                    int next = dropHot + (e.Key == KeyCode.Down ? 1 : -1);
+                    if (next >= 0 && next < d.ItemCount) dropHot = next;
+                    if (dropHot < dropScroll) dropScroll = dropHot;
+                    if (dropHot >= dropScroll + DropMaxRows) dropScroll = dropHot - DropMaxRows + 1;
+                    return;
+                }
+                if (e.Key == KeyCode.Enter || e.Key == KeyCode.Space)
+                {
+                    int chosen = dropHot;
+                    CloseDropDown();
+                    d.Choose(chosen);
+                    return;
+                }
+                CloseDropDown();
+                if (e.Key == KeyCode.Escape) return;
+            }
             if (e.Key == KeyCode.Tab)
             {
                 MoveFocus(e.Shift);
@@ -1318,10 +1719,27 @@ namespace std.ui
                 else f.TextKey(e);
                 return;
             }
-            if ((e.Key == KeyCode.Enter || e.Key == KeyCode.Space) && (f.Kind == WidgetKind.Button || f.Kind == WidgetKind.CheckBox))
+            if ((e.Key == KeyCode.Enter || e.Key == KeyCode.Space) &&
+                (f.Kind == WidgetKind.Button || f.Kind == WidgetKind.CheckBox || f.Kind == WidgetKind.RadioButton))
             {
                 FocusVisible = true;
                 Activate(f);
+            }
+            else if (f.Kind == WidgetKind.ComboBox && (e.Key == KeyCode.Enter || e.Key == KeyCode.Space))
+            {
+                FocusVisible = true;
+                OpenDropDown(f);
+            }
+            else if ((f.Kind == WidgetKind.ComboBox || f.Kind == WidgetKind.ListBox) && (e.Key == KeyCode.Up || e.Key == KeyCode.Down))
+            {
+                FocusVisible = true;
+                int next = f.SelectedIndex + (e.Key == KeyCode.Down ? 1 : -1);
+                f.Choose(next < 0 ? 0 : next);
+            }
+            else if (f.Kind == WidgetKind.ListBox && (e.Key == KeyCode.Home || e.Key == KeyCode.End))
+            {
+                FocusVisible = true;
+                f.Choose(e.Key == KeyCode.Home ? 0 : f.ItemCount - 1);
             }
             else if (f.Kind == WidgetKind.Slider && (e.Key == KeyCode.Left || e.Key == KeyCode.Right || e.Key == KeyCode.Down || e.Key == KeyCode.Up))
             {
@@ -1335,7 +1753,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- pruebas
 
-        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | type texto | key tab | resize W H".
+        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | move X Y | scroll N | type texto | key tab | resize W H".
         void RunScript(string script)
         {
             auto cmds = Text.Split(script, "|");
@@ -1379,7 +1797,21 @@ namespace std.ui
                     e.Kind = UiEventKind.KeyDown;
                     e.Key = k == "tab" ? KeyCode.Tab : k == "enter" ? KeyCode.Enter : k == "backspace" ? KeyCode.Backspace
                           : k == "left" ? KeyCode.Left : k == "right" ? KeyCode.Right : k == "home" ? KeyCode.Home
-                          : k == "end" ? KeyCode.End : k == "space" ? KeyCode.Space : k == "delete" ? KeyCode.Delete : KeyCode.Other;
+                          : k == "end" ? KeyCode.End : k == "space" ? KeyCode.Space : k == "delete" ? KeyCode.Delete
+                          : k == "up" ? KeyCode.Up : k == "down" ? KeyCode.Down : k == "escape" ? KeyCode.Escape : KeyCode.Other;
+                    HandleEvent(e);
+                }
+                else if (op == "move" && parts.Count >= 3)
+                {
+                    e.Kind = UiEventKind.MouseMove;
+                    e.X = Convert.ToInt32(parts[1]);
+                    e.Y = Convert.ToInt32(parts[2]);
+                    HandleEvent(e);
+                }
+                else if (op == "scroll" && parts.Count >= 2)
+                {
+                    e.Kind = UiEventKind.Scroll;
+                    e.Delta = Convert.ToInt32(parts[1]);
                     HandleEvent(e);
                 }
                 else if (op == "resize" && parts.Count >= 3)
@@ -1989,11 +2421,14 @@ namespace std.ui
 
         public void SetTitle(string title)
         {
-            string t = title.ToCString();
-            X11.XStoreName(display, window, t.Ptr);
+            // WM_NAME / WM_ICON_NAME (39 / 37) también en UTF-8: XStoreName los marca como Latin-1
+            // y algunas barras de tareas mostraban los acentos rotos.
             ulong netName = X11.XInternAtom(display, "_NET_WM_NAME".Ptr, 0);
+            ulong netIcon = X11.XInternAtom(display, "_NET_WM_ICON_NAME".Ptr, 0);
             X11.XChangeProperty(display, window, netName, atomUtf8, 8, 0, title.Ptr, title.Length);
-            String.Free(t);
+            X11.XChangeProperty(display, window, netIcon, atomUtf8, 8, 0, title.Ptr, title.Length);
+            X11.XChangeProperty(display, window, 39, atomUtf8, 8, 0, title.Ptr, title.Length);
+            X11.XChangeProperty(display, window, 37, atomUtf8, 8, 0, title.Ptr, title.Length);
             X11.XFlush(display);
         }
 

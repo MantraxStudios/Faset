@@ -109,9 +109,11 @@ struct Gen {
     }
 
     void widget(const XmlNode& n, const std::string& parent) {
-        static const std::vector<std::string> kinds = {"Panel", "Label", "Button", "TextBox", "CheckBox", "Slider", "ProgressBar"};
+        static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
+                                                       "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
         if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
-            error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar)");
+            error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
+                          "ProgressBar, RadioButton, ComboBox, ListBox)");
             return;
         }
         std::string name;
@@ -133,12 +135,15 @@ struct Gen {
         std::string code = name + " = " + parent + ".Add(Widget.Create(WidgetKind." + n.name + ", " + quote(name) + ", " + x +
                            ", " + y + ", " + w + ", " + h + "));";
         std::string events;
+        std::string post;  // SelectedIndex va después de Items, esté donde esté en el XML
         int clickId = 0, changedId = 0;
         for (const std::string& key : n.attrOrder) {
             const std::string& v = n.attrs.at(key);
             std::string num;
             if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") continue;
-            if (key == "Text" || key == "Placeholder") code += " " + name + "." + key + " = " + quote(v) + ";";
+            if (key == "Text" || key == "Placeholder" || key == "Group") code += " " + name + "." + key + " = " + quote(v) + ";";
+            else if (key == "Items") code += " " + name + ".SetItems(" + quote(v) + ");";
+            else if (key == "SelectedIndex") intAttr(n, key, num), post += " " + name + ".SelectedIndex = " + num + ";";
             else if (key == "FontSize") intAttr(n, key, num), code += " " + name + ".FontSize = " + num + ";";
             else if (key == "CornerRadius") intAttr(n, key, num), code += " " + name + ".CornerRadius = " + num + ";";
             else if (key == "Bold" || key == "Checked" || key == "Enabled" || key == "Visible")
@@ -171,6 +176,7 @@ struct Gen {
                 error(n.line, "atributo desconocido '" + key + "' en <" + n.name + ">");
             }
         }
+        code += post;
         if (clickId || changedId)
             code += " " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " + std::to_string(changedId) + ");";
         emit(n.line, " if (ev == 0) { " + code + " }" + events);
