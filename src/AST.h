@@ -54,7 +54,7 @@ enum class Access { Private, Public, Internal, Protected };
 struct Modifiers {
     Access access = Access::Private;
     bool hasAccess = false;
-    bool isStatic = false, isExtern = false, isConst = false, isReadonly = false;
+    bool isStatic = false, isExtern = false, isConst = false, isReadonly = false, isPartial = false;
 };
 
 struct Attribute {
@@ -146,6 +146,7 @@ struct NameExpr : Expr {
     VarInfo* var = nullptr;
     FieldDecl* field = nullptr;
     MethodDecl* getter = nullptr;    // Property
+    MethodDecl* setter = nullptr;    // Property con 'set'
     explicit NameExpr(SourceLoc l) : Expr(EK::Name, l) {}
 };
 
@@ -158,6 +159,7 @@ struct MemberExpr : Expr {
     enum class Ref { None, Field, StaticField, EnumConst, ConstInt, StrLength, StrPtr, Property } ref = Ref::None;
     FieldDecl* field = nullptr;
     MethodDecl* getter = nullptr;    // Property
+    MethodDecl* setter = nullptr;    // Property con 'set'
     uint64_t constBits = 0;          // EnumConst / ConstInt
     bool extension = false;          // grupo de métodos de extensión sobre 'obj'
     explicit MemberExpr(SourceLoc l) : Expr(EK::Member, l) {}
@@ -208,6 +210,7 @@ struct AssignExpr : Expr {
     Expr* lhs = nullptr;
     Expr* rhs = nullptr;
     MethodDecl* opMethod = nullptr;  // a += b con operator+
+    MethodDecl* setter = nullptr;    // obj.Propiedad = valor
     explicit AssignExpr(SourceLoc l) : Expr(EK::Assign, l) {}
 };
 
@@ -358,6 +361,7 @@ struct Param {
 
 struct FieldDecl {
     SourceLoc loc;
+    FileScope* file = nullptr;  // archivo de origen si viene de otra parte de una clase 'partial'
     Modifiers mods;
     std::vector<Attribute> attrs;
     TypeRef* tref = nullptr;
@@ -369,10 +373,11 @@ struct FieldDecl {
     bool isStatic() const { return mods.isStatic || mods.isConst; }
 };
 
-enum class MethodKind { Normal, Ctor, Dtor, Getter, Operator };
+enum class MethodKind { Normal, Ctor, Dtor, Getter, Setter, Operator };
 
 struct MethodDecl {
     SourceLoc loc;
+    FileScope* file = nullptr;  // archivo de origen si viene de otra parte de una clase 'partial'
     Modifiers mods;
     std::vector<Attribute> attrs;
     MethodKind kind = MethodKind::Normal;

@@ -718,6 +718,30 @@ namespace FasetStudio.Gfx
             return true;
         }
 
+        string sansPath = "";
+        string sansBoldPath = "";
+        List<Font> sized = new List<Font>();
+        List<int> sizedKeys = new List<int>();
+
+        // Fuente de interfaz de cualquier tamaño (vista previa del diseñador); se cargan bajo demanda.
+        public Font Sans(int size, bool bold)
+        {
+            if (size < 6) size = 6;
+            if (size > 72) size = 72;
+            int key = size * 2 + (bold ? 1 : 0);
+            for (int i = 0; i < sizedKeys.Count; i++)
+                if (sizedKeys[i] == key) return sized[i];
+            Font f = new Font();
+            if (!f.Load(bold ? sansBoldPath : sansPath, size, Atlas))
+            {
+                delete f;
+                return bold ? UiBold : Ui;
+            }
+            sized.Add(f);
+            sizedKeys.Add(key);
+            return f;
+        }
+
         bool LoadFonts()
         {
             string mono = Font.FindFile("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf;/usr/share/fonts/TTF/DejaVuSansMono.ttf;/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf;/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf;C:/Windows/Fonts/consola.ttf");
@@ -730,6 +754,8 @@ namespace FasetStudio.Gfx
             if (monoItalic.IsEmpty()) monoItalic = mono;
             if (sans.IsEmpty()) sans = mono;
             if (sansBold.IsEmpty()) sansBold = sans;
+            sansPath = sans;
+            sansBoldPath = sansBold;
             Code = new Font();
             CodeBold = new Font();
             CodeItalic = new Font();

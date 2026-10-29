@@ -20,6 +20,10 @@ static const std::unordered_set<std::string> kKeywords = {
 
 bool isKeyword(const std::string& s) { return kKeywords.count(s) != 0; }
 
+static std::set<std::string> gDefines = {"FASET", "LINUX", "DEBUG"};
+
+void setDefines(const std::set<std::string>& defines) { gDefines = defines; }
+
 namespace {
 
 // Ordenados de mayor a menor longitud para que gane la coincidencia más larga.
@@ -124,6 +128,109 @@ struct Lex {
     }
 
     void push(Token t) { out.push_back(std::move(t)); }
+
+    // ---- compilación condicional
+    struct Cond {
+        bool parentActive;
+        bool active;
+        bool taken;  // ya se eligió una rama del #if
+        SourceLoc loc;
+    };
+    std::vector<Cond> conds;
+
+    bool active() const { return conds.empty() || conds.back().active; }
+
+    bool atLineStart() const {
+        for (size_t k = i; k > 0; k--) {
+            char ch = s[k - 1];
+            if (ch == '\n') return true;
+            if (ch != ' ' && ch != '\t' && ch != '\r') return false;
+        }
+        return true;
+    }
+
+    // Evalúa: SIMBOLO, !SIMBOLO, true/false, combinados con && y || (sin paréntesis).
+    bool evalCondition(const std::string& expr, SourceLoc loc) {
+        bool result = false, haveOr = false;
+        size_t p = 0;
+        bool term = true;
+        while (p <= expr.size()) {
+            while (p < expr.size() && isspace((unsigned char)expr[p])) p++;
+            bool neg = false;
+            while (p < expr.size() && expr[p] == '!') {
+                neg = !neg;
+                p++;
+            }
+            size_t b = p;
+            while (p < expr.size() && (isalnum((unsigned char)expr[p]) || expr[p] == '_')) p++;
+            std::string name = expr.substr(b, p - b);
+            if (name.empty()) {
+                diag.error(loc, "condición de #if no válida: '" + expr + "'");
+                return false;
+            }
+            bool v = name == "true" || (name != "false" && gDefines.count(name));
+            if (neg) v = !v;
+            term = term && v;
+            while (p < expr.size() && isspace((unsigned char)expr[p])) p++;
+            if (expr.compare(p, 2, "&&") == 0) {
+                p += 2;
+                continue;
+            }
+            result = result || term;
+            haveOr = true;
+            term = true;
+            if (expr.compare(p, 2, "||") == 0) {
+                p += 2;
+                continue;
+            }
+            break;
+        }
+        (void)haveOr;
+        return result;
+    }
+
+    void directive() {
+        SourceLoc loc = here();
+        std::string line;
+        while (i < s.size() && peek() != '\n') line += get();
+        size_t a = line.find_first_not_of(" \t#");
+        std::string rest = a == std::string::npos ? "" : line.substr(a);
+        size_t sp = rest.find_first_of(" \t");
+        std::string word = rest.substr(0, sp);
+        std::string arg = sp == std::string::npos ? "" : rest.substr(sp + 1);
+        size_t cmt = arg.find("//");
+        if (cmt != std::string::npos) arg = arg.substr(0, cmt);
+        while (!arg.empty() && isspace((unsigned char)arg.back())) arg.pop_back();
+        if (word == "if") {
+            bool parent = active();
+            bool v = parent && evalCondition(arg, loc);
+            conds.push_back({parent, v, v, loc});
+        } else if (word == "elif") {
+            if (conds.empty()) {
+                diag.error(loc, "#elif sin #if");
+                return;
+            }
+            Cond& c = conds.back();
+            bool v = c.parentActive && !c.taken && evalCondition(arg, loc);
+            c.active = v;
+            c.taken = c.taken || v;
+        } else if (word == "else") {
+            if (conds.empty()) {
+                diag.error(loc, "#else sin #if");
+                return;
+            }
+            Cond& c = conds.back();
+            c.active = c.parentActive && !c.taken;
+            c.taken = true;
+        } else if (word == "endif") {
+            if (conds.empty()) diag.error(loc, "#endif sin #if");
+            else conds.pop_back();
+        } else if (word == "region" || word == "endregion" || word == "pragma") {
+            // se ignoran
+        } else if (active()) {
+            diag.error(loc, "directiva desconocida '#" + word + "'");
+        }
+    }
 
     void lexNumber() {
         Token t;
@@ -234,8 +341,12 @@ struct Lex {
                 else get(), get();
                 continue;
             }
-            if (c == '#') {  // #region, #pragma, etc.: se ignoran
-                while (i < s.size() && peek() != '\n') get();
+            if (c == '#' && atLineStart()) {
+                directive();
+                continue;
+            }
+            if (!active()) {  // dentro de un bloque #if desactivado
+                get();
                 continue;
             }
             if (isdigit((unsigned char)c) || (c == '.' && isdigit((unsigned char)peek(1)))) {
@@ -341,6 +452,7 @@ struct Lex {
                 get();
             }
         }
+        if (!conds.empty()) diag.error(conds.back().loc, "falta #endif");
         Token end;
         end.kind = TokKind::End;
         end.loc = here();

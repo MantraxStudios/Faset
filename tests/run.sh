@@ -63,7 +63,7 @@ fi
 if ldconfig -p 2>/dev/null | grep -q "libvulkan.so.1" && [ -f /usr/lib/x86_64-linux-gnu/libX11.so -o -f /usr/lib/libX11.so ]; then
     if ! $FASET build studio -o "$TMP/FasetStudio" > "$TMP/studio.err" 2>&1; then
         echo "FALLO  studio (no compila)"; cat "$TMP/studio.err"; fail=$((fail+1))
-    elif (cd tests/projects/juego/MiJuego && FASET="$OLDPWD/$FASET" timeout 120 "$TMP/FasetStudio" . --screenshot "$TMP/studio.ppm" \
+    elif (cd tests/projects/juego/MiJuego && HOME="$TMP" FASET="$OLDPWD/$FASET" timeout 120 "$TMP/FasetStudio" . --screenshot "$TMP/studio.ppm" \
             --size 900x600 --script "goto 13 59 | key enter | type heroe.Mo | hover 13 22" > "$TMP/studio.log" 2>&1) && [ -s "$TMP/studio.ppm" ]; then
         echo "ok     studio"; pass=$((pass+1))
     else

@@ -103,6 +103,11 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
     fo.libDir = findLibDir(argv0);
     fo.overrides = &overrides;
     fo.analyzeWithParseErrors = true;
+#if defined(_WIN32)
+    fo.defines = definesFor("windows", "Debug");
+#else
+    fo.defines = definesFor("linux", "Debug");
+#endif
     fo.ideMode = true;
 
     Json out = Json::object();

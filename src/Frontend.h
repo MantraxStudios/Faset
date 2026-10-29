@@ -2,6 +2,7 @@
 // Lo comparten el compilador (faset build) y el servidor de lenguaje (faset lsp).
 #pragma once
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -14,7 +15,11 @@ struct FrontendOptions {
     const std::map<std::string, std::string>* overrides = nullptr;
     bool analyzeWithParseErrors = false;  // seguir con el análisis semántico aunque haya errores de sintaxis
     bool ideMode = false;                 // registrar referencias y autocompletado
+    std::set<std::string> defines = {"FASET", "LINUX", "DEBUG"};  // compilación condicional
 };
+
+// Símbolos de compilación condicional para una plataforma y configuración.
+std::set<std::string> definesFor(const std::string& target, const std::string& configuration);
 
 struct FrontendResult {
     Program* prog = nullptr;

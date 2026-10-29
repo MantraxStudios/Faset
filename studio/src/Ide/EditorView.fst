@@ -13,6 +13,8 @@ namespace FasetStudio.Ide
     public class EditorView
     {
         public Document Doc;
+        public Designer Designer;   // solo para .fstui
+        public bool DesignMode;     // mostrando el diseñador (true) o el XML (false)
         public TextPos Cursor;
         public TextPos Anchor;
         public int ScrollLine;
@@ -41,6 +43,7 @@ namespace FasetStudio.Ide
 
         ~EditorView()
         {
+            if (Designer != null) delete Designer;
             Memory.Free(commentState);
             Memory.Free(kinds);
         }

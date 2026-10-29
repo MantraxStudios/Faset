@@ -28,6 +28,7 @@ struct Project {
     std::map<std::string, std::string> props;
     std::vector<std::string> compileInclude, compileRemove;
     std::vector<std::string> nativeLibs, libPaths;
+    std::vector<std::pair<std::string, std::string>> platformLibs;  // <NativeLibrary Include="x" Platform="windows" />
     std::vector<std::string> references;  // rutas a otros .fstproj
 
     std::string prop(const std::string& name, const std::string& def = "") const;

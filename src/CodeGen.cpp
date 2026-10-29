@@ -537,6 +537,18 @@ std::string CodeGen::expr(Expr* e) {
         }
         case EK::Assign: {
             auto* a = static_cast<AssignExpr*>(e);
+            if (a->setter) {
+                std::string self;
+                if (!a->setter->isStatic()) {
+                    if (a->lhs->kind == EK::Member) {
+                        auto* m = static_cast<MemberExpr*>(a->lhs);
+                        self = receiverPtr(m->obj, m->arrow);
+                    } else {
+                        self = "self";
+                    }
+                }
+                return call(a->setter, self, {a->rhs});
+            }
             if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}) + ")";
             return "(" + expr(a->lhs) + " " + a->op + " " + expr(a->rhs) + ")";
         }

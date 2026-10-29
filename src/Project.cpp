@@ -1,4 +1,5 @@
 #include "Project.h"
+#include "Xml.h"
 
 #include <algorithm>
 #include <cctype>
@@ -11,124 +12,6 @@
 namespace fs = std::filesystem;
 
 namespace {
-
-// ---- XML mínimo: elementos, atributos, texto y comentarios.
-
-struct XmlNode {
-    std::string name, text;
-    std::map<std::string, std::string> attrs;
-    std::vector<XmlNode> children;
-};
-
-struct XmlParser {
-    const std::string& s;
-    size_t i = 0;
-    std::string error;
-
-    explicit XmlParser(const std::string& src) : s(src) {}
-
-    int lineAt(size_t pos) const { return 1 + (int)std::count(s.begin(), s.begin() + (long)std::min(pos, s.size()), '\n'); }
-    bool fail(const std::string& msg) {
-        if (error.empty()) error = "línea " + std::to_string(lineAt(i)) + ": " + msg;
-        return false;
-    }
-    void skipWs() {
-        for (;;) {
-            while (i < s.size() && isspace((unsigned char)s[i])) i++;
-            if (s.compare(i, 4, "<!--") == 0) {
-                size_t e = s.find("-->", i);
-                i = e == std::string::npos ? s.size() : e + 3;
-            } else if (s.compare(i, 2, "<?") == 0) {
-                size_t e = s.find("?>", i);
-                i = e == std::string::npos ? s.size() : e + 2;
-            } else {
-                return;
-            }
-        }
-    }
-    static std::string unescape(const std::string& v) {
-        std::string r;
-        for (size_t k = 0; k < v.size(); k++) {
-            if (v[k] == '&') {
-                size_t e = v.find(';', k);
-                if (e != std::string::npos) {
-                    std::string ent = v.substr(k + 1, e - k - 1);
-                    if (ent == "lt") r += '<';
-                    else if (ent == "gt") r += '>';
-                    else if (ent == "amp") r += '&';
-                    else if (ent == "quot") r += '"';
-                    else if (ent == "apos") r += '\'';
-                    else r += "&" + ent + ";";
-                    k = e;
-                    continue;
-                }
-            }
-            r += v[k];
-        }
-        return r;
-    }
-    std::string name() {
-        size_t b = i;
-        while (i < s.size() && (isalnum((unsigned char)s[i]) || s[i] == '_' || s[i] == '-' || s[i] == '.' || s[i] == ':')) i++;
-        return s.substr(b, i - b);
-    }
-    bool element(XmlNode& n) {
-        skipWs();
-        if (i >= s.size() || s[i] != '<') return fail("se esperaba '<'");
-        i++;
-        n.name = name();
-        if (n.name.empty()) return fail("nombre de elemento vacío");
-        for (;;) {
-            skipWs();
-            if (i >= s.size()) return fail("fin de archivo dentro de <" + n.name + ">");
-            if (s.compare(i, 2, "/>") == 0) {
-                i += 2;
-                return true;
-            }
-            if (s[i] == '>') {
-                i++;
-                break;
-            }
-            std::string a = name();
-            if (a.empty()) return fail("atributo mal formado en <" + n.name + ">");
-            skipWs();
-            if (i >= s.size() || s[i] != '=') return fail("se esperaba '=' en el atributo '" + a + "'");
-            i++;
-            skipWs();
-            if (i >= s.size() || (s[i] != '"' && s[i] != '\'')) return fail("se esperaban comillas en '" + a + "'");
-            char q = s[i++];
-            size_t e = s.find(q, i);
-            if (e == std::string::npos) return fail("atributo sin cerrar");
-            n.attrs[a] = unescape(s.substr(i, e - i));
-            i = e + 1;
-        }
-        for (;;) {
-            size_t b = i;
-            while (i < s.size() && s[i] != '<') i++;
-            n.text += s.substr(b, i - b);
-            if (s.compare(i, 4, "<!--") == 0) {
-                skipWs();
-                continue;
-            }
-            if (i >= s.size()) return fail("falta </" + n.name + ">");
-            if (s.compare(i, 2, "</") == 0) {
-                i += 2;
-                std::string close = name();
-                skipWs();
-                if (close != n.name) return fail("se esperaba </" + n.name + "> pero se encontró </" + close + ">");
-                if (i >= s.size() || s[i] != '>') return fail("se esperaba '>'");
-                i++;
-                n.text = unescape(n.text);
-                size_t a = n.text.find_first_not_of(" \t\r\n"), z = n.text.find_last_not_of(" \t\r\n");
-                n.text = a == std::string::npos ? "" : n.text.substr(a, z - a + 1);
-                return true;
-            }
-            XmlNode child;
-            if (!element(child)) return false;
-            n.children.push_back(std::move(child));
-        }
-    }
-};
 
 std::vector<std::string> splitList(const std::string& v) {
     std::vector<std::string> out;
@@ -195,10 +78,10 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
     std::stringstream ss;
     ss << f.rdbuf();
     std::string src = ss.str();
-    XmlParser xp(src);
     XmlNode root;
-    if (!xp.element(root)) {
-        error = path + ": XML no válido: " + xp.error;
+    std::string xmlError;
+    if (!parseXml(src, root, xmlError)) {
+        error = path + ": XML no válido: " + xmlError;
         return false;
     }
     if (root.name != "Project") {
@@ -228,7 +111,11 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                     out.compileInclude.insert(out.compileInclude.end(), inc.begin(), inc.end());
                     out.compileRemove.insert(out.compileRemove.end(), rem.begin(), rem.end());
                 } else if (it.name == "NativeLibrary") {
-                    out.nativeLibs.insert(out.nativeLibs.end(), inc.begin(), inc.end());
+                    std::string platform = it.attrs["Platform"];
+                    std::transform(platform.begin(), platform.end(), platform.begin(), ::tolower);
+                    if (platform.empty()) out.nativeLibs.insert(out.nativeLibs.end(), inc.begin(), inc.end());
+                    else
+                        for (auto& l : inc) out.platformLibs.push_back({l, platform});
                 } else if (it.name == "LibraryPath") {
                     for (auto& d : inc) out.libPaths.push_back((fs::path(out.dir) / d).lexically_normal().string());
                 } else if (it.name == "ProjectReference") {
@@ -269,7 +156,7 @@ std::vector<std::string> projectSources(const Project& p) {
                     it.disable_recursion_pending();
                 continue;
             }
-            if (f.extension() == ".fst") files.push_back(fs::relative(f, root).generic_string());
+            if (f.extension() == ".fst" || f.extension() == ".fstui") files.push_back(fs::relative(f, root).generic_string());
         }
     }
     for (const std::string& inc : p.compileInclude) {
@@ -279,7 +166,7 @@ std::vector<std::string> projectSources(const Project& p) {
         }
         for (auto it = fs::recursive_directory_iterator(root, ec); it != fs::recursive_directory_iterator(); it.increment(ec)) {
             if (ec) break;
-            if (it->is_regular_file() && it->path().extension() == ".fst") {
+            if (it->is_regular_file() && (it->path().extension() == ".fst" || it->path().extension() == ".fstui")) {
                 std::string rel = fs::relative(it->path(), root).generic_string();
                 if (globMatch(inc, rel)) files.push_back(rel);
             }

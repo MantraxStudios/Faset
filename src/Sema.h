@@ -127,6 +127,8 @@ private:
     Type* check(Expr* e);
     Type* checkValue(Expr* e);
     Type* checkInner(Expr* e);
+    MethodDecl* FindSetter(MethodDecl* getter);
+    void mergePartials();
     Type* checkName(NameExpr* e);
     Type* checkNameImpl(NameExpr* e);
     Type* checkMember(MemberExpr* e);

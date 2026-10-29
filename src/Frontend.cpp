@@ -14,6 +14,7 @@
 
 #include "Lexer.h"
 #include "Parser.h"
+#include "UiGen.h"
 
 namespace fs = std::filesystem;
 
@@ -90,8 +91,19 @@ static bool readFile(const std::string& path, std::string& out) {
     return true;
 }
 
+std::set<std::string> definesFor(const std::string& target, const std::string& configuration) {
+    std::set<std::string> d = {"FASET"};
+    if (target == "windows") d.insert("WINDOWS");
+    else if (target == "android") d.insert("ANDROID");
+    else if (target == "macos") d.insert("MACOS");
+    else d.insert("LINUX");
+    d.insert(configuration == "Release" ? "RELEASE" : "DEBUG");
+    return d;
+}
+
 FrontendResult runFrontend(const FrontendOptions& opts) {
     FrontendResult res;
+    setDefines(opts.defines);
     res.prog = new Program();
     res.tc = new TypeCtx();
     Program& prog = *res.prog;
@@ -137,6 +149,7 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
             auto* file = new FileScope();
             file->fileId = diag.addFile(shown, path);
             prog.files.push_back(file);
+            if (fs::path(path).extension() == ".fstui") src = generateUiSource(src, file->fileId);
             auto toks = std::make_shared<std::vector<Token>>(tokenize(src, file->fileId));
             Parser(toks, prog, file, fs::path(path).parent_path().string(), &libRoots).parseFile();
         }

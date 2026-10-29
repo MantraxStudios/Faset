@@ -68,6 +68,7 @@ struct Options {
     std::string configuration;
     std::vector<std::string> libs, libDirs;
     std::vector<std::string> runArgs;
+    std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
     bool singleFile = false;
     Project* project = nullptr;
     std::string argv0;
@@ -236,7 +237,7 @@ static void collectInputs(const std::string& p, std::vector<std::string>& out) {
     if (fs::is_directory(p, ec)) {
         std::vector<std::string> found;
         for (auto& e : fs::recursive_directory_iterator(p, ec))
-            if (e.is_regular_file() && e.path().extension() == ".fst") found.push_back(e.path().string());
+            if (e.is_regular_file() && (e.path().extension() == ".fst" || e.path().extension() == ".fstui")) found.push_back(e.path().string());
         std::sort(found.begin(), found.end());
         out.insert(out.end(), found.begin(), found.end());
     } else {
@@ -292,6 +293,7 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         for (const std::string& f : projectSources(*proj))
             if (std::find(o.inputs.begin(), o.inputs.end(), f) == o.inputs.end()) o.inputs.push_back(f);
         o.libs.insert(o.libs.end(), proj->nativeLibs.begin(), proj->nativeLibs.end());
+        o.platformLibs.insert(o.platformLibs.end(), proj->platformLibs.begin(), proj->platformLibs.end());
         o.libDirs.insert(o.libDirs.end(), proj->libPaths.begin(), proj->libPaths.end());
         return true;
     };
@@ -313,9 +315,10 @@ static void applyProjectSettings(Options& o) {
 
 // ------------------------------------------------------------------ compilación
 
-static bool frontEnd(const Options& o, std::string* csrc) {
+static bool frontEnd(Options& o, std::string* csrc) {
     FrontendOptions fo;
     fo.inputs = o.inputs;
+    fo.defines = definesFor(o.target, o.configuration);
     fo.libDir = findLibDir(o.argv0);
     if (fo.libDir.empty()) {
         diag.fatal("no se encontró la biblioteca estándar (carpeta 'lib' con std/core.fst); define FASET_LIB");
@@ -327,6 +330,14 @@ static bool frontEnd(const Options& o, std::string* csrc) {
         diag.fatal("no se encontró el punto de entrada ('static void Main()' o 'void main()'); para una biblioteca usa "
                    "OutputType=Library o --shared");
         return false;
+    }
+    // Bibliotecas del sistema que necesitan algunos módulos de la biblioteca estándar.
+    for (const std::string& mod : r.prog->requestedModules) {
+        if (mod != "std.ui") continue;
+        std::vector<std::string> need = o.target == "windows" ? std::vector<std::string>{"user32", "gdi32"}
+                                                              : std::vector<std::string>{"X11", "freetype"};
+        for (const std::string& l : need)
+            if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
     if (csrc) *csrc = CodeGen(*r.prog, *r.sema, *r.tc).generate(o.shared == 1);
     return true;
@@ -429,10 +440,11 @@ static int cmdNew(const std::vector<std::string>& args) {
         if (a == "--lib" || a == "lib" || a == "classlib") kind = "Library";
         else if (a == "--winexe" || a == "winexe") kind = "WinExe";
         else if (a == "console" || a == "--console") kind = "Exe";
+        else if (a == "--ui" || a == "ui" || a == "appui" || a == "--appui") kind = "AppUI";
         else if (!a.empty() && a[0] != '-') name = a;
     }
     if (name.empty()) {
-        diag.fatal("uso: faset new <Nombre> [--lib | --winexe]");
+        diag.fatal("uso: faset new <Nombre> [--lib | --winexe | --ui]");
         return 1;
     }
     fs::path dir(name);
@@ -443,8 +455,55 @@ static int cmdNew(const std::vector<std::string>& args) {
     std::string proj = fs::path(name).filename().string();
     std::string ns = identifierFrom(proj);
     fs::create_directories(dir);
-    writeFile(dir / (proj + ".fstproj"), newProjectXml(proj, kind));
-    if (kind == "Library") {
+    writeFile(dir / (proj + ".fstproj"), newProjectXml(proj, kind == "AppUI" ? "WinExe" : kind));
+    if (kind == "AppUI") {
+        writeFile(dir / "MainWindow.fstui",
+                  "<Window Class=\"MainWindow\" Namespace=\"" + ns + "\" Title=\"" + proj +
+                      "\" Width=\"560\" Height=\"380\" Theme=\"Dark\">\n"
+                      "  <Label Name=\"lblTitle\" X=\"32\" Y=\"28\" Width=\"496\" Height=\"34\" Text=\"Hello, Faset\" FontSize=\"24\" Bold=\"true\" Anchor=\"Left,Top,Right\" />\n"
+                      "  <Label Name=\"lblSubtitle\" X=\"32\" Y=\"62\" Width=\"496\" Height=\"22\" Text=\"Edit MainWindow.fstui in the FasetStudio designer.\" Style=\"Subtle\" Anchor=\"Left,Top,Right\" />\n"
+                      "  <Panel Name=\"card\" X=\"32\" Y=\"104\" Width=\"496\" Height=\"180\" Anchor=\"Left,Top,Right,Bottom\">\n"
+                      "    <Label X=\"20\" Y=\"16\" Width=\"200\" Height=\"20\" Text=\"Your name\" FontSize=\"13\" Style=\"Subtle\" />\n"
+                      "    <TextBox Name=\"txtName\" X=\"20\" Y=\"40\" Width=\"456\" Height=\"36\" Placeholder=\"Type your name...\" Anchor=\"Left,Top,Right\" Changed=\"OnNameChanged\" />\n"
+                      "    <CheckBox Name=\"chkExcited\" X=\"20\" Y=\"92\" Width=\"240\" Height=\"24\" Text=\"Add excitement\" Changed=\"OnNameChanged\" />\n"
+                      "    <Slider Name=\"sldVolume\" X=\"20\" Y=\"130\" Width=\"300\" Height=\"24\" Value=\"30\" Changed=\"OnVolumeChanged\" />\n"
+                      "    <ProgressBar Name=\"prgVolume\" X=\"336\" Y=\"139\" Width=\"140\" Height=\"6\" Value=\"30\" Anchor=\"Left,Top,Right\" />\n"
+                      "  </Panel>\n"
+                      "  <Button Name=\"btnClose\" X=\"300\" Y=\"312\" Width=\"108\" Height=\"38\" Text=\"Close\" Anchor=\"Right,Bottom\" Click=\"OnCloseClick\" />\n"
+                      "  <Button Name=\"btnGreet\" X=\"420\" Y=\"312\" Width=\"108\" Height=\"38\" Text=\"Greet\" Style=\"Primary\" Anchor=\"Right,Bottom\" Click=\"OnGreetClick\" />\n"
+                      "</Window>\n");
+        writeFile(dir / "MainWindow.fst",
+                  "using std.ui;\n\nnamespace " + ns +
+                      "\n{\n"
+                      "    // Code-behind of MainWindow.fstui: the designer generates the controls\n"
+                      "    // (lblTitle, txtName, btnGreet...) in the other half of this partial class.\n"
+                      "    public partial class MainWindow\n    {\n"
+                      "        int greetings;\n\n"
+                      "        public MainWindow() { InitializeComponent(); }\n\n"
+                      "        ~MainWindow() { delete Window; }\n\n"
+                      "        void OnNameChanged(Widget sender)\n        {\n"
+                      "            string name = txtName.Text.Length > 0 ? txtName.Text : \"Faset\";\n"
+                      "            string title = String.Concat(\"Hello, \", name, chkExcited.Checked ? \"!\" : \"\");\n"
+                      "            lblTitle.Text = title;\n"
+                      "            String.Free(title);\n        }\n\n"
+                      "        void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }\n\n"
+                      "        void OnGreetClick(Widget sender)\n        {\n"
+                      "            greetings++;\n"
+                      "            string n = Convert.ToString(greetings);\n"
+                      "            string text = String.Concat(\"Greeted \", n, greetings == 1 ? \" time\" : \" times\");\n"
+                      "            lblSubtitle.Text = text;\n"
+                      "            String.Free(text);\n"
+                      "            String.Free(n);\n        }\n\n"
+                      "        void OnCloseClick(Widget sender) { Window.Close(); }\n"
+                      "    }\n}\n");
+        writeFile(dir / "Program.fst",
+                  "using std.ui;\n\nnamespace " + ns +
+                      "\n{\n    public static class Program\n    {\n        public static int Main()\n        {\n"
+                      "            auto window = new MainWindow();\n"
+                      "            int code = Application.Run(window.Window);\n"
+                      "            delete window;\n"
+                      "            return code;\n        }\n    }\n}\n");
+    } else if (kind == "Library") {
         writeFile(dir / "Biblioteca.fst",
                   "namespace " + ns + "\n{\n    public static class Saludo\n    {\n"
                   "        public static string Texto() => \"¡Hola desde la biblioteca " + proj + "!\";\n    }\n}\n");
@@ -590,6 +649,8 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (o.debug < 0) o.debug = o.configuration == "Debug";
+    for (auto& [lib, platform] : o.platformLibs)
+        if (platform == o.target) o.libs.push_back(lib);
     if (o.target != "linux" && o.target != "windows" && o.target != "android" && o.target != "macos") {
         diag.fatal("objetivo desconocido '" + o.target + "' (usa native, linux, windows o android)");
         return 1;

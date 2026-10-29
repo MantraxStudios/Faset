@@ -227,6 +227,8 @@ Modifiers Parser::parseModifiers() {
         else if (acceptK("const")) m.isConst = true;
         else if (acceptK("readonly")) m.isReadonly = true;
         else if (acceptK("unsafe")) {}
+        else if (cur().kind == TokKind::Ident && cur().text == "partial" && (peekTok().text == "class" || peekTok().text == "struct"))
+            p_++, m.isPartial = true;
         else if (cur().kind == TokKind::Ident && (cur().text == "inline" || cur().text == "constexpr")) p_++;
         else if (isK("virtual") || isK("override") || isK("abstract") || isK("sealed"))
             fail("'" + cur().text + "' aún no está soportado (la herencia llegará en una versión futura)");
@@ -480,7 +482,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         return;
     }
 
-    // Propiedades de solo lectura:  T Nombre => expr;   T Nombre { get { ... } }   T Nombre { get => expr; }
+    // Propiedades:  T N => expr;   T N { get { ... } set { ... } }   T N { get; set; } = valor;
     if (isP("=>") || isP("{")) {
         if (c->isNamespaceScope) fail("las propiedades solo pueden declararse dentro de clases y structs");
         auto* m = new MethodDecl();
@@ -490,28 +492,94 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->retRef = type;
         m->name = name;
         m->kind = MethodKind::Getter;
+        MethodDecl* setter = nullptr;
+        FieldDecl* backing = nullptr;  // propiedad automática
+        auto backingField = [&]() {
+            if (backing) return;
+            backing = new FieldDecl();
+            backing->loc = nameLoc;
+            backing->mods = mods;
+            backing->mods.access = Access::Private;
+            backing->tref = type;
+            backing->name = name + "__valor";
+            c->fields.push_back(backing);
+        };
+        auto fieldRef = [&](SourceLoc l) {
+            auto* n = new NameExpr(l);
+            n->name = name + "__valor";
+            return n;
+        };
         if (isP("=>")) {
             finishMethod(m);
         } else {
             p_++;
             bool got = false;
             while (!isP("}") && !atEnd()) {
-                parseModifiers();
+                Modifiers accessorMods = parseModifiers();
+                SourceLoc al = cur().loc;
                 if (cur().kind == TokKind::Ident && cur().text == "get") {
                     p_++;
                     if (got) fail("la propiedad ya tiene 'get'");
                     got = true;
-                    finishMethod(m);
+                    if (acceptP(";")) {  // get; automático
+                        backingField();
+                        auto* b = new BlockStmt(al);
+                        auto* ret = new ReturnStmt(al);
+                        ret->value = fieldRef(al);
+                        b->stmts.push_back(ret);
+                        m->body = b;
+                    } else {
+                        finishMethod(m);
+                    }
                 } else if (cur().kind == TokKind::Ident && cur().text == "set") {
-                    fail("las propiedades con 'set' aún no están soportadas; usa un campo o un método");
+                    p_++;
+                    if (setter) fail("la propiedad ya tiene 'set'");
+                    setter = new MethodDecl();
+                    setter->loc = al;
+                    setter->mods = mods;
+                    if (accessorMods.hasAccess) setter->mods.access = accessorMods.access;
+                    setter->attrs = attrs;
+                    setter->kind = MethodKind::Setter;
+                    setter->name = name;
+                    auto* voidRef = new TypeRef();
+                    voidRef->loc = al;
+                    voidRef->parts = {"void"};
+                    setter->retRef = voidRef;
+                    Param value;
+                    value.loc = al;
+                    value.tref = type;
+                    value.name = "value";
+                    setter->params.push_back(value);
+                    if (acceptP(";")) {  // set; automático
+                        backingField();
+                        auto* b = new BlockStmt(al);
+                        auto* st = new ExprStmt(al);
+                        auto* as = new AssignExpr(al);
+                        as->op = "=";
+                        as->lhs = fieldRef(al);
+                        auto* v = new NameExpr(al);
+                        v->name = "value";
+                        as->rhs = v;
+                        st->expr = as;
+                        b->stmts.push_back(st);
+                        setter->body = b;
+                    } else {
+                        finishMethod(setter);
+                    }
                 } else {
-                    fail("se esperaba 'get'");
+                    fail("se esperaba 'get' o 'set'");
                 }
             }
             expectP("}");
             if (!got) fail(nameLoc, "la propiedad '" + name + "' necesita un 'get'");
+            if (acceptP("=")) {  // valor inicial de una propiedad automática
+                if (!backing) fail("solo las propiedades automáticas ({ get; set; }) pueden tener valor inicial");
+                backing->init = parseExpr();
+                expectP(";");
+            }
         }
         c->methods.push_back(m);
+        if (setter) c->methods.push_back(setter);
         return;
     }
 

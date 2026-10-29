@@ -181,3 +181,35 @@ This folder has no .fstproj project = Esta carpeta no tiene un proyecto .fstproj
 # Acerca de
 Close = Cerrar
 Version 0.3 — written in Faset, rendered with Vulkan = Versión 0.3 — escrito en Faset, dibujado con Vulkan
+
+# Diseñador de interfaces (.fstui)
+Design = Diseño
+Code = Código
+Desktop app (UI) = App de escritorio (UI)
+Windows and Linux, visual designer = Windows y Linux, diseñador visual
+TOOLBOX = HERRAMIENTAS
+PROPERTIES = PROPIEDADES
+Label = Etiqueta
+Button = Botón
+TextBox = Cuadro de texto
+CheckBox = Casilla
+Slider = Deslizador
+ProgressBar = Barra de progreso
+Panel = Panel
+Window = Ventana
+Control = Control
+Layout = Disposición
+Size = Tamaño
+Appearance = Apariencia
+Behavior = Comportamiento
+Events = Eventos
+Drag a control onto the window = Arrastra un control a la ventana
+Double-click: go to its event = Doble clic: ir a su evento
+Ctrl while dragging: no snapping = Ctrl al arrastrar: sin ajuste
+Ctrl+D duplicate · Del delete = Ctrl+D duplicar · Supr borrar
+Select a control to edit it = Selecciona un control para editarlo
+This interface cannot be shown in the designer = Esta interfaz no se puede mostrar en el diseñador
+Click to open the XML code = Haz clic para abrir el código XML
+Invalid value = Valor no válido
+Event handler created = Manejador de evento creado
+Could not find the window class in the code file = No se encontró la clase de la ventana en el archivo de código

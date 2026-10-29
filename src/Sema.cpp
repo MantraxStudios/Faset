@@ -173,7 +173,55 @@ NamespaceSym* Sema::getNs(const std::string& name, bool create) {
 
 NamespaceSym* Sema::findNs(const std::vector<std::string>& path) { return getNs(join(path, "."), false); }
 
+// Une las partes de las clases 'partial' (mismo namespace y nombre) en la primera.
+void Sema::mergePartials() {
+    std::map<std::string, ClassDecl*> first;
+    std::vector<ClassDecl*> kept;
+    for (ClassDecl* c : prog_.types) {
+        if (!c->mods.isPartial || c->isNamespaceScope) {
+            kept.push_back(c);
+            continue;
+        }
+        std::string key = c->ns + "." + c->name + (c->isTemplate() ? "<>" : "");
+        auto it = first.find(key);
+        if (it == first.end()) {
+            first[key] = c;
+            kept.push_back(c);
+            continue;
+        }
+        ClassDecl* d = it->second;
+        if (d->kind != c->kind || c->isTemplate()) {
+            diag.error(c->loc, "las partes de '" + c->name + "' deben ser del mismo tipo (class/struct) y no genéricas");
+            continue;
+        }
+        if (c->mods.isStatic) d->mods.isStatic = true;
+        if (c->mods.hasAccess && !d->mods.hasAccess) d->mods.access = c->mods.access, d->mods.hasAccess = true;
+        for (FieldDecl* f : c->fields) {
+            if (!f->file) f->file = c->file;
+            d->fields.push_back(f);
+        }
+        for (MethodDecl* m : c->methods) {
+            if (!m->file) m->file = c->file;
+            d->methods.push_back(m);
+        }
+        for (MethodDecl* m : c->ctors) {
+            if (!m->file) m->file = c->file;
+            d->ctors.push_back(m);
+        }
+        if (c->dtor) {
+            if (d->dtor) diag.error(c->dtor->loc, "'" + c->name + "' ya tiene un destructor en otra parte");
+            else {
+                if (!c->dtor->file) c->dtor->file = c->file;
+                d->dtor = c->dtor;
+            }
+        }
+        for (Attribute& a : c->attrs) d->attrs.push_back(a);
+    }
+    prog_.types = kept;
+}
+
 void Sema::buildNamespaces() {
+    mergePartials();
     global_ = new NamespaceSym();
     for (size_t i = 0; i < prog_.types.size(); i++) {
         ClassDecl* c = prog_.types[i];
@@ -333,7 +381,7 @@ std::vector<MethodDecl*> Sema::findExtensions(const std::string& name) {
 
 void Sema::enter(ClassDecl* c, MethodDecl* m) {
     ctx_ = Ctx();
-    ctx_.file = c->file;
+    ctx_.file = m && m->file ? m->file : c->file;
     ctx_.ns = c->nsSym;
     ctx_.cls = c;
     ctx_.method = m;
@@ -475,7 +523,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
     std::set<std::string> fieldNames;
     for (FieldDecl* f : c->fields) {
         f->owner = c;
+        ctx_.file = f->file ? f->file : c->file;
         f->type = resolveType(f->tref);
+        ctx_.file = c->file;
         if (ideMode && !c->templateOf && f->type) addRef(f->loc, (int)f->name.size(), describeField(f), &f->loc);
         if (f->tref->isRef) diag.error(f->loc, "los campos no pueden ser referencias (T&); usa un puntero");
         if (!fieldNames.insert(f->name).second)
@@ -493,7 +543,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         m->owner = c;
         if (!m->isTemplate()) {
             ctx_.method = m;
+            ctx_.file = m->file ? m->file : c->file;
             resolveMethodSignature(m);
+            ctx_.file = c->file;
             ctx_.method = nullptr;
         }
         if (fieldNames.count(m->name)) diag.error(m->loc, "'" + c->displayName + "' ya contiene un campo '" + m->name + "'");
@@ -557,7 +609,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         MethodDecl* m = c->ctors[i];
         m->owner = c;
         ctx_.method = m;
+        if (m->file) ctx_.file = m->file;
         resolveMethodSignature(m);
+        ctx_.file = c->file;
         ctx_.method = nullptr;
         m->cname = c->cname + "__ctor" + std::to_string(i);
         if (c->isStaticClass() || m->isStatic())
@@ -728,6 +782,7 @@ void Sema::processWork() {
             auto [c, f] = fieldWork_[fi++];
             CtxSave save(*this);
             enter(c, nullptr);
+            if (f->file) ctx_.file = f->file;
             checkValue(f->init);
             coerce(f->init, f->type);
             if (f->isStatic()) staticInits.push_back(f);
@@ -1442,6 +1497,13 @@ Type* Sema::fromSym(Expr* e, const Sym& s, const std::vector<TypeRef*>& typeArgs
 }
 
 
+// 'set' de la misma propiedad (mismo nombre y mismo carácter estático) o nullptr.
+MethodDecl* Sema::FindSetter(MethodDecl* getter) {
+    for (MethodDecl* m : getter->owner->methods)
+        if (m->kind == MethodKind::Setter && m->name == getter->name && m->isStatic() == getter->isStatic()) return m;
+    return nullptr;
+}
+
 // Registra el significado de un nombre ya resuelto (hover / ir a la definición).
 static void describeExpr(Expr* e, Type* t, std::string& hover, SourceLoc& def, bool& hasDef) {
     hasDef = false;
@@ -1583,6 +1645,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             }
             e->ref = NameExpr::Ref::Property;
             e->getter = m;
+            e->setter = FindSetter(m);
             useMethod(m, &e->loc);
             return m->ret;
         }
@@ -1616,7 +1679,25 @@ Type* Sema::checkNameImpl(NameExpr* e) {
 }
 
 Type* Sema::checkMemberImpl(MemberExpr* e) {
-    Type* ot = check(e->obj);
+    // Regla "Color Color" de C#: en 'Anchor.Left', si 'Anchor' es a la vez un campo de la clase y
+    // el nombre de su tipo enum, se trata como el tipo.
+    if (e->obj->kind == EK::Name && ctx_.cls) {
+        auto* n = static_cast<NameExpr*>(e->obj);
+        Type* same = nullptr;
+        if (n->typeArgs.empty() && !lookupLocal(n->name)) {
+            for (FieldDecl* f : ctx_.cls->fields)
+                if (f->name == n->name && f->type && f->type->is(TK::Enum) && f->type->decl->name == n->name) same = f->type;
+            for (MethodDecl* m : ctx_.cls->methods)
+                if (m->kind == MethodKind::Getter && m->name == n->name && m->ret && m->ret->is(TK::Enum) && m->ret->decl->name == n->name)
+                    same = m->ret;
+        }
+        if (same) {
+            n->vk = ValKind::TypeName;
+            n->typeValue = same;
+            n->type = same;
+        }
+    }
+    Type* ot = e->obj->vk == ValKind::TypeName && e->obj->typeValue ? e->obj->typeValue : check(e->obj);
     if (ot->isError()) return ot;
     Expr* obj = e->obj;
 
@@ -1690,6 +1771,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 checkAccess(m->mods.access, c, m->name, e->loc);
                 e->ref = MemberExpr::Ref::Property;
                 e->getter = m;
+                e->setter = FindSetter(m);
                 useMethod(m, &e->loc);
                 return m->ret;
             }
@@ -1749,6 +1831,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             checkAccess(m->mods.access, c, m->name, e->loc);
             e->ref = MemberExpr::Ref::Property;
             e->getter = m;
+            e->setter = FindSetter(m);
             useMethod(m, &e->loc);
             return m->ret;
         }
@@ -2198,6 +2281,24 @@ Type* Sema::checkAssign(AssignExpr* e) {
     if (isConstTarget(e->lhs)) {
         diag.error(e->lhs->loc, "no se puede asignar a una constante");
         return tc_.error();
+    }
+    MethodDecl* getter = e->lhs->kind == EK::Name ? static_cast<NameExpr*>(e->lhs)->getter
+                       : e->lhs->kind == EK::Member ? static_cast<MemberExpr*>(e->lhs)->getter : nullptr;
+    if (getter) {
+        MethodDecl* setter = e->lhs->kind == EK::Name ? static_cast<NameExpr*>(e->lhs)->setter : static_cast<MemberExpr*>(e->lhs)->setter;
+        if (!setter) {
+            diag.error(e->lhs->loc, "la propiedad '" + getter->name + "' es de solo lectura (no tiene 'set')");
+            return tc_.error();
+        }
+        if (e->op != "=") {
+            diag.error(e->loc, "'" + e->op + "' no se puede usar con propiedades; escribe 'p = p " + e->op.substr(0, e->op.size() - 1) + " valor'");
+            return tc_.error();
+        }
+        checkAccess(setter->mods.access, setter->owner, setter->name, e->loc);
+        coerce(e->rhs, L);
+        e->setter = setter;
+        useMethod(setter, &e->loc);
+        return tc_.get(TK::Void);
     }
     if (!isLValue(e->lhs)) {
         diag.error(e->lhs->loc, "el lado izquierdo de una asignación debe ser una variable, campo o elemento indexado");

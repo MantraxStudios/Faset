@@ -90,6 +90,7 @@ namespace FasetStudio.Ide
 
         Renderer r;
         Window win;
+        int forcedClicks;   // clics simulados (--script)
         Highlighter hl = new Highlighter();
         Analyzer analyzer;
         Explorer explorer = new Explorer();
@@ -136,6 +137,8 @@ namespace FasetStudio.Ide
         float pressY;
         bool draggingFile;
         const int ActNewProject = 50;
+        const int ActDesignView = 60;   // + índice del grupo
+        const int ActCodeView = 70;     // + índice del grupo
         const int ActOpenFolder = 51;
         StringBuilder output = new StringBuilder();
         List<Problem> problems = new List<Problem>();
@@ -294,6 +297,11 @@ namespace FasetStudio.Ide
                     return g.Tabs[i];
                 }
             EditorView view = new EditorView(doc);
+            if (doc.FullPath.EndsWith(".fstui"))
+            {
+                view.Designer = new Designer(doc);
+                view.DesignMode = true;
+            }
             g.Tabs.Add(view);
             ActivateTab(activeGroup, g.Tabs.Count - 1);
             explorer.Select(doc.FullPath);
@@ -996,6 +1004,12 @@ namespace FasetStudio.Ide
                 if (g.Tabs.Count > 0) ActivateTab(activeGroup, (g.Active + (e.Shift ? g.Tabs.Count - 1 : 1)) % g.Tabs.Count);
                 return;
             }
+            if (v != null && v.Designer != null && v.DesignMode)
+            {
+                v.Designer.Key(e);
+                AfterDesigner(v);
+                return;
+            }
             if (k == Keys.Escape)
             {
                 if (v != null) v.SetCursor(v.Cursor, false);
@@ -1199,6 +1213,12 @@ namespace FasetStudio.Ide
                 if (v != null && x >= v.X && x < v.X + v.W && y >= v.Y && y < v.Y + v.H)
                 {
                     if (k != activeGroup || groups[k].Active >= 0) ActivateTab(k, groups[k].Active);
+                    if (v.Designer != null && v.DesignMode)
+                    {
+                        if (e.Button == 1) v.Designer.MouseDown(x, y, forcedClicks > 0 ? forcedClicks : (win != null ? win.ClickCount : 1), e.Shift, e.Ctrl);
+                        AfterDesigner(v);
+                        return;
+                    }
                     if (e.Button == 3)
                     {
                         if (!v.HasSelection) v.SetCursor(v.PosFromPoint(r, x, y), false);
@@ -1232,6 +1252,127 @@ namespace FasetStudio.Ide
             }
         }
 
+        // ------------------------------------------------------------------ diseñador (.fstui)
+
+        // Atiende lo que el diseñador pidió tras un evento.
+        void AfterDesigner(EditorView v)
+        {
+            Designer d = v.Designer;
+            if (d.Doc.Buffer.Version != d.Doc.AnalyzedVersion) MarkEdited();
+            if (d.Status.Length > 0)
+            {
+                SetStatus(L.T(d.Status));
+                d.Status = "";
+            }
+            if (d.SwitchToCode)
+            {
+                d.SwitchToCode = false;
+                v.DesignMode = false;
+            }
+            if (d.RequestHandler.Length > 0)
+            {
+                string method = d.RequestHandler;
+                d.RequestHandler = String.Copy("");
+                OpenHandler(v, method);
+                String.Free(method);
+            }
+        }
+
+        // Abre el código de la ventana (Nombre.fst junto a Nombre.fstui) en el manejador 'method',
+        // creándolo (y creando el archivo) si no existe.
+        void OpenHandler(EditorView designView, string method)
+        {
+            string uiPath = designView.Doc.FullPath;
+            string codePath = String.Copy(uiPath.Substring(0, uiPath.Length - 2));
+            string cls = String.Copy(designView.Designer.ClassName);
+            string ns = String.Copy(designView.Designer.NamespaceName);
+            if (!File.Exists(codePath))
+            {
+                StringBuilder sb = new StringBuilder();
+                string ind = ns.Length > 0 ? "    " : "";
+                sb.Append("using std.ui;\n\n");
+                if (ns.Length > 0) sb.Append("namespace ").Append(ns).Append("\n{\n");
+                sb.Append(ind).Append("public partial class ").Append(cls).Append("\n").Append(ind).Append("{\n");
+                sb.Append(ind).Append("    public ").Append(cls).Append("() { InitializeComponent(); }\n");
+                sb.Append(ind).Append("}\n");
+                if (ns.Length > 0) sb.Append("}\n");
+                File.WriteAllText(codePath, sb.View());
+                delete sb;
+                explorer.Refresh();
+            }
+            EditorView v = OpenFile(codePath);
+            String.Free(codePath);
+            if (v != null)
+            {
+                TextBuffer b = v.Doc.Buffer;
+                int found = -1, foundCol = 0, classLine = -1;
+                string needle = String.Concat(" ", method, "(");
+                string classNeedle = String.Concat("class ", cls);
+                for (int l = 0; l < b.LineCount; l++)
+                {
+                    string t = b.LineText(l);
+                    int at = t.IndexOf(needle);
+                    if (found < 0 && at >= 0 && t.Contains("void"))
+                    {
+                        found = l;
+                        foundCol = at + 1;
+                    }
+                    if (classLine < 0 && t.Contains(classNeedle)) classLine = l;
+                }
+                String.Free(needle);
+                String.Free(classNeedle);
+                if (found >= 0) v.GoToLine(found, foundCol, r);
+                else if (classLine < 0) SetStatus(L.T("Could not find the window class in the code file"));
+                else
+                {
+                    // Llave de cierre de la clase
+                    int depth = 0, closeLine = -1;
+                    bool started = false;
+                    for (int l = classLine; l < b.LineCount && closeLine < 0; l++)
+                    {
+                        string t = b.LineText(l);
+                        for (int i = 0; i < t.Length; i++)
+                        {
+                            if (t[i] == '/' && i + 1 < t.Length && t[i + 1] == '/') break;
+                            if (t[i] == '{')
+                            {
+                                depth++;
+                                started = true;
+                            }
+                            else if (t[i] == '}' && started && --depth == 0)
+                            {
+                                closeLine = l;
+                                break;
+                            }
+                        }
+                    }
+                    if (closeLine < 0) SetStatus(L.T("Could not find the window class in the code file"));
+                    else
+                    {
+                        string closing = b.LineText(closeLine);
+                        int ws = 0;
+                        while (ws < closing.Length && (closing[ws] == ' ' || closing[ws] == '\t')) ws++;
+                        string indent = String.Concat(closing.Substring(0, ws), "    ");
+                        StringBuilder stub = new StringBuilder();
+                        bool blank = closeLine > 0 && b.LineText(closeLine - 1).Trim().Length > 0 && b.LineText(closeLine - 1).Trim() != "{";
+                        if (blank) stub.Append("\n");
+                        stub.Append(indent).Append("void ").Append(method).Append("(Widget sender)\n");
+                        stub.Append(indent).Append("{\n").Append(indent).Append("    \n").Append(indent).Append("}\n");
+                        b.NewGroup();
+                        b.Insert(new TextPos(closeLine, 0), stub.View(), v.Cursor);
+                        b.NewGroup();
+                        delete stub;
+                        v.GoToLine(closeLine + (blank ? 3 : 2), indent.Length + 4, r);
+                        String.Free(indent);
+                        MarkEdited();
+                        SetStatus(L.T("Event handler created"));
+                    }
+                }
+            }
+            String.Free(cls);
+            String.Free(ns);
+        }
+
         void GoToDefinitionAt(EditorView v, float x, float y)
         {
             v.SetCursor(v.PosFromPoint(r, x, y), false);
@@ -1258,6 +1399,13 @@ namespace FasetStudio.Ide
                 Settings.Set("language", code);
                 String.Free(code);
                 SetStatus(L.T("Language changed"));
+            }
+            else if (id >= ActDesignView && id < ActCodeView + 10)
+            {
+                int gi = id >= ActCodeView ? id - ActCodeView : id - ActDesignView;
+                EditorView v = gi < groups.Count ? groups[gi].Current : null;
+                if (v != null && v.Designer != null) v.DesignMode = id < ActCodeView;
+                if (gi < groups.Count && groups[gi].Active >= 0) ActivateTab(gi, groups[gi].Active);
             }
             else if (id == ActPanelOutput || id == ActPanelErrors)
             {
@@ -1300,7 +1448,16 @@ namespace FasetStudio.Ide
             dragSplitter = 0;
             UpdateCursor();
             for (int k = 0; k < groups.Count; k++)
-                if (groups[k].Current != null) groups[k].Current.MouseUp();
+            {
+                EditorView v = groups[k].Current;
+                if (v == null) continue;
+                if (v.Designer != null && v.DesignMode)
+                {
+                    v.Designer.MouseUp(e.X, e.Y);
+                    AfterDesigner(v);
+                }
+                else v.MouseUp();
+            }
         }
 
         void MouseMove(Event e)
@@ -1342,7 +1499,12 @@ namespace FasetStudio.Ide
                 splitRatio = (float)Math.Clamp((mouseX - left - Gap / 2) / total, 0.15, 0.85);
             }
             for (int k = 0; k < groups.Count; k++)
-                if (groups[k].Current != null && groups[k].Current.MouseMove(r, mouseX, mouseY)) needsRedraw = true;
+            {
+                EditorView v = groups[k].Current;
+                if (v == null) continue;
+                if (v.Designer != null && v.DesignMode) v.Designer.MouseMove(mouseX, mouseY, e.Button == 1, e.Ctrl);
+                else if (v.MouseMove(r, mouseX, mouseY)) needsRedraw = true;
+            }
             explorer.HoverRow = overlay == Overlay.None ? explorer.RowAt(mouseX, mouseY) : -1;
             hoverButton = -1;
             for (int i = 0; i < hits.Count; i++)
@@ -1362,7 +1524,11 @@ namespace FasetStudio.Ide
                 for (int k = 0; k < groups.Count; k++)
                 {
                     EditorView v = groups[k].Current;
-                    if (v != null && x >= v.X && x < v.X + v.W) v.Scroll(e.ScrollLines);
+                    if (v != null && x >= v.X && x < v.X + v.W)
+                    {
+                        if (v.Designer != null && v.DesignMode) v.Designer.Scroll(x, e.ScrollLines, e.Shift);
+                        else v.Scroll(e.ScrollLines);
+                    }
                 }
             }
         }
@@ -1690,7 +1856,7 @@ namespace FasetStudio.Ide
                 String.Free(dest);
                 return;
             }
-            string kind = projectTemplate == 1 ? " --lib" : (projectTemplate == 2 ? " --winexe" : "");
+            string kind = projectTemplate == 1 ? " --lib" : (projectTemplate == 2 ? " --winexe" : (projectTemplate == 3 ? " --ui" : ""));
             string qf = Analyzer.Quote(analyzer.Compiler), qloc = Analyzer.Quote(location), qname = Analyzer.Quote(name);
             StringBuilder cmd = new StringBuilder();
             cmd.Append("cd ").Append(qloc).Append(" && ").Append(qf).Append(" new ").Append(qname).Append(kind);
@@ -1706,6 +1872,12 @@ namespace FasetStudio.Ide
             {
                 Settings.Set("projects.location", location);
                 OpenWorkspace(dest);
+                if (projectTemplate == 3)
+                {
+                    string ui = Path.Combine(dest, "MainWindow.fstui");
+                    OpenFile(ui);
+                    String.Free(ui);
+                }
                 SetStatus(L.T("Project created"));
             }
             else SetStatus(L.T("Could not create the project"));
@@ -2117,7 +2289,7 @@ namespace FasetStudio.Ide
             }
             if (overlay == Overlay.NewProject)
             {
-                if (id >= 10 && id <= 12) projectTemplate = id - 10;
+                if (id >= 10 && id <= 13) projectTemplate = id - 10;
                 else if (id == 20) overlay = Overlay.None;
                 else if (id == 21) CreateProject();
                 return;
@@ -2451,6 +2623,29 @@ namespace FasetStudio.Ide
             cur.Y = ey;
             cur.W = g.W - 2;
             cur.H = eh;
+            if (cur.Designer != null)
+            {
+                // Selector Diseño | Código a la derecha de las pestañas
+                string design = L.T("Design"), code = L.T("Code");
+                float w1 = r.TextWidth(r.Ui, design) + 24, w2 = r.TextWidth(r.Ui, code) + 24;
+                float sx = g.X + g.W - w1 - w2 - 16, sy = g.Y + 7;
+                r.RoundRect(sx - 3, sy - 1, w1 + w2 + 6, 30, 9, Theme.Base);
+                r.RoundRect(cur.DesignMode ? sx : sx + w1, sy + 2, cur.DesignMode ? w1 : w2, 24, 7, Theme.Active);
+                r.Text(r.Ui, sx + 12, sy + 5, design, cur.DesignMode ? Theme.White : Theme.TextTertiary);
+                r.Text(r.Ui, sx + w1 + 12, sy + 5, code, cur.DesignMode ? Theme.TextTertiary : Theme.White);
+                AddHit(sx, sy, w1, 28, ActDesignView + index, -1, false);
+                AddHit(sx + w1, sy, w2, 28, ActCodeView + index, -1, false);
+                if (cur.DesignMode)
+                {
+                    Designer d = cur.Designer;
+                    d.X = cur.X;
+                    d.Y = cur.Y;
+                    d.W = cur.W;
+                    d.H = cur.H;
+                    d.Draw(r);
+                    return;
+                }
+            }
             cur.ClampScroll();
             long now = Environment.TickCount64();
             bool caretOn = ((now - cur.CaretTime) / 530) % 2 == 0;
@@ -2986,28 +3181,53 @@ namespace FasetStudio.Ide
             AddHit(x, y, w, h, id, -1, false);
         }
 
+        // Texto en varias líneas cortado por palabras.
+        void WrapText(Font f, float x, float y, float maxW, string text, Color c)
+        {
+            List<string> words = Text.Split(text, " ");
+            StringBuilder line = new StringBuilder();
+            float ly = y;
+            for (int i = 0; i < words.Count; i++)
+            {
+                int before = line.Length;
+                if (before > 0) line.Append(" ");
+                line.Append(words[i]);
+                if (before > 0 && r.TextWidth(f, line.View()) > maxW)
+                {
+                    string keep = String.Copy(line.View().Substring(0, before));
+                    r.Text(f, x, ly, keep, c);
+                    String.Free(keep);
+                    ly += f.LineHeight;
+                    line.Clear();
+                    line.Append(words[i]);
+                }
+            }
+            if (line.Length > 0) r.Text(f, x, ly, line.View(), c);
+            delete line;
+            delete words;
+        }
+
         void DrawNewProjectDialog()
         {
-            float w = 760, h = 470, x, y;
+            float w = 900, h = 470, x, y;
             DialogFrame(w, h, out x, out y);
             r.Text(r.Title, x + 28, y + 24, L.T("Create a new project"), Theme.White);
-            float cw = (w - 56 - 24) / 3;
-            for (int i = 0; i < 3; i++)
+            float cw = (w - 56 - 36) / 4;
+            for (int i = 0; i < 4; i++)
             {
                 float cx = x + 28 + i * (cw + 12), cy = y + 76;
                 bool sel = projectTemplate == i;
                 bool hover = mouseX >= cx && mouseX < cx + cw && mouseY >= cy && mouseY < cy + 118;
                 r.RoundRect(cx, cy, cw, 118, 12, sel ? Theme.Active : (hover ? Theme.Hover : Theme.Surface));
                 r.RoundBorder(cx, cy, cw, 118, 12, sel ? 1.5f : 1, sel ? Theme.White : Theme.Border);
-                string title = i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : L.T("Window app");
-                string desc = i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects") : L.T("A Windows app without a console");
-                string tag = i == 0 ? "Exe" : i == 1 ? "Library" : "WinExe";
+                string title = i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app") : L.T("Desktop app (UI)");
+                string desc = i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
+                            : i == 2 ? L.T("A Windows app without a console") : L.T("Windows and Linux, visual designer");
+                string tag = i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : "AppUI";
                 r.RoundRect(cx + 16, cy + 16, 30, 30, 8, sel ? Theme.White : Theme.Active);
                 r.Logo(cx + 21, cy + 21, 20, sel ? Theme.Black : Theme.White);
                 r.Text(r.UiBold, cx + 16, cy + 58, title, Theme.White);
-                r.PushClip(cx + 16, cy, cw - 28, 118);
-                r.Text(r.UiSmall, cx + 16, cy + 82, desc, Theme.TextTertiary);
-                r.PopClip();
+                WrapText(r.UiSmall, cx + 16, cy + 80, cw - 28, desc, Theme.TextTertiary);
                 float tw = r.TextWidth(r.UiSmall, tag) + 14;
                 r.RoundRect(cx + cw - tw - 12, cy + 20, tw, 20, 10, Theme.Base);
                 r.Text(r.UiSmall, cx + cw - tw - 5, cy + 22, tag, Theme.TextSecondary);
@@ -3204,7 +3424,12 @@ namespace FasetStudio.Ide
                         for (int k = 0; k < groups.Count; k++)
                         {
                             EditorView v = groups[k].Current;
-                            if (v != null && mouseX >= v.X + v.GutterWidth(r) - 4 && mouseX < v.X + v.W - 10 && mouseY >= v.Y && mouseY < v.Y + v.H)
+                            if (v != null && v.Designer != null && v.DesignMode)
+                            {
+                                if (mouseX >= v.X && mouseX < v.X + v.W && mouseY >= v.Y && mouseY < v.Y + v.H)
+                                    kind = v.Designer.CursorAt(mouseX, mouseY);
+                            }
+                            else if (v != null && mouseX >= v.X + v.GutterWidth(r) - 4 && mouseX < v.X + v.W - 10 && mouseY >= v.Y && mouseY < v.Y + v.H)
                                 kind = CursorKind.Text;
                         }
                     }
@@ -3295,6 +3520,49 @@ namespace FasetStudio.Ide
                     mouseY = v.Y + (line - v.ScrollLine) * r.Code.LineHeight + 5;
                     if (v.Doc.AnalyzedVersion != v.Doc.Buffer.Version) RunAnalysis();
                     UpdateHover();
+                }
+                delete p;
+            }
+            else if (verb == "click" || verb == "dblclick" || verb == "drag" || verb == "rclick")
+            {
+                // Ratón simulado: click X Y | dblclick X Y | drag X1 Y1 X2 Y2 (pasos intermedios incluidos)
+                Draw();
+                List<string> p = Text.Split(arg, " ");
+                if (p.Count >= 2)
+                {
+                    Event e = new Event();
+                    e.X = p[0].ToInt();
+                    e.Y = p[1].ToInt();
+                    e.Button = verb == "rclick" ? 3 : 1;
+                    e.Kind = EventKind.MouseMove;
+                    e.Button = 0;
+                    HandleEvent(e);
+                    e.Button = verb == "rclick" ? 3 : 1;
+                    e.Kind = EventKind.MouseDown;
+                    HandleEvent(e);
+                    if (verb == "dblclick")
+                    {
+                        e.Kind = EventKind.MouseUp;
+                        HandleEvent(e);
+                        forcedClicks = 2;
+                        e.Kind = EventKind.MouseDown;
+                        HandleEvent(e);
+                    }
+                    if (verb == "drag" && p.Count >= 4)
+                    {
+                        int x2 = p[2].ToInt(), y2 = p[3].ToInt();
+                        for (int s = 1; s <= 8; s++)
+                        {
+                            e.Kind = EventKind.MouseMove;
+                            e.X = p[0].ToInt() + (x2 - p[0].ToInt()) * s / 8;
+                            e.Y = p[1].ToInt() + (y2 - p[1].ToInt()) * s / 8;
+                            HandleEvent(e);
+                            Draw();
+                        }
+                    }
+                    e.Kind = EventKind.MouseUp;
+                    HandleEvent(e);
+                    forcedClicks = 0;
                 }
                 delete p;
             }
