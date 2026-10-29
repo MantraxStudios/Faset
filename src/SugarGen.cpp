@@ -74,7 +74,8 @@ std::string CodeGen::strFn(Type* t) {
         body += "    return faset_str_concatv(" + std::to_string(2 * fs.size() + 1) + ", p);\n";
     } else if (MethodDecl* m = findToString(t)) {
         std::string loc = m->trackCaller ? ", fs__f0, 0" : "";
-        if (t->isClass()) body = "    return v ? " + m->cname + "(v" + loc + ") : FASET_STR(\"\", 0);\n";
+        // Clases: llamada virtual (el ToString() más derivado), con el 'self' que espera el método.
+        if (t->isClass()) body = "    return v ? " + calleeName(m, false) + "(" + selfArg(m, "v") + loc + ") : FASET_STR(\"\", 0);\n";
         else body = "    return " + m->cname + "(&v" + loc + ");\n";
     } else {
         body = "    (void)v;\n    return FASET_STR(\"\", 0);\n";

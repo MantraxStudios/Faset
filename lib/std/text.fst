@@ -110,7 +110,7 @@ namespace std.text
         }
 
         // Copia del contenido.
-        public string ToString() => String.Copy(View());
+        public override string ToString() => String.Copy(View());
 
         // Vista sin copiar: válida hasta la próxima modificación del builder.
         public string View() => String.FromBytes(buffer, length);

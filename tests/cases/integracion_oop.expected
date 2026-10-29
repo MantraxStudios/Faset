@@ -1,0 +1,10 @@
+círculo (3.1) -> un círculo
+rectángulo (6.0) -> otra forma
+cuadrado (4.0) -> un cuadrado de área 4
+rectángulo (25.0) -> un rectángulo grande
+rectángulo rectángulo 
+es Rect: 4
+no es círculo
+capturada FormaInvalida: lado negativo
+Punto { X = 1, Y = 2 } Punto { X = 1, Y = 5 } iguales=True
+Rect

@@ -1,0 +1,30 @@
+Punto { X = 1, Y = 2 }
+Punto { X = 1, Y = 5 }
+True
+True
+True
+True
+True
+3
+5 2
+True
+False
+Persona { Nombre = Ana, Edad = 30 } / Persona { Nombre = Ana, Edad = 12 }
+True False Hola, soy Ana
+True
+Color { R = 255, G = 0, B = 0 }
+Color { R = 255, G = 0, B = 10 }
+True
+False
+True
+Par { A = x, B = y }
+True
+Par { A = 9, B = 4 }
+Carta { Numero = 7, Palo = Copas, Figura = False, Peso = 1.5, Pos = Punto { X = 0, Y = 1 } }
+True
+False
+Contador { N = 4 } Contador { N = 8 } False
+True
+Vacio { }
+True
+True

@@ -12,7 +12,7 @@
 32|no se puede convertir implícitamente el tipo '\(int, string\)' en '\(int, int\)'
 33|los brazos del 'switch' no tienen un tipo común
 34|este brazo del 'switch' nunca se alcanza
-35|el patrón de tipo 'Punto' sobre un valor de tipo 'Caja'
+35|el patrón de tipo 'Punto' no puede coincidir con un valor de tipo 'Caja'
 36|ninguna sobrecarga de 'Sumar'
 37|el operador '\?\?=' necesita a la izquierda
 38|no se puede inferir el tipo de 'default'

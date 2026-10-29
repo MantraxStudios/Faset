@@ -1,0 +1,41 @@
+Rex: ¡guau!
+Tom es un gato
+Nemo no es ni perro ni gato
+Fifí: ¡guau!
+True
+True
+False
+True
+False
+True
+True
+Fifí: ¡guau!
+True
+Caniche | Zoo.Caniche | Zoo.Caniche
+Perro <- Animal <- std.Object
+True
+True
+True
+True
+False
+True
+True
+int string Color Caja<int>
+True
+std.Object
+contador Perro Nombre Describir
+Punto
+False
+True
+True
+True
+True
+False
+Punto
+Azul Verde 42
+leído: Verde = 5
+False
+Rojo
+Rojo Verde Azul 
+0 5 6 
+3 True Rojo

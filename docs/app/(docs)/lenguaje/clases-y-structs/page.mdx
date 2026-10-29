@@ -77,7 +77,9 @@ Consulta el [modelo de memoria](/lenguaje/memoria/#delete-liberar-recursos-no-me
 |---|---|---|
 | Por defecto | privado | público |
 
-Puedes marcar cada miembro (`public`, `private`) al estilo C#, o usar secciones al estilo C++:
+Puedes marcar cada miembro (`public`, `private`, `protected`, `internal`) al estilo C#, o usar
+secciones al estilo C++. `protected` deja usar el miembro en las [clases derivadas](/lenguaje/herencia/#protected)
+e `internal` equivale a `public` dentro del programa:
 
 ```faset
 class Inventario
@@ -128,6 +130,7 @@ Los campos pueden tener inicializador (`int vida = 100;`) y se ponen a cero si n
 clases también admiten inicializadores con `new`: `List<int> items = new List<int>();`.
 
 <Callout type="nota">
-Todavía no hay herencia, interfaces ni métodos `virtual`; están en la hoja de ruta. Mientras tanto,
-la composición y los [punteros a función](/lenguaje/delegados/) cubren la mayoría de los casos.
+Las clases admiten [herencia y métodos virtuales](/lenguaje/herencia/) e
+[interfaces](/lenguaje/interfaces/); toda clase deriva de `object`. Para tipos de datos con igualdad
+por valor, mira los [registros](/lenguaje/registros/).
 </Callout>

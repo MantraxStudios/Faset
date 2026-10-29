@@ -184,6 +184,35 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     edit(lam.u, t);
     items = await complete(lam.u, t, 'p => p.', 7, '.');
     assert.ok(labels(items).includes('Nombre') && labels(items).includes('Precio'), 'miembros del parámetro de una lambda');
+    // ---- herencia: miembros heredados, override -> miembro de la base, base.Metodo(), interfaces
+    const oo = (() => {
+        const p = path.join(__dirname, 'herencia.fst');
+        const u = 'file://' + p;
+        const t = fs.readFileSync(p, 'utf8');
+        notify('textDocument/didOpen', { textDocument: { uri: u, languageId: 'faset', version: 1, text: t } });
+        return { u, t };
+    })();
+    const ovr = await request('textDocument/hover', pos(oo.u, oo.t, 'Sonido() => "guau"', 1));
+    assert.match(ovr.contents.value, /reemplaza string Animal\.Sonido\(\)/, 'hover de un override');
+    const ovrDef = await request('textDocument/definition', pos(oo.u, oo.t, 'Hablar() => base', 1));
+    assert.strictEqual(ovrDef.range.start.line, 9, 'override -> declaración de la base');
+    const baseDef = await request('textDocument/definition', pos(oo.u, oo.t, 'base.Hablar', 6));
+    assert.strictEqual(baseDef.range.start.line, 9, 'base.Hablar() -> Animal.Hablar');
+    const inh = await request('textDocument/hover', pos(oo.u, oo.t, 'nombre = "Rex"', 1));
+    assert.match(inh.contents.value, /string Animal\.nombre/, 'hover de un campo heredado');
+    const cls = await request('textDocument/hover', pos(oo.u, oo.t, 'Perro p', 1));
+    assert.match(cls.contents.value, /class Perro : Animal/, 'hover de la clase con su base');
+    t = oo.t.replace('p.Jugar();', 'p.');
+    edit(oo.u, t);
+    items = await complete(oo.u, t, 'p.\n', 2, '.');
+    assert.ok(['Jugar', 'Hablar', 'Sonido', 'ToString', 'GetType'].every((n) => labels(items).includes(n)), 'miembros heredados');
+    assert.ok(!labels(items).includes('nombre'), 'protegido fuera de la jerarquía');
+    t = oo.t.replace('nombre = "Rex";', 'this.');
+    edit(oo.u, t);
+    items = await complete(oo.u, t, 'this.', 5, '.');
+    assert.ok(labels(items).includes('nombre') && labels(items).includes('Jugar'), 'protegido en la derivada');
+    const ooSymbols = await request('textDocument/documentSymbol', { textDocument: { uri: oo.u } });
+    assert.strictEqual(ooSymbols.find((s) => s.name === 'ISonido').kind, 11, 'símbolo de interfaz');
 
     await request('shutdown');
     notify('exit');

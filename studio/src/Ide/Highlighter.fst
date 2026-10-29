@@ -87,7 +87,7 @@ namespace FasetStudio.Ide
 
         public Highlighter()
         {
-            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof this null nullptr true false var auto delegate operator ref out in is as params default get set where typename inline event and or not nameof", TokenKind.Keyword);
+            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof nameof this base null nullptr true false var auto delegate operator ref out in is as with record params default get set where typename inline event and or not", TokenKind.Keyword);
             AddAll("if else while do for foreach break continue return switch case goto throw try catch finally when", TokenKind.Control);
             AddAll("void bool char sbyte byte short ushort int uint long ulong float double string object Func Action", TokenKind.Type);
         }

@@ -1,0 +1,230 @@
+export const metadata = {
+  title: "Herencia y polimorfismo",
+  description: "Herencia simple de clases, base(...), virtual / override / abstract / sealed, protected, object y cómo funciona el despacho virtual.",
+};
+
+# Herencia y polimorfismo
+
+<p className="lead">
+  Una clase puede derivar de otra (<code>class Perro : Animal</code>), reemplazar sus métodos
+  <code>virtual</code> y usarse donde se espera la base. Como en C#, la herencia de clases es simple
+  y toda clase deriva, directa o indirectamente, de <code>object</code>.
+</p>
+
+## Clases derivadas
+
+```faset
+class Animal
+{
+    protected string nombre;                    // visible en Animal y en sus derivadas
+
+    public Animal(string nombre) { this.nombre = nombre; }
+
+    public virtual string Sonido() => "...";    // se puede reemplazar
+    public string Presentarse() => nombre + " dice " + Sonido();
+}
+
+class Perro : Animal
+{
+    public Perro(string nombre) : base(nombre) { }     // llama al constructor de la base
+    public override string Sonido() => "guau";
+}
+
+class Gato : Animal
+{
+    public Gato() : base("Michi") { }
+    public override string Sonido() => "miau (" + base.Sonido() + ")";   // la versión de Animal
+}
+
+int main()
+{
+    Animal a = new Perro("Rex");                // conversión a la base: implícita y segura
+    println(a.Presentarse());                   // Rex dice guau
+    println(new Gato().Presentarse());          // Michi dice miau (...)
+    return 0;
+}
+```
+
+- `: base(args)` elige el constructor de la base; sin él se llama al constructor sin parámetros (si
+  la base solo tiene constructores con parámetros, es un error). `: this(args)` delega en otro
+  constructor de la misma clase.
+- El orden de construcción es el de C#: inicializadores de campos de la derivada, constructor de la
+  base y, por último, el cuerpo del constructor de la derivada.
+- `base.Metodo()` y `base.Propiedad` llaman a la implementación de la clase base, sin despacho virtual.
+- Una referencia a la derivada se convierte implícitamente a cualquier base (`Animal a = perro;`),
+  también como argumento: entre sobrecargas gana la base más cercana.
+
+## virtual, override, abstract y sealed
+
+| Modificador | Significado |
+|---|---|
+| `virtual` | el método o la propiedad se puede reemplazar en las derivadas |
+| `override` | reemplaza un miembro `virtual`, `abstract` u `override` de la base (misma firma y tipo de retorno) |
+| `abstract` | sin cuerpo: las derivadas no abstractas deben implementarlo; la clase debe ser `abstract` |
+| `sealed` | en una clase: nadie puede derivar de ella; en un `override`: nadie puede volver a reemplazarlo |
+| `new` | oculta a propósito un miembro heredado con la misma firma |
+
+```faset
+using std.collections;
+
+abstract class Forma
+{
+    public abstract double Area();                    // sin cuerpo
+    public virtual string Nombre => "forma";          // las propiedades también pueden ser virtuales
+    public override string ToString() => Nombre + " de área " + Area();
+}
+
+class Rectangulo : Forma
+{
+    protected double ancho, alto;
+    public Rectangulo(double ancho, double alto) { this.ancho = ancho; this.alto = alto; }
+    public override double Area() => ancho * alto;
+    public override string Nombre => "rectángulo";
+}
+
+sealed class Cuadrado : Rectangulo                    // no se puede derivar de Cuadrado
+{
+    public Cuadrado(double lado) : base(lado, lado) { }
+    public override string Nombre => "cuadrado";
+}
+
+int main()
+{
+    List<Forma> formas = new List<Forma>();
+    formas.Add(new Rectangulo(2, 3));
+    formas.Add(new Cuadrado(4));
+    for (int i = 0; i < formas.Count; i++)
+        Console.WriteLine(formas[i]);           // rectángulo de área 6 / cuadrado de área 16
+    return 0;
+}
+```
+
+El compilador comprueba las reglas y explica cada error:
+
+```fst
+class Base { public virtual void Hablar() { } public void Comer() { } }
+
+class Mala : Base
+{
+    public override void Comer() { }     // 'Mala.Comer()' está marcado como 'override' pero no hay ningún
+                                         // miembro virtual, abstract u override adecuado... ('Base.Comer()' no es virtual)
+    public void Hablar() { }             // 'Mala.Hablar()' oculta el miembro virtual heredado 'Base.Hablar()';
+                                         // usa 'override' para reemplazarlo o 'new' para ocultarlo
+}
+abstract class Forma { public abstract double Area(); }
+class Circulo : Forma { }                // 'Circulo' no implementa el miembro abstracto heredado 'Forma.Area()'
+// new Forma()  ->  no se puede crear una instancia de la clase abstracta 'Forma'
+```
+
+## protected
+
+`protected` hace un miembro accesible en la clase que lo declara y en todas sus derivadas, pero no
+desde fuera. `private` sigue siendo solo para la propia clase (tampoco lo ven las derivadas), e
+`internal` equivale a `public` dentro del programa.
+
+```fst
+class Cuenta
+{
+    private double saldo;
+    protected void Auditar() { }
+}
+class Ahorro : Cuenta
+{
+    void Usar() { Auditar(); }         // correcto: Ahorro deriva de Cuenta
+    void Mal() { saldo = 0; }          // 'Cuenta.saldo' no es accesible debido a su nivel de protección
+}
+// new Cuenta().Auditar()  ->  'Cuenta.Auditar' no es accesible debido a su nivel de protección
+```
+
+## object: la base universal
+
+Toda clase deriva de `object` (`std.Object`), que aporta:
+
+| Miembro | Por defecto |
+|---|---|
+| `virtual string ToString()` | el nombre completo del tipo (`"Zoo.Perro"`) |
+| `virtual bool Equals(object otro)` | igualdad de referencias |
+| `virtual int GetHashCode()` | derivado de la dirección del objeto |
+| `Type GetType()` | el tipo real del objeto (ver [tipos en tiempo de ejecución](/lenguaje/tipos-en-ejecucion/)) |
+| `static bool ReferenceEquals(object a, object b)` / `static bool Equals(object a, object b)` | |
+
+`Console.WriteLine(obj)` y la concatenación `"texto " + obj` llaman al `ToString()` virtual (un
+`null` se escribe como cadena vacía).
+
+```faset
+class Punto
+{
+    public int X, Y;
+    public Punto(int x, int y) { X = x; Y = y; }
+    public override string ToString() => "(" + X + ", " + Y + ")";
+    public override bool Equals(object o) => o is Punto p && p.X == X && p.Y == Y;
+    public override int GetHashCode() => X * 31 + Y;
+}
+
+int main()
+{
+    object a = new Punto(1, 2);
+    object b = new Punto(1, 2);
+    Console.WriteLine(a);                       // (1, 2)
+    println(a == b);                            // false: == compara referencias
+    println(a.Equals(b));                       // true
+    println("punto: " + a);                     // punto: (1, 2)
+    return 0;
+}
+```
+
+<Callout type="nota">
+No hay *boxing*: `string`, los tipos numéricos, los enums y los structs no son objetos y no se
+convierten a `object`. Un struct puede declarar `ToString()` (también con `override`, por costumbre)
+y llamarlo directamente. Un `ToString()`, `Equals(object)` o `GetHashCode()` público escrito sin
+`override` en una clase se trata igualmente como un `override` de `object`.
+</Callout>
+
+## Destructores
+
+Los destructores se encadenan: al destruir un objeto (con `delete` o cuando lo recoge el
+recolector) se ejecuta el de la clase más derivada y después el de cada base.
+
+```faset
+class Recurso
+{
+    protected string nombre;
+    public Recurso(string n) { nombre = n; }
+    ~Recurso() { println("~Recurso " + nombre); }
+}
+
+class Archivo : Recurso
+{
+    public Archivo(string n) : base(n) { }
+    ~Archivo() { println("~Archivo " + nombre); }
+}
+
+int main()
+{
+    delete new Archivo("datos");                // ~Archivo datos, luego ~Recurso datos
+    return 0;
+}
+```
+
+## Cómo funciona (y cuánto cuesta)
+
+Faset compila a C, así que el modelo de objetos es explícito y predecible:
+
+- **Disposición**: la clase derivada *incrusta* a la base como primer miembro
+  (`struct Perro { Animal base; ...campos }`), así que un `Perro*` es un `Animal*` válido en C y la
+  conversión a la base no cuesta nada.
+- **vtable**: cada objeto empieza por un puntero a una tabla estática de su clase; esa tabla es a la
+  vez la descripción del tipo (nombre, base, interfaces, tamaño) y la lista de punteros a función de
+  sus métodos virtuales. Una llamada virtual es **una carga y una llamada indirecta**; los métodos no
+  virtuales, los `sealed` y las llamadas con `base.` son llamadas directas.
+- **Coste por objeto**: 8 bytes (el puntero a la tabla) además de la cabecera del recolector.
+- `x is T` y `(T)x` consultan un único elemento de la lista de antecesores de la clase: coste
+  constante, sin recorrer la jerarquía.
+
+## Limitaciones
+
+- Herencia simple de clases (varias interfaces sí: ver [interfaces](/lenguaje/interfaces/)).
+- Los structs no heredan de clases; pueden declarar interfaces solo para cumplir restricciones `where`.
+- Los métodos genéricos (`void F<T>()`) no pueden ser virtuales; las clases genéricas sí pueden
+  tener métodos virtuales y derivar de otras.
+- No hay implementación explícita de interfaces (`int IForma.Area()`), ni constructores estáticos.

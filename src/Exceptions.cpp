@@ -113,6 +113,16 @@ ClassDecl* Sema::exceptionBase(ClassDecl* c) const {
     return it == excBase_.end() ? nullptr : it->second;
 }
 
+// Herencia real (SemaClasses.cpp): al resolver la base de una clase, 'class MiError : Exception' pasa a
+// ser una excepción si su base lo es. Sus campos ya vienen de la base (struct incrustado).
+void Sema::excAdoptInherited(ClassDecl* c) {
+    if (!exceptionClass || excClasses_.count(c) || !c->base || c->base == c) return;
+    if (!excClasses_.count(c->base)) return;
+    excBase_[c] = c->base;
+    excClasses_.insert(c);
+    exceptionTypes.push_back(c);
+}
+
 bool Sema::isExceptionClass(ClassDecl* c) const { return c && excClasses_.count(c) != 0; }
 
 bool Sema::excIsSubclass(ClassDecl* derived, ClassDecl* base) const {
@@ -414,11 +424,17 @@ void CodeGen::emitExcDecls() {
 
 void CodeGen::emitExcInit(ClassDecl* c) {
     if (!sema_.isExceptionClass(c)) return;
-    FieldDecl* type = fieldNamed(c, "__excType");
-    FieldDecl* name = fieldNamed(c, "TypeName");
-    if (type) line("self->" + type->cname + " = (uint64_t)(uintptr_t)&fs__exct_" + c->cname + ";");
+    // Con herencia real los campos pueden estar en una clase base (struct incrustado).
+    auto inherited = [&](const char* n) -> FieldDecl* {
+        for (ClassDecl* k = c; k; k = k->base == k ? nullptr : k->base)
+            if (FieldDecl* f = fieldNamed(k, n)) return f;
+        return nullptr;
+    };
+    FieldDecl* type = inherited("__excType");
+    FieldDecl* name = inherited("TypeName");
+    if (type) line("self->" + fieldPath(c, type) + " = (uint64_t)(uintptr_t)&fs__exct_" + c->cname + ";");
     if (name)
-        line("self->" + name->cname + " = FASET_STR(" + cstring(c->displayName) + ", " +
+        line("self->" + fieldPath(c, name) + " = FASET_STR(" + cstring(c->displayName) + ", " +
              std::to_string(c->displayName.size()) + ");");
 }
 

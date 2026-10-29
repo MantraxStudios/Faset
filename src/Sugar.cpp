@@ -767,9 +767,24 @@ Expr* Sema::lowerTypePattern(Pattern* p, Type* target, const SubjectFn& subj, Ty
     } else if (nullableElem(st) == target) {
         test = mkMember(subj(), "HasValue", l);
         value = [&, l]() -> Expr* { return mkCall(mkMember(subj(), "GetValueOrDefault", l), {}, l); };
+    } else if (st->isClass() && target->isClass()) {
+        // Herencia e interfaces (SemaClasses.cpp): 'x is T' comprueba el tipo en ejecución y el
+        // valor convertido es 'x as T' (no es null cuando la prueba es cierta).
+        auto* is = new IsExpr(l);
+        is->operand = subj();
+        is->preset = target;
+        test = is;
+        value = [&, l, target]() -> Expr* {
+            auto* as = new AsExpr(l);
+            as->operand = subj();
+            as->preset = target;
+            return as;
+        };
+    } else if (target->isClass() && !st->isRefLike()) {
+        diag.error(l, "el operador 'is' requiere una referencia a clase o interfaz (el tipo es '" + st->str() + "')");
+        return mkBool(false, l);
     } else {
-        diag.error(l, "el patrón de tipo '" + target->str() + "' sobre un valor de tipo '" + st->str() +
-                          "' necesita herencia, que aún no está soportada");
+        diag.error(l, "el patrón de tipo '" + target->str() + "' no puede coincidir con un valor de tipo '" + st->str() + "'");
         return mkBool(false, l);
     }
     auto conj = [&](Expr* t) { test = test ? mkBin("&&", test, t, l) : t; };

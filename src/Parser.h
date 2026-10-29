@@ -119,4 +119,10 @@ private:
     Stmt* parseUsingStmt();
     Stmt* tryParseDeconstruct();
     void parseSwitchLabel(SwitchStmt::Section& sec);
+    // orientación a objetos (ParserClasses.cpp)
+    bool isRecordStart() const;
+    void parseWhereClauses(std::vector<TypeConstraint>& out);
+    void synthesizeRecord(ClassDecl* c, const std::vector<Param>& params, bool positional);
+    Expr* parseIsAs(Expr* lhs);
+    Expr* parseWith(Expr* operand);
 };

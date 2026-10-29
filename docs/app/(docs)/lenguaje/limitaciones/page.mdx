@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset: herencia, interfaces, valores por defecto en parámetros…",
+  description: "Qué no admite todavía Faset: herencia múltiple, boxing, valores por defecto en parámetros…",
 };
 
 # Limitaciones actuales
@@ -12,16 +12,15 @@ export const metadata = {
 
 | No disponible | Alternativa |
 |---|---|
-| Herencia, `interface`, `virtual`/`override` | Composición y [delegados](/lenguaje/delegados/). Están en la hoja de ruta. |
+| Herencia de varias clases, implementación explícita de interfaces (`int IForma.Area()`) | Una clase base y [varias interfaces](/lenguaje/interfaces/) |
+| *Boxing* (convertir `int`, `string` o un struct a `object` o a una interfaz) | Un tipo envoltorio o un [registro](/lenguaje/registros/) `record class` |
 | Expresiones `throw` (`x ?? throw ...`) | Una instrucción `throw` (las [excepciones](/lenguaje/excepciones/) sí existen) |
-| `is Tipo` / `as` (sí existe `is` con [patrones](/lenguaje/patrones/): `x is > 0`) | Un campo `Kind` (enum) en tus tipos |
 | Parámetros con valor por defecto | Sobrecargas (o [`params`](/lenguaje/comodidades/#params)) |
-| `Console.WriteLine(tupla)` (no hay `object`) | `Console.WriteLine($"{tupla}")` |
+| `Console.WriteLine(tupla)` (no hay *boxing*) | `Console.WriteLine($"{tupla}")` |
 | Inicializadores de objeto `new T { X = 1 }` | Constructores |
-| Inicializadores de constructor `: this(...)` | Un método privado común |
 | Tipos anidados | Tipos en el mismo namespace |
 | `using static` | Nombre de la clase delante (`Math.Sqrt`) |
-| `goto`, `typeof`, `stackalloc`, `fixed` | — |
+| `goto`, `stackalloc`, `fixed` | — |
 | Operadores compuestos sobre propiedades (`p.X += 1`) | `p.X = p.X + 1` |
 
 ## Otras notas

@@ -1,0 +1,13 @@
+24|no es un parámetro de tipo de 'Mala'
+32|no cumple la restricción 'IComparable<Piedra>'
+33|el tipo 'Abstracta' no cumple la restricción 'new\(\)'
+34|el tipo 'SinVacio' no cumple la restricción 'new\(\)'
+35|el tipo 'int' no cumple la restricción 'class'
+36|no cumple la restricción 'struct'
+38|el tipo 'Piedra' no cumple la restricción 'Animal'
+40|del parámetro de tipo 'T' de 'Jaula'
+44|no contiene una propiedad 'Z'
+45|'with' solo se puede usar con registros
+46|el tipo 'string' en 'int'
+48|el tipo 'Color' en 'object'
+49|es de solo lectura

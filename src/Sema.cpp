@@ -128,6 +128,7 @@ bool Sema::run() {
     // para ofrecer información de símbolos y autocompletado mientras se escribe.
     if (diag.errorCount && !ideMode) return false;
     for (FileScope* f : prog_.files) resolveUsings(f);
+    initObjectModel();
     excSetupHierarchy();  // [ExceptionBase]: campos heredados de la excepción base (Exceptions.cpp)
     size_t initial = prog_.types.size();
     for (size_t i = 0; i < initial; i++)
@@ -144,6 +145,7 @@ bool Sema::run() {
         useMethod(c->dtor);
     }
     processWork();
+    while (checkPendingConstraints()) processWork();
     orderStructs();
     findEntry();
     return diag.errorCount == 0;
@@ -218,6 +220,8 @@ void Sema::mergePartials() {
             }
         }
         for (Attribute& a : c->attrs) d->attrs.push_back(a);
+        for (TypeRef* r : c->baseRefs) d->baseRefs.push_back(r);  // ": Base, I1" en cualquier parte
+        for (TypeConstraint& tc : c->constraints) d->constraints.push_back(tc);
     }
     prog_.types = kept;
 }
@@ -258,7 +262,9 @@ void Sema::buildNamespaces() {
         ns->types[c->name] = c;
         c->cname = prefix + c->name;
         if (!c->isTemplate()) {
-            c->type = new Type(c->kind == ClassKind::Class ? TK::Class : c->kind == ClassKind::Struct ? TK::Struct : TK::Enum);
+            c->type = new Type(c->kind == ClassKind::Class || c->kind == ClassKind::Interface ? TK::Class
+                               : c->kind == ClassKind::Struct                                ? TK::Struct
+                                                                                             : TK::Enum);
             c->type->decl = c;
         }
     }
@@ -450,6 +456,7 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
             auto it = ctx_.cls->typeArgMap.find(tr->parts[0]);
             if (it != ctx_.cls->typeArgMap.end()) base = it->second;
         }
+        if (!base && tr->parts[0] == "object" && objectDecl) base = objectDecl->type;
     }
     if (!base && std::find(tr->parts.begin(), tr->parts.end(), std::string(kCompletionMarker)) != tr->parts.end()) {
         completionRequested = true;
@@ -539,6 +546,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         }
         return;
     }
+    resolveHierarchy(c);
 
     std::set<std::string> fieldNames;
     for (FieldDecl* f : c->fields) {
@@ -577,7 +585,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
             if (!m->isStatic()) diag.error(m->loc, "los métodos 'extern' deben ser 'static'");
             if (m->body) diag.error(m->loc, "un método 'extern' no puede tener cuerpo");
             if (m->isTemplate()) diag.error(m->loc, "un método 'extern' no puede ser genérico");
-        } else if (!m->body) {
+        } else if (!m->body && !m->mods.isAbstract && !c->isInterface()) {
             diag.error(m->loc, "el método '" + m->name + "' debe tener cuerpo (o ser 'extern')");
         }
         if (!c->isNamespaceScope && c->isStaticClass() && !m->isStatic())
@@ -647,6 +655,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         c->dtor->cname = c->cname + "__dtor";
         if (c->isStaticClass()) diag.error(c->dtor->loc, "una clase estática no puede tener destructor");
     }
+    finishClassLayout(c);
 }
 
 // Nombres en C de las funciones globales (agrupadas por namespace, entre todos los archivos).
@@ -709,7 +718,7 @@ ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, So
         if (c->dtor) c->dtor->unsafeBody = true;
     }
     c->cname = tmpl->cname + "_" + std::to_string(++instCounter_);
-    c->type = new Type(c->kind == ClassKind::Class ? TK::Class : TK::Struct);
+    c->type = new Type(c->kind == ClassKind::Struct ? TK::Struct : TK::Class);
     c->type->decl = c;
     tmpl->instances[key] = c;
     prog_.types.push_back(c);
@@ -717,6 +726,7 @@ ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, So
     instDepth_++;
     resolveClassSignatures(c);
     instDepth_--;
+    if (!tmpl->constraints.empty()) pendingConstraints_.push_back({c, loc});
     // Igual que en C++: los métodos se comprueban solo cuando se usan.
     for (FieldDecl* f : c->fields)
         if (f->init) fieldWork_.push_back({c, f});
@@ -738,6 +748,15 @@ MethodDecl* Sema::instantiateMethod(MethodDecl* tmpl, const std::vector<Type*>& 
     m->unsafeApi = tmpl->unsafeApi;
     for (size_t i = 0; i < args.size(); i++) m->typeArgMap[tmpl->typeParams[i]] = args[i];
     m->cname = tmpl->cname + "_g" + std::to_string(++instCounter_);
+    if (!tmpl->constraints.empty()) {  // where T : ...  (si no se cumple, el candidato se descarta)
+        CtxSave save(*this);
+        enter(m->owner, m);
+        std::string err;
+        if (!checkConstraints(tmpl->typeParams, tmpl->constraints, m->typeArgMap, tmpl->name, err)) {
+            constraintError_ = err;
+            return nullptr;
+        }
+    }
     tmpl->instances[key] = m;
     {
         CtxSave save(*this);
@@ -813,7 +832,8 @@ void Sema::useMethod(MethodDecl* m, const SourceLoc* at) {
 }
 
 void Sema::processWork() {
-    size_t fi = 0, wi = 0;
+    size_t& fi = fieldWorkDone_;  // se puede volver a llamar: continúa donde se quedó
+    size_t& wi = workDone_;
     while (fi < fieldWork_.size() || wi < work_.size()) {
         while (fi < fieldWork_.size()) {
             auto [c, f] = fieldWork_[fi++];
@@ -858,6 +878,7 @@ void Sema::orderStructs() {
             return;
         }
         state[c] = 1;
+        if (c->base && c->base->hasLayout()) visit(c->base);  // la base va incrustada al principio
         for (FieldDecl* f : c->fields)
             if (!f->isStatic() && f->type && f->type->isStruct()) visit(f->type->decl);
         state[c] = 2;
@@ -922,9 +943,14 @@ void Sema::checkMethod(MethodDecl* m) {
         p.var = declareLocal(p.name, p.type, p.loc, "p_");
         p.var->isRef = p.isRef();
     }
-    if (ideMode && m->kind == MethodKind::Normal) addRef(m->loc, (int)m->name.size(), methodSignature(m), &m->loc);
+    // En un 'override', ir a la definición lleva al miembro reemplazado de la base.
+    if (ideMode && m->kind == MethodKind::Normal)
+        addRef(m->loc, (int)m->name.size(),
+               methodSignature(m) + (m->overridden ? "  (reemplaza " + methodSignature(m->overridden) + ")" : ""),
+               m->overridden ? &m->overridden->loc : &m->loc);
     m->checked = true;
     if (!m->body) return;
+    if (m->kind == MethodKind::Ctor) checkCtorInit(m);
     for (Stmt* s : m->body->stmts) checkStmt(s);
     if ((m->kind == MethodKind::Normal || m->kind == MethodKind::Getter || m->kind == MethodKind::Operator) &&
         !m->ret->isVoid() && !m->ret->isError() && !alwaysReturns(m->body))
@@ -1223,6 +1249,7 @@ bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     if (from == to || from->isError() || to->isError()) return true;
     if (from->isPending()) return e && pendingCost(e, to) >= 0;
     if (int r = sugarImplicit(e, from, to); r >= 0) return r == 1;  // T?, tuplas, 'default' (Sugar.cpp)
+    if (from->isClass() && to->isClass() && derivesFrom(from->decl, to->decl)) return true;  // conversión a la base
     if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr() || to->isDelegate();
     if (to->isVoidPointer() && from->isPointer()) return true;
     if (from->isNumeric() && to->isNumeric() && implicitNumeric(from, to)) return true;
@@ -1255,6 +1282,8 @@ int Sema::convCost(Expr* e, Type* to) {
         int c = 2 * (numRank(to->kind) - numRank(from->kind)) + (to->isUnsignedInt() ? 1 : 0) + 1;
         return std::max(c, 1);
     }
+    if (from->isClass() && to->isClass()) return 1 + inheritCost(from->decl, to->decl);
+    if (from->is(TK::Null) && to->isClass()) return 2;
     return 1;
 }
 
@@ -1524,8 +1553,7 @@ Type* Sema::requireValue(Expr* e) {
 }
 
 void Sema::checkAccess(Access a, ClassDecl* owner, const std::string& what, SourceLoc loc) {
-    if (a != Access::Private || owner->isNamespaceScope || owner == ctx_.cls) return;
-    if (owner->templateOf && ctx_.cls && ctx_.cls->templateOf == owner->templateOf) return;
+    if (accessible(a, owner)) return;  // private: solo la clase; protected: la clase y sus derivadas
     diag.error(loc, "'" + owner->displayName + "." + what + "' no es accesible debido a su nivel de protección");
 }
 
@@ -1592,6 +1620,11 @@ Type* Sema::checkInner(Expr* e) {
                 diag.error(c->loc, "no se puede convertir el tipo '" + from->str() + "' en '" + to->str() + "'");
                 return tc_.error();
             }
+            // (Derivada)base y conversiones con interfaces: se comprueban al ejecutar, sin memory_unsafe.
+            if (from->isClass() && to->isClass() && !canImplicit(c->operand, from, to) && checkedCastOk(from, to)) {
+                c->checkedDown = true;
+                return to;
+            }
             auto refLike = [](Type* t) { return t->isPointer() || t->isClass() || t->isFuncPtr(); };
             if (from != to && (refLike(from) || refLike(to)) && !canImplicit(c->operand, from, to) && !unsafeCtx())
                 unsafeError(c->loc, "reinterpretar '" + from->str() + "' como '" + to->str() + "'");
@@ -1619,6 +1652,7 @@ Type* Sema::checkInner(Expr* e) {
             if (!static_cast<DefaultExpr*>(e)->tref) return tc_.get(TK::Null);
             return resolveType(static_cast<DefaultExpr*>(e)->tref);
         case EK::Lambda: case EK::DelegateConv: return checkLambdaExpr(e);
+        case EK::Is: case EK::As: case EK::TypeOf: case EK::NameOf: case EK::With: return checkOO(e);
         default: break;  // EK del azúcar: Sugar.cpp
     }
     return tc_.error();
@@ -1653,8 +1687,9 @@ Type* Sema::fromSym(Expr* e, const Sym& s, const std::vector<TypeRef*>& typeArgs
 
 // 'set' de la misma propiedad (mismo nombre y mismo carácter estático) o nullptr.
 MethodDecl* Sema::FindSetter(MethodDecl* getter) {
-    for (MethodDecl* m : getter->owner->methods)
-        if (m->kind == MethodKind::Setter && m->name == getter->name && m->isStatic() == getter->isStatic()) return m;
+    for (ClassDecl* k : lookupChain(getter->owner))  // también el 'set' heredado de la base
+        for (MethodDecl* m : k->methods)
+            if (m->kind == MethodKind::Setter && m->name == getter->name && m->isStatic() == getter->isStatic()) return m;
     return nullptr;
 }
 
@@ -1777,8 +1812,18 @@ Type* Sema::checkNameImpl(NameExpr* e) {
     }
     ClassDecl* cls = ctx_.cls;
     if (cls && !cls->isNamespaceScope) {
-        for (FieldDecl* f : cls->fields) {
-            if (f->name != e->name) continue;
+        if (e->name == "base" && cls->kind == ClassKind::Class) {  // base.Metodo(), base.Propiedad
+            if (ctx_.isStatic || !cls->base) {
+                diag.error(e->loc, ctx_.isStatic ? "'base' no es válido en un contexto estático"
+                                                 : "'" + cls->displayName + "' no tiene clase base");
+                return tc_.error();
+            }
+            e->ref = NameExpr::Ref::Base;
+            if (ideMode) addRef(e->loc, 4, typeDescription(cls->base), &cls->base->loc);
+            return cls->base->type;
+        }
+        if (FieldDecl* f = findField(cls, e->name)) {
+            checkAccess(f->mods.access, f->owner, f->name, e->loc);
             e->field = f;
             if (f->isStatic()) {
                 e->ref = NameExpr::Ref::StaticField;
@@ -1793,8 +1838,8 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             }
             return f->type;
         }
-        for (MethodDecl* m : cls->methods) {
-            if (m->kind != MethodKind::Getter || m->name != e->name) continue;
+        if (MethodDecl* m = findGetter(cls, e->name)) {
+            checkAccess(m->mods.access, m->owner, m->name, e->loc);
             if (!m->isStatic() && ctx_.isStatic) {
                 diag.error(e->loc, "se requiere una referencia de objeto para la propiedad '" + m->name + "'");
                 return tc_.error();
@@ -1807,8 +1852,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             useMethod(m, &e->loc);
             return m->ret;
         }
-        for (MethodDecl* m : cls->methods)
-            if (m->kind == MethodKind::Normal && m->name == e->name) e->group.push_back(m);
+        e->group = findMethods(cls, e->name);
         if (!e->group.empty()) {
             e->vk = ValKind::MethodGroup;
             return tc_.get(TK::Void);
@@ -1819,6 +1863,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
         if (ctx_.method && ctx_.method->typeArgMap.count(e->name)) gen = ctx_.method->typeArgMap[e->name];
         else if (cls && cls->typeArgMap.count(e->name)) gen = cls->typeArgMap[e->name];
         else gen = tc_.fromKeyword(e->name);
+        if (!gen && e->name == "object" && objectDecl) gen = objectDecl->type;  // object.Equals(a, b)
         if (gen) {
             e->vk = ValKind::TypeName;
             e->typeValue = gen;
@@ -1909,26 +1954,24 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         }
         if (T->isAggregate()) {
             ClassDecl* c = T->decl;
-            for (FieldDecl* f : c->fields) {
-                if (f->name != e->name) continue;
+            if (FieldDecl* f = findField(c, e->name)) {
                 if (!f->isStatic()) {
                     diag.error(e->loc, "se requiere una referencia de objeto para el campo no estático '" + c->displayName +
                                            "." + f->name + "'");
                     return tc_.error();
                 }
-                checkAccess(f->mods.access, c, f->name, e->loc);
+                checkAccess(f->mods.access, f->owner, f->name, e->loc);
                 if (f->isEvent && !eventAccessible(f, e)) return tc_.error();
                 e->ref = MemberExpr::Ref::StaticField;
                 e->field = f;
                 return f->type;
             }
-            for (MethodDecl* m : c->methods) {
-                if (m->kind != MethodKind::Getter || m->name != e->name) continue;
+            if (MethodDecl* m = findGetter(c, e->name)) {
                 if (!m->isStatic()) {
                     diag.error(e->loc, "se requiere una referencia de objeto para la propiedad '" + m->name + "'");
                     return tc_.error();
                 }
-                checkAccess(m->mods.access, c, m->name, e->loc);
+                checkAccess(m->mods.access, m->owner, m->name, e->loc);
                 e->ref = MemberExpr::Ref::Property;
                 e->getter = m;
                 e->setter = FindSetter(m);
@@ -1936,8 +1979,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 useMethod(m, &e->loc);
                 return m->ret;
             }
-            for (MethodDecl* m : c->methods)
-                if (m->kind == MethodKind::Normal && m->name == e->name) e->group.push_back(m);
+            e->group = findMethods(c, e->name);
             if (!e->group.empty()) {
                 e->vk = ValKind::MethodGroup;
                 return tc_.get(TK::Void);
@@ -1976,29 +2018,38 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         }
     }
     if (Type* t = sugarMember(e, base)) return t;  // t.nombre en tuplas con nombre (Sugar.cpp)
+    if (base->isEnum() && e->name == "ToString" && enumToString) {  // Color.Rojo.ToString() == "Rojo"
+        e->vk = ValKind::MethodGroup;
+        e->group = {enumToString};
+        return tc_.get(TK::Void);
+    }
     if (base->isAggregate()) {
         ClassDecl* c = base->decl;
-        for (FieldDecl* f : c->fields) {
-            if (f->name != e->name) continue;
+        e->nonVirtual = isBaseExpr(e->obj);
+        if (FieldDecl* f = findField(c, e->name)) {
             if (f->isStatic()) {
                 diag.error(e->loc, "el miembro estático '" + c->displayName + "." + f->name +
                                        "' no se puede usar con una referencia de instancia; califícalo con el nombre del tipo");
                 return tc_.error();
             }
-            checkAccess(f->mods.access, c, f->name, e->loc);
+            checkAccess(f->mods.access, f->owner, f->name, e->loc);
             if (f->isEvent && !eventAccessible(f, e)) return tc_.error();
             e->ref = MemberExpr::Ref::Field;
             e->field = f;
             return f->type;
         }
-        for (MethodDecl* m : c->methods) {
-            if (m->kind != MethodKind::Getter || m->name != e->name) continue;
-            if (isCallee && hasCallableNamed(c, e->name)) continue;  // l.Count(x => ...) frente a l.Count
+        MethodDecl* m = findGetter(c, e->name);
+        if (m && isCallee && hasCallableNamed(c, e->name)) m = nullptr;  // l.Count(x => ...) frente a l.Count
+        if (m) {
             if (m->isStatic()) {
                 diag.error(e->loc, "la propiedad estática '" + m->name + "' debe usarse con el nombre del tipo");
                 return tc_.error();
             }
-            checkAccess(m->mods.access, c, m->name, e->loc);
+            checkAccess(m->mods.access, m->owner, m->name, e->loc);
+            if (e->nonVirtual && m->mods.isAbstract) {
+                diag.error(e->loc, "no se puede usar con 'base' la propiedad abstracta '" + m->owner->displayName + "." + m->name + "'");
+                return tc_.error();
+            }
             e->ref = MemberExpr::Ref::Property;
             e->getter = m;
             e->setter = FindSetter(m);
@@ -2006,8 +2057,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             useMethod(m, &e->loc);
             return m->ret;
         }
-        for (MethodDecl* m : c->methods)
-            if (m->kind == MethodKind::Normal && m->name == e->name) e->group.push_back(m);
+        e->group = findMethods(c, e->name);
         if (!e->group.empty()) {
             e->vk = ValKind::MethodGroup;
             return tc_.get(TK::Void);
@@ -2072,9 +2122,12 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
         if (ok) viable.push_back({m, cost, generic});
     }
     if (viable.empty()) {
-        if (report) diag.error(loc, "ninguna sobrecarga de '" + what + "' acepta los argumentos " + typeList(args));
+        if (report && !constraintError_.empty()) diag.error(loc, constraintError_);
+        else if (report) diag.error(loc, "ninguna sobrecarga de '" + what + "' acepta los argumentos " + typeList(args));
+        constraintError_.clear();
         return nullptr;
     }
+    constraintError_.clear();
     std::stable_sort(viable.begin(), viable.end(), [](const Cand& a, const Cand& b) {
         return a.cost != b.cost ? a.cost < b.cost : (!a.generic && b.generic);
     });
@@ -2151,6 +2204,7 @@ Type* Sema::checkCall(CallExpr* e) {
         return tc_.error();
     }
     e->target = m;
+    if (m == enumToString) e->intrinsic = 1;
     checkAccess(m->mods.access, m->owner, m->name, e->loc);
     requireSafeCall(m, e->loc);
     if (ideMode) {
@@ -2185,6 +2239,14 @@ Type* Sema::checkCall(CallExpr* e) {
                 }
                 e->receiver = me->obj;
                 e->receiverArrow = me->arrow;
+                if (isBaseExpr(me->obj)) {  // base.Metodo(): llamada directa a la implementación de la base
+                    e->nonVirtual = true;
+                    if (m->mods.isAbstract) {
+                        diag.error(e->loc, "no se puede llamar con 'base' al miembro abstracto '" + m->owner->displayName +
+                                               "." + m->name + "'");
+                        return tc_.error();
+                    }
+                }
             }
         }
     }
@@ -2198,9 +2260,7 @@ Type* Sema::checkIndex(IndexExpr* ix) {
     Type* it = checkValue(ix->index);
     if (ot->isError() || it->isError()) return tc_.error();
     if (ot->isAggregate()) {
-        std::vector<MethodDecl*> cands;
-        for (MethodDecl* m : ot->decl->methods)
-            if (m->kind == MethodKind::Operator && m->name == "operator[]") cands.push_back(m);
+        std::vector<MethodDecl*> cands = findMethods(ot->decl, "operator[]", MethodKind::Operator);
         if (cands.empty()) {
             diag.error(ix->loc, "'" + ot->str() + "' no define 'operator[]'");
             return tc_.error();
@@ -2440,7 +2500,7 @@ Type* Sema::checkBinary(BinaryExpr* e) {
 
     // Concatenación como en C#: "x = " + 5. La memoria la recupera el recolector.
     auto concatable = [this](Type* t) {
-        return t->is(TK::String) || t->isNumeric() || t->is(TK::Bool) || t->isEnum() || sugarConcatable(t);
+        return t->is(TK::String) || t->isNumeric() || t->is(TK::Bool) || t->isEnum() || sugarConcatable(t) || t->isClass();  // clase: ToString()
     };
     if (op == "+" && (L->is(TK::String) || R->is(TK::String)) && concatable(L) && concatable(R))
         return tc_.get(TK::String);
@@ -2560,7 +2620,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
         return tc_.error();
     };
     if (op == "+" && L->is(TK::String) &&
-        (R->is(TK::String) || R->isNumeric() || R->is(TK::Bool) || R->isEnum() || sugarConcatable(R)))
+        (R->is(TK::String) || R->isNumeric() || R->is(TK::Bool) || R->isEnum() || sugarConcatable(R) || R->isClass()))
         return L;  // s += x
     if (L->isAggregate()) {
         std::vector<MethodDecl*> cands;
@@ -2635,6 +2695,11 @@ Type* Sema::checkNew(NewExpr* e) {
         return tc_.error();
     }
     ClassDecl* c = T->decl;
+    if (c->isInterface() || c->mods.isAbstract) {
+        diag.error(e->loc, std::string("no se puede crear una instancia de ") +
+                               (c->isInterface() ? "la interfaz '" : "la clase abstracta '") + c->displayName + "'");
+        return tc_.error();
+    }
     if (c->ctors.empty()) {
         if (!e->args.empty()) {
             diag.error(e->loc, "'" + c->displayName + "' no contiene un constructor que acepte " +
@@ -2670,7 +2735,10 @@ int kindOf(ClassDecl* c) { return c->kind == ClassKind::Struct ? kStruct : c->ki
 
 std::string Sema::typeDescription(ClassDecl* c) {
     std::string s = c->isStaticClass() ? "static class " : c->kind == ClassKind::Struct ? "struct "
-                    : c->kind == ClassKind::Enum ? "enum " : "class ";
+                    : c->kind == ClassKind::Enum ? "enum " : c->kind == ClassKind::Interface ? "interface " : "class ";
+    if (c->isRecord) s = "record " + std::string(c->kind == ClassKind::Struct ? "struct " : "");
+    if (c->mods.isAbstract) s = "abstract " + s;
+    if (c->mods.isSealed) s = "sealed " + s;
     if (!c->ns.empty()) s += c->ns + ".";
     s += c->displayName;
     if (c->isTemplate()) {
@@ -2678,6 +2746,10 @@ std::string Sema::typeDescription(ClassDecl* c) {
         for (size_t i = 0; i < c->typeParams.size(); i++) s += (i ? ", " : "") + c->typeParams[i];
         s += ">";
     }
+    std::vector<std::string> bases;  // : Base, I1, I2
+    if (c->base && !(c->base->name == "Object" && c->base->ns == "std")) bases.push_back(c->base->displayName);
+    for (ClassDecl* i : c->interfaces) bases.push_back(i->displayName);
+    if (!bases.empty()) s += " : " + join(bases, ", ");
     return s;
 }
 
@@ -2745,7 +2817,7 @@ void Sema::completeNamespaceMembers(NamespaceSym* ns, bool children) {
 void Sema::completeTypes(const std::vector<std::string>& prefix) {
     if (prefix.empty()) {
         static const char* const prims[] = {"bool", "char", "sbyte", "byte", "short", "ushort", "int", "uint",
-                                             "long", "ulong", "float", "double", "string", "void", "var", "auto"};
+                                             "long", "ulong", "float", "double", "string", "object", "void", "var", "auto"};
         for (const char* p : prims) addCompletion(p, kKeyword, "");
         completeScope();
         return;
@@ -2760,11 +2832,16 @@ void Sema::completeScope() {
         for (auto& [name, v] : scope) addCompletion(name, kVariable, describeVar(v));
     ClassDecl* cls = ctx_.cls;
     if (cls && !cls->isNamespaceScope) {
-        for (FieldDecl* f : cls->fields) addCompletion(f->name, kField, describeField(f));
-        for (MethodDecl* m : cls->methods) {
-            if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
-            else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+        for (ClassDecl* k : lookupChain(cls)) {  // también los miembros heredados accesibles
+            for (FieldDecl* f : k->fields)
+                if (accessible(f->mods.access, k)) addCompletion(f->name, kField, describeField(f));
+            for (MethodDecl* m : k->methods) {
+                if (!accessible(m->mods.access, k)) continue;
+                if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
+                else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+            }
         }
+        if (cls->base && !ctx_.isStatic) addCompletion("base", kKeyword, "base: " + typeDescription(cls->base));
         for (auto& [name, t] : cls->typeArgMap) addCompletion(name, kTypeParam, t->str());
     }
     if (ctx_.method)
@@ -2779,7 +2856,9 @@ void Sema::completeScope() {
         "if", "else", "while", "do", "for", "break", "continue", "return", "switch", "case", "default",
         "new", "delete", "sizeof", "this", "null", "nullptr", "true", "false", "var", "auto", "const",
         "class", "struct", "enum", "namespace", "using", "import", "public", "private", "static", "extern",
-        "operator", "delegate", "ref", "out", "memory_unsafe", "int", "long", "double", "float", "bool", "char", "byte", "string", "void"};
+        "operator", "delegate", "ref", "out", "memory_unsafe", "int", "long", "double", "float", "bool", "char", "byte", "string", "void",
+        "interface", "abstract", "virtual", "override", "sealed", "protected", "internal", "is", "as", "typeof", "nameof",
+        "record", "object"};
     for (const char* k : keywords) addCompletion(k, kKeyword, "");
 }
 
@@ -2789,10 +2868,7 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
         return;
     }
     if (ot->isError() || obj->vk == ValKind::MethodGroup) return;
-    auto visible = [&](Access a, ClassDecl* owner) {
-        return a != Access::Private || owner == ctx_.cls ||
-               (owner->templateOf && ctx_.cls && ctx_.cls->templateOf == owner->templateOf);
-    };
+    auto visible = [&](Access a, ClassDecl* owner) { return accessible(a, owner); };
     if (obj->vk == ValKind::TypeName) {
         Type* T = obj->typeValue;
         if (T->isIntegral()) {
@@ -2803,13 +2879,14 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
             for (EnumMember& m : T->decl->enumMembers)
                 addCompletion(m.name, kEnumMember, T->str() + "." + m.name + " = " + std::to_string(m.val));
         if (T->isAggregate()) {
-            ClassDecl* c = T->decl;
-            for (FieldDecl* f : c->fields)
-                if (f->isStatic() && visible(f->mods.access, c)) addCompletion(f->name, kField, describeField(f));
-            for (MethodDecl* m : c->methods) {
-                if (!m->isStatic() || !visible(m->mods.access, c) || m->mods.isExtern) continue;
-                if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
-                else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+            for (ClassDecl* c : lookupChain(T->decl)) {
+                for (FieldDecl* f : c->fields)
+                    if (f->isStatic() && visible(f->mods.access, c)) addCompletion(f->name, kField, describeField(f));
+                for (MethodDecl* m : c->methods) {
+                    if (!m->isStatic() || !visible(m->mods.access, c) || m->mods.isExtern) continue;
+                    if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
+                    else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+                }
             }
         }
         return;
@@ -2827,14 +2904,16 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
     }
     for (size_t i = 0; isTupleType(base) && i < base->tupleNames.size(); i++)  // (int x, int y): x, y
         if (!base->tupleNames[i].empty()) addCompletion(base->tupleNames[i], kField, base->decl->fields[i]->type->str() + " " + base->tupleNames[i]);
+    if (base->isEnum()) addCompletion("ToString", kMethod, "string " + base->str() + ".ToString()");
     if (base->isAggregate()) {
-        ClassDecl* c = base->decl;
-        for (FieldDecl* f : c->fields)
-            if (!f->isStatic() && visible(f->mods.access, c)) addCompletion(f->name, kField, describeField(f));
-        for (MethodDecl* m : c->methods) {
-            if (m->isStatic() || !visible(m->mods.access, c)) continue;
-            if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
-            else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+        for (ClassDecl* c : lookupChain(base->decl)) {  // miembros propios y heredados
+            for (FieldDecl* f : c->fields)
+                if (!f->isStatic() && visible(f->mods.access, c)) addCompletion(f->name, kField, describeField(f));
+            for (MethodDecl* m : c->methods) {
+                if (m->isStatic() || !visible(m->mods.access, c)) continue;
+                if (m->kind == MethodKind::Getter) addCompletion(m->name, kProperty, methodSignature(m));
+                else if (m->kind == MethodKind::Normal) addCompletion(m->name, kMethod, methodSignature(m));
+            }
         }
     }
     if (arrow) return;
