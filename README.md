@@ -83,7 +83,7 @@ cmake -B build && cmake --build build
 | Linux               | `gcc` o `clang`                                               |
 | Windows             | MinGW-w64 o `clang` (MSYS2 / llvm-mingw)                      |
 | Windows desde Linux | `sudo apt install mingw-w64`                                  |
-| Android             | Android NDK (`ANDROID_NDK_HOME` o `~/Android/Sdk/ndk/<versión>`) |
+| Android             | SDK + NDK + build-tools + Java (ver [Android](#android))       |
 
 ## FasetStudio — el IDE de Faset, escrito en Faset
 
@@ -120,6 +120,8 @@ Funcionan igual que los `.csproj` de .NET SDK: **todos los `.fst` de la carpeta 
 faset new MiApp              # MiApp/MiApp.fstproj + Program.fst
 faset new Utilidades --lib   # biblioteca
 faset new MiVentana --winexe # aplicación de ventana de Windows
+faset new MiUi --ui           # AppUI: ventana de std.ui con diseñador (.fstui)
+faset new MiMovil --android   # app de Android (ver la sección Android)
 cd MiApp
 faset run                    # compila y ejecuta
 faset build -c Release       # bin/Release/linux-x86_64/MiApp
@@ -150,6 +152,16 @@ faset clean
 Se ignoran `bin/`, `obj/`, las carpetas ocultas y las subcarpetas que tienen su propio
 `.fstproj`. Las propiedades desconocidas dan error, así una errata no pasa desapercibida.
 
+**Referencias entre proyectos.** Un `<ProjectReference>` debe apuntar a un proyecto con
+`OutputType=Library`, que a su vez puede referenciar otras bibliotecas (se detectan los ciclos y
+cada biblioteca se incluye una sola vez aunque llegue por varios caminos). Como las plantillas
+de Faset se instancian por tipo (igual que en C++), las bibliotecas referenciadas se compilan
+**dentro** del programa que las usa: sus namespaces y tipos quedan visibles, y sus
+`NativeLibrary`, `LibraryPath` y `AndroidPermission` se heredan. El resultado es un único
+binario (o una única `lib<App>.so` en el APK) para cualquier objetivo, sin `.so` intermedias que
+desplegar. `faset build` dentro de una biblioteca produce su `lib<Nombre>.so` / `.dll`.
+Ejemplo: `tests/projects/cadena` (App → Motor → Base, y App → Base).
+
 ### Otros comandos
 
 ```bash
@@ -157,11 +169,112 @@ faset run archivo.fst          # archivos sueltos, sin proyecto
 faset check                    # solo errores
 faset emit-c -o salida.c       # ver el C intermedio
 faset build --sanitize         # detecta errores de memoria y fugas (ASan + UBSan)
-faset build --target android   # binario ARM64; --shared para una .so
+faset build --target android   # APK firmado (ver Android); --shared para una .so
 ```
 
-Opciones: `-o`, `-c Debug|Release`, `--target`, `--arch`, `--api`, `--shared`, `--gui`,
-`--static`, `--sanitize`, `--cc`, `-l`, `-L`, `--keep-c`, `-v`.
+Opciones: `-o`, `-c Debug|Release`, `--target`, `--arch`, `--api`, `--device`, `--no-apk`,
+`--shared`, `--gui`, `--static`, `--sanitize`, `--cc`, `-l`, `-L`, `--keep-c`, `-v`.
+
+## Android
+
+`faset` genera **APK firmados** sin Java, Gradle ni Android Studio abierto: el programa se compila
+con el NDK como `lib<App>.so`, se carga desde una `NativeActivity` y se empaqueta con las
+herramientas del SDK (`aapt2`, `zipalign`, `apksigner`).
+
+### Preparación
+
+1. Instala el SDK de Android (Android Studio o las *cmdline-tools*). `faset` lo busca en
+   `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `~/Android/Sdk`, `%LOCALAPPDATA%\Android\Sdk` o `~/Library/Android/sdk`.
+2. Instala el NDK, las build-tools y una plataforma:
+
+   ```bash
+   sdkmanager --install "ndk;30.0.16248370" "build-tools;36.0.0" "platforms;android-36" platform-tools emulator
+   ```
+
+   El NDK más reciente de `<SDK>/ndk/<versión>` se detecta solo (o usa `ANDROID_NDK_HOME`).
+3. Java (para `apksigner` y `keytool`): `JAVA_HOME`, `java` en el `PATH` o el JBR de Android
+   Studio (`~/android-studio/jbr`…), que se usa automáticamente.
+4. `faset doctor` muestra el SDK, el NDK, las build-tools, la plataforma, `adb`, el emulador,
+   Java y los AVD encontrados.
+
+La primera vez se crea la clave de depuración `~/.android/debug.keystore` (la misma que usa
+Android Studio) si no existe.
+
+### Crear, compilar y ejecutar
+
+```bash
+faset new MiApp --android            # interfaz táctil (std.ui) con las propiedades de Android
+faset new Hola --android --console   # programa de consola: Console.WriteLine va a logcat
+cd MiApp
+faset android avds                   # emuladores disponibles
+faset android emulator Medium_Phone_API_37.0 --headless   # arranca y espera; imprime la serie
+faset run                            # compila el APK, lo instala, lo abre y muestra su logcat
+faset build                          # bin/Debug/android/MiApp.apk
+faset build -c Release               # APK sin depuración (firma con AndroidKeystore si existe)
+faset run --target native            # el mismo programa en el escritorio
+```
+
+Cualquier proyecto se compila para Android con `--target android`; `--arch arm64` limita el APK
+a una ABI y `--no-apk` produce el ejecutable ELF suelto de antes (para `adb push`).
+Una biblioteca (`OutputType=Library` o `--shared`) produce `lib<Nombre>.so`.
+
+`faset run --target android [--device <serie>]` sigue el log del proceso de la app hasta que
+termina (o Ctrl+C) y devuelve su código de salida. Muestra la salida del programa
+(`I/MiApp: ...`) y los errores del proceso; con `-v`, todo su logcat. Al final se imprime
+`[faset] fin del programa (código N)` y, si hubo un fallo nativo, el búfer `crash` de logcat.
+
+### Comandos `faset android`
+
+| Comando | Salida |
+|---------|--------|
+| `faset android devices` | una línea por dispositivo: `serie<TAB>estado<TAB>modelo` (p. ej. `emulator-5554	device	sdk_gphone64_x86_64`) |
+| `faset android avds` | un AVD por línea |
+| `faset android emulator <avd> [--headless] [--no-wait] [-- opciones]` | arranca el emulador en segundo plano, espera a `sys.boot_completed` e imprime su serie en stdout (el progreso va a stderr) |
+| `faset android logcat [--device s] [--app] [--clear] [-- args]` | `adb logcat -v tag`; `--app` filtra por el proceso de la app del proyecto |
+| `faset android stop` / `uninstall` | detiene / desinstala la app del proyecto |
+
+### Propiedades del `.fstproj`
+
+```xml
+<PropertyGroup>
+  <TargetPlatform>android</TargetPlatform>        <!-- 'faset run' apunta a Android -->
+  <AndroidPackage>com.miempresa.miapp</AndroidPackage>  <!-- por defecto com.faset.<nombre> -->
+  <AppName>Mi App</AppName>                       <!-- nombre visible (por defecto AssemblyName) -->
+  <VersionCode>1</VersionCode>
+  <VersionName>1.0</VersionName>                  <!-- por defecto <Version> o 1.0 -->
+  <AndroidApi>24</AndroidApi>                     <!-- minSdk (también --api) -->
+  <AndroidTargetSdk>36</AndroidTargetSdk>         <!-- por defecto la plataforma instalada más reciente -->
+  <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- arm64-v8a, armeabi-v7a, x86, x86_64 -->
+  <AndroidOrientation>portrait</AndroidOrientation>
+  <AndroidIcon>icono.png</AndroidIcon>
+  <AndroidKeystore>release.jks</AndroidKeystore>  <!-- firma propia; si no, la de depuración -->
+  <AndroidKeyAlias>miclave</AndroidKeyAlias>
+  <!-- contraseñas: FASET_ANDROID_KEYSTORE_PASSWORD / FASET_ANDROID_KEY_PASSWORD
+       (o AndroidKeystorePassword / AndroidKeyPassword) -->
+</PropertyGroup>
+<ItemGroup>
+  <AndroidPermission Include="INTERNET;CAMERA" />  <!-- android.permission.* (también de las bibliotecas referenciadas) -->
+  <NativeLibrary Include="miotra" />               <!-- libmiotra.so se mete en el APK si está en LibraryPath -->
+  <LibraryPath Include="libs/$(AndroidAbi)" />
+</ItemGroup>
+```
+
+### Cómo funciona
+
+- `lib/android/faset_android.c` implementa `android_main` (con `android_native_app_glue` del NDK):
+  el programa corre en su propio hilo, así un `Main()` largo nunca bloquea la actividad; al
+  terminar `Main()` se cierra la actividad y el proceso.
+- `stdout`/`stderr` se redirigen a logcat con la etiqueta de la app. La carpeta de trabajo (y
+  `HOME`) es el almacenamiento interno de la app, así `File.WriteAllText("datos.txt", ...)` funciona.
+- **std.ui** en Android (`#if ANDROID`): la ventana ocupa toda la pantalla; el lienzo se copia a
+  `ANativeWindow`; los toques llegan como ratón (botón 1); la rotación y los cambios de tamaño
+  se notifican como `Resize`; un `TextBox` con foco abre el teclado en pantalla y sus teclas
+  llegan como caracteres; el portapapeles es el del sistema. Las coordenadas son lógicas
+  (dp): todo se escala por la densidad (`dpi / 160`) y el texto se rasteriza al tamaño real con
+  `/system/fonts/Roboto-Regular.ttf` mediante **stb_truetype** (el NDK no ofrece FreeType), así
+  se ve nítido. Se enlazan `android` y `log`.
+- Las `.so` van sin comprimir y alineadas a 16 KB (`zipalign -P 16`, Android 15+).
+
 
 ## Namespaces, `using` e `import`
 
@@ -420,17 +533,21 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 - Sin `foreach`, propiedades con `set`, interpolación `$"..."` ni lambdas (usa `&Funcion`).
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
-- Los APK de Android y los bindings de Win32 y Android aún no vienen incluidos: se usan con `extern`.
+- Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.
 - `std.thread` en Windows supone x86-64/ARM64 (los `extern` no declaran `__stdcall`, como en `std.ui`).
   Varios hilos que escriben con `println` a la vez pueden intercalar líneas: protégelo con un `Mutex`.
+- Android: `std.ui` no conoce los recortes de la pantalla (la barra de navegación se dibuja
+  encima) ni redimensiona la ventana cuando aparece el teclado; la entrada de texto usa
+  eventos de tecla (sin autocorrección ni IME complejos).
 
 ## Estructura
 
 ```
-src/            compilador (C++17): Lexer, Parser, Sema, CodeGen, Project, Runtime, Frontend, Lsp, Json, main
+src/            compilador (C++17): Lexer, Parser, Sema, CodeGen, Project, Runtime, Frontend, Lsp, Json, Android, main
 editors/vscode/ extensión de VS Code (gramática, snippets y cliente LSP sin dependencias)
 studio/         FasetStudio: IDE escrito en Faset (Vulkan, X11, FreeType)
 lib/std/        biblioteca estándar escrita en Faset
+lib/android/    capa nativa de Android (NativeActivity, logcat, stb_truetype) que se compila en cada APK
 examples/       ejemplos; examples/proyecto/ es un proyecto con referencia a una biblioteca
 tests/          cases/ (salida), errors/ (diagnósticos), projects/ (.fstproj), lsp/ (servidor de lenguaje)
 ```

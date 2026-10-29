@@ -358,7 +358,11 @@ void faset_sleep_ms(int64_t ms) {
 
 int64_t faset_time_unix_ms(void) {
     struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts); /* timespec_get solo existe desde la API 29 */
+#else
     timespec_get(&ts, TIME_UTC);
+#endif
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
@@ -715,7 +719,11 @@ void faset_atomic_fence(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
 /* Escribe en 'out' (struct timespec del sistema) el instante CLOCK_REALTIME + ms. */
 void faset_timespec_after_ms(void* out, int64_t ms) {
     struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts); /* timespec_get solo existe desde la API 29 */
+#else
     timespec_get(&ts, TIME_UTC);
+#endif
     if (ms < 0) ms = 0;
     int64_t ns = (int64_t)ts.tv_nsec + (ms % 1000) * 1000000;
     ts.tv_sec += (time_t)(ms / 1000 + ns / 1000000000);
@@ -752,7 +760,11 @@ int64_t faset_ticks_ns(void) {
 
 int64_t faset_time_unix_ns(void) {
     struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts);
+#else
     timespec_get(&ts, TIME_UTC);
+#endif
     return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
 }
 

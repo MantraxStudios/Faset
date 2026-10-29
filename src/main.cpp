@@ -6,6 +6,7 @@
 //   faset check [proyecto|archivos]
 //   faset emit-c [proyecto|archivos] [-o x.c]
 //   faset clean [proyecto]
+//   faset android <devices|avds|emulator|logcat|stop|uninstall>
 //   faset doctor | version | help
 #include <algorithm>
 #include <cctype>
@@ -26,6 +27,7 @@
 #include <sys/wait.h>
 #endif
 
+#include "Android.h"
 #include "CodeGen.h"
 #include "Frontend.h"
 #include "Lsp.h"
@@ -65,6 +67,10 @@ struct Options {
     int shared = -1, debug = -1, gui = -1, staticLink = -1;  // -1 = no indicado
     bool keepC = false, verbose = false, sanitize = false;
     std::string cc;
+    std::string device;      // Android: número de serie para 'run'
+    bool archGiven = false;  // --arch o <TargetArch> explícitos
+    std::vector<std::string> androidPermissions;
+    bool noApk = false;      // Android: ejecutable ELF suelto en vez de APK
     std::string configuration;
     std::vector<std::string> libs, libDirs;
     std::vector<std::string> runArgs;
@@ -80,13 +86,17 @@ static void usage() {
     std::printf(
         "Faset %s - lenguaje nativo que mezcla C# y C++\n\n"
         "Uso:\n"
-        "  faset new <Nombre> [--lib|--winexe]   Crea un proyecto (Nombre/Nombre.fstproj)\n"
+        "  faset new <Nombre> [plantilla]        Crea un proyecto (Nombre/Nombre.fstproj)\n"
+        "         plantillas: --console (por defecto), --lib, --winexe, --ui (AppUI),\n"
+        "                     --android (AppUI para Android), --android --console\n"
         "  faset build  [entrada] [opciones]     Compila a un ejecutable nativo\n"
         "  faset run    [entrada] [-- args]      Compila y ejecuta\n"
         "  faset check  [entrada]                Comprueba errores sin compilar\n"
         "  faset emit-c [entrada] [-o f.c]       Genera el código C intermedio\n"
         "  faset clean  [proyecto]               Borra bin/ y obj/\n"
-        "  faset doctor                          Muestra los compiladores detectados\n"
+        "  faset android <comando>               devices, avds, emulator, logcat, stop, uninstall\n"
+        "                                        (faset android help)\n"
+        "  faset doctor                          Muestra los compiladores y el SDK de Android detectados\n"
         "  faset lsp                             Servidor de lenguaje (para VS Code y otros editores)\n"
         "  faset version | help\n\n"
         "Entrada: un .fstproj, una carpeta con un .fstproj, o archivos .fst sueltos.\n"
@@ -96,7 +106,9 @@ static void usage() {
         "  -c <Debug|Release>   Configuración\n"
         "  --target <t>         native, linux, windows, android\n"
         "  --arch <a>           x86_64, x86, arm64, armv7\n"
-        "  --api <n>            Nivel de API de Android (por defecto 24)\n"
+        "  --api <n>            Nivel de API mínimo de Android (por defecto 24)\n"
+        "  --device <serie>     Android: dispositivo para 'run' (ver 'faset android devices')\n"
+        "  --no-apk             Android: ejecutable ELF suelto en vez de un APK\n"
         "  --shared             Biblioteca (.so / .dll)\n"
         "  --gui                Windows: aplicación de ventana (sin consola)\n"
         "  --static             Enlazado estático\n"
@@ -105,7 +117,9 @@ static void usage() {
         "  -l <lib>  -L <dir>   Bibliotecas nativas\n"
         "  --sanitize           Detecta errores de memoria en ejecución (ASan + UBSan)\n"
         "  --keep-c             Conserva el C generado junto a la salida\n"
-        "  -v, --verbose        Muestra los comandos ejecutados\n",
+        "  -v, --verbose        Muestra los comandos ejecutados\n\n"
+        "Android: 'faset build --target android' genera un APK firmado (bin/<Config>/android/<App>.apk)\n"
+        "y 'faset run --target android' lo instala, lo abre y muestra su logcat.\n",
         kVersion);
 }
 
@@ -146,50 +160,15 @@ static std::string envOr(const char* name) {
     return v ? v : "";
 }
 
-static std::string findNdk() {
-    for (const char* var : {"ANDROID_NDK_HOME", "ANDROID_NDK_ROOT", "ANDROID_NDK"}) {
-        std::string v = envOr(var);
-        if (!v.empty() && fs::exists(v)) return v;
-    }
-    std::vector<fs::path> sdks;
-    for (const char* var : {"ANDROID_HOME", "ANDROID_SDK_ROOT"})
-        if (!envOr(var).empty()) sdks.emplace_back(envOr(var));
-    std::string home = envOr("HOME").empty() ? envOr("USERPROFILE") : envOr("HOME");
-    if (!home.empty()) {
-        sdks.push_back(fs::path(home) / "Android" / "Sdk");
-        sdks.push_back(fs::path(home) / "AppData" / "Local" / "Android" / "Sdk");
-        sdks.push_back(fs::path(home) / "Library" / "Android" / "sdk");
-    }
-    for (const fs::path& sdk : sdks) {
-        std::error_code ec;
-        fs::path ndkDir = sdk / "ndk";
-        if (!fs::is_directory(ndkDir, ec)) continue;
-        std::vector<fs::path> versions;
-        for (auto& e : fs::directory_iterator(ndkDir, ec))
-            if (e.is_directory()) versions.push_back(e.path());
-        if (!versions.empty()) {
-            std::sort(versions.begin(), versions.end());
-            return versions.back().string();
-        }
-    }
-    return "";
-}
-
-static std::string androidTriple(const std::string& arch) {
-    if (arch == "arm64") return "aarch64-linux-android";
-    if (arch == "armv7") return "armv7a-linux-androideabi";
-    if (arch == "x86") return "i686-linux-android";
-    return "x86_64-linux-android";
-}
-
 static std::string resolveCompiler(const Options& o, std::string& why) {
     if (!o.cc.empty()) return o.cc;
     if (!envOr("FASET_CC").empty()) return envOr("FASET_CC");
     const std::string& t = o.target;
     if (t == "android") {
-        std::string ndk = findNdk();
+        std::string ndk = findAndroidNdk();
         if (ndk.empty()) {
-            why = "no se encontró el Android NDK; instálalo y define ANDROID_NDK_HOME";
+            why = "no se encontró el Android NDK; instálalo con 'sdkmanager --install \"ndk;<versión>\"' (queda en "
+                  "<SDK>/ndk/<versión>) o define ANDROID_NDK_HOME";
             return "";
         }
 #if defined(_WIN32)
@@ -295,6 +274,9 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         o.libs.insert(o.libs.end(), proj->nativeLibs.begin(), proj->nativeLibs.end());
         o.platformLibs.insert(o.platformLibs.end(), proj->platformLibs.begin(), proj->platformLibs.end());
         o.libDirs.insert(o.libDirs.end(), proj->libPaths.begin(), proj->libPaths.end());
+        for (const std::string& perm : proj->androidPermissions)
+            if (std::find(o.androidPermissions.begin(), o.androidPermissions.end(), perm) == o.androidPermissions.end())
+                o.androidPermissions.push_back(perm);
         return true;
     };
     return visit(path, true);
@@ -336,6 +318,7 @@ static bool frontEnd(Options& o, std::string* csrc) {
         std::vector<std::string> need;
         if (mod == "std.ui")
             need = o.target == "windows" ? std::vector<std::string>{"user32", "gdi32"}
+                 : o.target == "android" ? std::vector<std::string>{"android", "log"}
                                          : std::vector<std::string>{"X11", "freetype"};
         else if (mod == "std.thread" && o.target != "windows" && o.target != "android")
             need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
@@ -367,20 +350,15 @@ static std::string defaultOutput(const Options& o) {
     return dir.empty() ? name : (dir / name).string();
 }
 
-static int build(Options& o, std::string& outPath) {
-    std::string csrc;
-    if (!frontEnd(o, &csrc)) {
-        std::fprintf(stderr, "compilación fallida: %d error(es)\n", diag.errorCount);
-        return 1;
-    }
+// Compila el C generado (y fuentes C adicionales) con el compilador del objetivo.
+static int compileC(const Options& o, const std::string& csrc, const std::string& outPath,
+                    const std::vector<std::string>& extraSources = {}, const std::vector<std::string>& extraArgs = {}) {
     std::string why;
     std::string cc = resolveCompiler(o, why);
     if (cc.empty()) {
         diag.fatal(why);
         return 1;
     }
-    outPath = o.output.empty() ? defaultOutput(o) : o.output;
-    if (o.target == "windows" && o.shared != 1 && fs::path(outPath).extension() != ".exe") outPath += ".exe";
     std::error_code ec;
     if (fs::path(outPath).has_parent_path()) fs::create_directories(fs::path(outPath).parent_path(), ec);
 
@@ -415,8 +393,10 @@ static int build(Options& o, std::string& outPath) {
     }
     cmd.push_back(mainC.string());
     cmd.push_back(rtC.string());
+    cmd.insert(cmd.end(), extraSources.begin(), extraSources.end());
     cmd.push_back("-o");
     cmd.push_back(outPath);
+    cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());
     for (const std::string& d : o.libDirs) cmd.push_back("-L" + d);
     for (const std::string& l : o.libs) cmd.push_back("-l" + l);
     cmd.push_back("-lm");
@@ -431,6 +411,159 @@ static int build(Options& o, std::string& outPath) {
     return 0;
 }
 
+// ------------------------------------------------------------------ Android (APK)
+
+static std::string androidName(const Options& o) {
+    std::string stem = o.project ? o.project->prop("AssemblyName", fs::path(o.project->path).stem().string())
+                       : o.singleFile ? fs::path(o.inputs[0]).stem().string()
+                                      : fs::current_path().filename().string();
+    std::string n;
+    for (char c : stem) n += isalnum((unsigned char)c) || c == '_' ? c : '_';
+    return n.empty() ? "app" : n;
+}
+
+// Paquete de la app: <AndroidPackage> o com.faset.<nombre en minúsculas>.
+static std::string androidPackage(const Options& o) {
+    if (o.project && !o.project->prop("AndroidPackage").empty()) return o.project->prop("AndroidPackage");
+    std::string n;
+    for (char c : androidName(o)) n += isalnum((unsigned char)c) ? (char)tolower((unsigned char)c) : '_';
+    if (n.empty() || !isalpha((unsigned char)n[0])) n = "app" + n;
+    return "com.faset." + n;
+}
+
+static std::vector<std::string> splitSemicolons(const std::string& v) {
+    std::vector<std::string> out;
+    std::stringstream ss(v);
+    std::string item;
+    while (std::getline(ss, item, ';')) {
+        item.erase(0, item.find_first_not_of(" \t\r\n,"));
+        item.erase(item.find_last_not_of(" \t\r\n,") + 1);
+        if (!item.empty()) out.push_back(item);
+    }
+    return out;
+}
+
+static std::string replaceAll(std::string s, const std::string& from, const std::string& to) {
+    for (size_t k = s.find(from); k != std::string::npos; k = s.find(from, k + to.size())) s.replace(k, from.size(), to);
+    return s;
+}
+
+// Compila lib<App>.so para cada ABI y lo empaqueta en un APK firmado (NativeActivity, sin Gradle).
+static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
+    Project* p = o.project;
+    std::string name = androidName(o);
+    std::string libDir = findLibDir(o.argv0);
+    fs::path glueC = fs::path(libDir) / "android" / "faset_android.c";
+    std::string ndk = findAndroidNdk();
+    if (ndk.empty()) {
+        std::string why;
+        resolveCompiler(o, why);
+        diag.fatal(why.empty() ? "no se encontró el Android NDK" : why);
+        return 1;
+    }
+    fs::path appGlue = fs::path(ndk) / "sources" / "android" / "native_app_glue";
+    if (!fs::exists(glueC) || !fs::exists(appGlue / "android_native_app_glue.c")) {
+        diag.fatal("falta " + (fs::exists(glueC) ? (appGlue / "android_native_app_glue.c").string() : glueC.string()));
+        return 1;
+    }
+
+    // ABIs: --arch, <TargetArch>, <AndroidAbis> o arm64-v8a + x86_64 (móviles y el emulador).
+    std::vector<std::string> abis;
+    if (o.archGiven) abis.push_back(androidArchToAbi(o.arch));
+    else abis = splitSemicolons(p ? p->prop("AndroidAbis", "arm64-v8a;x86_64") : "arm64-v8a;x86_64");
+    for (const std::string& abi : abis)
+        if (androidAbiToArch(abi).empty()) {
+            diag.fatal("ABI de Android desconocida '" + abi + "' (usa arm64-v8a, armeabi-v7a, x86 o x86_64)");
+            return 1;
+        }
+
+    fs::path objDir = p ? fs::path(p->dir) / "obj" / o.configuration / "android"
+                        : fs::temp_directory_path() / ("faset-apk-" + name);
+    fs::path outRoot = p ? fs::path(p->dir) / p->prop("OutputPath", "bin") / o.configuration / "android" : fs::path();
+    outPath = !o.output.empty() ? o.output : (outRoot / (name + ".apk")).string();
+    if (fs::path(outPath).extension() != ".apk") outPath += ".apk";
+    std::error_code ec;
+    fs::create_directories(objDir, ec);
+    fs::path tagC = objDir / "faset_app.c";
+    std::string tagSrc = "/* Generado por faset. */\nconst char faset_android_tag[] = \"" +
+                         replaceAll(replaceAll(name, "\\", "\\\\"), "\"", "\\\"") + "\";\n";
+    if (!writeFile(tagC, tagSrc)) {
+        diag.fatal("no se pudo escribir " + tagC.string());
+        return 1;
+    }
+
+    ApkSpec spec;
+    for (const std::string& abi : abis) {
+        Options oa = o;
+        oa.arch = androidAbiToArch(abi);
+        oa.shared = 0;  // el C conserva 'main'; se enlaza como biblioteca compartida
+        for (std::string& d : oa.libDirs) d = replaceAll(d, "$(AndroidAbi)", abi);
+        fs::path so = objDir / "lib" / abi / ("lib" + name + ".so");
+        std::vector<std::string> extra = {"-shared", "-fPIC", "-I" + appGlue.string(), "-I" + (fs::path(libDir) / "android").string(),
+                                          "-DNDEBUG", "-u", "ANativeActivity_onCreate", "-Wl,-z,max-page-size=16384", "-landroid", "-llog"};
+        if (o.debug != 1) extra.push_back("-s");
+        if (o.verbose) std::fprintf(stderr, "faset: compilando %s\n", abi.c_str());
+        if (int r = compileC(oa, csrc, so.string(),
+                             {(appGlue / "android_native_app_glue.c").string(), glueC.string(), tagC.string()}, extra))
+            return r;
+        spec.files.push_back({"lib/" + abi + "/lib" + name + ".so", so.string()});
+        // Bibliotecas nativas propias (<NativeLibrary> + <LibraryPath>, que puede usar $(AndroidAbi)).
+        for (const std::string& l : oa.libs)
+            for (const std::string& d : oa.libDirs) {
+                fs::path f = fs::path(d) / ("lib" + l + ".so");
+                if (fs::exists(f)) {
+                    spec.files.push_back({"lib/" + abi + "/lib" + l + ".so", f.string()});
+                    break;
+                }
+            }
+    }
+
+    spec.name = name;
+    spec.package = androidPackage(o);
+    spec.label = p ? p->prop("AppName", name) : name;
+    spec.versionCode = p ? std::atoi(p->prop("VersionCode", "1").c_str()) : 1;
+    if (spec.versionCode <= 0) spec.versionCode = 1;
+    spec.versionName = p ? p->prop("VersionName", p->prop("Version", "1.0")) : "1.0";
+    spec.minSdk = o.androidApi;
+    spec.targetSdk = p ? std::atoi(p->prop("AndroidTargetSdk", "0").c_str()) : 0;
+    if (p && !p->prop("AndroidIcon").empty()) spec.icon = (fs::path(p->dir) / p->prop("AndroidIcon")).string();
+    spec.orientation = p ? p->prop("AndroidOrientation") : "";
+    spec.permissions = o.androidPermissions;
+    spec.debuggable = o.configuration == "Debug";
+    if (p && !p->prop("AndroidKeystore").empty()) {
+        spec.keystore = (fs::path(p->dir) / p->prop("AndroidKeystore")).string();
+        spec.keyAlias = p->prop("AndroidKeyAlias");
+        const char* sp = std::getenv("FASET_ANDROID_KEYSTORE_PASSWORD");
+        const char* kp = std::getenv("FASET_ANDROID_KEY_PASSWORD");
+        spec.storePass = sp ? sp : p->prop("AndroidKeystorePassword");
+        spec.keyPass = kp ? kp : p->prop("AndroidKeyPassword", spec.storePass);
+    }
+    spec.objDir = objDir.string();
+    spec.output = outPath;
+    spec.verbose = o.verbose;
+    std::string err;
+    if (!androidPackageApk(spec, err)) {
+        diag.fatal(err);
+        return 1;
+    }
+    o.arch = "";
+    for (size_t i = 0; i < abis.size(); i++) o.arch += (i ? "," : "") + abis[i];
+    if (!p) fs::remove_all(objDir, ec);
+    return 0;
+}
+
+static int build(Options& o, std::string& outPath) {
+    std::string csrc;
+    if (!frontEnd(o, &csrc)) {
+        std::fprintf(stderr, "compilación fallida: %d error(es)\n", diag.errorCount);
+        return 1;
+    }
+    if (o.target == "android" && o.shared != 1 && !o.noApk) return buildApk(o, csrc, outPath);
+    outPath = o.output.empty() ? defaultOutput(o) : o.output;
+    if (o.target == "windows" && o.shared != 1 && fs::path(outPath).extension() != ".exe") outPath += ".exe";
+    return compileC(o, csrc, outPath);
+}
+
 static std::string identifierFrom(const std::string& name) {
     std::string id;
     for (char c : name) id += isalnum((unsigned char)c) ? c : '_';
@@ -441,17 +574,25 @@ static std::string identifierFrom(const std::string& name) {
 
 static int cmdNew(const std::vector<std::string>& args) {
     std::string name, kind = "Exe";
+    bool android = false, console = false;
     for (const std::string& a : args) {
         if (a == "--lib" || a == "lib" || a == "classlib") kind = "Library";
         else if (a == "--winexe" || a == "winexe") kind = "WinExe";
-        else if (a == "console" || a == "--console") kind = "Exe";
-        else if (a == "--ui" || a == "ui" || a == "appui" || a == "--appui") kind = "AppUI";
-        else if (!a.empty() && a[0] != '-') name = a;
+        else if (a == "console" || a == "--console") {
+            kind = "Exe";
+            console = true;
+        } else if (a == "--ui" || a == "ui" || a == "appui" || a == "--appui") kind = "AppUI";
+        else if (a == "--android" || a == "android") android = true;
+        else if (!a.empty() && a[0] == '-') {
+            diag.fatal("plantilla desconocida '" + a + "' (usa --console, --lib, --winexe, --ui o --android)");
+            return 1;
+        } else name = a;
     }
     if (name.empty()) {
-        diag.fatal("uso: faset new <Nombre> [--lib | --winexe | --ui]");
+        diag.fatal("uso: faset new <Nombre> [--console | --lib | --winexe | --ui | --android [--console]]");
         return 1;
     }
+    if (android && kind == "Exe" && !console) kind = "AppUI";  // --android: interfaz táctil por defecto
     fs::path dir(name);
     if (fs::exists(dir)) {
         diag.fatal("'" + name + "' ya existe");
@@ -460,9 +601,46 @@ static int cmdNew(const std::vector<std::string>& args) {
     std::string proj = fs::path(name).filename().string();
     std::string ns = identifierFrom(proj);
     fs::create_directories(dir);
-    writeFile(dir / (proj + ".fstproj"), newProjectXml(proj, kind == "AppUI" ? "WinExe" : kind));
-    if (kind == "AppUI") {
+    std::string xml = newProjectXml(proj, kind == "AppUI" ? "WinExe" : kind);
+    if (android) {
+        // Propiedades de Android ya rellenas (ver README: "Android").
+        std::string pkg;
+        for (char c : proj) pkg += isalnum((unsigned char)c) ? (char)tolower((unsigned char)c) : '_';
+        if (pkg.empty() || !isalpha((unsigned char)pkg[0])) pkg = "app" + pkg;
+        size_t k = xml.find("<TargetPlatform>native</TargetPlatform>");
+        if (k != std::string::npos) xml.replace(k, 39, "<TargetPlatform>android</TargetPlatform>");
+        k = xml.find("  </PropertyGroup>");
+        if (k != std::string::npos)
+            xml.insert(k, "    <AndroidPackage>com.faset." + pkg + "</AndroidPackage>\n"
+                          "    <AppName>" + proj + "</AppName>\n"
+                          "    <VersionCode>1</VersionCode>\n"
+                          "    <VersionName>1.0</VersionName>\n"
+                          "    <AndroidApi>24</AndroidApi>                     <!-- versión mínima de Android (7.0) -->\n"
+                          "    <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- móviles + emulador -->\n"
+                          "    <!-- <AndroidOrientation>portrait</AndroidOrientation> -->\n"
+                          "    <!-- <AndroidIcon>icon.png</AndroidIcon> -->\n");
+    }
+    writeFile(dir / (proj + ".fstproj"), xml);
+    if (kind == "AppUI" && android) {
+        // Diseño para un móvil (360 x 640 unidades lógicas); se adapta con los anclajes.
         writeFile(dir / "MainWindow.fstui",
+                  "<Window Class=\"MainWindow\" Namespace=\"" + ns + "\" Title=\"" + proj +
+                      "\" Width=\"360\" Height=\"640\" Theme=\"Dark\">\n"
+                      "  <Label Name=\"lblTitle\" X=\"24\" Y=\"32\" Width=\"312\" Height=\"36\" Text=\"Hello, Faset\" FontSize=\"24\" Bold=\"true\" Anchor=\"Left,Top,Right\" />\n"
+                      "  <Label Name=\"lblSubtitle\" X=\"24\" Y=\"70\" Width=\"312\" Height=\"22\" Text=\"Native Android app written in Faset.\" Style=\"Subtle\" Anchor=\"Left,Top,Right\" />\n"
+                      "  <Panel Name=\"card\" X=\"24\" Y=\"112\" Width=\"312\" Height=\"220\" Anchor=\"Left,Top,Right\">\n"
+                      "    <Label X=\"16\" Y=\"14\" Width=\"200\" Height=\"20\" Text=\"Your name\" FontSize=\"13\" Style=\"Subtle\" />\n"
+                      "    <TextBox Name=\"txtName\" X=\"16\" Y=\"38\" Width=\"280\" Height=\"40\" Placeholder=\"Type your name...\" Anchor=\"Left,Top,Right\" Changed=\"OnNameChanged\" />\n"
+                      "    <CheckBox Name=\"chkExcited\" X=\"16\" Y=\"94\" Width=\"240\" Height=\"28\" Text=\"Add excitement\" Changed=\"OnNameChanged\" />\n"
+                      "    <Slider Name=\"sldVolume\" X=\"16\" Y=\"140\" Width=\"280\" Height=\"28\" Value=\"30\" Anchor=\"Left,Top,Right\" Changed=\"OnVolumeChanged\" />\n"
+                      "    <ProgressBar Name=\"prgVolume\" X=\"16\" Y=\"188\" Width=\"280\" Height=\"6\" Value=\"30\" Anchor=\"Left,Top,Right\" />\n"
+                      "  </Panel>\n"
+                      "  <Button Name=\"btnClose\" X=\"24\" Y=\"568\" Width=\"150\" Height=\"48\" Text=\"Close\" Anchor=\"Left,Bottom\" Click=\"OnCloseClick\" />\n"
+                      "  <Button Name=\"btnGreet\" X=\"186\" Y=\"568\" Width=\"150\" Height=\"48\" Text=\"Greet\" Style=\"Primary\" Anchor=\"Right,Bottom\" Click=\"OnGreetClick\" />\n"
+                      "</Window>\n");
+    }
+    if (kind == "AppUI") {
+        if (!android) writeFile(dir / "MainWindow.fstui",
                   "<Window Class=\"MainWindow\" Namespace=\"" + ns + "\" Title=\"" + proj +
                       "\" Width=\"560\" Height=\"380\" Theme=\"Dark\">\n"
                       "  <Label Name=\"lblTitle\" X=\"32\" Y=\"28\" Width=\"496\" Height=\"34\" Text=\"Hello, Faset\" FontSize=\"24\" Bold=\"true\" Anchor=\"Left,Top,Right\" />\n"
@@ -523,7 +701,11 @@ static int cmdNew(const std::vector<std::string>& args) {
                       "            delete numeros;\n        }\n    }\n}\n");
     }
     writeFile(dir / ".gitignore", "bin/\nobj/\n");
-    std::printf("Proyecto '%s' creado (%s).\n\n  cd %s\n  faset run\n", proj.c_str(), kind.c_str(), name.c_str());
+    std::string shown = android ? (kind == "AppUI" ? "Android, AppUI" : "Android, consola") : kind;
+    std::printf("Proyecto '%s' creado (%s).\n\n  cd %s\n  faset run\n", proj.c_str(), shown.c_str(), name.c_str());
+    if (android)
+        std::printf("\n  faset android emulator <avd>   (si no hay un móvil conectado; 'faset android avds')\n"
+                    "  faset run --target native      (versión de escritorio)\n");
     return 0;
 }
 
@@ -538,7 +720,8 @@ static int cmdDoctor(const Options& o) {
     show("Biblioteca std", findLibDir(o.argv0), "define FASET_LIB con la ruta de la carpeta lib/");
     show("Nativo (" + std::string(kHostOS) + ")", native, "instala gcc o clang");
     show("Windows x86_64 (MinGW)", findProgram("x86_64-w64-mingw32-gcc"), "sudo apt install mingw-w64");
-    show("Android NDK", findNdk(), "instala el NDK y define ANDROID_NDK_HOME");
+    std::printf("\n");
+    androidDoctor();
     std::printf("\n");
     return 0;
 }
@@ -567,6 +750,12 @@ int main(int argc, char** argv) {
         return runAnalyzer(args[1], args[2], o.argv0);
     }
     if (o.command == "new") return cmdNew(std::vector<std::string>(args.begin() + 1, args.end()));
+    if (o.command == "android") {
+        // El paquete del proyecto de la carpeta actual (para stop, uninstall y logcat --app).
+        std::string pkg, projPath = findProjectIn(fs::current_path());
+        if (!projPath.empty() && loadProjectTree(projPath, o)) pkg = androidPackage(o);
+        return androidCommand(std::vector<std::string>(args.begin() + 1, args.end()), pkg);
+    }
     static const std::vector<std::string> cmds = {"build", "run", "check", "emit-c", "clean"};
     if (std::find(cmds.begin(), cmds.end(), o.command) == cmds.end()) {
         std::string ext = fs::path(o.command).extension().string();
@@ -597,6 +786,8 @@ int main(int argc, char** argv) {
         else if (a == "--target") o.target = next();
         else if (a == "--arch") o.arch = next();
         else if (a == "--api") o.androidApi = std::atoi(next().c_str());
+        else if (a == "--device" || a == "-s") o.device = next();
+        else if (a == "--no-apk") o.noApk = true;
         else if (a == "--shared") o.shared = 1;
         else if (a == "--gui") o.gui = 1;
         else if (a == "--static") o.staticLink = 1;
@@ -646,6 +837,7 @@ int main(int argc, char** argv) {
     }
 
     if (o.target.empty() || o.target == "native") o.target = kHostOS;
+    o.archGiven = !o.arch.empty();
     if (o.arch.empty()) o.arch = o.target == "android" ? "arm64" : kHostArch;
     if (o.androidApi == 0) o.androidApi = 24;
     if (o.configuration.empty()) o.configuration = "Debug";
@@ -691,6 +883,8 @@ int main(int argc, char** argv) {
                      o.configuration.c_str());
         return 0;
     }
+    if (o.target == "android" && o.shared != 1 && !o.noApk)
+        return androidRunApk(outPath, androidPackage(o), androidName(o), o.device, o.verbose);
     if (o.target != kHostOS || o.shared == 1) {
         diag.fatal("'run' solo puede ejecutar programas para esta máquina; usa 'build' para otros objetivos");
         return 1;

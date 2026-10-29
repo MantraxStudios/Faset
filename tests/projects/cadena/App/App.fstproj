@@ -1,0 +1,11 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>App</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- App -> Motor -> Base, y también App -> Base (diamante: Base se compila una vez). -->
+    <ProjectReference Include="../Motor/Motor.fstproj" />
+    <ProjectReference Include="../Base/Base.fstproj" />
+  </ItemGroup>
+</Project>

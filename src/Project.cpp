@@ -93,7 +93,10 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
     static const std::vector<std::string> known = {
         "OutputType", "AssemblyName", "RootNamespace", "TargetPlatform", "TargetArch", "AndroidApi",
         "Configuration", "OutputPath", "StaticLink", "EnableDefaultCompileItems", "Version", "Description",
-        "Authors", "Optimize", "DebugSymbols"};
+        "Authors", "Optimize", "DebugSymbols",
+        // Android (APK)
+        "AndroidPackage", "AppName", "VersionCode", "VersionName", "AndroidAbis", "AndroidTargetSdk", "AndroidIcon",
+        "AndroidOrientation", "AndroidKeystore", "AndroidKeyAlias", "AndroidKeystorePassword", "AndroidKeyPassword"};
     for (XmlNode& g : root.children) {
         if (g.name == "PropertyGroup") {
             for (XmlNode& p : g.children) {
@@ -118,6 +121,8 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                         for (auto& l : inc) out.platformLibs.push_back({l, platform});
                 } else if (it.name == "LibraryPath") {
                     for (auto& d : inc) out.libPaths.push_back((fs::path(out.dir) / d).lexically_normal().string());
+                } else if (it.name == "AndroidPermission") {
+                    out.androidPermissions.insert(out.androidPermissions.end(), inc.begin(), inc.end());
                 } else if (it.name == "ProjectReference") {
                     for (auto& r : inc) out.references.push_back((fs::path(out.dir) / r).lexically_normal().string());
                 } else {

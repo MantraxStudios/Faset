@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Base</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <NativeLibrary Include="m" />
+    <AndroidPermission Include="INTERNET" />
+  </ItemGroup>
+</Project>
