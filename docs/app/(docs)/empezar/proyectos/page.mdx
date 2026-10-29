@@ -139,6 +139,50 @@ una se incluye una sola vez aunque llegue por varios caminos. El resultado es un
 única `lib<App>.so` en el APK). Para producir una biblioteca dinámica
 independiente, compila el proyecto `Library` por sí solo (genera `libNombre.so` o `Nombre.dll`).
 
+## Soluciones (`.fstp`)
+
+Una **solución** agrupa varios proyectos, como el `.sln` de Visual Studio: se compilan juntos en el
+orden de sus `<ProjectReference>` y se ejecuta el **proyecto de inicio**.
+
+```xml
+<Solution Name="MiJuego">
+  <Folder Name="Bibliotecas">
+    <Project Path="Utilidades/Utilidades.fstproj" />
+  </Folder>
+  <Project Path="Juego/Juego.fstproj" Startup="true" />
+</Solution>
+```
+
+- `Path` es relativo al `.fstp`; `<Folder>` (anidable) solo organiza el explorador.
+- `Startup="true"` marca el proyecto que ejecuta `faset run` (si no hay, el primer `Exe`/`WinExe`).
+- `<Solution>` admite `Configuration` y `TargetPlatform` por defecto para toda la solución.
+
+```bash
+faset new sln MiJuego                 # MiJuego/MiJuego.fstp vacía
+faset new MiJuego --solution          # solución + un proyecto de consola dentro
+faset sln add Motor/Motor.fstproj --folder Bibliotecas
+faset sln ref Juego Motor             # <ProjectReference> de Juego a la biblioteca Motor
+faset sln startup Juego
+faset sln list                        # proyectos, carpetas y proyecto de inicio (--json)
+faset build MiJuego.fstp              # todos, en orden de dependencias
+faset run                             # en una carpeta con un .fstp: compila todo y ejecuta el de inicio
+```
+
+`faset sln help` muestra todas las órdenes (`remove`, `folder`, `move`, `rename`...). Si una
+biblioteca falla, los proyectos que dependen de ella se saltan y se indica al final.
+
+### En FasetStudio
+
+Archivo → Abrir acepta un `.fstp` (y una carpeta con uno se abre como solución). El explorador muestra
+«Solución 'MiJuego' (N proyectos)» con sus carpetas y proyectos; el de inicio va en negrita. Con el
+botón derecho se agregan proyectos nuevos o existentes, carpetas y referencias, se elige el proyecto
+de inicio o se compila uno solo. <Kbd>Ctrl+B</Kbd> y <Kbd>F5</Kbd> compilan toda la solución. En el
+diálogo de proyecto nuevo, **Crear una solución** genera `Nombre/Nombre.fstp` con el proyecto dentro.
+El IntelliSense analiza cada archivo con su propio proyecto y llega (<Kbd>F12</Kbd>) a las
+bibliotecas referenciadas.
+
+<Screenshot src="/screenshots/studio-solucion.png" width={1400} height={726} alt="FasetStudio con una solución de tres proyectos en el explorador y la salida de compilar la solución" caption="Solución con carpetas, el proyecto de inicio en negrita y la salida de compilar los tres proyectos en orden." />
+
 ## Bibliotecas que enlaza el compilador por ti
 
 Si un programa usa `std.ui`, `faset` añade automáticamente `X11` y `freetype` (Linux), `user32` y
