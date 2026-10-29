@@ -618,13 +618,14 @@ está marcada `memory_unsafe` (implementación confiable) y su API pública sigu
 ### Redes (`std.net`)
 
 Sockets BSD de libc en Linux/Android y Winsock2 en Windows (el compilador enlaza `ws2_32`
-automáticamente cuando se usa `std.net`).
+automáticamente cuando se usa `std.net`). HTTPS/TLS con OpenSSL 3 cargado con `dlopen` en Linux,
+Schannel en Windows y BearSSL (incluido) en Android.
 
 ```csharp
 using std.net;
 
 auto http = new HttpClient();
-HttpResponse r = http.Get("http://example.com/");
+HttpResponse r = http.Get("https://example.com/");     // http:// o https://
 if (r != null) println(r.Body);
 else println(http.ErrorMessage);
 
@@ -649,7 +650,8 @@ delete peer; delete client; delete server;               // cierra los sockets y
 | `TcpListener` | `Start(backlog)`, `LocalEndPoint`, `Pending(ms)`, `AcceptTcpClient(ms)`, `AcceptSocket(ms)`, `Stop` |
 | `UdpClient` | `Bind`, `Connect`, `Send(datos, ep)`, `Receive(buf, n, out ep)`, `Receive(out texto, out ep)`, `SetBroadcast`, `ReceiveTimeout` |
 | `Uri` | `Parse`/`TryCreate`, `Scheme`, `UserInfo`, `Host`, `Port`, `Path`, `Query`, `Fragment`, `PathAndQuery()`, `Authority()`, `Resolve(ref)`, `Escape`, `Unescape`, `UnescapeForm`, `GetQueryParameter` |
-| `HttpClient` | `Get`, `Post`, `Send(HttpRequest)`, `DefaultHeaders`, `UserAgent`, `Timeout`, `FollowRedirects`, `MaxRedirects`, `BuildRequest` |
+| `TlsStream` | `Connect(host, port)`, `new TlsStream(tcp)` + `AuthenticateAsClient(host)` / `AuthenticateAsServer(cert.pem, key.pem)`, `Write`, `Receive`, `ReadLine`, `ReadToEnd`, `Protocol`, `CipherSuite`, `CertificateAuthorityFile`, `ValidateCertificate`, `Backend` |
+| `HttpClient` | `Get`, `Post`, `Send(HttpRequest)`, `DefaultHeaders`, `UserAgent`, `Timeout`, `FollowRedirects`, `MaxRedirects`, `ValidateCertificate`, `CertificateAuthorityFile`, `BuildRequest` |
 | `HttpResponse` | `StatusCode`, `ReasonPhrase`, `Version`, `Headers` (`Get`, `Contains`, sin distinguir mayúsculas), `Body`, `IsSuccess`, `Parse(texto)`, `DecodeChunked`; `HttpResponseReader` para analizar por trozos |
 
 **Errores:** no hay excepciones. Las operaciones devuelven `bool`, un número de bytes (`-1` = error)
@@ -658,9 +660,18 @@ o un objeto (`null` = error), y el motivo queda en `Error` (`SocketError`: `Time
 `NativeError` (errno / `WSAGetLastError`) del objeto que falló; `Dns` usa `Dns.LastError`.
 Los tiempos de espera van en milisegundos y `-1` significa sin límite.
 
-**Limitaciones:** sin HTTPS/TLS (una URL `https://` falla con `SocketError.Unsupported`), sin
-proxies, compresión ni keep-alive (cada petición usa `Connection: close`); el cuerpo de la
-respuesta se guarda entero en memoria. En Windows solo x86-64 (las funciones de Winsock son
+**TLS:** el certificado del servidor se verifica siempre (autoridades del sistema, fecha y nombre;
+SNI incluido); si falla, `Error` es `CertificateError` y `ErrorMessage` dice por qué (p. ej.
+`certificado no válido para 'expired.badssl.com': ha caducado`). `ValidateCertificate = false`
+**acepta cualquier certificado, también el de un atacante**: solo para pruebas.
+Linux: TLS 1.2/1.3, `libssl.so.3` solo hace falta en ejecución y al usar TLS (sin cabeceras -dev).
+Windows: TLS 1.2 (1.3 en Windows 11), sin `AuthenticateAsServer` ni `CertificateAuthorityFile`.
+Android: TLS 1.2, autoridades de `/apex/com.android.conscrypt/cacerts` o `/system/etc/security/cacerts`,
+sin verificación de certificados para direcciones IP; BearSSL se compila la primera vez (~10 s por
+arquitectura) y queda en caché.
+
+**Limitaciones:** sin proxies, compresión ni keep-alive (cada petición usa `Connection: close`); el
+cuerpo de la respuesta se guarda entero en memoria; sin revocación de certificados (CRL/OCSP). En Windows solo x86-64 (las funciones de Winsock son
 `__stdcall`, que en x86 de 32 bits no coincide con las declaraciones `extern`).
 
 ### Archivos y procesos (`std.io`, `std.os`)

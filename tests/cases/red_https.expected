@@ -1,0 +1,7 @@
+example.com: 200 con cuerpo
+api.github.com: 200 con cuerpo
+redirección: 200 con cuerpo
+caducado: error [certificado no válido] certificado no válido para 'expired.badssl.com': ha caducado
+otro nombre: error [certificado no válido] certificado no válido para 'wrong.host.badssl.com': se emitió para otro nombre de equipo
+autofirmado: error [certificado no válido] certificado no válido para 'self-signed.badssl.com': es autofirmado (no lo firma ninguna autoridad de confianza)
+caducado sin verificar: 200 con cuerpo

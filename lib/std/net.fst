@@ -7,7 +7,8 @@
 //    TcpClient / TcpListener     conexiones TCP
 //    UdpClient                   datagramas UDP
 //    Uri                         análisis de URL y codificación por porcentajes
-//    HttpClient                  cliente HTTP/1.1 sin TLS (GET, POST, cabeceras, chunked)
+//    TlsStream                   conexión cifrada con TLS 1.2/1.3 (cliente y servidor)
+//    HttpClient                  cliente HTTP/1.1 para http:// y https:// (GET, POST, cabeceras, chunked)
 //
 //      auto http = new HttpClient;
 //      HttpResponse r = http.Get("http://example.com/");
@@ -30,8 +31,10 @@
 //  Plataformas: Linux y Android (sockets BSD de libc) y Windows (Winsock2; el compilador
 //  enlaza ws2_32 automáticamente). En Windows las funciones de Winsock son __stdcall,
 //  que solo coincide con la convención de C en x86-64 (no en Windows x86 de 32 bits).
-//  Limitaciones: sin HTTPS/TLS, sin proxies, sin compresión, sin keep-alive (cada petición
-//  abre una conexión con 'Connection: close').
+//  TLS (lib/net/faset_tls.c): OpenSSL 3 cargado con dlopen en Linux (solo hace falta al usar
+//  TLS), Schannel en Windows y BearSSL (solo TLS 1.2) en Android.
+//  Limitaciones: sin proxies, sin compresión, sin keep-alive (cada petición abre una conexión
+//  con 'Connection: close').
 // =============================================================================
 using std.collections;
 using std.text;
@@ -66,6 +69,9 @@ namespace std.net
         Unsupported,
         InvalidUrl,
         ProtocolError,       // respuesta HTTP mal formada o incompleta
+        TlsError,            // fallo del protocolo TLS (negociación, alerta, datos dañados)
+        CertificateError,    // el certificado del otro extremo no supera la verificación
+        TlsUnavailable,      // no hay motor TLS (Linux sin OpenSSL) o la función no existe en esta plataforma
         Other
     }
 
@@ -185,10 +191,17 @@ namespace std.net
         public const int NO_RECOVERY = -4;      // EAI_FAIL
         public const int NO_DATA = -5;          // EAI_NODATA
 
-        // struct addrinfo: 4 int, socklen_t ai_addrlen, sockaddr* ai_addr, char* ai_canonname,
+#if ANDROID
+        // struct addrinfo de bionic (orden BSD): 4 int, socklen_t ai_addrlen, char* ai_canonname,
+        // sockaddr* ai_addr, addrinfo* ai_next (los punteros van alineados a su tamaño).
+        public static int AiAddr => sizeof(void*) == 8 ? 32 : 24;
+        public static int AiNext => AiAddr + sizeof(void*);
+#else
+        // struct addrinfo de glibc: 4 int, socklen_t ai_addrlen, sockaddr* ai_addr, char* ai_canonname,
         // addrinfo* ai_next (el puntero ai_addr va alineado al tamaño de puntero).
         public static int AiAddr => sizeof(void*) == 8 ? 24 : 20;
         public static int AiNext => AiAddr + 2 * sizeof(void*);
+#endif
     }
 #endif
 
@@ -488,6 +501,9 @@ namespace std.net
                 case SocketError.Unsupported: return "familia de direcciones no soportada";
                 case SocketError.InvalidUrl: return "URL no válida";
                 case SocketError.ProtocolError: return "respuesta del servidor no válida";
+                case SocketError.TlsError: return "error de TLS";
+                case SocketError.CertificateError: return "certificado no válido";
+                case SocketError.TlsUnavailable: return "TLS no disponible";
                 default: return "error de red";
             }
         }
@@ -990,9 +1006,9 @@ namespace std.net
             String.Free(name);
             if (r != 0)
             {
+                // Los códigos EAI_* de bionic (Android) coinciden con valores de errno: no se traducen.
                 lastNative = r;
-                lastError = Net.FromNative(r);
-                if (lastError == SocketError.Other) lastError = SocketError.HostNotFound;
+                lastError = SocketError.HostNotFound;
                 return false;
             }
             int found = 0;
@@ -1875,6 +1891,392 @@ namespace std.net
         public void Close() { socket.Close(); }
     }
 
+    // ======================================================================= TLS
+
+    // Funciones de lib/net/faset_tls.c (OpenSSL con dlopen en Linux, Schannel en Windows,
+    // BearSSL en Android). El estado es memoria de C: Faset solo guarda el puntero.
+    memory_unsafe static class TlsNative
+    {
+        public static extern void* faset_tls_new(long sock);
+        public static extern void faset_tls_free(void* t);
+        public static extern int faset_tls_client(void* t, string host, int verify, string caFile, int timeoutMs);
+        public static extern int faset_tls_server(void* t, string certFile, string keyFile, int timeoutMs);
+        public static extern int faset_tls_send(void* t, byte* data, int length, int timeoutMs);
+        public static extern int faset_tls_recv(void* t, byte* buffer, int capacity, int timeoutMs);
+        public static extern int faset_tls_pending(void* t);
+        public static extern void faset_tls_shutdown(void* t, int timeoutMs);
+        public static extern int faset_tls_error_kind(void* t);
+        public static extern int faset_tls_native_error(void* t);
+        public static extern byte* faset_tls_error_text(void* t);
+        public static extern byte* faset_tls_protocol(void* t);
+        public static extern byte* faset_tls_cipher(void* t);
+        public static extern byte* faset_tls_backend();
+        public static extern int faset_tls_available();
+    }
+
+    // Conexión cifrada con TLS (1.2 o 1.3) sobre TCP: lo que usa HttpClient para https://.
+    //
+    //   auto tls = new TlsStream();
+    //   tls.ReceiveTimeout = 10000;
+    //   if (tls.Connect("example.com", 443))
+    //   {
+    //       tls.Write("GET / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n");
+    //       string r = tls.ReadToEnd();
+    //       println(r);
+    //       String.Free(r);
+    //   }
+    //   else println(tls.ErrorMessage);
+    //   delete tls;
+    //
+    // Como cliente envía el nombre del equipo (SNI) y verifica el certificado del servidor:
+    // que lo firme una autoridad de confianza del sistema, que esté en fecha y que sea de ese
+    // nombre. Si falla, Error = CertificateError y ErrorMessage dice por qué. Desactivar la
+    // verificación (ValidateCertificate = false) deja la conexión expuesta a cualquiera que se
+    // ponga en medio: úsalo solo en pruebas, nunca con datos reales.
+    //
+    // Como servidor (AuthenticateAsServer) usa un certificado y su clave privada en PEM
+    // (Linux y Android; en Windows no está disponible).
+    public memory_unsafe class TlsStream
+    {
+        TcpClient tcp;          // propio: se cierra al cerrar el TlsStream
+        void* native;           // estado de C (faset_tls.c)
+        bool validate = true;
+        string caFile;          // copias propias
+        string message;
+        string protocol;
+        string cipher;
+        int receiveTimeout = -1;
+        int sendTimeout = -1;
+        bool authenticated;
+        bool server;
+        SocketError error;
+        int nativeError;
+        byte* pending;          // texto descifrado aún no entregado (ReadLine)
+        int pendingStart;
+        int pendingEnd;
+        int pendingCap;
+
+        // Sin conexión: usa Connect.
+        public TlsStream() { Init(); }
+
+        // Sobre una conexión TCP ya abierta (por ejemplo, la de TcpListener.AcceptTcpClient):
+        // el TlsStream pasa a ser su dueño. Después llama a AuthenticateAsClient o AuthenticateAsServer.
+        public TlsStream(TcpClient connected)
+        {
+            Init();
+            tcp = connected;
+            receiveTimeout = connected.ReceiveTimeout;
+            sendTimeout = connected.SendTimeout;
+        }
+
+        void Init()
+        {
+            caFile = String.Copy("");
+            message = String.Copy("");
+            protocol = String.Copy("");
+            cipher = String.Copy("");
+        }
+
+        ~TlsStream()
+        {
+            Close();
+            String.Free(caFile);
+            String.Free(message);
+            String.Free(protocol);
+            String.Free(cipher);
+            Memory.Free(pending);
+        }
+
+        // Motor TLS de esta plataforma: "OpenSSL (libssl.so.3)", "Schannel" o "BearSSL".
+        public static string Backend => String.FromCString(TlsNative.faset_tls_backend());
+        // false si no hay motor (Linux sin OpenSSL instalado).
+        public static bool IsSupported => TlsNative.faset_tls_available() != 0;
+
+        // Verificar el certificado del otro extremo (true por defecto). Ponerlo a false acepta
+        // CUALQUIER certificado, incluso el de un atacante: solo para pruebas.
+        public bool ValidateCertificate { get => validate; set { validate = value; } }
+
+        // Archivo PEM con autoridades de confianza adicionales (además de las del sistema), por
+        // ejemplo la de una red interna o la de unas pruebas. "" = solo las del sistema. No disponible en Windows.
+        public string CertificateAuthorityFile
+        {
+            get => caFile;
+            set { SetText(ref caFile, value); }
+        }
+
+        // Milisegundos de espera de cada lectura o escritura, también durante la negociación (-1 = sin límite).
+        public int ReceiveTimeout
+        {
+            get => receiveTimeout;
+            set
+            {
+                receiveTimeout = value;
+                if (tcp != null) tcp.ReceiveTimeout = value;
+            }
+        }
+
+        public int SendTimeout
+        {
+            get => sendTimeout;
+            set
+            {
+                sendTimeout = value;
+                if (tcp != null) tcp.SendTimeout = value;
+            }
+        }
+
+        public TcpClient Client => tcp;
+        public bool IsAuthenticated => authenticated;
+        public bool IsServer => server;
+        // Versión negociada ("TLSv1.3", "TLSv1.2") y suite de cifrado (nombre del motor); "" antes de negociar.
+        public string Protocol => protocol;
+        public string CipherSuite => cipher;
+        public SocketError Error => error;
+        public int NativeError => nativeError;
+        // Motivo del último fallo, en español (vista: no la liberes).
+        public string ErrorMessage => message;
+
+        static void SetText(ref string field, string value)
+        {
+            string v = String.Copy(value);
+            String.Free(field);
+            field = v;
+        }
+
+        bool FailWith(SocketError e, int code, string text)
+        {
+            error = e;
+            nativeError = code;
+            SetText(ref message, text);
+            return false;
+        }
+
+        // Toma el error de la última llamada a faset_tls_*.
+        bool FailNative()
+        {
+            int kind = TlsNative.faset_tls_error_kind(native);
+            int code = TlsNative.faset_tls_native_error(native);
+            SocketError e = SocketError.TlsError;
+            if (kind == 1) e = code != 0 ? Net.FromNative(code) : SocketError.ConnectionReset;
+            else if (kind == 2) e = SocketError.TimedOut;
+            else if (kind == 3) e = SocketError.ConnectionAborted;
+            else if (kind == 5) e = SocketError.CertificateError;
+            else if (kind == 6) e = SocketError.TlsUnavailable;
+            else if (kind == 7) e = SocketError.InvalidArgument;
+            return FailWith(e, code, String.FromCString(TlsNative.faset_tls_error_text(native)));
+        }
+
+        bool Ok()
+        {
+            error = SocketError.Success;
+            nativeError = 0;
+            return true;
+        }
+
+        // Conecta por TCP con 'host' y negocia TLS como cliente con ese nombre.
+        public bool Connect(string host, int port) => Connect(host, port, receiveTimeout);
+
+        // 'timeoutMs' se aplica a la conexión TCP (cada dirección); la negociación usa ReceiveTimeout.
+        public bool Connect(string host, int port, int timeoutMs)
+        {
+            Close();
+            TcpClient c = new TcpClient();
+            c.ReceiveTimeout = receiveTimeout;
+            c.SendTimeout = sendTimeout;
+            if (!c.Connect(host, port, timeoutMs))
+            {
+                FailWith(c.Error, c.NativeError, Net.Describe(c.Error));
+                delete c;
+                return false;
+            }
+            tcp = c;
+            return AuthenticateAsClient(host);
+        }
+
+        bool Prepare()
+        {
+            if (tcp == null || !tcp.Connected) return FailWith(SocketError.NotConnected, 0, Net.Describe(SocketError.NotConnected));
+            if (authenticated || native != null) return FailWith(SocketError.InvalidArgument, 0, "la conexión TLS ya está negociada");
+            native = TlsNative.faset_tls_new(tcp.Client.Handle);
+            if (native == null) return FailWith(SocketError.Other, 0, "sin memoria para TLS");
+            return true;
+        }
+
+        void Negotiated()
+        {
+            authenticated = true;
+            SetText(ref protocol, String.FromCString(TlsNative.faset_tls_protocol(native)));
+            SetText(ref cipher, String.FromCString(TlsNative.faset_tls_cipher(native)));
+        }
+
+        // Negocia TLS como cliente. 'host' es el nombre que se envía (SNI) y con el que se
+        // compara el certificado (puede ser una dirección IP).
+        public bool AuthenticateAsClient(string host)
+        {
+            if (!Prepare()) return false;
+            server = false;
+            if (TlsNative.faset_tls_client(native, host, validate ? 1 : 0, caFile, receiveTimeout) != 0)
+            {
+                FailNative();
+                Close();
+                return false;
+            }
+            Negotiated();
+            return Ok();
+        }
+
+        // Negocia TLS como servidor con un certificado (PEM; puede traer detrás la cadena de
+        // autoridades intermedias) y su clave privada (PEM, RSA o EC).
+        public bool AuthenticateAsServer(string certificateFile, string privateKeyFile)
+        {
+            if (!Prepare()) return false;
+            server = true;
+            if (TlsNative.faset_tls_server(native, certificateFile, privateKeyFile, receiveTimeout) != 0)
+            {
+                FailNative();
+                Close();
+                return false;
+            }
+            Negotiated();
+            return Ok();
+        }
+
+        bool Check()
+        {
+            if (authenticated) return true;
+            return FailWith(SocketError.NotConnected, 0, "la conexión TLS no está negociada");
+        }
+
+        // Cifra y envía todos los bytes; devuelve 'length' o -1.
+        public int Send(byte* data, int length)
+        {
+            if (!Check()) return -1;
+            int n = TlsNative.faset_tls_send(native, data, length, sendTimeout);
+            if (n < 0)
+            {
+                FailNative();
+                return -1;
+            }
+            Ok();
+            return n;
+        }
+
+        public bool Write(byte* data, int length) => Send(data, length) >= 0;
+        public bool Write(string text) => Send(text.Ptr, (int)text.Length) >= 0;
+        public bool WriteLine(string text) => Write(text) && Write("\r\n");
+
+        int RecvRaw(byte* buffer, int capacity)
+        {
+            int n = TlsNative.faset_tls_recv(native, buffer, capacity, receiveTimeout);
+            if (n < 0) FailNative();
+            else Ok();
+            return n;
+        }
+
+        // Recibe hasta 'capacity' bytes descifrados: >0 bytes, 0 = el otro extremo cerró, -1 = error.
+        public int Receive(byte* buffer, int capacity)
+        {
+            if (pendingEnd > pendingStart)
+            {
+                int n = Math.Min(capacity, pendingEnd - pendingStart);
+                Memory.Copy(buffer, pending + pendingStart, n);
+                pendingStart += n;
+                return n;
+            }
+            if (!Check()) return -1;
+            return RecvRaw(buffer, capacity);
+        }
+
+        // Una lectura: añade a 'output' lo recibido. Devuelve los bytes añadidos (0 = cerrada, -1 = error).
+        public int Read(StringBuilder output)
+        {
+            byte* buf = (byte*)Memory.Alloc(16384);
+            int n = Receive(buf, 16384);
+            if (n > 0) output.Append(String.FromBytes(buf, n));
+            Memory.Free(buf);
+            return n;
+        }
+
+        // Lee hasta que el otro extremo cierre (copia). Si se corta por un error, devuelve lo leído y Error lo indica.
+        public string ReadToEnd()
+        {
+            StringBuilder sb = new StringBuilder();
+            while (Read(sb) > 0) { }
+            string r = sb.ToString();
+            delete sb;
+            return r;
+        }
+
+        // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia).
+        // Devuelve false si la conexión se cerró sin más datos o hubo un error.
+        public bool ReadLine(out string line)
+        {
+            int scanFrom = pendingStart;
+            for (;;)
+            {
+                for (int i = scanFrom; i < pendingEnd; i++)
+                {
+                    if (pending[i] != '\n') continue;
+                    int end = i;
+                    if (end > pendingStart && pending[end - 1] == '\r') end--;
+                    line = String.Copy(String.FromBytes(pending + pendingStart, end - pendingStart));
+                    pendingStart = i + 1;
+                    return true;
+                }
+                scanFrom = pendingEnd;
+                if (!Check())
+                {
+                    line = String.Copy("");
+                    return false;
+                }
+                if (pendingStart > 0)
+                {
+                    Memory.Copy(pending, pending + pendingStart, pendingEnd - pendingStart);
+                    pendingEnd -= pendingStart;
+                    scanFrom -= pendingStart;
+                    pendingStart = 0;
+                }
+                if (pendingCap - pendingEnd < 1024)
+                {
+                    pendingCap = pendingCap < 4096 ? 4096 : pendingCap * 2;
+                    pending = (byte*)Memory.Realloc(pending, pendingCap);
+                }
+                int n = RecvRaw(pending + pendingEnd, pendingCap - pendingEnd);
+                if (n <= 0)
+                {
+                    if (pendingEnd > pendingStart && n == 0)
+                    {
+                        line = String.Copy(String.FromBytes(pending + pendingStart, pendingEnd - pendingStart));
+                        pendingStart = pendingEnd;
+                        return true;
+                    }
+                    line = String.Copy("");
+                    return false;
+                }
+                pendingEnd += n;
+            }
+        }
+
+        // Bytes descifrados que se pueden leer sin esperar.
+        public int Available => pendingEnd - pendingStart + (native != null ? TlsNative.faset_tls_pending(native) : 0);
+
+        // Avisa al otro extremo (close_notify) y cierra la conexión TCP.
+        public void Close()
+        {
+            if (native != null)
+            {
+                if (authenticated) TlsNative.faset_tls_shutdown(native, 1000);
+                TlsNative.faset_tls_free(native);
+                native = null;
+            }
+            authenticated = false;
+            if (tcp != null) delete tcp;
+            tcp = null;
+            pendingStart = 0;
+            pendingEnd = 0;
+        }
+    }
+
     // ======================================================================= URI
 
     // URL analizada: esquema://usuario@equipo:puerto/ruta?consulta#fragmento.
@@ -2620,24 +3022,34 @@ namespace std.net
         }
     }
 
-    // Cliente HTTP/1.1 sencillo (solo http://; HTTPS no está soportado).
+    // Cliente HTTP/1.1 sencillo para http:// y https:// (TLS con TlsStream: certificado
+    // verificado contra las autoridades del sistema; las redirecciones pueden cambiar de esquema).
     public memory_unsafe class HttpClient
     {
         HttpHeaders defaultHeaders = new HttpHeaders();
-        string userAgent;      // copia propia
+        string userAgent;      // copias propias
+        string caFile;
+        string message;
         int timeout = 30000;
         bool followRedirects = true;
         int maxRedirects = 5;
+        bool validateCertificate = true;
         SocketError error;
         int nativeError;
-        string message = "";   // texto constante
 
-        public HttpClient() { userAgent = String.Copy("Faset/1.0"); }
+        public HttpClient()
+        {
+            userAgent = String.Copy("Faset/1.0");
+            caFile = String.Copy("");
+            message = String.Copy("");
+        }
 
         ~HttpClient()
         {
             delete defaultHeaders;
             String.Free(userAgent);
+            String.Free(caFile);
+            String.Free(message);
         }
 
         // Cabeceras que se envían en todas las peticiones.
@@ -2656,15 +3068,32 @@ namespace std.net
         public int Timeout { get => timeout; set { timeout = value; } }
         public bool FollowRedirects { get => followRedirects; set { followRedirects = value; } }
         public int MaxRedirects { get => maxRedirects; set { maxRedirects = value; } }
+        // https://: verificar el certificado del servidor (true por defecto). false acepta
+        // CUALQUIER certificado, también el de un atacante que se ponga en medio: solo para pruebas.
+        public bool ValidateCertificate { get => validateCertificate; set { validateCertificate = value; } }
+        // https://: archivo PEM con autoridades de confianza adicionales ("" = solo las del sistema).
+        public string CertificateAuthorityFile
+        {
+            get => caFile;
+            set
+            {
+                string v = String.Copy(value);
+                String.Free(caFile);
+                caFile = v;
+            }
+        }
         public SocketError Error => error;
         public int NativeError => nativeError;
+        // Motivo del último fallo, en español (vista: no la liberes).
         public string ErrorMessage => message;
 
         HttpResponse Fail(SocketError e, int native, string text)
         {
             error = e;
             nativeError = native;
-            message = text;
+            string m = String.Copy(text);
+            String.Free(message);
+            message = m;
             return null;
         }
 
@@ -2701,10 +3130,9 @@ namespace std.net
                     Fail(SocketError.InvalidUrl, 0, "URL no válida");
                     break;
                 }
-                if (uri.Scheme != "http")
+                if (uri.Scheme != "http" && uri.Scheme != "https")
                 {
-                    if (uri.Scheme == "https") Fail(SocketError.Unsupported, 0, "HTTPS no está soportado (solo HTTP sin TLS)");
-                    else Fail(SocketError.InvalidUrl, 0, "esquema no soportado (solo http://)");
+                    Fail(SocketError.InvalidUrl, 0, "esquema no soportado (solo http:// y https://)");
                     delete uri;
                     break;
                 }
@@ -2739,7 +3167,8 @@ namespace std.net
             {
                 error = SocketError.Success;
                 nativeError = 0;
-                message = "";
+                String.Free(message);
+                message = String.Copy("");
             }
             return result;
         }
@@ -2765,12 +3194,29 @@ namespace std.net
                 String.Free(wire);
                 return null;
             }
-            bool sent = c.Write(wire);
+            // https://: el TlsStream pasa a ser el dueño de la conexión TCP.
+            TlsStream tls = null;
+            if (uri.Scheme == "https")
+            {
+                tls = new TlsStream(c);
+                tls.ValidateCertificate = validateCertificate;
+                tls.CertificateAuthorityFile = caFile;
+                if (!tls.AuthenticateAsClient(uri.Host))
+                {
+                    Fail(tls.Error, tls.NativeError, tls.ErrorMessage);
+                    delete tls;
+                    String.Free(wire);
+                    return null;
+                }
+            }
+            bool sent = tls != null ? tls.Write(wire) : c.Write(wire);
             String.Free(wire);
             if (!sent)
             {
-                Fail(c.Error, c.NativeError, Net.Describe(c.Error));
-                delete c;
+                if (tls != null) Fail(tls.Error, tls.NativeError, tls.ErrorMessage);
+                else Fail(c.Error, c.NativeError, Net.Describe(c.Error));
+                if (tls != null) delete tls;
+                else delete c;
                 return null;
             }
             HttpResponseReader reader = new HttpResponseReader(method == "HEAD");
@@ -2778,17 +3224,19 @@ namespace std.net
             int state = 0;
             while (state == 0)
             {
-                int n = c.Receive(buf, 16384);
+                int n = tls != null ? tls.Receive(buf, 16384) : c.Receive(buf, 16384);
                 if (n > 0) state = reader.Feed(String.FromBytes(buf, n));
                 else if (n == 0) state = reader.Finish();
                 else
                 {
-                    Fail(c.Error, c.NativeError, Net.Describe(c.Error));
+                    if (tls != null) Fail(tls.Error, tls.NativeError, tls.ErrorMessage);
+                    else Fail(c.Error, c.NativeError, Net.Describe(c.Error));
                     break;
                 }
             }
             Memory.Free(buf);
-            delete c;
+            if (tls != null) delete tls;
+            else delete c;
             HttpResponse resp = null;
             if (state == 1) resp = reader.Take();
             else if (state < 0) Fail(SocketError.ProtocolError, 0, "respuesta del servidor no válida");

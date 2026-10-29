@@ -119,6 +119,6 @@ Connection: close|
 |
 {}
 respuesta: null
-HTTPS no está soportado (solo HTTP sin TLS)
+esquema no soportado (solo http:// y https://)
 respuesta: null
 True

@@ -1,5 +1,5 @@
 Redes con sockets BSD (Linux y Android) y Winsock2 (Windows): direcciones IPv4/IPv6, DNS, TCP,
-UDP, URL y un cliente HTTP/1.1. El compilador enlaza `ws2_32` automáticamente en Windows. No hay
+UDP, URL, TLS (HTTPS) y un cliente HTTP/1.1. El compilador enlaza `ws2_32` automáticamente en Windows. No hay
 excepciones: las operaciones devuelven `bool`, un número de bytes (`-1` = error) o `null`, y el motivo
 queda en `Error`, `ErrorMessage` (en español) y `NativeError`.
 
@@ -34,7 +34,7 @@ int main()
 {
     auto http = new HttpClient();
     http.Timeout = 5000;
-    HttpResponse r = http.Get("http://example.com/");
+    HttpResponse r = http.Get("https://example.com/");   // http:// y https://
     if (r != null)
     {
         println(r.StatusCode);
@@ -45,6 +45,70 @@ int main()
 }
 ```
 
-**Limitaciones:** sin HTTPS/TLS (una URL `https://` falla con `SocketError.Unsupported`), proxies,
-compresión ni keep-alive; el cuerpo de la respuesta se guarda entero en memoria. En Windows, solo
-x86-64.
+## HTTPS y TLS
+
+`HttpClient` usa TLS solo para las URL `https://`, y sigue las redirecciones aunque cambien de
+`http://` a `https://` o al revés. Para otros protocolos, `TlsStream` cifra una conexión TCP:
+
+```faset
+using std.net;
+
+int main()
+{
+    auto tls = new TlsStream();
+    tls.ReceiveTimeout = 10000;
+    if (!tls.Connect("example.com", 443))          // TCP + negociación TLS
+    {
+        println(tls.ErrorMessage);
+        return 1;
+    }
+    println(tls.Protocol);                          // TLSv1.3
+    tls.Write("HEAD / HTTP/1.1\r\nHost: example.com\r\nConnection: close\r\n\r\n");
+    string line;
+    if (tls.ReadLine(out line)) println(line);      // HTTP/1.1 200 OK
+    return 0;
+}
+```
+
+Como cliente, TLS envía el nombre del equipo (SNI) y **verifica el certificado** del servidor: que
+lo firme una autoridad de confianza del sistema, que esté en fecha y que se emitiera para ese
+nombre (o esa dirección IP). Si algo falla, la conexión no se abre, `Error` vale
+`SocketError.CertificateError` y `ErrorMessage` explica el motivo, por ejemplo
+`certificado no válido para 'expired.badssl.com': ha caducado`. Otros errores nuevos:
+`SocketError.TlsError` (fallo del protocolo) y `SocketError.TlsUnavailable` (no hay motor TLS).
+
+| Miembro | Uso |
+|---------|-----|
+| `Connect(host, puerto[, ms])` | conexión TCP y negociación como cliente |
+| `new TlsStream(tcpClient)` + `AuthenticateAsClient(host)` | TLS sobre una conexión ya abierta (el `TlsStream` pasa a ser su dueño) |
+| `AuthenticateAsServer(cert.pem, clave.pem)` | negociación como servidor (Linux y Android) |
+| `Write`, `WriteLine`, `Send`, `Receive`, `Read`, `ReadLine`, `ReadToEnd`, `Available`, `Close` | como en `TcpClient` |
+| `ReceiveTimeout`, `SendTimeout` | ms por operación, también durante la negociación |
+| `CertificateAuthorityFile` | PEM con autoridades **adicionales** (una red interna, unas pruebas) |
+| `Protocol`, `CipherSuite`, `IsAuthenticated` | datos de la conexión |
+| `TlsStream.Backend`, `TlsStream.IsSupported` | motor de la plataforma y si está disponible |
+
+`HttpClient` tiene las mismas opciones: `CertificateAuthorityFile` y `ValidateCertificate`.
+
+> **Peligro: `ValidateCertificate = false`.** Acepta *cualquier* certificado: caducado, de otro
+> dominio o fabricado por un atacante que intercepte la red. El cifrado sigue ahí, pero ya no sabes
+> con quién hablas, así que contraseñas, tokens y datos quedan expuestos. Úsalo solo en pruebas
+> contra tus propios servidores; para un certificado propio, mejor `CertificateAuthorityFile`.
+
+Motores (en `lib/net/faset_tls.c`; un programa sin `https://` no los necesita):
+
+| Plataforma | Motor | Versiones | Autoridades de confianza |
+|------------|-------|-----------|--------------------------|
+| Linux | OpenSSL 3 (`libssl.so.3`, también 1.1) cargado con `dlopen` al usarse | TLS 1.2 y 1.3 | las del sistema (`/etc/ssl/certs`...) |
+| Windows | Schannel (SSPI, se enlaza `secur32`) | TLS 1.2; 1.3 en Windows 11 / Server 2022 | almacén de certificados de Windows |
+| Android | BearSSL (MIT, incluido en `lib/net/bearssl`; se compila una vez y se guarda en caché) | TLS 1.2 | las del sistema (`/apex/com.android.conscrypt/cacerts` o `/system/etc/security/cacerts`) |
+
+En Linux no hacen falta las cabeceras de desarrollo de OpenSSL: si `libssl.so.3` no está instalada,
+la petición falla con `TlsUnavailable` y un mensaje que lo explica. En Android el compilador añade
+el permiso `INTERNET` a las apps que usan `std.net`.
+
+**Limitaciones:** sin proxies, compresión ni keep-alive; el cuerpo de la respuesta se guarda entero
+en memoria. TLS: en Android solo TLS 1.2 y no se pueden verificar certificados emitidos para una
+dirección IP (conecta por nombre); en Windows no hay `AuthenticateAsServer` ni
+`CertificateAuthorityFile` (instala la autoridad en el almacén de Windows) y no hay revocación
+(CRL/OCSP) en ningún motor. En Windows, solo x86-64.

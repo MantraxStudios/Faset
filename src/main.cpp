@@ -395,8 +395,14 @@ static bool frontEnd(Options& o, std::string* csrc) {
                                          : std::vector<std::string>{"X11", "freetype"};
         else if (mod == "std.thread" && o.target != "windows" && o.target != "android")
             need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
-        else if (mod == "std.net" && o.target == "windows")
-            need = {"ws2_32"};
+        else if (mod == "std.net") {
+            // TLS en C: Schannel en Windows, OpenSSL con dlopen en Linux y BearSSL en Android.
+            need = o.target == "windows" ? std::vector<std::string>{"ws2_32", "secur32"}
+                 : o.target == "android" ? std::vector<std::string>{}
+                                         : std::vector<std::string>{"dl"};
+            std::string c = (fs::path(fo.libDir) / "net" / "faset_tls.c").string();
+            if (std::find(o.cSources.begin(), o.cSources.end(), c) == o.cSources.end()) o.cSources.push_back(c);
+        }
         else if (mod == "std.video") {
             o.video = true;  // GStreamer / libmediandk se cargan con dlopen
             if (o.target != "windows" && o.target != "android") need = {"dl", "pthread"};
@@ -437,6 +443,11 @@ static bool frontEnd(Options& o, std::string* csrc) {
             std::find(o.androidPermissions.begin(), o.androidPermissions.end(), "android.permission.INTERNET") == o.androidPermissions.end())
             o.androidPermissions.push_back("INTERNET");
     }
+    // Android: std.net hace peticiones de red (HTTP/HTTPS), así que la app necesita el permiso INTERNET.
+    if (r.prog->requestedModules.count("std.net") && o.target == "android" &&
+        std::find(o.androidPermissions.begin(), o.androidPermissions.end(), "INTERNET") == o.androidPermissions.end() &&
+        std::find(o.androidPermissions.begin(), o.androidPermissions.end(), "android.permission.INTERNET") == o.androidPermissions.end())
+        o.androidPermissions.push_back("INTERNET");
     if (csrc) {
         CodeGen cg(*r.prog, *r.sema, *r.tc);
         cg.checks = o.checks == 1;
@@ -462,6 +473,70 @@ static std::string defaultOutput(const Options& o) {
     if (o.shared == 1) name = o.target == "windows" ? stem + ".dll" : "lib" + stem + ".so";
     else name = o.target == "windows" ? stem + ".exe" : stem;
     return dir.empty() ? name : (dir / name).string();
+}
+
+// std.net en Android: TLS con BearSSL (lib/net/bearssl). Se compila una sola vez por compilador
+// y arquitectura en <datos de faset>/cache/bearssl/ y se enlaza como biblioteca estática ("" si falla).
+static std::string bearsslArchive(const Options& o, const std::string& cc) {
+    fs::path root = fs::path(findLibDir(o.argv0)) / "net" / "bearssl";
+    std::error_code ec;
+    if (!fs::is_directory(root / "src", ec)) {
+        diag.fatal("falta " + (root / "src").string() + " (BearSSL, para TLS en Android)");
+        return "";
+    }
+    char key[32];
+    std::snprintf(key, sizeof key, "%016llx",
+                  (unsigned long long)std::hash<std::string>{}(cc + "|" + o.arch + "|" + fs::absolute(root).string()));
+    fs::path dir = fs::path(fasetDataDir()) / "cache" / "bearssl" / key;
+    fs::path lib = dir / "libfaset_bearssl.a";
+    if (fs::exists(lib, ec)) return lib.string();
+    std::vector<std::string> sources;
+    for (auto it = fs::recursive_directory_iterator(root / "src", ec); it != fs::recursive_directory_iterator(); it.increment(ec))
+        if (it->is_regular_file(ec) && it->path().extension() == ".c") sources.push_back(it->path().generic_string());
+    std::sort(sources.begin(), sources.end());
+    fs::path obj = dir / "obj";
+    fs::remove_all(obj, ec);
+    fs::create_directories(obj, ec);
+    std::fprintf(stderr, "faset: compilando BearSSL para TLS (%s, solo la primera vez)...\n", o.arch.c_str());
+    // Archivos de respuesta (@archivo): la lista no cabe en la línea de órdenes de Windows.
+    auto rsp = [](const fs::path& f, const std::vector<std::string>& args) {
+        std::string t;
+        for (const std::string& a : args) t += "\"" + a + "\"\n";
+        return writeFile(f, t);
+    };
+    std::vector<std::string> args = {"-std=gnu11", "-O2", "-w", "-fPIC", "-I" + (root / "inc").generic_string(),
+                                     "-I" + (root / "src").generic_string(), "-c"};
+    args.insert(args.end(), sources.begin(), sources.end());
+    std::vector<std::string> objs;
+    for (const std::string& s : sources) objs.push_back((obj / fs::path(s).filename().replace_extension(".o")).generic_string());
+    fs::path ar = fs::path(cc).parent_path() / "llvm-ar";
+#if defined(_WIN32)
+    ar += ".exe";
+#endif
+    fs::path tmpLib = dir / "libfaset_bearssl.tmp.a";
+    if (!rsp(dir / "cc.rsp", args) || !rsp(dir / "ar.rsp", objs)) {
+        diag.fatal("no se pudo escribir en " + dir.string());
+        return "";
+    }
+    fs::path old = fs::current_path(ec);
+    fs::current_path(obj, ec);  // 'clang -c' deja los .o en la carpeta actual
+    int r = runCommand({cc, "@" + (dir / "cc.rsp").string()}, o.verbose);
+    fs::current_path(old, ec);
+    if (r == 0) r = runCommand({ar.string(), "rcs", tmpLib.string(), "@" + (dir / "ar.rsp").string()}, o.verbose);
+    if (r != 0) {
+        diag.fatal("no se pudo compilar BearSSL (código " + std::to_string(r) + "); usa -v para ver el comando");
+        return "";
+    }
+    fs::rename(tmpLib, lib, ec);
+    std::error_code ignore;
+    fs::remove_all(obj, ignore);
+    fs::remove(dir / "cc.rsp", ignore);
+    fs::remove(dir / "ar.rsp", ignore);
+    if (ec) {
+        diag.fatal("no se pudo crear " + lib.string());
+        return "";
+    }
+    return lib.string();
 }
 
 // Compila el C generado (y fuentes C adicionales) con el compilador del objetivo.
@@ -517,6 +592,13 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.insert(cmd.end(), o.extraSources.begin(), o.extraSources.end());
     cmd.insert(cmd.end(), o.cSources.begin(), o.cSources.end());
     cmd.insert(cmd.end(), o.extraC.begin(), o.extraC.end());
+    if (o.target == "android" && std::any_of(o.cSources.begin(), o.cSources.end(), [](const std::string& f) {
+            return fs::path(f).filename() == "faset_tls.c";
+        })) {
+        std::string bear = bearsslArchive(o, cc);
+        if (bear.empty()) return 1;
+        cmd.push_back(bear);
+    }
     cmd.push_back("-o");
     cmd.push_back(outPath);
     cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());
