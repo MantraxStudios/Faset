@@ -109,7 +109,7 @@ namespace std.text
             if (buffer != null) buffer[0] = 0;
         }
 
-        // Copia del contenido (libérala con String.Free).
+        // Copia del contenido.
         public string ToString() => String.Copy(View());
 
         // Vista sin copiar: válida hasta la próxima modificación del builder.
@@ -119,7 +119,7 @@ namespace std.text
     public memory_unsafe static class Text
     {
         // Divide 's' por 'separator'. Las partes son vistas de 's' (no copian).
-        // Devuelve una lista nueva: libérala con delete.
+        // Devuelve una lista nueva
         public static List<string> Split(string s, string separator)
         {
             List<string> parts = new List<string>();
@@ -140,7 +140,7 @@ namespace std.text
             return parts;
         }
 
-        // Une las partes con 'separator' (copia nueva: libérala con String.Free).
+        // Une las partes con 'separator' (copia nueva).
         public static string Join(List<string> parts, string separator)
         {
             StringBuilder sb = new StringBuilder();

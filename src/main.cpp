@@ -118,8 +118,8 @@ static void usage() {
         "  --debug / --release  Atajos de -c Debug / -c Release\n"
         "  --cc <compilador>    Compilador de C (también: variable FASET_CC)\n"
         "  -l <lib>  -L <dir>   Bibliotecas nativas\n"
-        "  --checks/--no-checks Comprobaciones en ejecución: nulos, delete doble, índices,\n"
-        "                       división por cero (por defecto: activas solo en Debug)\n"
+        "  --checks/--no-checks Diagnósticos extra: uso tras delete y delete doble (por defecto\n"
+        "                       solo en Debug; nulos, índices y división por cero se comprueban siempre)\n"
         "  --allow-unsafe       Trata todos los archivos como contexto memory_unsafe\n"
         "  --sanitize           Detecta errores de memoria en ejecución (ASan + UBSan)\n"
         "  --keep-c             Conserva el C generado junto a la salida\n"
@@ -386,8 +386,10 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     std::string stem = fs::path(outPath).stem().string();
     fs::path mainC = tmp / (stem + ".c");
     fs::path rtC = tmp / "faset_rt.c";
+    fs::path gcC = tmp / "faset_gc.c";
     std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource;
-    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, runtime)) {
+    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, runtime) ||
+        !writeFile(gcC, kRuntimeGcSource)) {
         diag.fatal("no se pudo escribir en " + tmp.string());
         return 1;
     }
@@ -413,6 +415,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     }
     cmd.push_back(mainC.string());
     cmd.push_back(rtC.string());
+    cmd.push_back(gcC.string());
     cmd.insert(cmd.end(), extraSources.begin(), extraSources.end());
     cmd.push_back("-o");
     cmd.push_back(outPath);
@@ -420,6 +423,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     for (const std::string& d : o.libDirs) cmd.push_back("-L" + d);
     for (const std::string& l : o.libs) cmd.push_back("-l" + l);
     cmd.push_back("-lm");
+    if (o.target != "windows" && o.target != "android") cmd.push_back("-pthread");  // el recolector usa hilos
 
     int r = runCommand(cmd, o.verbose);
     if (o.keepC) fs::copy_file(mainC, fs::path(outPath).replace_extension(".c"), fs::copy_options::overwrite_existing, ec);

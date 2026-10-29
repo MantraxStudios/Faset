@@ -85,7 +85,7 @@ namespace std
 
         public static void Flush() { faset_flush(); }
 
-        // Devuelve memoria reservada: libérala con String.Free.
+        // Devuelve una cadena nueva.
         public static string ReadLine() { return faset_read_line(); }
     }
 
@@ -215,8 +215,13 @@ namespace std
         static extern void faset_mem_copy(void* dst, void* src, long n);
         static extern void faset_mem_set(void* dst, int value, long n);
         static extern int faset_mem_compare(void* a, void* b, long n);
+        static extern void* faset_alloc_atomic(long size);
 
+        //  La memoria es del recolector de basura: Free no la libera (solo devuelve a C la que
+        //  venga de bibliotecas de C), así que nunca queda un puntero colgando.
         public memory_unsafe static void* Alloc(long size) => faset_alloc(size);
+        // Bloque de bytes que nunca contendrá punteros: el recolector no lo recorre (más rápido).
+        public memory_unsafe static byte* AllocBytes(long size) => (byte*)faset_alloc_atomic(size);
         public memory_unsafe static void* AllocZeroed(long size) => faset_alloc_zeroed(size);
         public memory_unsafe static void* Realloc(void* p, long size) => faset_realloc(p, size);
         public memory_unsafe static void Free(void* p) { faset_free(p); }
@@ -234,6 +239,25 @@ namespace std
         public memory_unsafe static void CopyItems<T>(T* dst, T* src, long count) { faset_mem_copy(dst, src, sizeof(T) * count); }
     }
 
+    // ---------------------------------------------------------------- GC (recolector de basura)
+    //  Faset recupera la memoria solo: no hace falta 'delete' ni String.Free.
+    public memory_unsafe static class GC
+    {
+        static extern void faset_gc_collect();
+        static extern long faset_gc_heap_bytes();
+        static extern long faset_gc_live_bytes();
+        static extern long faset_gc_count();
+
+        // Fuerza una recolección completa (y ejecuta los destructores pendientes).
+        public static void Collect() { faset_gc_collect(); }
+        // Bytes que el montón ocupa ahora.
+        public static long HeapBytes => faset_gc_heap_bytes();
+        // Bytes en uso (vivos tras la última recolección más lo reservado desde entonces).
+        public static long TotalMemory => faset_gc_live_bytes();
+        // Recolecciones hechas desde que empezó el programa.
+        public static long Collections => faset_gc_count();
+    }
+
     // ---------------------------------------------------------------- String
     public memory_unsafe static class String
     {
@@ -248,7 +272,7 @@ namespace std
 
         public const string Empty = "";
 
-        // Las funciones que crean cadenas nuevas reservan memoria: libérala con Free.
+        // Las funciones que crean cadenas nuevas reservan memoria del recolector.
         public static string Concat(string a, string b) => faset_str_concat(a, b);
         public static string Concat(string a, string b, string c)
         {
@@ -261,6 +285,7 @@ namespace std
         public static string FromInt(long v) => faset_i64_to_str(v);
         public static string FromUInt(ulong v) => faset_u64_to_str(v);
         public static string FromDouble(double v) => faset_f64_to_str(v);
+        // Ya no hace falta: el recolector recupera las cadenas. Se conserva por compatibilidad.
         public static void Free(string s) { faset_str_free(s); }
 
         // Vistas (no copian ni reservan memoria).
@@ -373,7 +398,7 @@ namespace std
             return true;
         }
 
-        // Copias nuevas (libéralas con String.Free).
+        // Copias nuevas.
         public static string ToUpper(this string s)
         {
             byte* p = (byte*)Memory.Alloc(s.Length + 1);
@@ -390,7 +415,7 @@ namespace std
             return String.FromBytes(p, s.Length);
         }
 
-        // Conversión a C: la cadena resultante termina en '\0' (copia; libérala con String.Free).
+        // Conversión a C: la cadena resultante termina en '\0' (copia).
         public static string ToCString(this string s) => String.Copy(s);
 
         [TrackCaller] public static int ToInt(this string s) => Convert.ToInt32(s);
@@ -463,7 +488,7 @@ namespace std
             return v;
         }
 
-        // Crean cadenas nuevas (libéralas con String.Free).
+        // Crean cadenas nuevas.
         public static string ToString(long v) => String.FromInt(v);
         public static string ToString(double v) => String.FromDouble(v);
         public static string ToString(bool v) => String.Copy(v ? "True" : "False");
@@ -485,7 +510,7 @@ namespace std
         public static string GetArg(int index) => faset_arg_get(index);
         public static Platform CurrentPlatform() => (Platform)faset_platform();
 
-        // Devuelve una copia (libérala con String.Free) o "" si no existe.
+        // Devuelve una copia o "" si no existe.
         public static string GetVariable(string name)
         {
             string value;
@@ -494,7 +519,7 @@ namespace std
         }
 
         // Como GetVariable, pero distingue una variable vacía de una que no existe.
-        // 'value' es siempre una copia (libérala con String.Free).
+        // 'value' es siempre una copia.
         public static bool TryGetVariable(string name, out string value)
         {
 #if WINDOWS
@@ -547,7 +572,7 @@ namespace std
             return n;
         }
 
-        // Copia terminada en 0 (libérala con Memory.Free).
+        // Copia terminada en 0.
         public static ushort* Encode(string s)
         {
             int length;
@@ -575,7 +600,7 @@ namespace std
             return w;
         }
 
-        // Cadena UTF-8 nueva a partir de texto UTF-16 terminado en 0 (libérala con String.Free).
+        // Cadena UTF-8 nueva a partir de texto UTF-16 terminado en 0.
         public static string Decode(ushort* w)
         {
             int n = 0;
@@ -583,7 +608,7 @@ namespace std
             return Decode(w, n);
         }
 
-        // Cadena UTF-8 nueva a partir de 'count' unidades UTF-16 (libérala con String.Free).
+        // Cadena UTF-8 nueva a partir de 'count' unidades UTF-16.
         public static string Decode(ushort* w, int count)
         {
             byte* p = (byte*)Memory.Alloc((long)count * 3 + 1);

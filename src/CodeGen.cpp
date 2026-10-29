@@ -39,6 +39,15 @@ bool isLValue(Expr* e) {
     }
 }
 
+// ¿El tipo no contiene punteros, referencias ni cadenas? (su memoria no hace falta recorrerla)
+bool pointerFree(Type* t, int depth = 0) {
+    if (t->isNumeric() || t->isEnum() || t->is(TK::Bool)) return true;
+    if (!t->isStruct() || depth > 16) return false;
+    for (FieldDecl* f : t->decl->fields)
+        if (!f->isStatic() && !pointerFree(f->type, depth + 1)) return false;
+    return true;
+}
+
 // ¿Se debe emitir este método? (las plantillas no; las instancias solo si se usaron)
 bool shouldEmit(MethodDecl* m) { return m && !m->isTemplate() && m->body && m->checked; }
 
@@ -132,9 +141,9 @@ std::string CodeGen::callerLoc(SourceLoc l) {
     return loc(l);
 }
 
-// Comprueba (si checks) que una referencia a clase no es nula ni apunta a un objeto liberado.
+// Comprueba que una referencia a clase no es nula (y, con checks, que no se usó tras 'delete').
 std::string CodeGen::chkObj(Expr* obj, const std::string& code) {
-    if (!checks || obj->kind == EK::This) return code;
+    if (obj->kind == EK::This) return code;
     return "((" + ctype(obj->type) + ")faset_chk_obj((void*)" + code + ", " + callerLoc(obj->loc) + "))";
 }
 
@@ -269,8 +278,10 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
         std::string args = ctorParams(ctor, false);
         if (isClass) {
             out_ << c->cname << "* " << name << "(" << params << ") {\n";
+            // El destructor queda en la cabecera: lo ejecutan 'delete' o el recolector.
+            std::string dtor = c->dtor && shouldEmit(c->dtor) ? "(void (*)(void*))" + c->dtor->cname : "0";
             out_ << "    " << c->cname << "* self = (" << c->cname << "*)faset_obj_alloc((int64_t)sizeof(" << c->cname
-                 << "));\n";
+                 << "), " << dtor << ");\n";
             out_ << "    " << c->cname << "__init(self);\n";
             if (ctor) out_ << "    " << ctor->cname << "(self" << (args.empty() ? "" : ", " + args) << ");\n";
             out_ << "    return self;\n}\n\n";
@@ -403,17 +414,9 @@ void CodeGen::emitStmt(Stmt* s) {
             if (t->isClass()) target = t->decl;
             else if (t->isPointer() && t->elem->isStruct()) target = t->elem->decl;
             if (t->isClass()) {
-                // Objeto de clase: con checks, un 'delete' doble o de algo que no es un objeto
-                // termina con un panic antes de llamar al destructor.
-                std::string tmp = "faset_tmp" + std::to_string(tmp_++);
-                line("{");
-                indent_++;
-                line(target->cname + "* " + tmp + " = " + expr(ds->expr) + ";");
-                std::string dtor = target->dtor && !ds->isArray ? target->dtor->cname + "(" + tmp + "); " : "";
-                line("if (faset_obj_delete_begin(" + tmp + ", " + callerLoc(ds->loc) + ")) { " + dtor +
-                     "faset_obj_delete_end(" + tmp + "); }");
-                indent_--;
-                line("}");
+                // Objeto de clase: ejecuta su destructor una vez; la memoria la recupera el
+                // recolector cuando ya nadie la alcanza (con checks, el uso posterior es un panic).
+                line("faset_obj_delete((void*)" + expr(ds->expr) + ", " + callerLoc(ds->loc) + ");");
             } else if (target && target->dtor && !ds->isArray) {
                 std::string tmp = "faset_tmp" + std::to_string(tmp_++);
                 line("{");
@@ -466,6 +469,19 @@ std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vec
     for (size_t i = 0; i < parts.size(); i++) s += (i ? ", " : "") + parts[i];
     s += ")";
     return m->retIsRef() ? "(*" + s + ")" : s;
+}
+
+// Valor convertido a cadena para la concatenación con '+' (mismo formato que Console.Write).
+std::string CodeGen::toStr(Expr* e) {
+    Type* t = e->type;
+    std::string v = expr(e);
+    if (t->is(TK::String)) return v;
+    if (t->is(TK::Bool)) return "((" + v + ") ? FASET_STR(\"True\", 4) : FASET_STR(\"False\", 5))";
+    if (t->is(TK::Char)) return "faset_char_to_str(" + v + ")";
+    if (t->is(TK::Float)) return "faset_f32_to_str(" + v + ")";
+    if (t->is(TK::Double)) return "faset_f64_to_str(" + v + ")";
+    if (t->isUnsignedInt()) return "faset_u64_to_str((uint64_t)(" + v + "))";
+    return "faset_i64_to_str((int64_t)(" + v + "))";
 }
 
 std::string CodeGen::expr(Expr* e) {
@@ -528,8 +544,7 @@ std::string CodeGen::expr(Expr* e) {
             auto* c = static_cast<CallExpr*>(e);
             if (!c->target) {  // puntero a función
                 std::string fn = expr(c->callee);
-                if (checks)
-                    fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + fn + ", " + callerLoc(c->loc) + "))";
+                fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + fn + ", " + callerLoc(c->loc) + "))";
                 std::string s = "(" + fn + ")(";
                 for (size_t i = 0; i < c->args.size(); i++) s += (i ? ", " : "") + expr(c->args[i]);
                 return s + ")";
@@ -542,9 +557,7 @@ std::string CodeGen::expr(Expr* e) {
             auto* ix = static_cast<IndexExpr*>(e);
             if (ix->opMethod) return call(ix->opMethod, receiverPtr(ix->obj, false), {ix->index}, ix->loc);
             if (ix->obj->type->is(TK::String)) {
-                if (checks)
-                    return "faset_str_at(" + expr(ix->obj) + ", " + expr(ix->index) + ", " + callerLoc(ix->loc) + ")";
-                return "(" + expr(ix->obj) + ").ptr[" + expr(ix->index) + "]";
+                return "faset_str_at(" + expr(ix->obj) + ", " + expr(ix->index) + ", " + callerLoc(ix->loc) + ")";
             }
             return "(" + expr(ix->obj) + ")[" + expr(ix->index) + "]";
         }
@@ -568,6 +581,8 @@ std::string CodeGen::expr(Expr* e) {
                 std::string c = call(b->opMethod, "", {b->lhs, b->rhs}, b->loc);
                 return b->negate ? "(!" + c + ")" : c;
             }
+            if (b->op == "+" && e->type->is(TK::String))
+                return "faset_str_concat(" + toStr(b->lhs) + ", " + toStr(b->rhs) + ")";
             std::string l = expr(b->lhs), r = expr(b->rhs);
             Type* lt = b->lhs->type;
             if (lt->is(TK::String) && b->rhs->type->is(TK::String)) {
@@ -578,7 +593,17 @@ std::string CodeGen::expr(Expr* e) {
                 return "(faset_str_cmp(" + l + ", " + r + ") " + b->op + " 0)";
             }
             if (b->op == "-" && lt->isPointer() && b->rhs->type->isPointer()) return "((int64_t)(" + l + " - " + r + "))";
-            if (checks && (b->op == "/" || b->op == "%") && e->type->isIntegral()) {
+            if ((b->op == "<<" || b->op == ">>") && e->type->isIntegral()) {
+                // Como en C#: la cuenta se toma módulo el ancho y '<<' no tiene comportamiento indefinido.
+                bool wide = e->type->is(TK::Long) || e->type->is(TK::ULong);
+                std::string n = "((" + r + ") & " + (wide ? "63" : "31") + ")";
+                if (b->op == "<<") {
+                    std::string ut = wide ? "uint64_t" : "uint32_t";
+                    return "((" + ctype(e->type) + ")((" + ut + ")(" + l + ") << " + n + "))";
+                }
+                return "(" + l + " >> " + n + ")";
+            }
+            if ((b->op == "/" || b->op == "%") && e->type->isIntegral()) {
                 // División entera: el cero (y MIN / -1) terminaría el programa con SIGFPE.
                 int64_t k = 0;
                 bool safeConst = sema_.constEval(b->rhs, k) && k != 0 && k != -1;
@@ -605,7 +630,20 @@ std::string CodeGen::expr(Expr* e) {
                 return call(a->setter, self, {a->rhs}, a->loc);
             }
             if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}, a->loc) + ")";
-            if (checks && (a->op == "/=" || a->op == "%=") && a->lhs->type->isIntegral()) {
+            if (a->op == "+=" && a->lhs->type->is(TK::String)) {
+                std::string lhs = expr(a->lhs);
+                return "(" + lhs + " = faset_str_concat(" + lhs + ", " + toStr(a->rhs) + "))";
+            }
+            if ((a->op == "<<=" || a->op == ">>=") && a->lhs->type->isIntegral()) {
+                bool wide = a->lhs->type->is(TK::Long) || a->lhs->type->is(TK::ULong);
+                std::string mask = wide ? "63" : "31";
+                if (a->op == ">>=") return "(" + expr(a->lhs) + " >>= ((" + expr(a->rhs) + ") & " + mask + "))";
+                std::string ut = wide ? "uint64_t" : "uint32_t";
+                std::string lhs = expr(a->lhs);
+                return "(" + lhs + " = (" + ctype(a->lhs->type) + ")((" + ut + ")(" + lhs + ") << ((" + expr(a->rhs) + ") & " +
+                       mask + ")))";
+            }
+            if ((a->op == "/=" || a->op == "%=") && a->lhs->type->isIntegral()) {
                 int64_t k = 0;
                 if (!(sema_.constEval(a->rhs, k) && k != 0)) {
                     bool u64 = a->lhs->type->is(TK::ULong);
@@ -622,6 +660,14 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Cast: {
             auto* c = static_cast<CastExpr*>(e);
             if (c->type == c->operand->type) return expr(c->operand);
+            if (c->operand->type->isFloating() && (c->type->isIntegral() || c->type->isEnum())) {
+                // Real -> entero: saturado (en C, un valor fuera de rango es comportamiento indefinido).
+                Type* t = c->type;
+                const char* fn = t->is(TK::SByte) ? "i8" : t->is(TK::Byte) ? "u8" : t->is(TK::Short) ? "i16"
+                               : t->is(TK::UShort) ? "u16" : t->is(TK::UInt) || t->is(TK::Char) ? "u32"
+                               : t->is(TK::Long) ? "i64" : t->is(TK::ULong) ? "u64" : "i32";
+                return "((" + ctype(t) + ")faset_f2i_" + fn + "((double)" + expr(c->operand) + "))";
+            }
             return "((" + ctype(c->type) + ")" + expr(c->operand) + ")";
         }
         case EK::New: {
@@ -642,6 +688,9 @@ std::string CodeGen::expr(Expr* e) {
         case EK::NewArray: {
             auto* na = static_cast<NewArrayExpr*>(e);
             std::string et = ctype(e->type->elem);
+            // Los arrays sin referencias (números, structs de números) no los recorre el recolector.
+            if (pointerFree(e->type->elem))
+                return "((" + et + "*)faset_gc_alloc_atomic_zeroed((int64_t)sizeof(" + et + ") * (int64_t)(" + expr(na->count) + ")))";
             return "((" + et + "*)faset_alloc_zeroed((int64_t)sizeof(" + et + ") * (int64_t)(" + expr(na->count) + ")))";
         }
         case EK::SizeOf: {

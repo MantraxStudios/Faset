@@ -139,6 +139,7 @@ private:
     Type* checkCall(CallExpr* e);
     Type* checkUnary(UnaryExpr* e);
     Type* checkBinary(BinaryExpr* e);
+    std::string localRefRoot(Expr* e);
     Type* checkAssign(AssignExpr* e);
     Type* checkCond(CondExpr* e);
     Type* checkNew(NewExpr* e);

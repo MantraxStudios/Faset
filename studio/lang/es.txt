@@ -268,3 +268,13 @@ Refresh devices = Actualizar dispositivos
 Starting the Android emulator… = Iniciando el emulador de Android…
 Android emulator ready = Emulador de Android listo
 The Android emulator could not be started (see 'faset doctor') = No se pudo iniciar el emulador de Android (mira 'faset doctor')
+
+# Diálogo de proyecto nuevo
+Search for templates = Buscar plantillas
+No templates match your search. = Ninguna plantilla coincide con la búsqueda.
+CONFIGURE YOUR NEW PROJECT = CONFIGURAR EL NUEVO PROYECTO
+The project will be created in: = El proyecto se creará en:
+Console, library, desktop or Android app = Consola, biblioteca, escritorio o Android
+Console = Consola
+Desktop = Escritorio
+Mobile = Móvil

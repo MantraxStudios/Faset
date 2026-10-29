@@ -6,7 +6,7 @@
 //
 //  Las colecciones son clases: se crean con 'new' y se liberan con 'delete'
 //  (su destructor libera la memoria interna). Como en C++, las plantillas se
-//  comprueban al usarse: List<T>.Sort() solo exige 'operator<' si la llamas.
+//  comprueban al usarse: List<T>.Sort solo exige 'operator<' si la llamas.
 // =============================================================================
 using std.hash;
 
@@ -141,7 +141,7 @@ namespace std.collections
             for (int i = 0; i < count; i++) action(items[i]);
         }
 
-        // Nueva lista con los elementos que cumplen 'predicate' (libérala con delete).
+        // Nueva lista con los elementos que cumplen 'predicate'.
         public List<T> Where(delegate*<T, bool> predicate)
         {
             List<T> r = new List<T>();
@@ -150,7 +150,7 @@ namespace std.collections
             return r;
         }
 
-        // Nueva lista con 'f' aplicada a cada elemento (libérala con delete).
+        // Nueva lista con 'f' aplicada a cada elemento.
         public List<U> Select<U>(delegate*<T, U> f)
         {
             List<U> r = new List<U>(count);
@@ -172,7 +172,7 @@ namespace std.collections
             return true;
         }
 
-        // Copia independiente (libérala con delete).
+        // Copia independiente.
         public List<T> Clone()
         {
             List<T> r = new List<T>(count);
@@ -382,7 +382,7 @@ namespace std.collections
             tombstones = 0;
         }
 
-        // Nuevas listas con las claves / valores (libéralas con delete).
+        // Nuevas listas con las claves / valores.
         public List<K> Keys()
         {
             List<K> r = new List<K>(count);

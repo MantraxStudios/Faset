@@ -46,7 +46,7 @@ namespace std.mem
         }
     }
 
-    // Reserva memoria de bloques grandes; todo se libera junto con Reset() o delete.
+    // Reserva memoria de bloques grandes; todo se libera junto con Reset o delete.
     public memory_unsafe class Arena
     {
         byte* block;
@@ -103,7 +103,7 @@ namespace std.mem
         }
     }
 
-    // Propietario único de un valor en el heap: lo libera en Reset() o al hacer delete.
+    // Propietario único de un valor en el heap: lo libera en Reset o al hacer delete.
     public memory_unsafe class Box<T>
     {
         T* value;

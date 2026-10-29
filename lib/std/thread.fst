@@ -17,7 +17,7 @@
 //
 //    static void Trabajo(Contador c) { ... }
 //    auto t = Thread.Run(&Trabajo, miContador);   // Thread.Run<Contador>
-//    t.Join();
+//    t.Join;
 //    delete t;
 //
 //  También hay ThreadPool.Submit<T>, Parallel.For<T> y Thread.Run(&SinArgumentos).
@@ -48,6 +48,8 @@ namespace std.thread
     static extern long faset_atomic_cas_i64(long* p, long desired, long expected);
     static extern void* faset_atomic_cas_ptr(void** p, void* desired, void* expected);
     static extern void faset_atomic_fence();
+    // Lanza un hilo registrado en el recolector de basura (sus variables son raíces).
+    static extern bool faset_thread_spawn(delegate*<void*, void> fn, void* arg, ulong* handle);
     static extern void faset_timespec_after_ms(void* outTimespec, long ms);
     static extern int faset_cpu_count();
     static extern void faset_sleep_ms(long ms);
@@ -156,7 +158,7 @@ namespace std.thread
         bool started;
         bool finished;  // ya se hizo Join o Detach
 
-        // Prepara un hilo que ejecutará start(arg); se lanza con Start(). memory_unsafe: el
+        // Prepara un hilo que ejecutará start(arg); se lanza con Start. memory_unsafe: el
         // argumento es un puntero sin tipo (desde código seguro usa Thread.Run<T>).
         public memory_unsafe Thread(delegate*<void*, void> start, void* arg)
         {
@@ -195,7 +197,7 @@ namespace std.thread
             return t;
         }
 
-        // Lanza start() sin argumentos.
+        // Lanza start sin argumentos.
         public static Thread Run(delegate*<void> start)
         {
             ThreadStart0 b = new ThreadStart0();
@@ -227,24 +229,14 @@ namespace std.thread
         }
 
 #if WINDOWS
-        static uint Entry(void* block)
-        {
-            RunBlock(block);
-            return 0;
-        }
-
         // Lanza el hilo; devuelve false si ya estaba lanzado o el sistema falló.
         public bool Start()
         {
             if (started) return false;
             WorkItem* block = NewBlock();
-            void* h = Win32Threads.CreateThread(null, 0, &Entry, (void*)block, 0, null);
-            if (h == null)
-            {
-                Memory.Free(block);
-                return false;
-            }
-            handle = (ulong)h;
+            ulong h = 0;
+            if (!faset_thread_spawn(&RunBlock, (void*)block, &h)) return false;
+            handle = h;
             started = true;
             return true;
         }
@@ -272,23 +264,13 @@ namespace std.thread
         // Cede el procesador a otro hilo.
         public static void Yield() { Win32Threads.SwitchToThread(); }
 #else
-        static void* Entry(void* block)
-        {
-            RunBlock(block);
-            return null;
-        }
-
         // Lanza el hilo; devuelve false si ya estaba lanzado o el sistema falló.
         public bool Start()
         {
             if (started) return false;
             WorkItem* block = NewBlock();
             ulong id = 0;
-            if (Posix.pthread_create(&id, null, &Entry, (void*)block) != 0)
-            {
-                Memory.Free(block);
-                return false;
-            }
+            if (!faset_thread_spawn(&RunBlock, (void*)block, &id)) return false;
             handle = id;
             started = true;
             return true;
@@ -413,9 +395,9 @@ namespace std.thread
     // Se usa siempre con un Mutex bloqueado por el hilo que espera. Como en C/C++,
     // puede haber despertares espurios: comprueba la condición en un bucle.
     //
-    //    m.Lock();
+    //    m.Lock;
     //    while (!listo) cv.Wait(m);
-    //    m.Unlock();
+    //    m.Unlock;
     public memory_unsafe class ConditionVariable
     {
         void* handle;
@@ -624,7 +606,7 @@ namespace std.thread
     // Hilos fijos que ejecutan trabajos en orden de llegada:
     //    auto pool = new ThreadPool(4);
     //    pool.Submit(&Trabajo, dato);   // Submit<T>: seguro; Submit(fn, void*): memory_unsafe
-    //    pool.WaitIdle();     // espera a que no quede nada pendiente
+    //    pool.WaitIdle;     // espera a que no quede nada pendiente
     //    delete pool;         // termina lo pendiente y une los hilos
     public memory_unsafe struct WorkItem
     {
@@ -845,7 +827,7 @@ namespace std.thread
 
     // ---------------------------------------------------------------- Channel<T>
     // Cola segura entre hilos (productor/consumidor). Con capacidad > 0, Send espera
-    // mientras esté llena; con capacidad 0 no tiene límite. Tras Close(), los
+    // mientras esté llena; con capacidad 0 no tiene límite. Tras Close, los
     // receptores vacían lo que quede y después Receive devuelve false.
     //
     //    auto ch = new Channel<int>(16);

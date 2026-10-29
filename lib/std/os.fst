@@ -45,7 +45,7 @@ namespace std.os
         public bool MergeStandardError;
         // Windows: sin ventana de consola nueva.
         public bool CreateNoWindow;
-        // Grupo de procesos propio (POSIX) o Job (Windows): Kill() termina también a los nietos.
+        // Grupo de procesos propio (POSIX) o Job (Windows): Kill termina también a los nietos.
         public bool NewProcessGroup;
         // FileName es una línea de shell (sh -c en POSIX, cmd.exe /C en Windows); se ignoran los argumentos.
         public bool UseShell;
@@ -329,11 +329,11 @@ namespace std.os
 
         // ---------------------------------------------------------------- estáticos
 
-        // Ejecuta una línea de shell heredando la consola y devuelve el estado de system().
+        // Ejecuta una línea de shell heredando la consola y devuelve el estado de system.
         public static int Run(string command) => faset_system(command);
 
         // Ejecuta una línea de shell, espera a que termine y devuelve su código de salida;
-        // 'output' recibe stdout + stderr (copia: libérala con String.Free). -1 si no arranca.
+        // 'output' recibe stdout + stderr (copia). -1 si no arranca.
         public static int Capture(string command, out string output)
         {
             ProcessStartInfo si = new ProcessStartInfo(command);
@@ -786,10 +786,10 @@ namespace std.os
     // ======================================================================= ChildProcess
 
     // Comando de shell con stdout + stderr combinados, leídos sin bloquear (lo usa FasetStudio):
-    //   auto p = new ChildProcess();
+    //   auto p = new ChildProcess;
     //   p.Start("faset build", "");
     //   while (!p.HasExited) { p.ReadAvailable(sb); ... }
-    // Kill() termina también los procesos que lance el comando (grupo / Job).
+    // Kill termina también los procesos que lance el comando (grupo / Job).
     public class ChildProcess
     {
         Process proc;
@@ -874,7 +874,7 @@ namespace std.os
         // Arquitectura de la máquina: "x86_64", "aarch64", "AMD64", "ARM64"... (copia).
         public static string Architecture() => Environment.GetArchitecture();
 
-        // Copia del valor de una variable de entorno ("" si no existe; libérala con String.Free).
+        // Copia del valor de una variable de entorno ("" si no existe).
         public static string GetEnv(string name) => Environment.GetVariable(name);
     }
 }
@@ -934,7 +934,7 @@ namespace std
 #endif
         }
 
-        // Todas las variables como "CLAVE=valor" (copias; libéralas con File.FreeLines).
+        // Todas las variables como "CLAVE=valor" (copias).
         public static List<string> GetVariableList()
         {
             List<string> list = new List<string>();
@@ -966,7 +966,7 @@ namespace std
             return list;
         }
 
-        // Todas las variables (claves y valores copiados; libéralas con FreeVariables).
+        // Todas las variables (claves y valores copiados).
         public static Dictionary<string, string> GetVariables()
         {
             Dictionary<string, string> map = new Dictionary<string, string>();

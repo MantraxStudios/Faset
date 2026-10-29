@@ -9,7 +9,7 @@
 //    Uri                         análisis de URL y codificación por porcentajes
 //    HttpClient                  cliente HTTP/1.1 sin TLS (GET, POST, cabeceras, chunked)
 //
-//      auto http = new HttpClient();
+//      auto http = new HttpClient;
 //      HttpResponse r = http.Get("http://example.com/");
 //      if (r != null) println(r.Body);
 //      else println(http.ErrorMessage);
@@ -769,7 +769,7 @@ namespace std.net
 
         // ---------------------------------------------------------------- formato
 
-        // Texto de la dirección (copia: libérala con String.Free). IPv6 en forma canónica (RFC 5952).
+        // Texto de la dirección (copia). IPv6 en forma canónica (RFC 5952).
         public string ToString()
         {
             StringBuilder sb = new StringBuilder();
@@ -879,7 +879,7 @@ namespace std.net
         public static bool operator ==(IPEndPoint a, IPEndPoint b) => a.Address == b.Address && a.Port == b.Port;
         public static bool operator !=(IPEndPoint a, IPEndPoint b) => !(a == b);
 
-        // "1.2.3.4:80" o "[::1]:80" (copia: libérala con String.Free).
+        // "1.2.3.4:80" o "[::1]:80" (copia).
         public string ToString()
         {
             StringBuilder sb = new StringBuilder();
@@ -1046,7 +1046,7 @@ namespace std.net
             return ok;
         }
 
-        // Nombre de este equipo (copia: libérala con String.Free).
+        // Nombre de este equipo (copia).
         public static string GetHostName()
         {
             Sys.Startup();
@@ -1166,7 +1166,7 @@ namespace std.net
 
         // Conecta esperando como mucho 'timeoutMs' (-1 = lo que tarde el sistema). En modo no bloqueante
         // y sin tiempo de espera devuelve false con SocketError.InProgress: espera con Poll(.., Write)
-        // y consulta el resultado con FinishConnect(). Tras un fallo, cierra el socket.
+        // y consulta el resultado con FinishConnect. Tras un fallo, cierra el socket.
         public bool Connect(IPEndPoint remote, int timeoutMs)
         {
             if (!Check()) return false;
@@ -1616,7 +1616,7 @@ namespace std.net
             return n;
         }
 
-        // Lee hasta que el otro extremo cierre la conexión (copia: libérala con String.Free).
+        // Lee hasta que el otro extremo cierre la conexión (copia).
         // Si se corta por un error, devuelve lo leído y Error lo indica.
         public string ReadToEnd()
         {
@@ -1627,8 +1627,8 @@ namespace std.net
             return r;
         }
 
-        // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia: libérala con
-        // String.Free). Devuelve false si la conexión se cerró sin más datos o hubo un error.
+        // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia).
+        // Devuelve false si la conexión se cerró sin más datos o hubo un error.
         public bool ReadLine(out string line)
         {
             int scanFrom = pendingStart;
@@ -1862,7 +1862,7 @@ namespace std.net
         // Recibe un datagrama en 'buffer'; -1 si hay error (TimedOut si vence ReceiveTimeout).
         public int Receive(byte* buffer, int capacity, out IPEndPoint remote) => Count(socket.ReceiveFrom(buffer, capacity, out remote));
 
-        // Recibe un datagrama como texto (copia: libérala con String.Free; "" si falla).
+        // Recibe un datagrama como texto (copia.Free; "" si falla).
         public bool Receive(out string text, out IPEndPoint remote)
         {
             byte* buf = (byte*)Memory.Alloc(65536);
@@ -2038,7 +2038,7 @@ namespace std.net
         }
 
         // Ruta y consulta para la línea de petición HTTP ("/" si la ruta está vacía).
-        // Copia: libérala con String.Free.
+        // Copia
         public string PathAndQuery()
         {
             StringBuilder sb = new StringBuilder();
@@ -2050,7 +2050,7 @@ namespace std.net
         }
 
         // "equipo[:puerto]" con corchetes en IPv6 y el puerto solo si no es el del esquema
-        // (es el valor de la cabecera Host). Copia: libérala con String.Free.
+        // (es el valor de la cabecera Host). Copia
         public string Authority()
         {
             StringBuilder sb = new StringBuilder();
@@ -2068,7 +2068,7 @@ namespace std.net
         }
 
         // Resuelve una referencia (como la cabecera Location) respecto a esta URL.
-        // Copia: libérala con String.Free. No elimina los segmentos '.' y '..'.
+        // Copia. No elimina los segmentos '.' y '..'.
         public string Resolve(string reference)
         {
             int i = 0;
@@ -2161,7 +2161,7 @@ namespace std.net
         }
 
         // Busca 'name' en una consulta "a=1&b=2" (nombres y valores decodificados como formulario).
-        // 'value' es siempre una copia (libérala con String.Free).
+        // 'value' es siempre una copia.
         public static bool GetQueryParameter(string query, string name, out string value)
         {
             int start = 0;
@@ -2431,7 +2431,7 @@ namespace std.net
             return true;
         }
 
-        // Decodifica un cuerpo "chunked" completo (copia en 'body': libérala con String.Free).
+        // Decodifica un cuerpo "chunked" completo (copia en 'body').
         public static bool DecodeChunked(string chunked, out string body)
         {
             StringBuilder sb = new StringBuilder();
@@ -2537,7 +2537,7 @@ namespace std.net
             return Step(true);
         }
 
-        // Entrega la respuesta (pasa a ser tuya: libérala con delete).
+        // Entrega la respuesta (pasa a ser tuya).
         public HttpResponse Take()
         {
             HttpResponse r = done ? response : null;
@@ -2796,7 +2796,7 @@ namespace std.net
             return resp;
         }
 
-        // Texto exacto de una petición HTTP/1.1 (copia: libérala con String.Free). Añade Host,
+        // Texto exacto de una petición HTTP/1.1 (copia). Añade Host,
         // Content-Length y 'Connection: close' si 'headers' no los trae.
         public static string BuildRequest(string method, Uri uri, HttpHeaders headers, string body)
         {

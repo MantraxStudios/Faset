@@ -7,3 +7,5 @@ extern const char* const kRuntimeHeader;
 extern const char* const kRuntimeSource;
 // Capa POSIX de std.io / std.os (se añade a kRuntimeSource; ver RuntimeOs.cpp).
 extern const char* const kRuntimeOsSource;
+// Recolector de basura (se compila aparte como faset_gc.c; ver RuntimeGc.cpp).
+extern const char* const kRuntimeGcSource;

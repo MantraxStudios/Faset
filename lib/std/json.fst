@@ -2,10 +2,10 @@
 //  std.json  —  lectura y escritura de JSON.
 //
 //    JsonValue raiz = Json.Parse(texto);     // null si el texto no es válido
-//    string nombre = raiz.Get("nombre").AsString();
+//    string nombre = raiz.Get("nombre").AsString;
 //    delete raiz;                            // libera todo el árbol
 //
-//    StringBuilder sb = new StringBuilder();
+//    StringBuilder sb = new StringBuilder;
 //    Json.WriteString(sb, "texto con \"comillas\"");
 // =============================================================================
 using std.collections;

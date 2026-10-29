@@ -14,8 +14,9 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
 ## Funciones
 
 - **Ventana de inicio (Hub)** al abrir sin argumentos: proyectos recientes (abrir, quitar de la lista,
-  eliminar del disco), **crear proyecto** con plantillas (aplicación de consola, biblioteca, aplicación
-  de ventana) y **abrir proyecto o carpeta** con un explorador de carpetas integrado
+  eliminar del disco), **crear proyecto** con una lista de plantillas al estilo de Visual Studio
+  (consola, biblioteca, ventana, escritorio con diseñador y Android): buscador por nombre o etiqueta,
+  `↑`/`↓` para elegir y el panel de configuración (nombre y ubicación) a la derecha, y **abrir proyecto o carpeta** con un explorador de carpetas integrado
 - **Barra de menús** (Archivo, Editar, Ver, Compilar, Proyecto, Ayuda) y **menú contextual** con clic
   derecho en el explorador y en el editor
 - **Gestión de archivos**: nuevo archivo o carpeta, renombrar (`F2`), duplicar, copiar ruta, eliminar con

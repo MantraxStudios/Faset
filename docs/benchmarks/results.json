@@ -18,22 +18,22 @@
       "results": [
         {
           "lang": "Faset",
-          "seconds": 0.0317,
+          "seconds": 0.0333,
           "runs": 10
         },
         {
           "lang": "C (gcc -O2)",
-          "seconds": 0.0344,
+          "seconds": 0.0343,
           "runs": 10
         },
         {
           "lang": "Node.js",
-          "seconds": 0.2306,
+          "seconds": 0.2524,
           "runs": 3
         },
         {
           "lang": "Python",
-          "seconds": 1.9255,
+          "seconds": 1.9918,
           "runs": 3
         }
       ],
@@ -45,22 +45,22 @@
       "results": [
         {
           "lang": "Faset",
-          "seconds": 0.0395,
+          "seconds": 0.0532,
           "runs": 10
         },
         {
           "lang": "C (gcc -O2)",
-          "seconds": 0.0407,
+          "seconds": 0.0501,
           "runs": 10
         },
         {
           "lang": "Node.js",
-          "seconds": 0.0974,
+          "seconds": 0.1223,
           "runs": 3
         },
         {
           "lang": "Python",
-          "seconds": 2.4842,
+          "seconds": 2.5527,
           "runs": 3
         }
       ],
@@ -72,22 +72,22 @@
       "results": [
         {
           "lang": "Faset",
-          "seconds": 0.0971,
+          "seconds": 0.097,
           "runs": 10
         },
         {
           "lang": "C (gcc -O2)",
-          "seconds": 0.1008,
+          "seconds": 0.1026,
           "runs": 10
         },
         {
           "lang": "Node.js",
-          "seconds": 0.1659,
+          "seconds": 0.1721,
           "runs": 3
         },
         {
           "lang": "Python",
-          "seconds": 7.8579,
+          "seconds": 7.9121,
           "runs": 3
         }
       ],
@@ -97,36 +97,36 @@
   "build": [
     {
       "title": "Consola (faset new)",
-      "seconds": 0.611,
+      "seconds": 1.0,
       "runs": 5,
-      "bytes": 83912,
+      "bytes": 108944,
       "lines": 17
     },
     {
       "title": "AppUI con std.ui (faset new --ui)",
-      "seconds": 2.691,
+      "seconds": 3.666,
       "runs": 5,
-      "bytes": 274432,
+      "bytes": 311872,
       "lines": 65
     },
     {
       "title": "FasetStudio (el IDE completo)",
-      "seconds": 7.26,
+      "seconds": 9.408,
       "runs": 3,
-      "bytes": 699872,
-      "lines": 12865
+      "bytes": 762928,
+      "lines": 12996
     }
   ],
   "startup": [
     {
       "lang": "Faset",
-      "ms": 0.605,
+      "ms": 0.776,
       "runs": 200,
-      "bytes": 82760
+      "bytes": 99608
     },
     {
       "lang": "C (gcc -O2)",
-      "ms": 0.502,
+      "ms": 0.536,
       "runs": 200,
       "bytes": 15952
     }

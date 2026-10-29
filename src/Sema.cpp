@@ -1037,10 +1037,9 @@ void Sema::checkStmt(Stmt* s) {
                     diag.error(rs->loc, "se debe devolver una referencia a '" + ret->str() + "'");
                 } else if (!isLValue(rs->value)) {
                     diag.error(rs->loc, "solo se puede devolver por referencia una variable, campo o elemento");
-                } else if (rs->value->kind == EK::Name) {
-                    auto* n = static_cast<NameExpr*>(rs->value);
-                    if (n->ref == NameExpr::Ref::Local && !n->var->isRef)
-                        diag.error(rs->loc, "no se puede devolver una referencia a la variable local '" + n->name + "'");
+                } else if (std::string local = localRefRoot(rs->value); !local.empty()) {
+                    diag.error(rs->loc, "no se puede devolver una referencia a la variable local '" + local +
+                                            "' (dejaría de existir al salir del método)");
                 }
             } else {
                 checkValue(rs->value);
@@ -2261,6 +2260,43 @@ Type* Sema::checkUnary(UnaryExpr* e) {
     return bad();
 }
 
+// Si una referencia apunta a (una parte de) una variable local o un parámetro por valor,
+// devuelve su nombre: esa memoria desaparece al salir del método.
+std::string Sema::localRefRoot(Expr* e) {
+    switch (e->kind) {
+        case EK::Name: {
+            auto* n = static_cast<NameExpr*>(e);
+            return n->ref == NameExpr::Ref::Local && !n->var->isRef ? n->name : "";
+        }
+        case EK::Member: {
+            auto* m = static_cast<MemberExpr*>(e);
+            if (m->ref != MemberExpr::Ref::Field || m->arrow || !m->obj->type->isStruct()) return "";
+            return localRefRoot(m->obj);  // campo de un struct: vive donde vive el struct
+        }
+        case EK::Index: {
+            auto* ix = static_cast<IndexExpr*>(e);
+            if (ix->opMethod && ix->obj->type->isStruct()) return localRefRoot(ix->obj);
+            return "";
+        }
+        case EK::Call: {
+            // f(ref local) que devuelve T&: puede devolver la misma referencia.
+            auto* c = static_cast<CallExpr*>(e);
+            if (!c->target || !c->target->retIsRef()) return "";
+            if (!c->target->isStatic() && !c->implicitThis && c->receiver && c->receiver->type->isStruct() && !c->receiverArrow) {
+                std::string r = localRefRoot(c->receiver);
+                if (!r.empty()) return r;
+            }
+            for (size_t i = 0; i < c->args.size() && i < c->target->params.size(); i++)
+                if (c->target->params[i].isRef()) {
+                    std::string r = localRefRoot(c->args[i]);
+                    if (!r.empty()) return r;
+                }
+            return "";
+        }
+        default: return "";
+    }
+}
+
 Type* Sema::checkBinary(BinaryExpr* e) {
     const std::string& op = e->op;
     Type* boolT = tc_.get(TK::Bool);
@@ -2313,12 +2349,15 @@ Type* Sema::checkBinary(BinaryExpr* e) {
         }
     }
 
+    // Concatenación como en C#: "x = " + 5. La memoria la recupera el recolector.
+    auto concatable = [](Type* t) {
+        return t->is(TK::String) || t->isNumeric() || t->is(TK::Bool) || t->isEnum();
+    };
+    if (op == "+" && (L->is(TK::String) || R->is(TK::String)) && concatable(L) && concatable(R))
+        return tc_.get(TK::String);
     if (L->is(TK::String) && R->is(TK::String)) {
         if (cmp) return boolT;  // == y != comparan contenido; < > <= >= orden lexicográfico
-        if (op == "+")
-            diag.error(e->loc, "la concatenación con '+' reserva memoria; usa String.Concat(a, b) o StringBuilder");
-        else
-            bad();
+        bad();
         return tc_.error();
     }
 
@@ -2426,6 +2465,9 @@ Type* Sema::checkAssign(AssignExpr* e) {
                                R->str() + "'");
         return tc_.error();
     };
+    if (op == "+" && L->is(TK::String) &&
+        (R->is(TK::String) || R->isNumeric() || R->is(TK::Bool) || R->isEnum()))
+        return L;  // s += x
     if (L->isAggregate()) {
         std::vector<MethodDecl*> cands;
         for (MethodDecl* m : operatorsFor(L, R, "operator" + op))

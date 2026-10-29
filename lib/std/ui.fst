@@ -6,11 +6,11 @@
 //
 //      public partial class MainWindow
 //      {
-//          public MainWindow() { InitializeComponent(); }
+//          public MainWindow { InitializeComponent; }
 //          void OnSaveClick(Widget sender) { lblStatus.Text = "Saved"; }
 //      }
 //      ...
-//      Application.Run(new MainWindow().Window);
+//      Application.Run(new MainWindow.Window);
 //
 //  Todo se dibuja por software (formas con antialiasing y texto con la fuente del
 //  sistema) y se copia a la ventana: X11 + FreeType en Linux, Win32 + GDI en Windows,
@@ -2154,7 +2154,7 @@ namespace std.ui
         public static extern void* GlobalLock(void* mem);
         public static extern int GlobalUnlock(void* mem);
 
-        // Copia UTF-16 terminada en cero (libérala con Memory.Free).
+        // Copia UTF-16 terminada en cero.
         public static ushort* Wide(string s)
         {
             int n = MultiByteToWideChar(65001, 0, s.Ptr, s.Length, null, 0);

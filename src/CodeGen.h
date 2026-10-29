@@ -36,6 +36,7 @@ private:
     void emitBody(Stmt* s);  // emite como bloque
 
     std::string expr(Expr* e);
+    std::string toStr(Expr* e);
     std::string receiverPtr(Expr* recv, bool arrow);
     std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc loc);
     std::string memberAccess(Expr* obj, bool arrow, const std::string& field);

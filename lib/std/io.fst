@@ -12,7 +12,7 @@
 //  tanto '/' como '\'. Las fechas son milisegundos Unix (UTC).
 //
 //  Memoria: lo que devuelve una cadena o lista nueva lo indica en su comentario
-//  ("copia": libérala con String.Free; listas: File.FreeLines / Directory.FreeList).
+//  ("copia".Free; listas: File.FreeLines / Directory.FreeList).
 // =============================================================================
 using std.collections;
 using std.text;
@@ -21,7 +21,7 @@ namespace std.io
 {
     public struct DirEntry
     {
-        public string Name;       // copia propia (se libera con FreeEntries)
+        public string Name;       // copia propia
         public bool IsDirectory;  // carpeta (o enlace a una carpeta)
         public bool IsSymlink;    // enlace simbólico (o punto de reanálisis en Windows)
     }
@@ -478,7 +478,7 @@ namespace std.io
     {
         // ---------------------------------------------------------------- texto y bytes
 
-        // Lee todo el archivo. Devuelve una cadena nueva (libérala con String.Free).
+        // Lee todo el archivo. Devuelve una cadena nueva.
         public static bool TryReadAllText(string path, out string content)
         {
             byte* data;
@@ -496,7 +496,7 @@ namespace std.io
             return s;
         }
 
-        // Lee todos los bytes. 'data' es memoria nueva terminada en 0 (libérala con Memory.Free),
+        // Lee todos los bytes. 'data' es memoria nueva terminada en 0,
         // también si falla (vacía).
         public static bool TryReadAllBytes(string path, out byte* data, out long length)
         {
@@ -551,7 +551,7 @@ namespace std.io
 
         // ---------------------------------------------------------------- líneas
 
-        // Líneas del archivo ('\n' o "\r\n"), sin el salto. Copias: libéralas con File.FreeLines.
+        // Líneas del archivo ('\n' o "\r\n"), sin el salto. Copias
         public static bool TryReadAllLines(string path, out List<string> lines)
         {
             string text;
@@ -669,7 +669,7 @@ namespace std.io
 
     // ======================================================================= FileStream
 
-    // Flujo de bytes con búfer sobre un archivo. Se cierra con Close() o con delete.
+    // Flujo de bytes con búfer sobre un archivo. Se cierra con Close o con delete.
     //   FileStream f = File.OpenRead("datos.txt");
     //   string line;
     //   while (f.ReadLine(out line)) { ...; String.Free(line); }
@@ -812,8 +812,8 @@ namespace std.io
             return buffer[readPos++];
         }
 
-        // Lee una línea ('\n' o "\r\n", sin el salto). 'line' es una copia (libérala con
-        // String.Free); devuelve false al final del archivo.
+        // Lee una línea ('\n' o "\r\n", sin el salto). 'line' es una copia;
+        // devuelve false al final del archivo.
         public bool ReadLine(out string line)
         {
             line = String.FromBytes(null, 0);
@@ -851,7 +851,7 @@ namespace std.io
             return true;
         }
 
-        // Lee desde la posición actual hasta el final (copia: libérala con String.Free).
+        // Lee desde la posición actual hasta el final (copia).
         public string ReadToEnd()
         {
             StringBuilder sb = new StringBuilder();
@@ -1021,7 +1021,7 @@ namespace std.io
         // Mueve o renombra una carpeta (falla si el destino existe).
         public static bool Move(string from, string to) => Native.Rename(from, to, false) == 1;
 
-        // Carpeta de trabajo actual (copia: libérala con String.Free).
+        // Carpeta de trabajo actual (copia).
         public static string GetCurrent() => Native.GetCwd();
         public static bool SetCurrent(string path) => Native.SetCwd(path);
 
@@ -1151,7 +1151,7 @@ namespace std.io
     // ======================================================================= Path
 
     // Las funciones de Path que devuelven una parte de la ruta (GetFileName, GetExtension...)
-    // devuelven vistas de la original; las demás, copias nuevas (libéralas con String.Free).
+    // devuelven vistas de la original; las demás, copias nuevas.
     public memory_unsafe static class Path
     {
 #if WINDOWS
@@ -1530,7 +1530,7 @@ namespace std.io
 
     // Vigila los cambios dentro de una carpeta (o de un archivo):
     //   FileWatcher w = new FileWatcher("src", true);
-    //   List<FileChange> changes = new List<FileChange>();
+    //   List<FileChange> changes = new List<FileChange>;
     //   if (w.WaitForChanges(changes, 1000) > 0) { ... }
     //   FileWatcher.FreeChanges(changes);
     // En Linux usa inotify; en el resto (o si inotify falla) compara instantáneas de la carpeta

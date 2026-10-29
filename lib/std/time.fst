@@ -10,7 +10,7 @@
 //    Stopwatch   cronómetro de alta resolución (reloj monótono en ns)
 //
 //  Las funciones que devuelven 'string' (ToString, ToIsoString…) reservan
-//  memoria: libérala con String.Free.
+//  memoria
 // =============================================================================
 using std.text;
 
@@ -153,7 +153,7 @@ namespace std.time
     //   DateTime d = new DateTime(2024, 2, 29, 13, 45, 0);
     //   DateTime manana = d.AddDays(1);
     //   TimeSpan dif = manana - d;
-    //   string s = d.ToString("yyyy-MM-dd HH:mm:ss");   // libérala con String.Free
+    //   string s = d.ToString("yyyy-MM-dd HH:mm:ss");   //
     public memory_unsafe struct DateTime
     {
         public const long MinTicks = 0;

@@ -1993,8 +1993,8 @@ namespace FasetStudio.Ide
             string folder = DefaultProjectsFolder();
             fieldLocation.Set(folder);
             String.Free(folder);
-            fieldName.Focused = true;
-            fieldLocation.Focused = false;
+            fieldExtra.Set("");
+            FocusField(fieldName);
         }
 
         void CreateProject()
@@ -2421,7 +2421,9 @@ namespace FasetStudio.Ide
             bool enter = e.Key == Keys.Return || e.Key == Keys.KeypadEnter;
             if (overlay == Overlay.NewProject)
             {
-                if (e.Key == Keys.Tab) FocusField(fieldName.Focused ? fieldLocation : fieldName);
+                if (e.Key == Keys.Tab) FocusField(fieldExtra.Focused ? fieldName : (fieldName.Focused ? fieldLocation : fieldExtra));
+                else if (e.Key == Keys.Up) StepTemplate(-1);
+                else if (e.Key == Keys.Down) StepTemplate(1);
                 else if (enter) CreateProject();
                 else if (f != null) f.Key(e);
             }
@@ -2449,7 +2451,7 @@ namespace FasetStudio.Ide
         {
             if (fieldName.Contains(x, y) && (overlay == Overlay.NewProject || overlay == Overlay.ProjectProperties)) FocusField(fieldName);
             else if (fieldLocation.Contains(x, y) && overlay == Overlay.NewProject) FocusField(fieldLocation);
-            else if (fieldExtra.Contains(x, y) && (overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties)) FocusField(fieldExtra);
+            else if (fieldExtra.Contains(x, y) && (overlay == Overlay.OpenFolder || overlay == Overlay.ProjectProperties || overlay == Overlay.NewProject)) FocusField(fieldExtra);
             else if (fieldExtra2.Contains(x, y) && overlay == Overlay.ProjectProperties) FocusField(fieldExtra2);
             for (int i = 0; i < hits.Count; i++)
             {
@@ -3626,7 +3628,7 @@ namespace FasetStudio.Ide
             float cx = x0 + listW + 40;
             float cardW = cw - listW - 40;
             r.Text(r.UiBold, cx, ly, L.T("Get started"), Theme.Text);
-            HubCard(cx, ly + 34, cardW, L.T("Create a new project"), L.T("Console app, class library or window app"), ActNewProject, 0);
+            HubCard(cx, ly + 34, cardW, L.T("Create a new project"), L.T("Console, library, desktop or Android app"), ActNewProject, 0);
             HubCard(cx, ly + 34 + 92, cardW, L.T("Open a project or folder"), L.T("Browse your folders for a .fstproj project"), ActOpenFolder, 1);
             r.PushClip(cx, ly + 230, cardW, 40);
             r.Text(r.UiSmall, cx, ly + 234, L.T("Tip: right-click files in the explorer to rename, move or delete them."), Theme.TextTertiary);
@@ -3690,45 +3692,174 @@ namespace FasetStudio.Ide
             delete words;
         }
 
+        const int TemplateCount = 5;
+
+        string TemplateTitle(int i) => i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app")
+                                     : i == 3 ? L.T("Desktop app (UI)") : L.T("Android app");
+
+        string TemplateDescription(int i) => i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
+                                           : i == 2 ? L.T("A Windows app without a console") : i == 3 ? L.T("Windows and Linux, visual designer")
+                                           : L.T("APK for phones and the emulator, visual designer");
+
+        // Etiquetas separadas por ';' (se traducen una a una).
+        string TemplateTags(int i) => i == 0 ? "Faset;Linux;Windows;Console" : i == 1 ? "Faset;Linux;Windows;Android;Library"
+                                    : i == 2 ? "Faset;Windows;Desktop" : i == 3 ? "Faset;Linux;Windows;Desktop;UI" : "Faset;Android;Mobile;UI";
+
+        string TemplateOutput(int i) => i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : i == 3 ? "Exe + .fstui" : "APK";
+
+        static bool ContainsIgnoreCase(string text, string query)
+        {
+            if (query.Length == 0) return true;
+            for (int i = 0; i + query.Length <= text.Length; i++)
+                if (text.Substring(i, query.Length).EqualsIgnoreCase(query)) return true;
+            return false;
+        }
+
+        bool TemplateVisible(int i)
+        {
+            string q = fieldExtra.Text.Trim();
+            if (q.Length == 0) return true;
+            if (ContainsIgnoreCase(TemplateTitle(i), q) || ContainsIgnoreCase(TemplateDescription(i), q)) return true;
+            string tags = TemplateTags(i);
+            int a = 0;
+            for (int k = 0; k <= tags.Length; k++)
+            {
+                if (k < tags.Length && tags[k] != ';') continue;
+                string tag = tags.Substring(a, k - a);
+                if (ContainsIgnoreCase(tag, q) || ContainsIgnoreCase(L.T(tag), q)) return true;
+                a = k + 1;
+            }
+            return false;
+        }
+
+        // Mueve la selección a la plantilla visible anterior (-1) o siguiente (+1).
+        void StepTemplate(int dir)
+        {
+            for (int i = projectTemplate + dir; i >= 0 && i < TemplateCount; i += dir)
+                if (TemplateVisible(i)) { projectTemplate = i; return; }
+        }
+
+        float DrawTags(float x, float y, string tags, float maxX)
+        {
+            int a = 0;
+            for (int k = 0; k <= tags.Length; k++)
+            {
+                if (k < tags.Length && tags[k] != ';') continue;
+                string tag = L.T(tags.Substring(a, k - a));
+                a = k + 1;
+                float tw = r.TextWidth(r.UiSmall, tag) + 14;
+                if (x + tw > maxX) break;
+                r.RoundRect(x, y, tw, 19, 5, Theme.Base);
+                r.RoundBorder(x, y, tw, 19, 5, 1, Theme.Border);
+                r.Text(r.UiSmall, x + 7, y + 1, tag, Theme.TextSecondary);
+                x += tw + 6;
+            }
+            return x;
+        }
+
+        void DrawTemplateIcon(int i, float x, float y, float s, bool sel)
+        {
+            Color bg = sel ? Theme.White : Theme.Active, fg = sel ? Theme.Black : Theme.White;
+            r.RoundRect(x, y, s, s, 9, bg);
+            if (i == 0)
+            {
+                string t = ">_";
+                r.Text(r.CodeBold, x + (s - r.TextWidth(r.CodeBold, t)) / 2, y + s / 2 - 9, t, fg);
+            }
+            else if (i == 1)
+            {
+                string t = "{ }";
+                r.Text(r.CodeBold, x + (s - r.TextWidth(r.CodeBold, t)) / 2, y + s / 2 - 9, t, fg);
+            }
+            else if (i == 2 || i == 3)
+            {
+                r.RoundBorder(x + 9, y + 11, s - 18, s - 22, 3, 1.5f, fg);
+                r.Rect(x + 9, y + 11, s - 18, 4, fg);
+                if (i == 3)
+                {
+                    r.Rect(x + 13, y + 19, 8, 3, fg);
+                    r.RoundRect(x + 13, y + 24, s - 26, 5, 2, fg);
+                }
+            }
+            else
+            {
+                r.RoundBorder(x + 13, y + 7, s - 26, s - 14, 3, 1.5f, fg);
+                r.Rect(x + s / 2 - 3, y + s - 12, 6, 2, fg);
+            }
+        }
+
+        // Parte un texto sin espacios (una ruta) por caracteres, hasta maxLines líneas.
+        void WrapPath(Font f, float x, float y, float maxW, string text, Color c, int maxLines)
+        {
+            int a = 0;
+            for (int line = 0; line < maxLines && a < text.Length; line++)
+            {
+                int b = a + 1;
+                while (b < text.Length && r.TextWidth(f, text.Substring(a, b + 1 - a)) <= maxW) b++;
+                r.Text(f, x, y + line * 18, text.Substring(a, b - a), c);
+                a = b;
+            }
+        }
+
         void DrawNewProjectDialog()
         {
-            float w = 900, h = 470, x, y;
+            float w = 1000, h = 590, x, y;
             DialogFrame(w, h, out x, out y);
             r.Text(r.Title, x + 28, y + 24, L.T("Create a new project"), Theme.White);
-            float cw = (w - 56 - 48) / 5;
-            for (int i = 0; i < 5; i++)
+
+            // Columna izquierda: buscador y lista de plantillas.
+            float lx = x + 28, lw = 560;
+            fieldExtra.Draw(r, lx, y + 70, lw, L.T("Search for templates"));
+            float ly = y + 116, listH = h - 116 - 76;
+            r.RoundRect(lx, ly, lw, listH, 10, Theme.Base);
+            r.RoundBorder(lx, ly, lw, listH, 10, 1, Theme.Border);
+            if (!TemplateVisible(projectTemplate))
+                for (int i = 0; i < TemplateCount; i++)
+                    if (TemplateVisible(i)) { projectTemplate = i; break; }
+            r.PushClip(lx, ly + 4, lw, listH - 8);
+            int shown = 0;
+            for (int i = 0; i < TemplateCount; i++)
             {
-                float cx = x + 28 + i * (cw + 12), cy = y + 76;
+                if (!TemplateVisible(i)) continue;
+                float rx = lx + 6, ry = ly + 6 + shown * 76, rw = lw - 12;
+                shown++;
                 bool sel = projectTemplate == i;
-                bool hover = mouseX >= cx && mouseX < cx + cw && mouseY >= cy && mouseY < cy + 118;
-                r.RoundRect(cx, cy, cw, 118, 12, sel ? Theme.Active : (hover ? Theme.Hover : Theme.Surface));
-                r.RoundBorder(cx, cy, cw, 118, 12, sel ? 1.5f : 1, sel ? Theme.White : Theme.Border);
-                string title = i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app")
-                             : i == 3 ? L.T("Desktop app (UI)") : L.T("Android app");
-                string desc = i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
-                            : i == 2 ? L.T("A Windows app without a console") : i == 3 ? L.T("Windows and Linux, visual designer")
-                            : L.T("APK for phones and the emulator, visual designer");
-                string tag = i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : i == 3 ? "AppUI" : "APK";
-                r.RoundRect(cx + 16, cy + 16, 30, 30, 8, sel ? Theme.White : Theme.Active);
-                r.Logo(cx + 21, cy + 21, 20, sel ? Theme.Black : Theme.White);
-                r.Text(r.UiBold, cx + 16, cy + 58, title, Theme.White);
-                WrapText(r.UiSmall, cx + 16, cy + 80, cw - 28, desc, Theme.TextTertiary);
-                float tw = r.TextWidth(r.UiSmall, tag) + 14;
-                r.RoundRect(cx + cw - tw - 12, cy + 20, tw, 20, 10, Theme.Base);
-                r.Text(r.UiSmall, cx + cw - tw - 5, cy + 22, tag, Theme.TextSecondary);
-                AddHit(cx, cy, cw, 118, 10 + i, -5, false);
+                bool hover = mouseX >= rx && mouseX < rx + rw && mouseY >= ry && mouseY < ry + 72;
+                if (sel || hover) r.RoundRect(rx, ry, rw, 72, 8, sel ? Theme.Active : Theme.Hover);
+                if (sel) r.RoundRect(rx, ry + 14, 3, 44, 1.5f, Theme.White);
+                DrawTemplateIcon(i, rx + 16, ry + 16, 40, sel);
+                r.Text(r.UiBold, rx + 72, ry + 9, TemplateTitle(i), Theme.White);
+                r.PushClip(rx + 72, ry + 28, rw - 84, 20);
+                r.Text(r.UiSmall, rx + 72, ry + 30, TemplateDescription(i), Theme.TextSecondary);
+                r.PopClip();
+                DrawTags(rx + 72, ry + 48, TemplateTags(i), rx + rw - 12);
+                AddHit(rx, ry, rw, 72, 10 + i, -5, false);
             }
-            float fy = y + 222;
-            r.Text(r.UiSmall, x + 28, fy, L.T("PROJECT NAME"), Theme.TextTertiary);
-            fieldName.Draw(r, x + 28, fy + 20, w - 56, "MiProyecto");
-            r.Text(r.UiSmall, x + 28, fy + 70, L.T("LOCATION"), Theme.TextTertiary);
-            fieldLocation.Draw(r, x + 28, fy + 90, w - 56, "~/FasetProjects");
+            if (shown == 0) r.Text(r.Ui, lx + 20, ly + 18, L.T("No templates match your search."), Theme.TextTertiary);
+            r.PopClip();
+
+            // Columna derecha: configuración del proyecto.
+            float cx = lx + lw + 28, cw = x + w - 28 - cx;
+            r.Text(r.UiSmall, cx, y + 72, L.T("CONFIGURE YOUR NEW PROJECT"), Theme.TextTertiary);
+            DrawTemplateIcon(projectTemplate, cx, y + 96, 34, true);
+            r.PushClip(cx + 46, y + 96, cw - 46, 40);
+            r.Text(r.UiBold, cx + 46, y + 97, TemplateTitle(projectTemplate), Theme.White);
+            r.Text(r.UiSmall, cx + 46, y + 116, TemplateOutput(projectTemplate), Theme.TextTertiary);
+            r.PopClip();
+            WrapText(r.UiSmall, cx, y + 144, cw, TemplateDescription(projectTemplate), Theme.TextSecondary);
+            DrawTags(cx, y + 186, TemplateTags(projectTemplate), cx + cw);
+
+            float fy = y + 232;
+            r.Text(r.UiSmall, cx, fy, L.T("PROJECT NAME"), Theme.TextTertiary);
+            fieldName.Draw(r, cx, fy + 20, cw, "MiProyecto");
+            r.Text(r.UiSmall, cx, fy + 70, L.T("LOCATION"), Theme.TextTertiary);
+            fieldLocation.Draw(r, cx, fy + 90, cw, "~/FasetProjects");
+            r.Text(r.UiSmall, cx, fy + 140, L.T("The project will be created in:"), Theme.TextTertiary);
             StringBuilder where = new StringBuilder();
             where.Append(fieldLocation.Text).Append("/").Append(fieldName.Text);
-            r.PushClip(x + 28, fy + 130, w - 56, 24);
-            r.Text(r.UiSmall, x + 28, fy + 134, where.View(), Theme.TextTertiary);
-            r.PopClip();
+            WrapPath(r.UiSmall, cx, fy + 160, cw, where.View(), Theme.TextSecondary, 4);
             delete where;
+
             string create = L.T("Create"), cancel = L.T("Cancel");
             float bx = x + w - 28 - PillWidth(create, "");
             DialogButton(bx, y + h - 50, create, 21, 1);
