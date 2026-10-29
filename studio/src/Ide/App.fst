@@ -4123,6 +4123,8 @@ namespace FasetStudio.Ide
                 }
                 Update();
             }
+            else if (verb == "start") StartProcess(arg != "build");   // sin esperar (p. ej. 'faset run' en Android sigue el log)
+            else if (verb == "stop") StopProcess();
             else if (verb == "quit") RequestQuit();
             else if (verb == "hub") ShowHub();
             else if (verb == "menu") { Draw(); for (int i = 0; i < hits.Count; i++) if (hits[i].Group == -4 && hits[i].Id == arg.ToInt()) OpenBarMenu(hits[i].Id, hits[i].X, hits[i].Y + hits[i].H + 4); }
