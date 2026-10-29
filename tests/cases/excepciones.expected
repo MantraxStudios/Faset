@@ -1,0 +1,30 @@
+21
+atrapada: demasiado profundo: 7
+   en Nivel3 (tests/cases/excepciones.fst:48)
+0: formato (sin variable)
+1: argumento (ArgumentNullException, x)
+2: archivo datos.txt
+3: E/S: disco
+4: cualquier otra
+5: aritmética: DivideByZeroException
+6: sin excepción
+debe ser positiva (Parámetro 'cantidad') | cantidad
+saldo insuficiente, faltan 430
+SaldoInsuficienteException: saldo insuficiente
+   en Cuenta.Retirar (tests/cases/excepciones.fst:33)
+CuentaNoValidaException: cuenta no válida: #99 [cuenta]
+ArgumentNullException: El valor no puede ser nulo. (Parámetro 'nombre')
+   en Buscar (tests/cases/excepciones.fst:40)
+KeyNotFoundException / clave 'x'
+FormatException
+externa <- interna (FormatException)
+InvalidOperationException: externa
+ ---> FormatException: interna
+   en main (tests/cases/excepciones.fst:117)
+   --- Fin de la excepción interna ---
+   en main (tests/cases/excepciones.fst:118)
+[Se produjo una excepción.]
+Se agotó el tiempo de espera de la operación.
+OperationCanceledException
+NotSupportedException: no
+fin

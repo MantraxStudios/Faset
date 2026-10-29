@@ -90,6 +90,10 @@ struct VarInfo {
     bool isRef = false;  // referencia (T&): se guarda como puntero en C
     Expr* constInit = nullptr;
     SourceLoc loc;
+    // Excepciones: 'try' abiertos al declararla y si debe ser 'volatile' en C (se modifica dentro
+    // de un 'try' declarado fuera de él: tras un longjmp su valor debe seguir en memoria).
+    int excDepth = 0;
+    bool isVolatile = false;
 };
 
 // ---------------------------------------------------------------- expresiones
@@ -258,7 +262,7 @@ struct DefaultExpr : Expr {  // default(T): valor cero del tipo
 
 // ---------------------------------------------------------------- sentencias
 
-enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty };
+enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty, Try, Throw };
 
 struct Stmt {
     SK kind;
@@ -350,6 +354,32 @@ struct DeleteStmt : Stmt {
     Expr* expr = nullptr;
     bool isArray = false;
     explicit DeleteStmt(SourceLoc l) : Stmt(SK::Delete, l) {}
+};
+
+// ---------------------------------------------------------------- excepciones (ver Exceptions.cpp)
+
+// try { } catch (T e) when (cond) { } catch { } finally { }
+struct TryStmt : Stmt {
+    struct Catch {
+        SourceLoc loc;
+        TypeRef* tref = nullptr;  // nulo: 'catch { }' (atrapa cualquier excepción)
+        std::string name;         // vacío: 'catch (T) { }'
+        SourceLoc nameLoc;
+        Expr* filter = nullptr;   // when (cond)
+        BlockStmt* body = nullptr;
+        Type* type = nullptr;     // tipo atrapado (clase de excepción)
+        VarInfo* var = nullptr;
+    };
+    BlockStmt* body = nullptr;
+    std::vector<Catch> catches;
+    BlockStmt* finallyBody = nullptr;
+    explicit TryStmt(SourceLoc l) : Stmt(SK::Try, l) {}
+};
+
+// throw expr;  /  throw;  (relanza la excepción de la cláusula 'catch' actual)
+struct ThrowStmt : Stmt {
+    Expr* value = nullptr;
+    explicit ThrowStmt(SourceLoc l) : Stmt(SK::Throw, l) {}
 };
 
 // ---------------------------------------------------------------- declaraciones

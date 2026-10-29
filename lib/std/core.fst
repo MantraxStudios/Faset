@@ -2,8 +2,9 @@
 //  std  —  núcleo de la biblioteca estándar de Faset (siempre disponible).
 //
 //  Se importa automáticamente en todos los archivos (como 'using std;').
-//  Contiene: Console, Math, Memory, String, Char, Convert, Environment,
-//  extensiones de 'string' y las funciones globales print/println/panic/assert.
+//  Contiene: Console, Math, Memory, String, Char, Convert, Int32/Int64/Double/Boolean
+//  (int.Parse...), Environment, extensiones de 'string' y las funciones globales
+//  print/println/panic/assert. Las excepciones están en exceptions.fst (también implícito).
 //
 //  Seguridad de memoria: las clases que llaman al runtime en C o manejan punteros
 //  están marcadas 'memory_unsafe' (implementación confiable); su API pública sigue
@@ -358,7 +359,7 @@ namespace std
 
         [TrackCaller] public static string Substring(this string s, int start, int length)
         {
-            if (start < 0 || length < 0 || start + length > s.Length) panic("Substring: rango fuera de la cadena");
+            if (start < 0 || length < 0 || start + length > s.Length) throw new ArgumentOutOfRangeException("Substring: rango fuera de la cadena", null);
             return String.FromBytes(s.Ptr + start, length);
         }
 
@@ -470,21 +471,21 @@ namespace std
         [TrackCaller] public static long ToInt64(string s)
         {
             long v = 0;
-            if (!TryToInt64(s, out v)) panic("Convert.ToInt64: formato no válido");
+            if (!TryToInt64(s, out v)) throw new FormatException("Convert.ToInt64: formato no válido");
             return v;
         }
 
         [TrackCaller] public static int ToInt32(string s)
         {
             int v = 0;
-            if (!TryToInt32(s, out v)) panic("Convert.ToInt32: formato no válido");
+            if (!TryToInt32(s, out v)) throw new FormatException("Convert.ToInt32: formato no válido");
             return v;
         }
 
         [TrackCaller] public static double ToDouble(string s)
         {
             double v = 0;
-            if (!TryToDouble(s, out v)) panic("Convert.ToDouble: formato no válido");
+            if (!TryToDouble(s, out v)) throw new FormatException("Convert.ToDouble: formato no válido");
             return v;
         }
 
@@ -492,6 +493,60 @@ namespace std
         public static string ToString(long v) => String.FromInt(v);
         public static string ToString(double v) => String.FromDouble(v);
         public static string ToString(bool v) => String.Copy(v ? "True" : "False");
+    }
+
+    // ---------------------------------------------------------------- int.Parse, double.TryParse...
+    //  Como en C#: int.Parse(s) es Int32.Parse(s) (long -> Int64, double -> Double, bool -> Boolean).
+    //  Parse lanza FormatException (texto no válido) u OverflowException (no cabe en el tipo);
+    //  TryParse devuelve false y no lanza nada.
+    public static class Int32
+    {
+        [TrackCaller] public static int Parse(string s)
+        {
+            long v = 0;
+            if (!Convert.TryToInt64(s, out v)) throw new FormatException("int.Parse: '" + s + "' no es un número entero");
+            if (v < int.MinValue || v > int.MaxValue) throw new OverflowException("int.Parse: '" + s + "' no cabe en un int");
+            return (int)v;
+        }
+        public static bool TryParse(string s, out int result) => Convert.TryToInt32(s, out result);
+    }
+
+    public static class Int64
+    {
+        [TrackCaller] public static long Parse(string s)
+        {
+            long v = 0;
+            if (!Convert.TryToInt64(s, out v)) throw new FormatException("long.Parse: '" + s + "' no es un número entero");
+            return v;
+        }
+        public static bool TryParse(string s, out long result) => Convert.TryToInt64(s, out result);
+    }
+
+    public static class Double
+    {
+        [TrackCaller] public static double Parse(string s)
+        {
+            double v = 0;
+            if (!Convert.TryToDouble(s, out v)) throw new FormatException("double.Parse: '" + s + "' no es un número");
+            return v;
+        }
+        public static bool TryParse(string s, out double result) => Convert.TryToDouble(s, out result);
+    }
+
+    public static class Boolean
+    {
+        [TrackCaller] public static bool Parse(string s)
+        {
+            bool v = false;
+            if (!TryParse(s, out v)) throw new FormatException("bool.Parse: '" + s + "' no es True ni False");
+            return v;
+        }
+        public static bool TryParse(string s, out bool result)
+        {
+            string t = s.Trim().ToLower();
+            result = t == "true";
+            return t == "true" || t == "false";
+        }
     }
 
     // ---------------------------------------------------------------- Environment

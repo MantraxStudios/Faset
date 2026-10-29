@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Optimizado</AssemblyName>
+    <!-- Release (-O2): las variables modificadas dentro de un 'try' deben sobrevivir al longjmp. -->
+    <Configuration>Release</Configuration>
+  </PropertyGroup>
+</Project>

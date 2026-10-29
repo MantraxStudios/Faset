@@ -81,6 +81,8 @@ private:
     bool looksLikeDecl();
     VarDeclStmt* parseVarDecl(bool requireSemicolon);
     Stmt* parseSwitch();
+    Stmt* parseTry();    // Exceptions.cpp
+    Stmt* parseThrow();  // Exceptions.cpp
 
     // expresiones
     Expr* parseExpr();

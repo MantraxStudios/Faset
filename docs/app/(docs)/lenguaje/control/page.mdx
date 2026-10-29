@@ -84,10 +84,11 @@ int main()
 }
 ```
 
-## Errores sin excepciones
+## Errores
 
-Faset **no tiene excepciones** (`try`, `catch` y `throw` dan error de compilación). Las funciones
-que pueden fallar devuelven `bool` o un código de error, a menudo con un parámetro `out`:
+Las funciones que pueden fallar de forma esperada devuelven `bool` o un código de error, a menudo con
+un parámetro `out`; para los casos excepcionales están las
+[excepciones](/lenguaje/excepciones/) (`try`, `catch`, `finally` y `throw`):
 
 ```faset
 int main()
@@ -95,12 +96,14 @@ int main()
     int n = 0;
     if (!Convert.TryToInt32("12a", out n)) println("no es un número");
     assert(n == 0, "n debería seguir a cero");
+    try { n = int.Parse("12a"); }
+    catch (FormatException e) { println(e.Message); }
     return 0;
 }
 ```
 
-`panic(mensaje)` termina el programa con un mensaje de error; `assert(cond, mensaje)` hace lo mismo
-si la condición es falsa.
+`panic(mensaje)` termina el programa con un mensaje de error (no es una excepción: no se puede
+atrapar); `assert(cond, mensaje)` hace lo mismo si la condición es falsa.
 
 <Callout type="nota">
 `foreach` todavía no existe: usa `for` con un índice. Consulta las [limitaciones actuales](/lenguaje/limitaciones/).

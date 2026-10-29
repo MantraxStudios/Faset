@@ -488,12 +488,19 @@ namespace std.io
             return ok;
         }
 
-        // Como TryReadAllText, pero termina el programa si no se puede leer.
-        public static string ReadAllText(string path)
+        // Como TryReadAllText, pero si no se puede leer lanza FileNotFoundException (no existe)
+        // o IOException.
+        [TrackCaller] public static string ReadAllText(string path)
         {
             string s;
-            if (!TryReadAllText(path, out s)) panic("File.ReadAllText: no se puede leer el archivo");
+            if (!TryReadAllText(path, out s)) ThrowReadError("File.ReadAllText", path);
             return s;
+        }
+
+        [TrackCaller] static void ThrowReadError(string what, string path)
+        {
+            if (!Exists(path)) throw new FileNotFoundException(what + ": no se encontró el archivo '" + path + "'", path);
+            throw new IOException(what + ": no se puede leer el archivo '" + path + "'");
         }
 
         // Lee todos los bytes. 'data' es memoria nueva terminada en 0,
@@ -572,11 +579,11 @@ namespace std.io
             return ok;
         }
 
-        // Como TryReadAllLines, pero termina el programa si no se puede leer.
-        public static List<string> ReadAllLines(string path)
+        // Como TryReadAllLines, pero lanza FileNotFoundException o IOException si no se puede leer.
+        [TrackCaller] public static List<string> ReadAllLines(string path)
         {
             List<string> lines;
-            if (!TryReadAllLines(path, out lines)) panic("File.ReadAllLines: no se puede leer el archivo");
+            if (!TryReadAllLines(path, out lines)) ThrowReadError("File.ReadAllLines", path);
             return lines;
         }
 

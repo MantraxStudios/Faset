@@ -345,7 +345,7 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
             for (auto& e : fs::directory_iterator(dir, ec)) {
                 std::string stem = e.path().stem().string();
                 if (e.is_directory()) addNs(e.path().filename().string(), "namespace " + prefix + e.path().filename().string());
-                else if (e.path().extension() == ".fst" && stem != "core") addNs(stem, "módulo " + prefix + stem);
+                else if (e.path().extension() == ".fst" && stem != "core" && stem != "exceptions") addNs(stem, "módulo " + prefix + stem);
             }
         } else if (xmlCompletePath.empty()) {
             for (const auto& c : r.sema->completions) {

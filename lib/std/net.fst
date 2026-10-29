@@ -16,7 +16,7 @@
 //      delete r;
 //      delete http;
 //
-//  Convención de errores (la misma que el resto de la biblioteca: nada de excepciones):
+//  Convención de errores (std.net no lanza excepciones, salvo IPAddress.Parse con texto no válido):
 //    - las operaciones devuelven bool (true = éxito), un número de bytes (-1 = error)
 //      o un objeto (null = error);
 //    - el motivo queda en la propiedad 'Error' (SocketError) del objeto que falló y en
@@ -668,11 +668,11 @@ namespace std.net
             return true;
         }
 
-        // Como TryParse, pero termina el programa si el texto no es una dirección.
+        // Como TryParse, pero lanza FormatException si el texto no es una dirección.
         public static IPAddress Parse(string text)
         {
             IPAddress a;
-            if (!TryParse(text, out a)) panic("IPAddress.Parse: dirección no válida");
+            if (!TryParse(text, out a)) throw new FormatException("IPAddress.Parse: dirección no válida");
             return a;
         }
 

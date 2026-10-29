@@ -688,6 +688,11 @@ typedef struct faset_gc_obj_hdr { uint64_t magic; void (*dtor)(void*); } faset_g
 #define GC_OBJ_LIVE 0x4A424F5445534146ULL /* "FASETOBJ" */
 #define GC_OBJ_DEAD 0xDEADDEADFA5E7DEDULL
 
+/* Barrera de excepciones (faset_rt.c): un destructor que ejecuta el recolector no puede lanzar una
+   excepción a quien estaba reservando memoria; sin 'try' visible, termina el programa (como .NET). */
+void* faset_exc_barrier_enter(void);
+void faset_exc_barrier_leave(void* saved);
+
 static void gc_run_finalizers(void) {
     if (gc_running_finalizers) return;
     gc_running_finalizers = 1;
@@ -700,7 +705,9 @@ static void gc_run_finalizers(void) {
         if (h->magic == GC_OBJ_LIVE && h->dtor) {
             void (*dtor)(void*) = h->dtor;
             h->dtor = NULL;
+            void* exc = faset_exc_barrier_enter();
             dtor(h + 1);
+            faset_exc_barrier_leave(exc);
         }
         h->magic = GC_OBJ_DEAD;
     }

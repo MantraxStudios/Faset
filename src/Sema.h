@@ -61,6 +61,17 @@ public:
     static std::string methodSignature(MethodDecl* m);
     static std::string typeDescription(ClassDecl* c);
 
+    // ---- excepciones (Exceptions.cpp)
+    ClassDecl* exceptionClass = nullptr;           // std.Exception: la raíz de las excepciones
+    std::vector<ClassDecl*> exceptionTypes;        // clases de excepción (con descriptor en C), bases primero
+    std::map<const Stmt*, int> excJumpCross;       // break/continue: zonas 'try' que atraviesa
+    std::set<MethodDecl*> excMethods;              // métodos con algún 'try'
+    // Gancho de la jerarquía de excepciones: la clase base de una excepción (nullptr en la raíz).
+    // Hoy sale del atributo [ExceptionBase("Base")]; con herencia real será la clase base declarada.
+    ClassDecl* exceptionBase(ClassDecl* c) const;
+    bool isExceptionClass(ClassDecl* c) const;
+    bool excIsSubclass(ClassDecl* derived, ClassDecl* base) const;  // derived == base o deriva de ella
+
 private:
     struct Ctx {
         FileScope* file = nullptr;
@@ -72,6 +83,12 @@ private:
         std::vector<std::map<std::string, VarInfo*>> scopes;
         int loopDepth = 0, switchDepth = 0;
         int unsafeDepth = 0;  // bloques 'memory_unsafe { }' abiertos
+        // Excepciones: zonas protegidas por un marco de 'try' (o cuerpos de 'finally', de los que no
+        // se puede salir con break/continue/return), con la profundidad de bucles/switch al entrar.
+        struct ExcRegion { bool finallyBody; int loops, breaks; };
+        std::vector<ExcRegion> excRegions;
+        std::vector<char> excHandlers;  // 'C' dentro de un catch, 'F' dentro de un finally ('throw;')
+        int excTryDepth = 0;            // sentencias 'try' abiertas (para las variables 'volatile')
     };
     struct CtxSave {
         Sema& s;
@@ -177,4 +194,17 @@ private:
     void completeScope();
     void completeMembers(Expr* obj, bool arrow, Type* ot);
     void completeTypes(const std::vector<std::string>& prefix);
+
+    // excepciones (Exceptions.cpp)
+    std::map<ClassDecl*, ClassDecl*> excBase_;
+    std::set<ClassDecl*> excClasses_;
+    void excSetupHierarchy();
+    bool excPrepare(ClassDecl* c, std::set<ClassDecl*>& busy);
+    void checkTry(TryStmt* t);
+    void checkThrow(ThrowStmt* t);
+    void excCheckJump(Stmt* s);
+    void excNoteWrite(Expr* e);
+    bool excAlwaysReturns(TryStmt* t);
+    bool excContainsBreak(TryStmt* t);
+    Type* primitiveStaticMember(MemberExpr* e, Type* t);  // int.Parse, double.TryParse, char.IsDigit...
 };

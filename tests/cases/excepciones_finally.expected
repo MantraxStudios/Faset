@@ -1,0 +1,20 @@
+1
+try finally
+20
+x=99
+cero
+t3 f3 f2 f1
+atrapada
+t3 f3 catch:uno f2 f1
+normal
+t3 f3 después-f3 f2 después-f2 f1
+catch finally fuera:segunda
+finally TimeoutException
+i0 f0 f1 i2 f2 i3 f3 f4 j1 a1 b1 a2 b2 a3 b3 fin-j3 k0 k1 tras-k fk s0 tras-switch0 fs0 s1 fs1 s2 tras-switch2 fs2
+0.0 fin0.0 fin0.1 fin0 1.0 fin1.0 fin1.1 fin1
+finally-void sigue finally-void al-final
+3
+positivo
+error: negativo
+par cadena1 cadena-1
+dentro finally-solo fuera:sigue

@@ -31,7 +31,7 @@ namespace std.collections
 
         [TrackCaller] public T& operator[](int index)
         {
-            if (index < 0 || index >= count) panic("List: índice fuera de rango");
+            if (index < 0 || index >= count) throw new ArgumentOutOfRangeException("List: índice fuera de rango", null);
             return items[index];
         }
 
@@ -58,7 +58,7 @@ namespace std.collections
 
         [TrackCaller] public void Insert(int index, T item)
         {
-            if (index < 0 || index > count) panic("List.Insert: índice fuera de rango");
+            if (index < 0 || index > count) throw new ArgumentOutOfRangeException("List.Insert: índice fuera de rango", null);
             if (count == capacity) Reserve(capacity < 8 ? 8 : capacity * 2);
             for (int i = count; i > index; i--) items[i] = items[i - 1];
             items[index] = item;
@@ -67,7 +67,7 @@ namespace std.collections
 
         [TrackCaller] public void RemoveAt(int index)
         {
-            if (index < 0 || index >= count) panic("List.RemoveAt: índice fuera de rango");
+            if (index < 0 || index >= count) throw new ArgumentOutOfRangeException("List.RemoveAt: índice fuera de rango", null);
             for (int i = index; i < count - 1; i++) items[i] = items[i + 1];
             count--;
         }
@@ -92,19 +92,19 @@ namespace std.collections
 
         [TrackCaller] public T First()
         {
-            if (count == 0) panic("List.First: la lista está vacía");
+            if (count == 0) throw new InvalidOperationException("List.First: la lista está vacía");
             return items[0];
         }
 
         [TrackCaller] public T Last()
         {
-            if (count == 0) panic("List.Last: la lista está vacía");
+            if (count == 0) throw new InvalidOperationException("List.Last: la lista está vacía");
             return items[count - 1];
         }
 
         [TrackCaller] public T Pop()
         {
-            if (count == 0) panic("List.Pop: la lista está vacía");
+            if (count == 0) throw new InvalidOperationException("List.Pop: la lista está vacía");
             count--;
             return items[count];
         }
@@ -217,7 +217,7 @@ namespace std.collections
 
         [TrackCaller] public T Dequeue()
         {
-            if (count == 0) panic("Queue.Dequeue: la cola está vacía");
+            if (count == 0) throw new InvalidOperationException("Queue.Dequeue: la cola está vacía");
             T item = items[head];
             head = (head + 1) % capacity;
             count--;
@@ -226,7 +226,7 @@ namespace std.collections
 
         [TrackCaller] public T Peek()
         {
-            if (count == 0) panic("Queue.Peek: la cola está vacía");
+            if (count == 0) throw new InvalidOperationException("Queue.Peek: la cola está vacía");
             return items[head];
         }
 
@@ -353,7 +353,7 @@ namespace std.collections
         [TrackCaller] public V Get(K key)
         {
             int i = Find(key);
-            if (i < 0) panic("Dictionary.Get: la clave no existe");
+            if (i < 0) throw new KeyNotFoundException("Dictionary.Get: la clave no existe");
             return values[i];
         }
 

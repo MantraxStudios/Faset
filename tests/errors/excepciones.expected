@@ -1,0 +1,13 @@
+4|no es una clase de excepción
+7|no se encontró la clase base
+13|salir de un bloque .finally. con .return.
+18|solo se pueden lanzar excepciones
+19|solo se puede usar dentro de una cláusula .catch.
+20|no es una clase de excepción
+21|nunca se ejecuta
+22|ya atrapa .ArgumentException.
+25|con .break.
+26|con .continue.
+28|no se puede usar dentro de un bloque .finally.
+29|.int. no es una clase de excepción
+30|nunca se ejecuta

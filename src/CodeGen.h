@@ -43,4 +43,25 @@ private:
     std::string loc(SourceLoc l);        // "fs__fN, línea"
     std::string callerLoc(SourceLoc l);  // ubicación para un método [TrackCaller]
     std::string chkObj(Expr* obj, const std::string& code);
+
+    // excepciones (Exceptions.cpp)
+    struct ExcRegion {
+        bool finally = false;  // marco de un try/finally (si no, de un try/catch)
+        std::string frame;     // variable C con el marco (faset_exc_frame)
+        int id = 0;
+        int breakRemain = -1, contRemain = -1;  // break/continue que pasan por este finally
+        bool ret = false;                       // algún 'return' pasa por este finally
+        MethodDecl* method = nullptr;           // método que la abrió (un cuerpo anidado no la ve)
+    };
+    std::vector<ExcRegion> excRegions_;
+    std::vector<std::string> excCatchFrames_;  // marco de la cláusula catch actual ('throw;')
+    std::string excRetVar_;                    // valor de 'return' pendiente mientras corre un finally
+    void emitExcDecls();
+    void emitExcHelpers();
+    void emitExcInit(ClassDecl* c);
+    void emitTry(TryStmt* t);
+    void emitTryCatch(TryStmt* t);
+    void emitThrow(ThrowStmt* t);
+    bool emitExcJump(Stmt* s);
+    void emitExcJumpChain(int kind, int cross);
 };

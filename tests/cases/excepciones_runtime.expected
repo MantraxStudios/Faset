@@ -1,0 +1,30 @@
+0 -> NullReferenceException: referencia nula (null): el objeto no existe
+1 -> IndexOutOfRangeException: índice fuera de rango: 10 (longitud 3)
+2 -> DivideByZeroException: división entera por cero
+3 -> DivideByZeroException: división entera por cero (operador %)
+4 -> OverflowException: desbordamiento en la división entera
+5 -> DivideByZeroException: división entera por cero
+6 -> NullReferenceException: llamada a través de un puntero a función nulo
+7 -> ArgumentOutOfRangeException: List: índice fuera de rango
+8 -> ArgumentOutOfRangeException: List.RemoveAt: índice fuera de rango
+9 -> KeyNotFoundException: Dictionary.Get: la clave no existe
+10 -> InvalidOperationException: Queue.Dequeue: la cola está vacía
+11 -> InvalidOperationException: List.Pop: la lista está vacía
+12 -> FormatException: Convert.ToInt32: formato no válido
+13 -> FormatException: int.Parse: '12x' no es un número entero
+14 -> OverflowException: int.Parse: '99999999999' no cabe en un int
+15 -> FormatException: double.Parse: '1,5,6' no es un número
+16 -> FileNotFoundException: /no/existe/de/verdad.txt
+17 -> ArgumentOutOfRangeException: Substring: rango fuera de la cadena
+18 -> FormatException: DateTime.ParseIso: formato no válido
+19 -> InvalidOperationException: List.First: la lista está vacía
+20 -> FormatException: bool.Parse: 'quizá' no es True ni False
+21 -> sin error
+True 42
+false
+True -9000000000
+True 2.5
+True True
+-14
+true
+IndexOutOfRangeException | en tests/cases/excepciones_runtime.fst:89

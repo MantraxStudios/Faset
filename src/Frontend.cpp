@@ -121,6 +121,7 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
         if (loaded.insert(key).second) queue.push_back({key, shown});
     };
     enqueue((fs::path(lib) / "std" / "core.fst").string(), "<std/core>.fst");
+    enqueue((fs::path(lib) / "std" / "exceptions.fst").string(), "<std/exceptions>.fst");  // también implícito
     for (const std::string& in : opts.inputs) {
         std::string shown = in;
         fs::path rel = fs::path(in).lexically_relative(fs::current_path());

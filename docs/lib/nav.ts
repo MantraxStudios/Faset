@@ -30,6 +30,7 @@ export const nav: NavSection[] = [
     items: [
       { title: "Tipos y variables", href: "/lenguaje/tipos/" },
       { title: "Control de flujo", href: "/lenguaje/control/" },
+      { title: "Errores y excepciones", href: "/lenguaje/excepciones/" },
       { title: "Clases y structs", href: "/lenguaje/clases-y-structs/" },
       { title: "Propiedades", href: "/lenguaje/propiedades/" },
       { title: "Clases parciales", href: "/lenguaje/clases-parciales/" },

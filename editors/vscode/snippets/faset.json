@@ -112,6 +112,22 @@
     "prefix": "switch",
     "body": ["switch (${1:valor})", "{", "\tcase ${2:0}:", "\t\t$0", "\t\tbreak;", "\tdefault:", "\t\tbreak;", "}"]
   },
+  "try / catch": {
+    "prefix": "try",
+    "body": ["try", "{", "\t$0", "}", "catch (${1:Exception} ${2:e})", "{", "\t", "}"]
+  },
+  "try / catch / finally": {
+    "prefix": "tryf",
+    "body": ["try", "{", "\t$0", "}", "catch (${1:Exception} ${2:e})", "{", "\t", "}", "finally", "{", "\t", "}"]
+  },
+  "throw": {
+    "prefix": "throw",
+    "body": ["throw new ${1:InvalidOperationException}(\"${2:mensaje}\");"]
+  },
+  "Excepción propia": {
+    "prefix": "exception",
+    "body": ["[ExceptionBase(\"${2:Exception}\")]", "class ${1:MiError}Exception", "{", "\tpublic ${1:MiError}Exception(string message) { Message = message; }", "\tpublic string ToString() => Exception.Describe(this);", "}"]
+  },
   "Nueva lista": {
     "prefix": "list",
     "body": ["auto ${1:lista} = new List<${2:int}>();", "$0", "delete ${1};"]

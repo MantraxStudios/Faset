@@ -236,6 +236,11 @@
           "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally)\\b"
         },
         {
+          "comment": "Filtro de excepciones: catch (Exception e) when (condición)",
+          "name": "keyword.control.faset",
+          "match": "\\bwhen\\b(?=\\s*\\()"
+        },
+        {
           "name": "keyword.operator.memory.faset",
           "match": "\\b(new|delete|sizeof|typeof|stackalloc|is|as)\\b"
         },

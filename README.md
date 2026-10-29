@@ -411,7 +411,8 @@ infieren el tipo en tiempo de compilación.
 | sobrecarga `static T operator+(T a, T b)`        | `T& operator[](int i)`                         |
 | genéricos `<T>`, `default(T)`, `where` (ignorado) | se instancian por tipo y con *duck typing*    |
 | `delegate*<...>`, `&Funcion`                     | `new`/`delete`/`delete[]`, destructores `~T()` |
-| `var`, `null`, `int.MaxValue`                    | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` (en `memory_unsafe`) |
+| `var`, `null`, `int.MaxValue`, `int.Parse`       | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` (en `memory_unsafe`) |
+| `try`/`catch`/`when`/`finally`, `throw`          |                                                |
 | `public`/`private` por miembro                   | secciones `public:` / `private:`               |
 
 Por defecto, los miembros de una `class` son privados y los de un `struct`, públicos (como en C++).
@@ -564,6 +565,7 @@ Faset panic: List: índice fuera de rango at programa.fst:10
 La línea es la de *tu* código, no la de la biblioteca: los métodos con `[TrackCaller]` (como
 `panic`, `assert` o `List.operator[]`) reciben la ubicación de quien los llama. Con
 `FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb.
+Dentro de un `try`, estos fallos se lanzan como excepciones (ver la sección siguiente).
 
 **Rendimiento** (`examples/benchmark_checks.fst`, gcc, x86-64, `docs/benchmarks/checks.json`):
 en Release, `--checks` añade un 4 % en total (117 → 122 ms; casi todo en el código dominado por
@@ -575,6 +577,38 @@ Go: un `string` es un par (puntero, longitud), y una carrera de datos que escrib
 `string` desde dos hilos sin cerrojo puede dejarla a medio escribir; protege el estado compartido
 con `Mutex` y las primitivas de `std.thread`. Dentro de `memory_unsafe` (punteros crudos, `extern`
 de C) la responsabilidad es tuya; `faset build --sanitize` ayuda a encontrar esos errores.
+
+### Excepciones
+
+`try`, `catch (T e)`, `catch (T e) when (cond)`, `catch { }`, `finally`, `throw expr;` y `throw;`
+(relanzar), como en C#. `Exception` (con `Message`, `InnerException`, `StackTrace`, `TypeName` y
+`ToString()`) y sus derivadas están en `std` (`exceptions.fst`, implícito como `core.fst`):
+`ArgumentException`/`ArgumentNullException`/`ArgumentOutOfRangeException`,
+`InvalidOperationException`, `FormatException`, `IOException`/`FileNotFoundException`,
+`NullReferenceException`, `IndexOutOfRangeException`, `DivideByZeroException`, `OverflowException`,
+`NotImplementedException`, `NotSupportedException`, `KeyNotFoundException`, `TimeoutException`,
+`OperationCanceledException`…
+
+```csharp
+try { int n = int.Parse(texto); }            // FormatException
+catch (FormatException e) when (texto.Length > 0) { println(e.Message); }
+finally { println("siempre"); }              // también con return/break/continue
+```
+
+- **Errores del runtime**: con un `try` activo en el hilo, una referencia nula, `s[i]` fuera de
+  rango y la división por cero lanzan `NullReferenceException`, `IndexOutOfRangeException` y
+  `DivideByZeroException`; sin `try`, son el panic de siempre. `List`, `Dictionary.Get`,
+  `Convert`, `int.Parse`, `File.ReadAllText`, `Substring`… lanzan su excepción de .NET
+  (`int.TryParse` y los `Try...` no lanzan nada). `panic()` y los diagnósticos de `delete` no se
+  pueden atrapar.
+- **Sin atrapar**: se ejecutan los `finally` pendientes y el programa termina con código 101
+  (`Faset panic: <mensaje> at archivo:línea` y `Excepción no controlada: Tipo: mensaje`); en un hilo
+  secundario termina todo el programa, como en .NET.
+- **Excepciones propias** (hasta que haya herencia): `[ExceptionBase("Exception")] class MiError { ... }`
+  hereda los campos de la base, se convierte en ella y la atrapan sus `catch`.
+- **Implementación**: `setjmp`/`longjmp` con una pila de marcos por hilo (en la pila de C, así el
+  recolector ve la excepción en vuelo). Un método sin `try` no paga nada; entrar en un `try` cuesta
+  ≈3 ns y `throw` + `catch` ≈110 ns (`examples/benchmark_excepciones.fst`, Release, x86-64).
 
 ### Interoperabilidad nativa
 
@@ -593,7 +627,7 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 
 | Módulo            | Contenido |
 |-------------------|-----------|
-| `std` (siempre)   | `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…; `memory_unsafe`), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment` (`GetVariable`, `TryGetVariable`, argumentos…), `Utf16` (`Encode`, `Decode`), extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
+| `std` (siempre)   | excepciones (`Exception`, `FormatException`…), `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…; `memory_unsafe`), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment` (`GetVariable`, `TryGetVariable`, argumentos…), `Utf16` (`Encode`, `Decode`), extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
 | `std.collections` | `List<T>` (`Add`, `Insert`, `Remove`, `Sort`, `Where`, `Select`, `Any`, `Sum`, `Min`, `Max`…), `Stack<T>`, `Queue<T>`, `Dictionary<K,V>` (con `dict[k]` al estilo de C++), `HashSet<T>`, `Algorithms` (`Sort`, `BinarySearch`, `Swap`, `Reverse`, `Fill`) |
 | `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight` |
 | `std.io`          | `File` (texto, bytes y líneas; `Copy`/`Move` con `overwrite`, `Delete`, `GetSize`, `GetLastWriteTime`, permisos, `OpenRead`/`OpenWrite`/`OpenAppend`), `FileStream` (búfer, `ReadLine`, `Write`, `Seek`, `Position`, `Length`), `Directory` (`Create` recursivo, `Delete`, `GetFiles`/`GetDirectories` con patrón y recursión, `Move`, `GetCurrent`/`SetCurrent`, `CreateTemp`), `Path` (`Combine`, `GetFileName`, `GetExtension`, `ChangeExtension`, `Normalize`, `GetFullPath`, `GetRelativePath`, `IsRooted`, `GetTempPath`, `GetTempFileName`, `MatchesPattern`), `FileInfo`, `FileWatcher` |
@@ -652,7 +686,7 @@ delete peer; delete client; delete server;               // cierra los sockets y
 | `HttpClient` | `Get`, `Post`, `Send(HttpRequest)`, `DefaultHeaders`, `UserAgent`, `Timeout`, `FollowRedirects`, `MaxRedirects`, `BuildRequest` |
 | `HttpResponse` | `StatusCode`, `ReasonPhrase`, `Version`, `Headers` (`Get`, `Contains`, sin distinguir mayúsculas), `Body`, `IsSuccess`, `Parse(texto)`, `DecodeChunked`; `HttpResponseReader` para analizar por trozos |
 
-**Errores:** no hay excepciones. Las operaciones devuelven `bool`, un número de bytes (`-1` = error)
+**Errores:** `std.net` no lanza excepciones. Las operaciones devuelven `bool`, un número de bytes (`-1` = error)
 o un objeto (`null` = error), y el motivo queda en `Error` (`SocketError`: `TimedOut`,
 `ConnectionRefused`, `WouldBlock`, `HostNotFound`…), `ErrorMessage` (texto en español) y
 `NativeError` (errno / `WSAGetLastError`) del objeto que falló; `Dns` usa `Dns.LastError`.

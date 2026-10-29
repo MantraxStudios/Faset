@@ -414,6 +414,11 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         } else if (isP("=>")) {
             SourceLoc al = cur().loc;
             p_++;
+            if (isK("throw")) {  // T F() => throw new X(...);  (ver Exceptions.cpp)
+                m->body = new BlockStmt(al);
+                m->body->stmts.push_back(parseThrow());
+                return;
+            }
             Expr* e = parseExpr();
             expectP(";");
             auto* b = new BlockStmt(al);
@@ -974,7 +979,8 @@ Stmt* Parser::parseStatement() {
         expectP(";");
         return s;
     }
-    if (isK("throw") || isK("try")) fail("las excepciones no existen en Faset; devuelve códigos de error");
+    if (isK("try")) return parseTry();      // excepciones: Exceptions.cpp
+    if (isK("throw")) return parseThrow();
     if (isK("goto")) fail("'goto' no está soportado");
     if (looksLikeDecl()) return parseVarDecl(true);
 
