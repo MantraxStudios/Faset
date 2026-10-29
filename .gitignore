@@ -11,3 +11,4 @@ obj/
 # Herramientas
 node_modules/
 *.ppm
+.claude/worktrees/
