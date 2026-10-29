@@ -7,6 +7,7 @@ using std.io;
 using std.json;
 using std.os;
 using std.text;
+using std.time;
 using FasetStudio.Gfx;
 using FasetStudio.Platform;
 
@@ -99,9 +100,15 @@ namespace FasetStudio.Ide
         int activeGroup;
         List<HitBox> hits = new List<HitBox>();
 
-        // Paneles acoplables: Explorador (0), Salida (1) y Problemas (2). Cada uno está en un lado
+        // Paneles acoplables: Explorador (0), Salida (1), Problemas (2) y Dispositivo (3). Cada uno está en un lado
         // (0 izquierda, 1 derecha, 2 abajo); los del mismo lado se muestran como pestañas.
-        const int ActTool = 50;   // 50..52: pestañas de los paneles
+        const int ActTool = 50;   // 50..53: pestañas de los paneles
+        const int ToolCount = 4;
+        const int ActTarget = 41; // selector de destino (este equipo / Android)
+
+        // Android: dispositivos, emulador y vista del dispositivo (panel 3).
+        AndroidTools android = new AndroidTools();
+        string buildTarget = "native";   // "native" o "android" (vista literal)
         List<int> toolSide = new List<int>();
         List<bool> toolShown = new List<bool>();
         List<int> sideActive = new List<int>();     // panel visible en cada lado (-1: lado vacío)
@@ -210,6 +217,7 @@ namespace FasetStudio.Ide
             analyzer = new Analyzer(fasetPath);
             groups.Add(new EditorGroup());
             LoadLayout();
+            android.Compiler = analyzer.Compiler;
             SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
             return true;
         }
@@ -262,6 +270,14 @@ namespace FasetStudio.Ide
                     if (files[i].EndsWith(".fst")) pick = files[i];
                 if (pick.Length > 0) OpenFile(pick);
                 delete files;
+            }
+            // Los proyectos con <TargetPlatform>android</TargetPlatform> se compilan para Android.
+            buildTarget = "native";
+            string projText;
+            if (projectFile.Length > 0 && File.TryReadAllText(projectFile, out projText))
+            {
+                if (projText.Contains("<TargetPlatform>android</TargetPlatform>")) SetBuildTarget("android");
+                String.Free(projText);
             }
             AddRecent(folder);
             UpdateTitle();
@@ -697,8 +713,14 @@ namespace FasetStudio.Ide
                 cmd.Append(" ").Append(q);
                 String.Free(q);
             }
-            cmd.Append(" -c ").Append(configuration);
-            output.Append("> ").Append(run ? "faset run" : "faset build").Append(" -c ").Append(configuration).Append("\n");
+            cmd.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget);
+            if (buildTarget == "android" && android.Device.Length > 0)
+            {
+                string qd = Analyzer.Quote(android.Device);
+                cmd.Append(" --device ").Append(qd);
+                String.Free(qd);
+            }
+            output.Append("> ").Append(run ? "faset run" : "faset build").Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget).Append("\n");
             if (process == null) process = new ChildProcess();
             if (!process.Start(cmd.View(), cwd)) output.Append(L.T("Could not start the compiler.")).Append("\n");
             processIsRun = run;
@@ -713,6 +735,25 @@ namespace FasetStudio.Ide
             if (process != null && process.IsRunning)
             {
                 process.Kill();
+                // En Android 'faset run' solo sigue el log: también hay que cerrar la app del dispositivo.
+                if (processIsRun && buildTarget == "android" && projectFile.Length > 0)
+                {
+                    string qf = Analyzer.Quote(analyzer.Compiler), qr = Analyzer.Quote(rootFolder);
+                    StringBuilder stop = new StringBuilder();
+                    stop.Append("cd ").Append(qr).Append(" && ").Append(qf).Append(" android stop");
+                    String.Free(qr);
+                    if (android.Device.Length > 0)
+                    {
+                        string qd = Analyzer.Quote(android.Device);
+                        stop.Append(" --device ").Append(qd);
+                        String.Free(qd);
+                    }
+                    string ignored;
+                    Process.Capture(stop.View(), out ignored);
+                    String.Free(ignored);
+                    delete stop;
+                    String.Free(qf);
+                }
                 output.Append("\n[").Append(L.T("process stopped")).Append("]\n");
             }
         }
@@ -1044,6 +1085,11 @@ namespace FasetStudio.Ide
                 if (g.Tabs.Count > 0) ActivateTab(activeGroup, (g.Active + (e.Shift ? g.Tabs.Count - 1 : 1)) % g.Tabs.Count);
                 return;
             }
+            if (android.Focused && android.Key(e))
+            {
+                needsRedraw = true;
+                return;
+            }
             if (v != null && v.Designer != null && v.DesignMode)
             {
                 v.Designer.Key(e);
@@ -1225,6 +1271,13 @@ namespace FasetStudio.Ide
                 }
                 CloseCompletion();
             }
+            // Vista del dispositivo Android: toques y botones; un clic fuera le quita el teclado.
+            if (e.Button == 1 && InTool(3, x, y) && y >= toolRect[13] + PanelHeaderHeight && android.MouseDown(x, y))
+            {
+                needsRedraw = true;
+                return;
+            }
+            android.Focused = false;
             // Separadores
             int split = SplitterAt(x, y);
             if (split != 0)
@@ -1244,7 +1297,7 @@ namespace FasetStudio.Ide
                     else ActivateTab(h.Group, h.Id);
                     return;
                 }
-                if (h.Group == -1 && h.Id >= ActTool && h.Id < ActTool + 3)
+                if (h.Group == -1 && h.Id >= ActTool && h.Id < ActTool + ToolCount)
                 {
                     // Pestaña de panel: clic la activa, arrastrar la acopla en otro lado, botón derecho abre su menú.
                     int t = h.Id - ActTool;
@@ -1460,6 +1513,12 @@ namespace FasetStudio.Ide
 
         void DoAction(int id)
         {
+            if (id == ActTarget)
+            {
+                for (int i = 0; i < hits.Count; i++)
+                    if (hits[i].Id == ActTarget && hits[i].Group == -1) OpenTargetMenu(hits[i].X, hits[i].Y + hits[i].H + 4);
+                return;
+            }
             if (id == ActSave) SaveCurrent();
             else if (id == ActBuild) StartProcess(false);
             else if (id == ActRun) StartProcess(true);
@@ -1490,6 +1549,7 @@ namespace FasetStudio.Ide
 
         void MouseUp(Event e)
         {
+            android.MouseUp(e.X, e.Y);
             if (dockTool >= 0)
             {
                 if (dockDragging && dockTarget >= 0) DockTool(dockTool, dockTarget);
@@ -1615,6 +1675,7 @@ namespace FasetStudio.Ide
             if (InTool(0, x, y)) explorer.ScrollBy(e.ScrollLines);
             else if (InTool(1, x, y)) outputScroll = Math.Max(0, outputScroll + e.ScrollLines);
             else if (InTool(2, x, y)) problemsScroll = Math.Max(0, problemsScroll + e.ScrollLines);
+            else if (InTool(3, x, y)) android.Scroll(x, y, e.ScrollLines);
             else
             {
                 for (int k = 0; k < groups.Count; k++)
@@ -1658,6 +1719,12 @@ namespace FasetStudio.Ide
                     analysisPending = true;
                     redraw = true;
                 }
+            }
+            if (android.Update(r, buildTarget == "android" && ToolVisible(3))) redraw = true;
+            if (android.Status.Length > 0)
+            {
+                SetStatus(L.T(android.Status));
+                android.Status = "";
             }
             if (analysisPending && now - lastEditMs > 350)
             {
@@ -1952,7 +2019,7 @@ namespace FasetStudio.Ide
                 String.Free(dest);
                 return;
             }
-            string kind = projectTemplate == 1 ? " --lib" : (projectTemplate == 2 ? " --winexe" : (projectTemplate == 3 ? " --ui" : ""));
+            string kind = projectTemplate == 1 ? " --lib" : (projectTemplate == 2 ? " --winexe" : (projectTemplate == 3 ? " --ui" : (projectTemplate == 4 ? " --android" : "")));
             string qf = Analyzer.Quote(analyzer.Compiler), qloc = Analyzer.Quote(location), qname = Analyzer.Quote(name);
             StringBuilder cmd = new StringBuilder();
             cmd.Append("cd ").Append(qloc).Append(" && ").Append(qf).Append(" new ").Append(qname).Append(kind);
@@ -1968,7 +2035,7 @@ namespace FasetStudio.Ide
             {
                 Settings.Set("projects.location", location);
                 OpenWorkspace(dest);
-                if (projectTemplate == 3)
+                if (projectTemplate == 3 || projectTemplate == 4)
                 {
                     string ui = Path.Combine(dest, "MainWindow.fstui");
                     OpenFile(ui);
@@ -2111,6 +2178,7 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Explorer"), ToolVisible(0) ? "✓" : "", 126, ws);
                 m.Add(L.T("Output"), ToolVisible(1) ? "✓" : "", 123, ws);
                 m.Add(L.T("Problems"), ToolVisible(2) ? "✓" : "", 124, ws);
+                m.Add(L.T("Device"), ToolVisible(3) ? "✓" : "", 128, ws);
                 m.Add(L.T("Reset layout"), "", 127, ws);
                 m.Separator();
                 m.Add(L.T("Change language"), "", 125, true);
@@ -2255,6 +2323,19 @@ namespace FasetStudio.Ide
             else if (id == 123) ToggleTool(1);
             else if (id == 124) ToggleTool(2);
             else if (id == 126) ToggleTool(0);
+            else if (id == 128) ToggleTool(3);
+            else if (id == 180) SetBuildTarget("native");
+            else if (id == 198) android.Refresh();
+            else if (id >= 181 && id < 181 + android.Serials.Count)
+            {
+                android.Select(android.Serials[id - 181]);
+                SetBuildTarget("android");
+            }
+            else if (id >= 200 && id < 200 + android.Avds.Count)
+            {
+                android.StartEmulator(android.Avds[id - 200]);
+                SetBuildTarget("android");
+            }
             else if (id == 127) ResetLayout();
             else if (id >= 170 && id <= 172 && contextTool >= 0) DockTool(contextTool, id - 170);
             else if (id == 173 && contextTool >= 0) HideTool(contextTool);
@@ -2391,7 +2472,7 @@ namespace FasetStudio.Ide
             }
             if (overlay == Overlay.NewProject)
             {
-                if (id >= 10 && id <= 13) projectTemplate = id - 10;
+                if (id >= 10 && id <= 14) projectTemplate = id - 10;
                 else if (id == 20) overlay = Overlay.None;
                 else if (id == 21) CreateProject();
                 return;
@@ -2564,7 +2645,7 @@ namespace FasetStudio.Ide
             float top = TitleHeight;
             float bottom = H - StatusHeight;
             bool hasL = sideActive[0] >= 0, hasR = sideActive[1] >= 0, hasB = sideActive[2] >= 0;
-            for (int i = 0; i < 12; i++) toolRect[i] = 0;
+            for (int i = 0; i < ToolCount * 4; i++) toolRect[i] = 0;
             explorer.W = 0;
             leftWidth = (float)Math.Clamp(leftWidth, 160.0, W * 0.45);
             rightWidth = (float)Math.Clamp(rightWidth, 160.0, W * 0.45);
@@ -2646,6 +2727,14 @@ namespace FasetStudio.Ide
                 sw -= menuEnd + 16 - sx;
                 sx = menuEnd + 16;
             }
+            // Que no pise los controles de la derecha (ejecutar, compilar, destino, configuración, dividir).
+            string runL = L.T("Run"), buildL = L.T("Build");
+            string targetL = TargetLabel();
+            float rightW = PillWidth(runL, "▶") + PillWidth(buildL, "") + 8 + r.TextWidth(r.Ui, targetL) + 62 +
+                           r.TextWidth(r.Ui, "Debug") + r.TextWidth(r.Ui, "Release") + 60 + 40 + 16;
+            String.Free(targetL);
+            float limit = W - Gap - 8 - rightW;
+            if (sx + sw > limit) sw = (float)Math.Max(120.0, (double)(limit - sx));
             bool searchHover = hoverButton == ActQuickOpen;
             r.RoundRect(sx, 10, sw, 28, 14, searchHover ? Theme.Hover : Theme.Elevated);
             r.RoundBorder(sx, 10, sw, 28, 14, 1, Theme.Border);
@@ -2664,6 +2753,28 @@ namespace FasetStudio.Ide
             string buildLabel = L.T("Build");
             rx -= PillWidth(buildLabel, "") + 8;
             Pill(rx, 10, buildLabel, "", ActBuild, 0);
+
+            // Destino: este equipo o un dispositivo Android
+            string tlabel = TargetLabel();
+            float tw = r.TextWidth(r.Ui, tlabel) + 52;
+            rx -= tw + 10;
+            bool thot = hoverButton == ActTarget;
+            r.RoundRect(rx, 10, tw, 28, 14, thot ? Theme.Hover : Theme.Elevated);
+            Color tc = thot ? Theme.White : Theme.TextSecondary;
+            if (buildTarget == "android")
+            {
+                r.RoundBorder(rx + 13, 15, 10, 17, 3, 1.4f, tc);       // móvil
+                r.Rect(rx + 16.5f, 28.5f, 3, 1.4f, tc);
+            }
+            else
+            {
+                r.RoundBorder(rx + 11, 16, 15, 11, 2, 1.4f, tc);       // monitor
+                r.Rect(rx + 15, 29.5f, 7, 1.4f, tc);
+            }
+            r.Text(r.Ui, rx + 32, 15, tlabel, Theme.Text);
+            r.Text(r.Icons, rx + tw - 17, 16, "▾", Theme.TextTertiary);
+            AddHit(rx, 10, tw, 28, ActTarget, -1, false);
+            String.Free(tlabel);
 
             // Selector Debug / Release
             float dw = r.TextWidth(r.Ui, "Debug") + 22, rw = r.TextWidth(r.Ui, "Release") + 22;
@@ -2813,19 +2924,65 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ paneles acoplables
 
+        // ------------------------------------------------------------------ Android
+
+        // Texto del selector de destino (copia).
+        string TargetLabel()
+        {
+            if (buildTarget != "android") return String.Copy(L.T(OS.Name() == "windows" ? "Windows" : "Linux"));
+            if (android.StartingAvd.Length > 0) return String.Copy(L.T("Starting emulator…"));
+            if (android.Device.Length == 0) return String.Copy("Android");
+            string model = android.ModelOf(android.Device);
+            return String.Copy(model.Length > 0 ? model : android.Device);
+        }
+
+        void SetBuildTarget(string target)
+        {
+            buildTarget = target == "android" ? "android" : "native";
+            if (buildTarget == "android")
+            {
+                if (!toolShown[3]) ShowTool(3);
+                if (!android.Listed) android.Refresh();
+            }
+            needsRedraw = true;
+        }
+
+        void OpenTargetMenu(float x, float y)
+        {
+            android.Refresh();
+            Menu m = new Menu();
+            m.Add(L.T("This computer"), buildTarget == "native" ? "✓" : "", 180, true);
+            m.Separator();
+            if (!android.AdbFound) m.Add(L.T("Android SDK not found"), "", 0, false);
+            for (int i = 0; i < android.Serials.Count && i < 15; i++)
+            {
+                string model = android.Models[i];
+                bool sel = buildTarget == "android" && android.Device == android.Serials[i];
+                m.Add(model.Length > 0 ? model : android.Serials[i], sel ? "✓" : android.Serials[i], 181 + i, true);
+            }
+            for (int i = 0; i < android.Avds.Count && i < 15; i++)
+                m.Add(android.Avds[i], L.T("start emulator"), 200 + i, !android.Busy);
+            if (android.AdbFound && android.Serials.Count == 0 && android.Avds.Count == 0)
+                m.Add(android.Listed ? L.T("No Android devices or emulators") : L.T("Looking for devices…"), "", 0, false);
+            m.Separator();
+            m.Add(L.T("Refresh devices"), "", 198, android.AdbFound);
+            m.Add(L.T("Device panel"), ToolVisible(3) ? "✓" : "", 128, true);
+            ShowMenu(m, x, y, -1);
+        }
+
         void InitLayout()
         {
             toolSide.Clear();
             toolShown.Clear();
             sideActive.Clear();
             toolRect.Clear();
-            for (int t = 0; t < 3; t++)
+            for (int t = 0; t < ToolCount; t++)
             {
-                toolSide.Add(t == 0 ? 0 : 2);
-                toolShown.Add(true);
+                toolSide.Add(t == 0 ? 0 : (t == 3 ? 1 : 2));
+                toolShown.Add(t != 3);   // el panel del dispositivo aparece al elegir Android
             }
             for (int s = 0; s < 3; s++) sideActive.Add(s == 0 ? 0 : (s == 2 ? 1 : -1));
-            for (int i = 0; i < 12; i++) toolRect.Add(0);
+            for (int i = 0; i < ToolCount * 4; i++) toolRect.Add(0);
             leftWidth = 270;
             rightWidth = 320;
             bottomHeight = 210;
@@ -2836,8 +2993,8 @@ namespace FasetStudio.Ide
         {
             InitLayout();
             List<string> parts = Text.Split(Settings.Get("layout.tools", ""), ",");
-            if (parts.Count == 3)
-                for (int t = 0; t < 3; t++)
+            if (parts.Count >= 3)
+                for (int t = 0; t < parts.Count && t < ToolCount; t++)
                 {
                     string p = parts[t];
                     if (p.Length == 3 && p[0] >= '0' && p[0] <= '2')
@@ -2862,7 +3019,7 @@ namespace FasetStudio.Ide
         void SaveLayout()
         {
             StringBuilder sb = new StringBuilder();
-            for (int t = 0; t < 3; t++)
+            for (int t = 0; t < ToolCount; t++)
             {
                 if (t > 0) sb.Append(",");
                 sb.Append((long)toolSide[t]).Append(":").Append(toolShown[t] ? "1" : "0");
@@ -2888,7 +3045,7 @@ namespace FasetStudio.Ide
                 int a = sideActive[s];
                 if (a >= 0 && toolShown[a] && toolSide[a] == s) continue;
                 sideActive[s] = -1;
-                for (int t = 0; t < 3; t++)
+                for (int t = 0; t < ToolCount; t++)
                     if (sideActive[s] < 0 && toolShown[t] && toolSide[t] == s) sideActive[s] = t;
             }
         }
@@ -2897,7 +3054,7 @@ namespace FasetStudio.Ide
 
         void ShowTool(int t)
         {
-            if (t < 0 || t > 2) return;
+            if (t < 0 || t >= ToolCount) return;
             toolShown[t] = true;
             sideActive[toolSide[t]] = t;
             NormalizeSides();
@@ -2919,7 +3076,7 @@ namespace FasetStudio.Ide
 
         void DockTool(int t, int side)
         {
-            if (t < 0 || t > 2 || side < 0 || side > 2) return;
+            if (t < 0 || t >= ToolCount || side < 0 || side > 2) return;
             toolSide[t] = side;
             toolShown[t] = true;
             sideActive[side] = t;
@@ -2927,7 +3084,7 @@ namespace FasetStudio.Ide
             SaveLayout();
         }
 
-        static string ToolName(int t) => t == 0 ? "Explorer" : (t == 1 ? "Output" : "Problems");
+        static string ToolName(int t) => t == 0 ? "Explorer" : (t == 1 ? "Output" : (t == 2 ? "Problems" : "Device"));
 
         bool InTool(int t, float x, float y)
         {
@@ -2965,7 +3122,7 @@ namespace FasetStudio.Ide
             int active = sideActive[side];
             r.PushClip(x, y, w, PanelHeaderHeight);
             float tx = x + 8;
-            for (int t = 0; t < 3; t++)
+            for (int t = 0; t < ToolCount; t++)
             {
                 if (!toolShown[t] || toolSide[t] != side) continue;
                 tx += PanelTab(tx, y + 6, L.T(ToolName(t)), t == 2 ? ErrorCount() : 0, ActTool + t, t == active) + 4;
@@ -2990,7 +3147,8 @@ namespace FasetStudio.Ide
                 explorer.Draw(r, projectName);
             }
             else if (active == 1) DrawOutput(x, y, w, h);
-            else DrawProblems(x, y, w, h);
+            else if (active == 2) DrawProblems(x, y, w, h);
+            else android.Draw(r, x, y, w, h, mouseX, mouseY);
         }
 
         void DrawOutput(float x, float y, float w, float h)
@@ -3537,18 +3695,20 @@ namespace FasetStudio.Ide
             float w = 900, h = 470, x, y;
             DialogFrame(w, h, out x, out y);
             r.Text(r.Title, x + 28, y + 24, L.T("Create a new project"), Theme.White);
-            float cw = (w - 56 - 36) / 4;
-            for (int i = 0; i < 4; i++)
+            float cw = (w - 56 - 48) / 5;
+            for (int i = 0; i < 5; i++)
             {
                 float cx = x + 28 + i * (cw + 12), cy = y + 76;
                 bool sel = projectTemplate == i;
                 bool hover = mouseX >= cx && mouseX < cx + cw && mouseY >= cy && mouseY < cy + 118;
                 r.RoundRect(cx, cy, cw, 118, 12, sel ? Theme.Active : (hover ? Theme.Hover : Theme.Surface));
                 r.RoundBorder(cx, cy, cw, 118, 12, sel ? 1.5f : 1, sel ? Theme.White : Theme.Border);
-                string title = i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app") : L.T("Desktop app (UI)");
+                string title = i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app")
+                             : i == 3 ? L.T("Desktop app (UI)") : L.T("Android app");
                 string desc = i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
-                            : i == 2 ? L.T("A Windows app without a console") : L.T("Windows and Linux, visual designer");
-                string tag = i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : "AppUI";
+                            : i == 2 ? L.T("A Windows app without a console") : i == 3 ? L.T("Windows and Linux, visual designer")
+                            : L.T("APK for phones and the emulator, visual designer");
+                string tag = i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : i == 3 ? "AppUI" : "APK";
                 r.RoundRect(cx + 16, cy + 16, 30, 30, 8, sel ? Theme.White : Theme.Active);
                 r.Logo(cx + 21, cy + 21, 20, sel ? Theme.Black : Theme.White);
                 r.Text(r.UiBold, cx + 16, cy + 58, title, Theme.White);
@@ -3742,7 +3902,7 @@ namespace FasetStudio.Ide
                     bool overHit = false;
                     for (int i = 0; i < hits.Count; i++)
                         if (hits[i].Contains(mouseX, mouseY)) overHit = true;
-                    if (overHit || explorer.RowAt(mouseX, mouseY) >= 0) kind = CursorKind.Hand;
+                    if (overHit || explorer.RowAt(mouseX, mouseY) >= 0 || (InTool(3, mouseX, mouseY) && android.Contains(mouseX, mouseY))) kind = CursorKind.Hand;
                     else if (InTool(2, mouseX, mouseY) && mouseY >= toolRect[9] + PanelHeaderHeight && ProblemRowAt(mouseY) >= 0) kind = CursorKind.Hand;
                     else
                     {
@@ -3918,6 +4078,22 @@ namespace FasetStudio.Ide
             else if (verb == "analyze") RunAnalysis();
             else if (verb == "split") ToggleSplit();
             else if (verb == "panel") ShowTool(arg.ToInt() + 1);
+            else if (verb == "target") SetBuildTarget(arg);
+            else if (verb == "device")
+            {
+                android.Select(arg);
+                SetBuildTarget("android");
+            }
+            else if (verb == "wait")
+            {
+                // wait <ms>: atiende procesos (capturas del dispositivo, compilación) mientras tanto
+                long until = Environment.TickCount64() + arg.ToInt();
+                while (Environment.TickCount64() < until)
+                {
+                    Update();
+                    Time.Sleep(20);
+                }
+            }
             else if (verb == "dock")
             {
                 // dock <panel 0..2> <lado 0..2>
