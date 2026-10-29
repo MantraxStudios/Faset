@@ -66,6 +66,8 @@ namespace std
         public static void Write(char v) { faset_write_char(v); }
         public static void Write(void* v) { faset_write_ptr(v); }
         public static void Write(bool v) { faset_write_str(v ? "True" : "False"); }
+        // Objetos: su ToString() (virtual); null no escribe nada.
+        public static void Write(object v) { if (v != null) faset_write_str(v.ToString()); }
 
         public static void WriteLine() { faset_write_char('\n'); }
         public static void WriteLine(string v) { Write(v); WriteLine(); }
@@ -77,6 +79,7 @@ namespace std
         public static void WriteLine(double v) { Write(v); WriteLine(); }
         public static void WriteLine(char v) { Write(v); WriteLine(); }
         public static void WriteLine(bool v) { Write(v); WriteLine(); }
+        public static void WriteLine(object v) { Write(v); WriteLine(); }
         public static void WriteLine(void* v) { Write(v); WriteLine(); }
 
         // Escribe en la salida de error.
@@ -672,5 +675,164 @@ namespace std
                 (c >= 0xD800 && c < 0xE000)) return (char)0xFFFD;
             return (char)c;
         }
+    }
+
+    // ---------------------------------------------------------------- object y Type
+    //  Toda clase deriva implícitamente de 'object' (std.Object). Los tipos primitivos, 'string'
+    //  y los structs no son objetos (no hay boxing): no se convierten a 'object'.
+    static extern void* faset_obj_type(void* o);
+    static extern int faset_obj_hash(void* o);
+    static extern string faset_type_name(void* t);
+    static extern string faset_type_fullname(void* t);
+    static extern void* faset_type_base(void* t);
+    static extern int faset_type_kind(void* t);
+    static extern int faset_type_flags(void* t);
+    static extern bool faset_type_assignable(void* to, void* from);
+    static extern int faset_type_enum_count(void* t);
+    static extern string faset_type_enum_name(void* t, int i);
+    static extern int faset_type_enum_value(void* t, int i);
+
+    public memory_unsafe class Object
+    {
+        // Por defecto, el nombre completo del tipo (p. ej. "Zoo.Perro").
+        public virtual string ToString() { return faset_type_fullname(faset_obj_type((void*)this)); }
+        // Por defecto, igualdad de referencias.
+        public virtual bool Equals(object other) { return (void*)this == (void*)other; }
+        public virtual int GetHashCode() { return faset_obj_hash((void*)this); }
+        // Tipo del objeto en tiempo de ejecución (el más derivado).
+        public Type GetType() { return Type.FromHandle(faset_obj_type((void*)this)); }
+        public static bool ReferenceEquals(object a, object b) { return (void*)a == (void*)b; }
+        public static bool Equals(object a, object b)
+        {
+            if ((void*)a == (void*)b) return true;
+            if ((void*)a == null || (void*)b == null) return false;
+            return a.Equals(b);
+        }
+    }
+
+    // Descripción de un tipo: typeof(T) u obj.GetType(). Dos Type del mismo tipo son iguales (==).
+    public sealed memory_unsafe class Type
+    {
+        private void* handle;
+        private Type(void* h) { handle = h; }
+        public memory_unsafe static Type FromHandle(void* h)
+        {
+            if (h == null) return null;
+            return new Type(h);
+        }
+        public memory_unsafe void* Handle => handle;
+
+        public string Name => faset_type_name(handle);
+        public string FullName => faset_type_fullname(handle);
+        public Type BaseType => FromHandle(faset_type_base(handle));
+        public bool IsClass => faset_type_kind(handle) == 0;
+        public bool IsInterface => faset_type_kind(handle) == 1;
+        public bool IsEnum => faset_type_kind(handle) == 2;
+        public bool IsValueType => faset_type_kind(handle) >= 2;
+        public bool IsAbstract => (faset_type_flags(handle) & 1) != 0 || IsInterface;
+        public bool IsSealed => (faset_type_flags(handle) & 2) != 0;
+        public bool IsRecord => (faset_type_flags(handle) & 4) != 0;
+
+        // ¿Se puede asignar un valor de tipo 'other' a una variable de este tipo?
+        public bool IsAssignableFrom(Type other)
+        {
+            if ((void*)other == null) return false;
+            return faset_type_assignable(handle, other.handle);
+        }
+        public bool IsSubclassOf(Type other)
+        {
+            if ((void*)other == null || other.handle == handle) return false;
+            return IsClass && faset_type_assignable(other.handle, handle);
+        }
+        public bool IsInstanceOfType(object o)
+        {
+            if ((void*)o == null) return false;
+            return faset_type_assignable(handle, faset_obj_type((void*)o));
+        }
+        public std.collections.List<string> GetEnumNames()
+        {
+            std.collections.List<string> names = new std.collections.List<string>();
+            int n = faset_type_enum_count(handle);
+            for (int i = 0; i < n; i++) names.Add(faset_type_enum_name(handle, i));
+            return names;
+        }
+
+        public override string ToString() => FullName;
+        public override bool Equals(object o)
+        {
+            Type t = o as Type;
+            return (void*)t != null && t.handle == handle;
+        }
+        public override int GetHashCode() => faset_obj_hash(handle);
+        public static bool operator==(Type a, Type b)
+        {
+            void* x = (void*)a;
+            void* y = (void*)b;
+            if (x == null || y == null) return x == y;
+            return a.handle == b.handle;
+        }
+        public static bool operator!=(Type a, Type b) => !(a == b);
+    }
+
+    // ---------------------------------------------------------------- Enum
+    //  Color c = Color.Rojo;  c.ToString() == "Rojo";  Enum.Parse<Color>("Verde", out c)
+    public memory_unsafe static class Enum
+    {
+        public static string GetName<T>(T value) => value.ToString();
+        public static int Count<T>() => faset_type_enum_count(typeof(T).Handle);
+        public static bool IsDefined<T>(string name)
+        {
+            T v;
+            return TryParse<T>(name, out v);
+        }
+        // Busca el miembro con ese nombre: devuelve false (y default) si no existe.
+        public static bool TryParse<T>(string name, out T value)
+        {
+            void* t = typeof(T).Handle;
+            int n = faset_type_enum_count(t);
+            for (int i = 0; i < n; i++)
+            {
+                if (faset_type_enum_name(t, i) == name)
+                {
+                    value = (T)faset_type_enum_value(t, i);
+                    return true;
+                }
+            }
+            value = default(T);
+            return false;
+        }
+        public static bool Parse<T>(string name, out T value) => TryParse<T>(name, out value);
+        // Como TryParse, pero termina con 'panic' si el nombre no existe.
+        [TrackCaller] public static T Parse<T>(string name)
+        {
+            T v;
+            if (!TryParse<T>(name, out v)) panic("'" + name + "' no es un valor de " + typeof(T).Name);
+            return v;
+        }
+        public static std.collections.List<string> GetNames<T>() => typeof(T).GetEnumNames();
+        public static std.collections.List<T> GetValues<T>()
+        {
+            void* t = typeof(T).Handle;
+            std.collections.List<T> values = new std.collections.List<T>();
+            int n = faset_type_enum_count(t);
+            for (int i = 0; i < n; i++) values.Add((T)faset_type_enum_value(t, i));
+            return values;
+        }
+    }
+
+    // ---------------------------------------------------------------- interfaces genéricas
+    //  Los tipos primitivos y 'string' cumplen 'where T : IComparable<T>' e IEquatable<T>.
+    public interface IComparable<T> { int CompareTo(T other); }
+    public interface IEquatable<T> { bool Equals(T other); }
+
+    public static class ComparableExtensions
+    {
+        public static int CompareTo(this int a, int b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this long a, long b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this uint a, uint b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this ulong a, ulong b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this double a, double b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this float a, float b) => a < b ? -1 : a > b ? 1 : 0;
+        public static int CompareTo(this char a, char b) => a < b ? -1 : a > b ? 1 : 0;
     }
 }

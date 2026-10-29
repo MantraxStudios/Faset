@@ -38,9 +38,29 @@ private:
     std::string expr(Expr* e);
     std::string toStr(Expr* e);
     std::string receiverPtr(Expr* recv, bool arrow);
-    std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc loc);
+    std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc loc,
+                     bool nonVirtual = false);
     std::string memberAccess(Expr* obj, bool arrow, const std::string& field);
     std::string loc(SourceLoc l);        // "fs__fN, línea"
     std::string callerLoc(SourceLoc l);  // ubicación para un método [TrackCaller]
     std::string chkObj(Expr* obj, const std::string& code);
+
+    // orientación a objetos (CodeGenClasses.cpp)
+    std::string objC();
+    std::string tiOf(ClassDecl* c);
+    std::string tiOfType(Type* t);
+    std::string fieldPath(ClassDecl* from, FieldDecl* f);
+    std::string selfArg(MethodDecl* m, const std::string& self);
+    std::string calleeName(MethodDecl* m, bool nonVirtual);
+    bool hasDtorChain(ClassDecl* c);
+    std::string baseDefaultCtor(ClassDecl* c);
+    std::string fnPtrDecl(MethodDecl* m, const std::string& name);
+    void emitClassStructPrefix(ClassDecl* c);
+    void emitCtorPrologue(MethodDecl* m);
+    void emitRecordBody(MethodDecl* m);
+    void emitOO(int phase);
+    std::string ooExpr(Expr* e);
+    std::string strOf(Type* t, const std::string& v, int depth = 0);
+    std::string eqOf(Type* t, const std::string& a, const std::string& b, int depth = 0);
+    std::string hashOf(Type* t, const std::string& v, int depth = 0);
 };

@@ -1,0 +1,12 @@
+10|las interfaces no pueden tener campos
+11|no admiten miembros estáticos
+12|siempre públicos
+15|no implementa el miembro de interfaz 'IVolador.Alas' \(get\)
+22|debe ser 'public'
+28|el tipo de retorno debe ser 'void'
+32|no implementa el miembro de interfaz
+37|ya está en la lista de bases
+43|debe ir antes que las interfaces
+53|instancia de la interfaz 'IVolador'
+55|no se puede convertir implícitamente el tipo 'Punto' en 'IVolador'
+56|no contiene una definición para 'Aterrizar'

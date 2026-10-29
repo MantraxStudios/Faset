@@ -1,0 +1,179 @@
+export const metadata = {
+  title: "Interfaces",
+  description: "Interfaces con métodos y propiedades, varias por clase, métodos por defecto, interfaces genéricas y restricciones where.",
+};
+
+# Interfaces
+
+<p className="lead">
+  Una <code>interface</code> declara métodos y propiedades sin implementación. Una clase puede
+  implementar varias (<code>class C : Base, I1, I2</code>) y sus objetos se usan a través de
+  referencias a la interfaz, igual de seguras que cualquier referencia a clase.
+</p>
+
+## Declarar e implementar
+
+```faset
+using std.collections;
+
+interface IForma
+{
+    double Area();
+    string Nombre { get; }                      // propiedad de solo lectura
+}
+
+interface IDibujable
+{
+    void Dibujar();
+    string Descripcion() { return "sin descripción"; }    // método por defecto
+}
+
+class Circulo : IForma, IDibujable
+{
+    double r;
+    public Circulo(double r) { this.r = r; }
+    public double Area() => 3.14159 * r * r;
+    public string Nombre => "círculo";
+    public void Dibujar() { println("( )"); }
+}
+
+class Etiqueta : IDibujable
+{
+    public void Dibujar() { println("[etiqueta]"); }
+    public string Descripcion() => "una etiqueta";
+}
+
+int main()
+{
+    IForma f = new Circulo(1);                  // conversión implícita a la interfaz
+    println(f.Nombre + ": " + f.Area());
+    List<IDibujable> cosas = new List<IDibujable>();
+    cosas.Add(new Circulo(2));
+    cosas.Add(new Etiqueta());
+    for (int i = 0; i < cosas.Count; i++)
+    {
+        cosas[i].Dibujar();
+        println(cosas[i].Descripcion());        // sin descripción / una etiqueta
+    }
+    return 0;
+}
+```
+
+- Los miembros de una interfaz son siempre públicos; quien la implementa debe declararlos `public`
+  con la misma firma y el mismo tipo de retorno. La implementación puede heredarse de la clase base.
+- Una interfaz puede extender otras (`interface IEscalable : IForma { ... }`): quien la implementa
+  implementa también las de su lista.
+- Un método con cuerpo es un *método por defecto*: lo usan las clases que no lo implementan.
+- Las interfaces no tienen campos, constructores, operadores ni miembros estáticos, y no se pueden
+  instanciar con `new`.
+- Desde una referencia a interfaz también están los miembros de `object` (`ToString`, `GetType`...).
+
+```fst
+interface IVolador { void Volar(); int Alas { get; } }
+class Pajaro : IVolador { public void Volar() { } }
+// 'Pajaro' no implementa el miembro de interfaz 'IVolador.Alas' (get)
+```
+
+## Conversiones
+
+La conversión de una clase a una interfaz que implementa es implícita. La contraria (de interfaz a
+clase, o entre interfaces) se escribe con un cast y **se comprueba al ejecutar**, como las bajadas de
+clase base a derivada; también puedes preguntar con `is` y `as`
+(ver [tipos en tiempo de ejecución](/lenguaje/tipos-en-ejecucion/)).
+
+```faset
+interface IForma { double Area(); }
+interface IEscalable : IForma { void Escalar(double k); }
+
+class Cuadrado : IEscalable
+{
+    double lado = 1;
+    public double Area() => lado * lado;
+    public void Escalar(double k) { lado = lado * k; }
+}
+
+int main()
+{
+    IForma f = new Cuadrado();
+    if (f is IEscalable e) e.Escalar(3);        // patrón con variable
+    println(f.Area());                          // 9
+    Cuadrado c = (Cuadrado)f;                   // comprobado: panic si no fuera un Cuadrado
+    println(c.Area());                          // 9
+    return 0;
+}
+```
+
+## Interfaces genéricas y restricciones
+
+Las interfaces pueden ser genéricas y se instancian como las demás plantillas. La biblioteca
+estándar incluye `IComparable<T>` (`int CompareTo(T otro)`) e `IEquatable<T>`.
+
+Las cláusulas `where` se comprueban al instanciar la plantilla:
+
+| Restricción | El argumento de tipo debe... |
+|---|---|
+| `where T : class` | ser una clase o interfaz (o `string`) |
+| `where T : struct` | ser un tipo valor: numérico, `bool`, enum o struct |
+| `where T : new()` | poder crearse con `new T()`: un struct, o una clase no abstracta con constructor público sin parámetros |
+| `where T : Base` | ser `Base` o derivar de ella |
+| `where T : IComparable<T>` | implementar la interfaz (los tipos numéricos, `char` y `string` cumplen `IComparable<T>` e `IEquatable<T>`) |
+
+```faset
+using std.collections;
+
+class Version : IComparable<Version>
+{
+    public int Mayor, Menor;
+    public Version(int a, int b) { Mayor = a; Menor = b; }
+    public int CompareTo(Version o) => Mayor != o.Mayor ? Mayor - o.Mayor : Menor - o.Menor;
+    public override string ToString() => Mayor + "." + Menor;
+}
+
+T Maximo<T>(List<T> xs) where T : IComparable<T>
+{
+    T mejor = xs[0];
+    for (int i = 1; i < xs.Count; i++)
+        if (xs[i].CompareTo(mejor) > 0) mejor = xs[i];
+    return mejor;
+}
+
+class Fabrica<T> where T : class, new()
+{
+    public T Crear() => new T();
+}
+
+class Config { public int Nivel = 3; }
+
+int main()
+{
+    List<Version> vs = new List<Version>();
+    vs.Add(new Version(1, 9));
+    vs.Add(new Version(2, 0));
+    println("máxima: " + Maximo(vs));           // máxima: 2.0
+    List<int> ns = new List<int>();
+    ns.Add(4);
+    ns.Add(17);
+    println(Maximo(ns));                        // 17: int cumple IComparable<int>
+    println(new Fabrica<Config>().Crear().Nivel);
+    return 0;
+}
+```
+
+```fst
+class Piedra { }
+Piedra p = Maximo(piedras);
+// el tipo 'Piedra' no cumple la restricción 'IComparable<Piedra>' del parámetro de tipo 'T' de 'Maximo'
+```
+
+## Cómo funciona
+
+Una referencia a interfaz es el mismo puntero al objeto (no hay referencias "gordas"). Para cada
+pareja (clase, interfaz) el compilador genera una tabla con la implementación de cada método, y la
+descripción de la clase guarda la lista de interfaces que implementa con su tabla. Una llamada a
+través de una interfaz busca la interfaz en esa lista (una comparación de punteros por cada interfaz
+implementada, normalmente una o dos) y hace una llamada indirecta. Así una referencia a interfaz
+ocupa lo mismo que cualquier referencia, se compara con `==`, admite `null` y se guarda en una
+`List<IForma>` sin conversiones.
+
+Los structs no se convierten a interfaces (no hay *boxing*); un struct puede declarar interfaces en su
+lista para cumplir restricciones `where`, y el compilador comprueba que las implementa.

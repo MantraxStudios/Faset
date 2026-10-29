@@ -105,7 +105,7 @@ std::string CodeGen::signature(MethodDecl* m) {
     std::string ret = ctype(m->ret) + (m->retIsRef() ? "*" : "");
     std::string s = (hasExportAttr(m) ? "FASET_EXPORT " : "") + ret + " " + m->cname + "(";
     std::vector<std::string> ps;
-    if (!m->isStatic()) ps.push_back(m->owner->cname + "* self");
+    if (!m->isStatic()) ps.push_back(m->objSelf ? objC() + "* faset_self" : m->owner->cname + "* self");
     for (Param& p : m->params) ps.push_back(ctype(p.type) + (p.isRef() ? "*" : "") + " p_" + p.name);
     // [TrackCaller]: parámetros ocultos con la ubicación de la llamada.
     if (m->trackCaller) {
@@ -159,6 +159,7 @@ std::string CodeGen::generate(bool shared) {
     out_ << "\n";
 
     for (ClassDecl* c : sema_.structOrder) out_ << "typedef struct " << c->cname << " " << c->cname << ";\n";
+    emitOO(0);  // descripciones de tipos (runtime) y tipos de las interfaces
     out_ << "\n";
     // Punteros a función (después de las declaraciones de structs).
     for (Type* f : tc_.funcPtrs()) {
@@ -171,6 +172,10 @@ std::string CodeGen::generate(bool shared) {
     for (ClassDecl* c : sema_.structOrder) {
         out_ << "struct " << c->cname << " {\n";
         int n = 0;
+        if (c->kind == ClassKind::Class) {  // la base incrustada (o el puntero al tipo, en object)
+            emitClassStructPrefix(c);
+            n++;
+        }
         for (FieldDecl* f : c->fields) {
             if (f->isStatic()) continue;
             out_ << "    " << ctype(f->type) << " " << f->cname << ";\n";
@@ -210,6 +215,7 @@ std::string CodeGen::generate(bool shared) {
                 out_ << ret << " " << c->cname << kind << i << "(" << ctorParams(c->ctors[i], true) << ");\n";
     }
     out_ << "static void fs__static_init(void);\n\n";
+    emitOO(1);  // vtables, thunks de despacho, descripciones de tipos
 
     // Campos estáticos y variables globales.
     for (ClassDecl* c : prog_.types) {
@@ -278,12 +284,14 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
         std::string args = ctorParams(ctor, false);
         if (isClass) {
             out_ << c->cname << "* " << name << "(" << params << ") {\n";
-            // El destructor queda en la cabecera: lo ejecutan 'delete' o el recolector.
-            std::string dtor = c->dtor && shouldEmit(c->dtor) ? "(void (*)(void*))" + c->dtor->cname : "0";
+            // El destructor (en cadena: derivada y luego base) queda en la cabecera: lo ejecutan
+            // 'delete' o el recolector. El primer campo apunta a la descripción del tipo (vtable).
+            std::string dtor = hasDtorChain(c) ? c->cname + "__dtorchain" : "0";
             out_ << "    " << c->cname << "* self = (" << c->cname << "*)faset_obj_alloc((int64_t)sizeof(" << c->cname
                  << "), " << dtor << ");\n";
-            out_ << "    " << c->cname << "__init(self);\n";
+            out_ << "    *(const faset_type**)self = " << tiOf(c) << ";\n";
             if (ctor) out_ << "    " << ctor->cname << "(self" << (args.empty() ? "" : ", " + args) << ");\n";
+            else out_ << "    " << c->cname << "__ctord(self);\n";
             out_ << "    return self;\n}\n\n";
         } else {
             out_ << c->cname << " " << name << "(" << params << ") {\n";
@@ -303,7 +311,17 @@ void CodeGen::emitMethod(MethodDecl* m) {
     curMethod_ = m;
     out_ << signature(m) << " {\n";
     indent_ = 1;
+    if (m->objSelf) line(m->owner->cname + "* self = (" + m->owner->cname + "*)faset_self;");
     if (!m->isStatic()) line("(void)self;");
+    for (VarInfo* v : m->patternVars) line(ctype(v->type) + " " + v->cname + " = 0;");  // 'is T x'
+    if (m->recordGen) {
+        emitRecordBody(m);
+        indent_ = 0;
+        out_ << "}\n\n";
+        curMethod_ = nullptr;
+        return;
+    }
+    if (m->kind == MethodKind::Ctor) emitCtorPrologue(m);
     for (Stmt* s : m->body->stmts) emitStmt(s);
     indent_ = 0;
     out_ << "}\n\n";
@@ -456,16 +474,17 @@ std::string CodeGen::receiverPtr(Expr* recv, bool arrow) {
     return "((" + t->decl->cname + "[]){" + r + "})";
 }
 
-std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc at) {
+std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc at,
+                          bool nonVirtual) {
     std::vector<std::string> parts;
-    if (!m->isStatic()) parts.push_back(self);
+    if (!m->isStatic()) parts.push_back(selfArg(m, self));
     for (size_t i = 0; i < args.size(); i++) {
         bool byRef = i < m->params.size() && m->params[i].isRef();
         parts.push_back(byRef ? "(&" + expr(args[i]) + ")" : expr(args[i]));
         if (m->trackCaller && i + 1 == m->params.size()) parts.push_back(callerLoc(at));
     }
     if (m->trackCaller && m->params.empty()) parts.push_back(callerLoc(at));
-    std::string s = m->cname + "(";
+    std::string s = calleeName(m, nonVirtual) + "(";
     for (size_t i = 0; i < parts.size(); i++) s += (i ? ", " : "") + parts[i];
     s += ")";
     return m->retIsRef() ? "(*" + s + ")" : s;
@@ -480,6 +499,7 @@ std::string CodeGen::toStr(Expr* e) {
     if (t->is(TK::Char)) return "faset_char_to_str(" + v + ")";
     if (t->is(TK::Float)) return "faset_f32_to_str(" + v + ")";
     if (t->is(TK::Double)) return "faset_f64_to_str(" + v + ")";
+    if (t->isClass()) return strOf(t, v);  // ToString() virtual; null -> ""
     if (t->isUnsignedInt()) return "faset_u64_to_str((uint64_t)(" + v + "))";
     return "faset_i64_to_str((int64_t)(" + v + "))";
 }
@@ -520,7 +540,8 @@ std::string CodeGen::expr(Expr* e) {
             auto* n = static_cast<NameExpr*>(e);
             switch (n->ref) {
                 case NameExpr::Ref::Local: return n->var->isRef ? "(*" + n->var->cname + ")" : n->var->cname;
-                case NameExpr::Ref::Field: return "self->" + n->field->cname;
+                case NameExpr::Ref::Field: return "self->" + fieldPath(curClass_, n->field);
+                case NameExpr::Ref::Base: return "((" + n->type->decl->cname + "*)self)";
                 case NameExpr::Ref::StaticField: return n->field->cname;
                 case NameExpr::Ref::Property: return call(n->getter, "self", {}, n->loc);
                 default: return "/*?*/0";
@@ -529,14 +550,18 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Member: {
             auto* m = static_cast<MemberExpr*>(e);
             switch (m->ref) {
-                case MemberExpr::Ref::Field: return memberAccess(m->obj, m->arrow, m->field->cname);
+                case MemberExpr::Ref::Field: {
+                    Type* ot = m->arrow ? m->obj->type->elem : m->obj->type;
+                    return memberAccess(m->obj, m->arrow, ot->isAggregate() ? fieldPath(ot->decl, m->field) : m->field->cname);
+                }
                 case MemberExpr::Ref::StaticField: return m->field->cname;
                 case MemberExpr::Ref::EnumConst: return "((int32_t)" + std::to_string((int64_t)m->constBits) + "LL)";
                 case MemberExpr::Ref::ConstInt: return "((" + ctype(m->type) + ")" + std::to_string(m->constBits) + "ULL)";
                 case MemberExpr::Ref::StrLength: return "((int32_t)" + memberAccess(m->obj, m->arrow, "len") + ")";
                 case MemberExpr::Ref::StrPtr: return "((uint8_t*)" + memberAccess(m->obj, m->arrow, "ptr") + ")";
                 case MemberExpr::Ref::Property:
-                    return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {}, m->loc);
+                    return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {}, m->loc,
+                                m->nonVirtual);
                 default: return "/*?*/0";
             }
         }
@@ -549,9 +574,11 @@ std::string CodeGen::expr(Expr* e) {
                 for (size_t i = 0; i < c->args.size(); i++) s += (i ? ", " : "") + expr(c->args[i]);
                 return s + ")";
             }
+            if (c->intrinsic == 1)  // ToString() de un enum: nombre del miembro
+                return c->receiver->type->decl->cname + "__name(" + expr(c->receiver) + ")";
             std::string self;
             if (!c->target->isStatic()) self = c->implicitThis ? "self" : receiverPtr(c->receiver, c->receiverArrow);
-            return call(c->target, self, c->args, c->loc);
+            return call(c->target, self, c->args, c->loc, c->nonVirtual);
         }
         case EK::Index: {
             auto* ix = static_cast<IndexExpr*>(e);
@@ -619,15 +646,17 @@ std::string CodeGen::expr(Expr* e) {
             auto* a = static_cast<AssignExpr*>(e);
             if (a->setter) {
                 std::string self;
+                bool nonVirtual = false;
                 if (!a->setter->isStatic()) {
                     if (a->lhs->kind == EK::Member) {
                         auto* m = static_cast<MemberExpr*>(a->lhs);
                         self = receiverPtr(m->obj, m->arrow);
+                        nonVirtual = m->nonVirtual;
                     } else {
                         self = "self";
                     }
                 }
-                return call(a->setter, self, {a->rhs}, a->loc);
+                return call(a->setter, self, {a->rhs}, a->loc, nonVirtual);
             }
             if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}, a->loc) + ")";
             if (a->op == "+=" && a->lhs->type->is(TK::String)) {
@@ -660,6 +689,9 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Cast: {
             auto* c = static_cast<CastExpr*>(e);
             if (c->type == c->operand->type) return expr(c->operand);
+            if (c->checkedDown)  // (Perro)animal: panic si el objeto no es un Perro
+                return "((" + ctype(c->type) + ")faset_cast((void*)(" + expr(c->operand) + "), " + tiOf(c->type->decl) + ", " +
+                       callerLoc(c->loc) + "))";
             if (c->operand->type->isFloating() && (c->type->isIntegral() || c->type->isEnum())) {
                 // Real -> entero: saturado (en C, un valor fuera de rango es comportamiento indefinido).
                 Type* t = c->type;
@@ -698,6 +730,7 @@ std::string CodeGen::expr(Expr* e) {
             std::string t = so->target->isClass() ? so->target->decl->cname : ctype(so->target);
             return "((int32_t)sizeof(" + t + "))";
         }
+        case EK::Is: case EK::As: case EK::TypeOf: case EK::NameOf: case EK::With: return ooExpr(e);
     }
     return "0";
 }

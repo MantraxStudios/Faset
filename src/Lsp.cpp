@@ -370,7 +370,8 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
                 for (FieldDecl* f : c->fields) list.push(symbolAt(f->name, skVariable, f->tref->str(), f->loc));
                 continue;
             }
-            int kind = c->kind == ClassKind::Struct ? skStruct : c->kind == ClassKind::Enum ? skEnum : skClass;
+            int kind = c->kind == ClassKind::Struct ? skStruct : c->kind == ClassKind::Enum ? skEnum
+                       : c->kind == ClassKind::Interface ? 11 /* Interface */ : skClass;
             Json s = symbolAt(c->displayName, kind, c->ns, c->loc);
             Json children = Json::array();
             for (EnumMember& em : c->enumMembers) children.push(symbolAt(em.name, skEnumMember, "", em.loc));

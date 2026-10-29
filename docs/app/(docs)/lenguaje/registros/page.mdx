@@ -1,0 +1,100 @@
+export const metadata = {
+  title: "Registros (record)",
+  description: "record, record class y record struct: constructor y propiedades generados, igualdad por valor, ToString y expresiones with.",
+};
+
+# Registros (record)
+
+<p className="lead">
+  Un <code>record</code> es un tipo para datos: con una sola línea obtienes constructor, propiedades,
+  igualdad por valor, <code>GetHashCode</code>, un <code>ToString</code> legible y copias modificadas
+  con <code>with</code>.
+</p>
+
+```faset
+record Punto(int X, int Y);
+
+int main()
+{
+    Punto a = new Punto(1, 2);
+    Punto b = new Punto(1, 2);
+    Console.WriteLine(a);                       // Punto { X = 1, Y = 2 }
+    println(a == b);                            // true: igualdad por valor
+    println(a.Equals(b));                       // true
+    println(a.GetHashCode() == b.GetHashCode());    // true
+    Punto c = a with { Y = 10 };                // copia con Y cambiado
+    Console.WriteLine(c);                       // Punto { X = 1, Y = 10 }
+    println(a.Y);                               // 2: el original no cambia
+    return 0;
+}
+```
+
+`record Punto(int X, int Y);` genera:
+
+- las propiedades públicas de solo lectura `X` e `Y` y el constructor `Punto(int X, int Y)`;
+- `==` y `!=` que comparan todos los campos (las cadenas por contenido, los objetos con su `Equals`,
+  los registros anidados por valor), y `Equals(object)` / `Equals(Punto)`;
+- `GetHashCode()` coherente con `==`;
+- `ToString()` con el formato `Punto { X = 1, Y = 2 }` (los miembros públicos).
+
+## record class y record struct
+
+`record` y `record class` son clases (tipos referencia, en el heap, pueden ser `null`);
+`record struct` es un struct (tipo valor, se copia). El cuerpo admite los miembros de cualquier
+clase o struct; si declaras tu propio `ToString()` o `GetHashCode()`, se respeta.
+
+```faset
+record class Persona(string Nombre, int Edad)
+{
+    public bool EsAdulta => Edad >= 18;
+    public string Saludo() => "Hola, soy " + Nombre;
+}
+
+record struct Color(byte R, byte G, byte B);
+
+record Par<T>(T A, T B);
+
+record Contador
+{
+    public int N { get; set; }                  // también sin parámetros posicionales
+}
+
+int main()
+{
+    Persona ana = new Persona("Ana", 30);
+    Persona joven = ana with { Edad = 12 };
+    Console.WriteLine(joven);                   // Persona { Nombre = Ana, Edad = 12 }
+    println(ana.EsAdulta + " " + joven.EsAdulta);   // True False
+
+    Color rojo = new Color(255, 0, 0);
+    Color otro = rojo with { B = 10 };
+    println(otro.ToString());                   // Color { R = 255, G = 0, B = 10 }
+    println(rojo == new Color(255, 0, 0));      // true
+
+    Console.WriteLine(new Par<string>("x", "y"));   // Par { A = x, B = y }
+
+    Contador k = new Contador();
+    k.N = 4;
+    Console.WriteLine(k with { N = 8 });        // Contador { N = 8 }
+    return 0;
+}
+```
+
+## with
+
+`expresión with { Propiedad = valor, ... }` crea una copia del registro y cambia las propiedades
+indicadas, que deben ser automáticas (`{ get; }` o `{ get; set; }`) o campos. Con un `record class`
+la copia es un objeto nuevo; con un `record struct`, un valor nuevo.
+
+```fst
+Punto q = p with { Z = 3 };           // 'Punto' no contiene una propiedad 'Z'
+Jugador j2 = j with { Vida = 1 };     // 'with' solo se puede usar con registros (record), no con 'Jugador'
+```
+
+## Limitaciones
+
+- Un `record` no puede heredar de otro `record` con la sintaxis posicional de C#
+  (`record B(int X) : A(X)`); usa composición o una clase.
+- Las propiedades posicionales son de solo lectura (no hay `init`): para cambiarlas, `with`.
+- Un `record struct` no se convierte a `object` (no hay *boxing*): llama a `ToString()` directamente
+  para escribirlo.

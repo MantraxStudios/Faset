@@ -1,0 +1,15 @@
+rectángulo 'rect' (área 6)
+  perímetro: 10
+cuadrado 'cuad' (área 16)
+  perímetro: 16
+círculo de radio 1 'circ' (área 3)
+  perímetro: 0
+total: 25
+creadas: 3
+5
+cuadrado / cuadrado / cuadrado 'cuad' (área 25)
+concatenado: cuadrado 'cuad' (área 25)
+~Archivo datos
+~Recurso datos
+~Archivo log
+~Recurso log

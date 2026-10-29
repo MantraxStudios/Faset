@@ -1,0 +1,30 @@
+6|es abstracto pero la clase 'Animal' no es 'abstract'
+12|no puede tener cuerpo
+15|no implementa el miembro abstracto heredado 'Forma.Area\(\)'
+22|no es virtual
+23|debe ser 'void' para coincidir
+25|marcado como 'override' pero no hay
+26|la firma no coincide con 'Animal.Dormir\(\)'
+31|oculta el miembro virtual heredado
+37|no puede ser privado
+38|un miembro estático no puede ser virtual
+39|no se combina con 'override'
+43|clase sellada
+44|herencia simple
+45|un struct solo puede heredar de interfaces
+47|herencia circular
+48|no se puede heredar de 'int'
+54|debe declarar un constructor que llame a ': base
+57|no contiene un constructor sin parámetros
+61|ninguna sobrecarga de 'Base2'
+70|porque es 'sealed'
+76|'sealed' solo se puede aplicar a un 'override'
+82|no contiene una definición para 'Arrancar'
+86|la propiedad abstracta 'Vehiculo.Ruedas'
+91|instancia de la clase abstracta 'Forma'
+93|no se puede convertir implícitamente el tipo 'Animal' en 'Perro'
+94|nunca puede ser de tipo 'Circulo'
+96|requiere una referencia a clase o interfaz
+97|los tipos no están relacionados
+98|reinterpretar 'Animal' como 'Circulo' requiere un contexto memory_unsafe
+99|base

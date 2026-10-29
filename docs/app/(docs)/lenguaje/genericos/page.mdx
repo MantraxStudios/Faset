@@ -37,8 +37,10 @@ int main()
 
 ## Duck typing
 
-No hace falta declarar restricciones: si el tipo admite lo que la plantilla usa, compila. Las
-cláusulas `where` de C# se aceptan, pero se ignoran.
+No hace falta declarar restricciones: si el tipo admite lo que la plantilla usa, compila. Si
+escribes cláusulas `where` (`where T : class`, `struct`, `new()`, una clase base o una interfaz como
+`IComparable<T>`), se comprueban al instanciar la plantilla con un mensaje claro; consulta
+[interfaces genéricas y restricciones](/lenguaje/interfaces/#interfaces-genéricas-y-restricciones).
 
 ```faset
 using std.collections;

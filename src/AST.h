@@ -56,6 +56,8 @@ struct Modifiers {
     bool hasAccess = false;
     bool isStatic = false, isExtern = false, isConst = false, isReadonly = false, isPartial = false;
     bool isMemoryUnsafe = false;  // modificador 'memory_unsafe'
+    // Herencia: virtual / override / abstract / sealed / new (ocultar un miembro heredado).
+    bool isVirtual = false, isOverride = false, isAbstract = false, isSealed = false, isNew = false;
 };
 
 struct Attribute {
@@ -96,7 +98,8 @@ struct VarInfo {
 
 enum class EK {
     IntLit, FloatLit, BoolLit, CharLit, StringLit, Null, Name, Member, Call, Index, Unary, Postfix,
-    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default
+    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default,
+    Is, As, TypeOf, NameOf, With  // orientación a objetos (ver SemaClasses.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -146,7 +149,7 @@ struct ThisExpr : Expr {
 struct NameExpr : Expr {
     std::string name;
     std::vector<TypeRef*> typeArgs;  // Max<int>(...)
-    enum class Ref { None, Local, Field, StaticField, Property } ref = Ref::None;
+    enum class Ref { None, Local, Field, StaticField, Property, Base } ref = Ref::None;  // Base: 'base'
     VarInfo* var = nullptr;
     FieldDecl* field = nullptr;
     MethodDecl* getter = nullptr;    // Property
@@ -166,6 +169,7 @@ struct MemberExpr : Expr {
     MethodDecl* setter = nullptr;    // Property con 'set'
     uint64_t constBits = 0;          // EnumConst / ConstInt
     bool extension = false;          // grupo de métodos de extensión sobre 'obj'
+    bool nonVirtual = false;         // base.Propiedad: sin despacho virtual
     explicit MemberExpr(SourceLoc l) : Expr(EK::Member, l) {}
 };
 
@@ -176,6 +180,8 @@ struct CallExpr : Expr {
     Expr* receiver = nullptr;        // para métodos de instancia con receptor explícito
     bool receiverArrow = false;
     bool implicitThis = false;
+    bool nonVirtual = false;         // base.Metodo(): llamada directa, sin despacho virtual
+    int intrinsic = 0;               // 1: ToString() de un enum
     explicit CallExpr(SourceLoc l) : Expr(EK::Call, l) {}
 };
 
@@ -229,6 +235,7 @@ struct CastExpr : Expr {
     TypeRef* tref = nullptr;  // nulo en conversiones implícitas insertadas por Sema
     Expr* operand = nullptr;
     bool implicit = false;
+    bool checkedDown = false;  // (Derivada)base o conversión a/desde interfaz: se comprueba al ejecutar
     explicit CastExpr(SourceLoc l) : Expr(EK::Cast, l) {}
 };
 
@@ -254,6 +261,51 @@ struct SizeOfExpr : Expr {
 struct DefaultExpr : Expr {  // default(T): valor cero del tipo
     TypeRef* tref = nullptr;
     explicit DefaultExpr(SourceLoc l) : Expr(EK::Default, l) {}
+};
+
+// x is T / x is T nombre / x is null / x is not null
+struct IsExpr : Expr {
+    Expr* operand = nullptr;
+    TypeRef* tref = nullptr;   // nulo en 'is null'
+    bool negate = false;       // 'is not ...'
+    std::string varName;       // patrón con variable: 'x is Perro p'
+    SourceLoc varLoc;
+    VarInfo* var = nullptr;
+    Type* target = nullptr;
+    bool always = false;       // el tipo estático ya es T: solo se comprueba que no sea null
+    explicit IsExpr(SourceLoc l) : Expr(EK::Is, l) {}
+};
+
+struct AsExpr : Expr {  // x as T: null si x no es un T
+    Expr* operand = nullptr;
+    TypeRef* tref = nullptr;
+    bool always = false;
+    explicit AsExpr(SourceLoc l) : Expr(EK::As, l) {}
+};
+
+struct TypeOfExpr : Expr {  // typeof(T) -> Type
+    TypeRef* tref = nullptr;
+    Type* target = nullptr;
+    explicit TypeOfExpr(SourceLoc l) : Expr(EK::TypeOf, l) {}
+};
+
+struct NameOfExpr : Expr {  // nameof(x) -> "x"
+    Expr* operand = nullptr;
+    std::string value;
+    explicit NameOfExpr(SourceLoc l) : Expr(EK::NameOf, l) {}
+};
+
+struct WithExpr : Expr {  // registro with { X = 1, Y = 2 }
+    struct Init {
+        SourceLoc loc;
+        std::string name;
+        Expr* value = nullptr;
+        FieldDecl* field = nullptr;  // campo de respaldo de la propiedad
+    };
+    Expr* operand = nullptr;
+    std::vector<Init> inits;
+    int id = -1;  // índice en Sema::withExprs (función auxiliar en C)
+    explicit WithExpr(SourceLoc l) : Expr(EK::With, l) {}
 };
 
 // ---------------------------------------------------------------- sentencias
@@ -381,6 +433,14 @@ struct FieldDecl {
 
 enum class MethodKind { Normal, Ctor, Dtor, Getter, Setter, Operator };
 
+// Restricción genérica: where T : class, struct, new(), Base, IComparable<T>
+struct TypeConstraint {
+    SourceLoc loc;
+    std::string param;
+    bool isClass = false, isStruct = false, isNew = false;
+    std::vector<TypeRef*> types;
+};
+
 struct MethodDecl {
     SourceLoc loc;
     FileScope* file = nullptr;  // archivo de origen si viene de otra parte de una clase 'partial'
@@ -419,6 +479,20 @@ struct MethodDecl {
     SourceLoc usedAt;      // primer uso (para notas de error en plantillas)
     MethodDecl* usedBy = nullptr;
 
+    // Orientación a objetos (ver SemaClasses.cpp / CodeGenClasses.cpp)
+    std::vector<TypeConstraint> constraints;
+    int vslot = -1;                    // entrada en la vtable (métodos virtuales y override)
+    MethodDecl* vroot = nullptr;       // método que introdujo la entrada (virtual/abstract)
+    MethodDecl* overridden = nullptr;  // miembro de la base que reemplaza
+    bool objSelf = false;              // en C recibe 'fs_std_Object*' (virtual o implementa una interfaz)
+    int ctorInit = 0;                  // constructor: 1 = ': base(...)', 2 = ': this(...)'
+    std::vector<Expr*> ctorInitArgs;
+    SourceLoc ctorInitLoc;
+    MethodDecl* ctorInitTarget = nullptr;
+    int recordGen = 0;                 // miembro generado por 'record' (1 ToString, 2 GetHashCode, 3 ==)
+    std::vector<VarInfo*> patternVars; // variables de patrones 'is T x' (se declaran al inicio en C)
+    bool isVirtualish() const { return mods.isVirtual || mods.isOverride || mods.isAbstract; }
+
     bool isStatic() const { return mods.isStatic; }
     bool isTemplate() const { return !typeParams.empty() && !templateOf; }
     bool retIsRef() const { return retRef && retRef->isRef; }
@@ -432,7 +506,7 @@ struct EnumMember {
     int64_t val = 0;
 };
 
-enum class ClassKind { Class, Struct, Enum };
+enum class ClassKind { Class, Struct, Enum, Interface };
 
 struct ClassDecl {
     SourceLoc loc;
@@ -462,10 +536,24 @@ struct ClassDecl {
     size_t tokBegin = 0;
     bool signaturesDone = false;
 
+    // Orientación a objetos (ver SemaClasses.cpp)
+    std::vector<TypeRef*> baseRefs;        // ': Base, I1, I2'
+    std::vector<TypeConstraint> constraints;
+    ClassDecl* base = nullptr;             // clase base (std.Object si no se indica)
+    std::vector<ClassDecl*> interfaces;    // interfaces declaradas
+    std::vector<ClassDecl*> allInterfaces; // todas (heredadas incluidas), sin repetir
+    std::vector<MethodDecl*> vtable;       // implementación final de cada entrada
+    std::vector<std::vector<MethodDecl*>> itabs;  // por cada allInterfaces: implementación de cada método
+    int hierarchyState = 0;                // 0 sin resolver, 1 resolviendo, 2 lista
+    bool isRecord = false;
+    bool isInterface() const { return kind == ClassKind::Interface; }
+
     bool isStaticClass() const { return mods.isStatic; }
     bool isTemplate() const { return !typeParams.empty() && !templateOf; }
     // ¿Necesita una definición de struct en C? (clases no estáticas y structs)
-    bool hasLayout() const { return kind != ClassKind::Enum && !mods.isStatic && !isTemplate(); }
+    bool hasLayout() const {
+        return kind != ClassKind::Enum && kind != ClassKind::Interface && !mods.isStatic && !isTemplate();
+    }
 };
 
 struct Program {

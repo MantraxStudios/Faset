@@ -61,6 +61,16 @@ public:
     static std::string methodSignature(MethodDecl* m);
     static std::string typeDescription(ClassDecl* c);
 
+    // ---- orientación a objetos (SemaClasses.cpp)
+    ClassDecl* objectDecl = nullptr;           // std.Object: base universal ('object')
+    ClassDecl* typeDecl = nullptr;             // std.Type: resultado de typeof(T) y GetType()
+    MethodDecl* enumToString = nullptr;        // ToString() de los enums (intrínseco)
+    std::vector<WithExpr*> withExprs;          // expresiones 'with' (función auxiliar en C)
+    std::vector<Type*> typeofTypes;            // typeof(T) con T que no es clase, interfaz ni enum
+    static bool derivesFrom(ClassDecl* c, ClassDecl* target);  // c es target, deriva o lo implementa
+    static MethodDecl* paramlessCtor(ClassDecl* c);
+    MethodDecl* typeFromHandle() const;
+
 private:
     struct Ctx {
         FileScope* file = nullptr;
@@ -177,4 +187,35 @@ private:
     void completeScope();
     void completeMembers(Expr* obj, bool arrow, Type* ot);
     void completeTypes(const std::vector<std::string>& prefix);
+
+    // orientación a objetos (SemaClasses.cpp)
+    struct PendingConstraint {
+        ClassDecl* inst;
+        SourceLoc loc;
+    };
+    std::vector<PendingConstraint> pendingConstraints_;
+    std::string constraintError_;
+    int patternCounter_ = 0;
+    size_t fieldWorkDone_ = 0, workDone_ = 0;  // avance de processWork()
+    void initObjectModel();
+    void resolveHierarchy(ClassDecl* c);
+    void finishClassLayout(ClassDecl* c);
+    std::vector<ClassDecl*> lookupChain(ClassDecl* c);
+    FieldDecl* findField(ClassDecl* c, const std::string& name);
+    MethodDecl* findGetter(ClassDecl* c, const std::string& name);
+    std::vector<MethodDecl*> findMethods(ClassDecl* c, const std::string& name, MethodKind kind = MethodKind::Normal);
+    MethodDecl* findInterfaceImpl(ClassDecl* c, MethodDecl* im);
+    bool accessible(Access a, ClassDecl* owner);
+    bool checkedCastOk(Type* from, Type* to);
+    int inheritCost(ClassDecl* from, ClassDecl* to);
+    bool satisfies(Type* arg, const TypeConstraint& tc, std::string& what);
+    bool checkConstraints(const std::vector<std::string>& params, const std::vector<TypeConstraint>& cons,
+                          const std::map<std::string, Type*>& args, const std::string& owner, std::string& err);
+    bool checkPendingConstraints();
+    void checkCtorInit(MethodDecl* m);
+    bool isBaseExpr(Expr* e) const;
+    Type* checkOO(Expr* e);
+    Type* checkIs(IsExpr* e);
+    Type* checkAs(AsExpr* e);
+    Type* checkWith(WithExpr* e);
 };

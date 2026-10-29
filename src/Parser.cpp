@@ -198,7 +198,7 @@ void Parser::parseNamespaceBody(const std::string& ns, bool braced) {
             size_t begin = p_;
             std::vector<Attribute> attrs = parseAttributes();
             Modifiers mods = parseModifiers();
-            if (isK("class") || isK("struct") || isK("enum") || isK("interface")) {
+            if (isK("class") || isK("struct") || isK("enum") || isK("interface") || isRecordStart()) {
                 parseTypeDecl(ns, attrs, mods, begin);
             } else {
                 hasSection_ = false;
@@ -259,8 +259,12 @@ Modifiers Parser::parseModifiers() {
         else if (cur().kind == TokKind::Ident && cur().text == "partial" && (peekTok().text == "class" || peekTok().text == "struct"))
             p_++, m.isPartial = true;
         else if (cur().kind == TokKind::Ident && (cur().text == "inline" || cur().text == "constexpr")) p_++;
-        else if (isK("virtual") || isK("override") || isK("abstract") || isK("sealed"))
-            fail("'" + cur().text + "' aún no está soportado (la herencia llegará en una versión futura)");
+        else if (acceptK("virtual")) m.isVirtual = true;
+        else if (acceptK("override")) m.isOverride = true;
+        else if (acceptK("abstract")) m.isAbstract = true;
+        else if (acceptK("sealed")) m.isSealed = true;
+        else if (isK("new") && !(peekTok().kind == TokKind::Punct && (peekTok().text == "(" || peekTok().text == "[")))
+            p_++, m.isNew = true;
         else break;
     }
     return m;
@@ -297,8 +301,12 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
     if (acceptK("class")) c->kind = ClassKind::Class;
     else if (acceptK("struct")) c->kind = ClassKind::Struct;
     else if (acceptK("enum")) c->kind = ClassKind::Enum;
-    else if (isK("interface")) fail("las interfaces aún no están soportadas");
-    else fail("se esperaba 'class', 'struct' o 'enum' pero se encontró '" + cur().text + "'");
+    else if (acceptK("interface")) c->kind = ClassKind::Interface;
+    else if (isRecordStart()) {  // record, record class, record struct
+        p_++;
+        c->isRecord = true;
+        c->kind = acceptK("struct") ? ClassKind::Struct : (acceptK("class"), ClassKind::Class);
+    } else fail("se esperaba 'class', 'struct' o 'enum' pero se encontró '" + cur().text + "'");
     c->name = c->displayName = expectIdent();
     c->unsafeCtx = mods.isMemoryUnsafe || nsUnsafe_;
     if (isP("<")) {
@@ -307,15 +315,30 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         c->tokens = toks_;
         c->tokBegin = begin;
     }
+    std::vector<Param> recordParams;
+    bool positional = false;
+    if (c->isRecord && isP("(")) {  // record Punto(int X, int Y)
+        MethodDecl tmp;
+        parseParams(&tmp);
+        recordParams = tmp.params;
+        positional = true;
+    }
     if (acceptP(":")) {
         if (c->kind == ClassKind::Enum && acceptK("int")) {
             // el tipo subyacente de los enums siempre es int
+        } else if (c->kind == ClassKind::Enum) {
+            fail("el tipo subyacente de un enum solo puede ser 'int'");
         } else {
-            fail("la herencia aún no está soportada");
+            do c->baseRefs.push_back(parseType());
+            while (acceptP(","));
         }
     }
-    skipWhereClauses();
+    parseWhereClauses(c->constraints);
     if (!reparse_) prog_.types.push_back(c);
+    if (c->isRecord && acceptP(";")) {
+        synthesizeRecord(c, recordParams, positional);
+        return c;
+    }
     expectP("{");
     if (c->kind == ClassKind::Enum) {
         parseEnumBody(c);
@@ -335,6 +358,7 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         }
         hasSection_ = savedHas;
         section_ = savedSec;
+        if (c->isRecord) synthesizeRecord(c, recordParams, positional);
     }
     expectP("}");
     acceptP(";");
@@ -391,7 +415,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
     if (!mods.hasAccess) {
         if (c->isNamespaceScope) mods.access = Access::Public;
         else if (hasSection_) mods.access = section_;
-        else mods.access = c->kind == ClassKind::Struct ? Access::Public : Access::Private;
+        else mods.access = c->kind == ClassKind::Struct || c->kind == ClassKind::Interface ? Access::Public : Access::Private;
     }
     if (c->isNamespaceScope) mods.isStatic = true;
     SourceLoc loc = cur().loc;
@@ -408,7 +432,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
     if (isK("class") || isK("struct") || isK("enum")) fail("los tipos anidados aún no están soportados");
 
     auto finishMethod = [&](MethodDecl* m) {
-        skipWhereClauses();
+        parseWhereClauses(m->constraints);
         if (acceptP(";")) {
             m->body = nullptr;
         } else if (isP("=>")) {
@@ -465,7 +489,13 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         stamp(m);
         m->name = c->name;
         parseParams(m);
-        if (isP(":")) fail("los inicializadores de constructor (: this(...)) aún no están soportados");
+        if (acceptP(":")) {  // : base(...) / : this(...)
+            m->ctorInitLoc = cur().loc;
+            if (cur().kind == TokKind::Ident && cur().text == "base") p_++, m->ctorInit = 1;
+            else if (acceptK("this")) m->ctorInit = 2;
+            else fail("se esperaba 'base(...)' o 'this(...)' después de ':' en el constructor");
+            m->ctorInitArgs = parseArgs();
+        }
         finishMethod(m);
         c->ctors.push_back(m);
         return;
@@ -538,6 +568,8 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         stamp(m);
         MethodDecl* setter = nullptr;
         FieldDecl* backing = nullptr;  // propiedad automática
+        // En interfaces y propiedades abstractas, 'get;' y 'set;' no tienen cuerpo ni campo.
+        bool noBody = c->kind == ClassKind::Interface || mods.isAbstract;
         auto backingField = [&]() {
             if (backing) return;
             backing = new FieldDecl();
@@ -566,7 +598,9 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                     p_++;
                     if (got) fail("la propiedad ya tiene 'get'");
                     got = true;
-                    if (acceptP(";")) {  // get; automático
+                    if (noBody && acceptP(";")) {
+                        m->body = nullptr;
+                    } else if (acceptP(";")) {  // get; automático
                         backingField();
                         auto* b = new BlockStmt(al);
                         auto* ret = new ReturnStmt(al);
@@ -596,7 +630,9 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                     value.tref = type;
                     value.name = "value";
                     setter->params.push_back(value);
-                    if (acceptP(";")) {  // set; automático
+                    if (noBody && acceptP(";")) {
+                        setter->body = nullptr;
+                    } else if (acceptP(";")) {  // set; automático
                         backingField();
                         auto* b = new BlockStmt(al);
                         auto* st = new ExprStmt(al);
@@ -683,7 +719,7 @@ MethodDecl* Parser::reparseMethod(MethodDecl* tmpl, Program& prog) {
 
 bool Parser::isPrimitiveKw() const {
     static const char* const prims[] = {"void", "bool", "char", "sbyte", "byte", "short", "ushort", "int",
-                                         "uint", "long", "ulong", "float", "double", "string"};
+                                         "uint", "long", "ulong", "float", "double", "string", "object"};
     if (cur().kind != TokKind::Keyword) return false;
     for (const char* p : prims)
         if (cur().text == p) return true;
@@ -1042,7 +1078,11 @@ Expr* Parser::parseBinary(int minPrec) {
     Expr* lhs = parseUnary();
     for (;;) {
         int prec = binaryPrec(cur());
-        if (prec == -2) fail("los operadores 'is' y 'as' aún no están soportados");
+        if (prec == -2) {  // 'is' / 'as': precedencia relacional
+            if (7 < minPrec) return lhs;
+            lhs = parseIsAs(lhs);
+            continue;
+        }
         if (prec < minPrec) return lhs;
         auto* b = new BinaryExpr(cur().loc);
         b->op = cur().text;
@@ -1122,6 +1162,9 @@ Expr* Parser::parsePostfix(Expr* e) {
             m->name = expectIdent();
             tryExprTypeArgs(m->typeArgs);
             e = m;
+        } else if (cur().kind == TokKind::Ident && cur().text == "with" && peekTok().kind == TokKind::Punct &&
+                   peekTok().text == "{") {
+            e = parseWith(e);
         } else if (isP("(")) {
             auto* c = new CallExpr(loc);
             c->callee = e;
@@ -1183,6 +1226,13 @@ Expr* Parser::parsePrimary() {
             return e;
         }
         case TokKind::Ident: {
+            if (tk.text == "nameof" && peekTok().kind == TokKind::Punct && peekTok().text == "(") {
+                p_ += 2;
+                auto* e = new NameOfExpr(loc);
+                e->operand = parseExpr();
+                expectP(")");
+                return e;
+            }
             auto* e = new NameExpr(loc);
             e->name = tk.text;
             if (tk.text == kCompletionMarker) sawMarker_ = true;
@@ -1237,7 +1287,14 @@ Expr* Parser::parsePrimary() {
                 p_++;
                 return e;
             }
-            if (isK("typeof") || isK("stackalloc") || isK("fixed"))
+            if (acceptK("typeof")) {
+                auto* e = new TypeOfExpr(loc);
+                expectP("(");
+                e->tref = parseType();
+                expectP(")");
+                return e;
+            }
+            if (isK("stackalloc") || isK("fixed"))
                 fail("'" + tk.text + "' aún no está soportado");
             break;
         }

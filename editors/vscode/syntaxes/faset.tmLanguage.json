@@ -137,7 +137,7 @@
     "declarations": {
       "patterns": [
         {
-          "match": "\\b(class|struct|enum|interface)\\s+([A-Za-z_]\\w*)",
+          "match": "\\b(class|struct|enum|interface|record)\\s+([A-Za-z_]\\w*)",
           "captures": {
             "1": {
               "name": "storage.type.$1.faset"
@@ -237,7 +237,7 @@
         },
         {
           "name": "keyword.operator.memory.faset",
-          "match": "\\b(new|delete|sizeof|typeof|stackalloc|is|as)\\b"
+          "match": "\\b(new|delete|sizeof|typeof|nameof|stackalloc|is|as|with)\\b"
         },
         {
           "name": "storage.modifier.faset",
@@ -245,7 +245,7 @@
         },
         {
           "name": "storage.type.faset",
-          "match": "\\b(class|struct|enum|interface|namespace|delegate|operator|var|auto|typename|where|get|set)\\b"
+          "match": "\\b(class|struct|enum|interface|record|namespace|delegate|operator|var|auto|typename|where|get|set)\\b"
         },
         {
           "name": "constant.language.faset",
@@ -253,7 +253,7 @@
         },
         {
           "name": "variable.language.this.faset",
-          "match": "\\bthis\\b"
+          "match": "\\b(this|base)\\b"
         }
       ]
     },

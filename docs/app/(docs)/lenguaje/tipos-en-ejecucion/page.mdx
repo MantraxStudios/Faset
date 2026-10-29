@@ -1,0 +1,170 @@
+export const metadata = {
+  title: "Tipos en tiempo de ejecución",
+  description: "is, as, conversiones comprobadas, typeof, GetType, la clase Type, nameof y los nombres de los enums.",
+};
+
+# Tipos en tiempo de ejecución
+
+<p className="lead">
+  Cada clase tiene una descripción de su tipo (nombre, base, interfaces y tamaño) que acompaña a sus
+  objetos. Con ella <code>is</code>, <code>as</code> y las conversiones a una clase derivada son
+  seguras: se comprueban al ejecutar y nunca reinterpretan memoria.
+</p>
+
+## is, as y conversiones comprobadas
+
+```faset
+class Animal { public string Nombre = "?"; }
+class Perro : Animal { public void Ladrar() { println(Nombre + ": ¡guau!"); } }
+class Gato : Animal { }
+
+void Describir(Animal a)
+{
+    if (a is Perro p)                           // patrón con variable: p ya es un Perro
+        p.Ladrar();
+    else if (a is not Gato)
+        println("ni perro ni gato");
+    else
+        println("un gato");
+}
+
+int main()
+{
+    Animal a = new Perro();
+    a.Nombre = "Rex";
+    Describir(a);                               // Rex: ¡guau!
+    Describir(new Gato());                      // un gato
+    println(a is Animal);                       // true
+    Gato g = a as Gato;                         // null: a no es un Gato
+    println(g == null);                         // true
+    Perro p = (Perro)a;                         // conversión comprobada: correcta
+    p.Ladrar();
+    Animal nadie = null;
+    println(nadie is Animal);                   // false: null no es de ningún tipo
+    println(nadie is null);                     // true
+    return 0;
+}
+```
+
+| Expresión | Resultado |
+|---|---|
+| `x is T` | `true` si `x` no es `null` y su tipo real es `T` o deriva de `T` (o implementa la interfaz `T`) |
+| `x is T nombre` | lo mismo y, si es cierto, declara `nombre` de tipo `T` |
+| `x is null`, `x is not null`, `x is not T` | comparación con `null` y negaciones |
+| `x as T` | `x` convertido a `T`, o `null` si no lo es |
+| `(T)x` | `x` convertido a `T`; si no lo es, termina con `Faset panic` (`null` pasa sin error) |
+
+Una conversión que nunca puede funcionar (entre clases sin relación) es un error de compilación con
+`is` y `as`. Con un cast entre clases sin relación, Faset lo trata como una *reinterpretación* de
+memoria y exige `memory_unsafe`; las conversiones dentro de una jerarquía o con interfaces son
+seguras.
+
+```faset
+class Animal { }
+class Perro : Animal { }
+class Gato : Animal { }
+
+int main()
+{
+    Animal a = new Perro();
+    Gato g = (Gato)a;                           // termina aquí:
+    // Faset panic: conversión no válida de Perro a Gato at ejemplo.fst:8
+    return 0;
+}
+```
+
+El mensaje nombra el tipo real del objeto (`Perro`) y el tipo pedido (`Gato`).
+
+## typeof, GetType y Type
+
+`typeof(T)` devuelve el `Type` de un tipo y `obj.GetType()` el del tipo real de un objeto. Dos `Type`
+del mismo tipo son iguales con `==`.
+
+```faset
+namespace Zoo
+{
+    public class Animal { }
+    public class Perro : Animal { }
+}
+
+using Zoo;
+
+int main()
+{
+    Animal a = new Perro();
+    Type t = a.GetType();
+    println(t.Name);                            // Perro
+    println(t.FullName);                        // Zoo.Perro
+    println(t.BaseType.Name);                   // Animal
+    println(t == typeof(Perro));                // true
+    println(typeof(Animal).IsAssignableFrom(t));     // true
+    println(t.IsSubclassOf(typeof(Animal)));         // true
+    println(typeof(Perro).IsInstanceOfType(a));      // true
+    println(typeof(int).Name + " " + typeof(string).Name);   // int string
+    return 0;
+}
+```
+
+| Miembro de `Type` | |
+|---|---|
+| `Name`, `FullName` | nombre (`List<int>`) y nombre con namespace (`std.collections.List<int>`) |
+| `BaseType` | el `Type` de la clase base (`null` para `object`, interfaces y tipos valor) |
+| `IsClass`, `IsInterface`, `IsEnum`, `IsValueType`, `IsAbstract`, `IsSealed`, `IsRecord` | |
+| `IsAssignableFrom(Type otro)` | ¿se puede asignar un `otro` a una variable de este tipo? |
+| `IsSubclassOf(Type otro)`, `IsInstanceOfType(object o)` | |
+| `GetEnumNames()` | los nombres de un enum, en una `List<string>` |
+
+## nameof
+
+`nameof(x)` es el nombre de una variable, tipo, miembro o método como cadena constante; el compilador
+comprueba que existe, así que sobrevive a los renombrados.
+
+```faset
+class Jugador { public int Vida; }
+
+void Curar(Jugador j, int puntos)
+{
+    if (puntos < 0) println(nameof(puntos) + " no puede ser negativo en " + nameof(Curar));
+    else j.Vida += puntos;
+}
+
+int main()
+{
+    Curar(new Jugador(), -5);                   // puntos no puede ser negativo en Curar
+    println(nameof(Jugador.Vida));              // Vida
+    return 0;
+}
+```
+
+## Enums
+
+Un valor de enum conoce el nombre de su miembro, y la clase estática `Enum` convierte en los dos
+sentidos.
+
+```faset
+using std.collections;
+
+enum Color { Rojo, Verde = 5, Azul }
+
+int main()
+{
+    Color c = Color.Azul;
+    println(c.ToString());                      // Azul
+    println(((Color)42).ToString());            // 42: no hay miembro con ese valor
+    Color leido;
+    if (Enum.Parse<Color>("Verde", out leido))  // o Enum.TryParse<Color>(...)
+        println((int)leido);                    // 5
+    println(Enum.Parse<Color>("Rojo").ToString());   // sin 'out': panic si no existe
+    List<string> nombres = Enum.GetNames<Color>();
+    println(nombres.Count + " " + nombres[2]);       // 3 Azul
+    List<Color> valores = Enum.GetValues<Color>();
+    println((int)valores[1]);                        // 5
+    println(Enum.IsDefined<Color>("Morado"));        // false
+    return 0;
+}
+```
+
+<Callout type="nota">
+La concatenación `"x" + color` sigue escribiendo el valor numérico del enum (como en versiones
+anteriores); usa `color.ToString()` para el nombre.
+</Callout>
