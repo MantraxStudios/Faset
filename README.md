@@ -11,8 +11,9 @@
 
 ---
 
-Lenguaje de programación **nativo**, con **tipado estático estricto** y **memoria manual**.
-Su sintaxis **mezcla C# y C++**: clases, propiedades y extensiones de C#, junto con
+Lenguaje de programación **nativo**, con **tipado estático estricto**, **memoria manual** y
+**seguro por defecto**: los punteros y el código nativo viven en bloques `memory_unsafe` bien
+visibles. Su sintaxis **mezcla C# y C++**: clases, propiedades y extensiones de C#, junto con
 punteros, referencias, plantillas, `::`, `delete` y funciones globales de C++.
 
 ```csharp
@@ -136,6 +137,8 @@ faset clean
     <TargetArch>x86_64</TargetArch>          <!-- x86_64 | x86 | arm64 | armv7 -->
     <Configuration>Debug</Configuration>     <!-- Debug | Release -->
     <StaticLink>false</StaticLink>
+    <RuntimeChecks>true</RuntimeChecks>      <!-- comprobaciones en ejecución (por defecto: solo Debug) -->
+    <AllowUnsafe>false</AllowUnsafe>         <!-- true: todo el proyecto es memory_unsafe -->
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="experimentos/**" />                         <!-- excluir archivos -->
@@ -157,11 +160,12 @@ faset run archivo.fst          # archivos sueltos, sin proyecto
 faset check                    # solo errores
 faset emit-c -o salida.c       # ver el C intermedio
 faset build --sanitize         # detecta errores de memoria y fugas (ASan + UBSan)
+faset build -c Release --checks  # Release con las comprobaciones de seguridad activas
 faset build --target android   # binario ARM64; --shared para una .so
 ```
 
 Opciones: `-o`, `-c Debug|Release`, `--target`, `--arch`, `--api`, `--shared`, `--gui`,
-`--static`, `--sanitize`, `--cc`, `-l`, `-L`, `--keep-c`, `-v`.
+`--static`, `--sanitize`, `--checks`, `--no-checks`, `--allow-unsafe`, `--cc`, `-l`, `-L`, `--keep-c`, `-v`.
 
 ## Namespaces, `using` e `import`
 
@@ -191,7 +195,7 @@ importarlos o al usarlos con su nombre completo. `std` se importa siempre.
 | `sbyte` `byte` `short` `ushort` `int` `uint` `long` `ulong` | enteros de 8 a 64 bits |
 | `float` `double`        |                                                    |
 | `string`                | vista UTF-8 inmutable `{ptr, len}` (como `string_view`) |
-| `T*`                    | puntero, con aritmética como en C                  |
+| `T*`                    | puntero, con aritmética como en C (solo en `memory_unsafe`) |
 | `T&`                    | referencia (parámetros, retornos y variables locales) |
 | `delegate*<A, B, R>`    | puntero a función                                  |
 | `struct`                | tipo valor                                         |
@@ -213,7 +217,7 @@ infieren el tipo en tiempo de compilación.
 | sobrecarga `static T operator+(T a, T b)`        | `T& operator[](int i)`                         |
 | genéricos `<T>`, `default(T)`, `where` (ignorado) | se instancian por tipo y con *duck typing*    |
 | `delegate*<...>`, `&Funcion`                     | `new`/`delete`/`delete[]`, destructores `~T()` |
-| `var`, `null`, `int.MaxValue`                    | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` |
+| `var`, `null`, `int.MaxValue`                    | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` (en `memory_unsafe`) |
 | `public`/`private` por miembro                   | secciones `public:` / `private:`               |
 
 Por defecto, los miembros de una `class` son privados y los de un `struct`, públicos (como en C++).
@@ -234,23 +238,108 @@ programa.fst:26:12: nota: requerido por 'List<P>.Sort', usado aquí
 
 ```csharp
 Punto p = new Punto(1, 2);       // struct: valor en la pila
-Punto* pp = &p;  pp->X = 10;     // punteros
 Jugador j = new Jugador();       // class: heap
 delete j;                        // llama a ~Jugador() y libera
-double* v = new double[n];       // arreglo en el heap (a cero)
-delete[] v;
+memory_unsafe
+{
+    Punto* pp = &p;  pp->X = 10; // punteros: solo dentro de memory_unsafe
+    double* v = new double[n];   // arreglo crudo en el heap (a cero)
+    delete[] v;
+}
 ```
 
-Usa `faset build --sanitize` para detectar accesos inválidos y fugas.
+### Seguridad de memoria: `memory_unsafe`
+
+Faset es **seguro por defecto**. El código normal al estilo C# (clases, `new`/`delete`, `List<T>`,
+`Dictionary<K,V>`, `string`, genéricos, propiedades, `ref`/`out`, `T&`, punteros a función con
+`&Funcion`) se escribe sin anotaciones. Lo que puede corromper la memoria solo se permite dentro
+de un **contexto `memory_unsafe`**, de modo que siempre se ve dónde vive el código peligroso:
+
+| Fuera de `memory_unsafe` es un error de compilación |
+|-----------------------------------------------------|
+| declarar o usar tipos puntero (`int*`, `void*`, `List<int*>`…) en variables, campos, parámetros, retornos, conversiones o argumentos genéricos |
+| cualquier expresión cuyo valor sea un puntero: `&x`, `s.Ptr`, `lista.Data`, `new T[n]`, `Memory.Alloc(...)` |
+| desreferenciar (`*p`), `p->x`, indexar un puntero (`p[i]`) y la aritmética de punteros (`p + 1`, `p++`, `p += n`) |
+| reinterpretar referencias (`(Otra)objeto`, `(void*)obj`, conversiones entre punteros a función) |
+| llamar a funciones `extern` (C, Win32, NDK…) y tomar su dirección |
+| llamar a métodos marcados `memory_unsafe` (p. ej. todo `Memory.*`) |
+
+El mensaje indica la línea y cómo arreglarlo:
+
+```
+programa.fst:12:13: error: desreferenciar un puntero ('*') requiere un contexto memory_unsafe
+(usa 'memory_unsafe { ... }' o marca el método o la clase con 'memory_unsafe')
+```
+
+Formas de abrir un contexto `memory_unsafe` (de la más precisa a la más amplia):
+
+```csharp
+memory_unsafe { Memory.Copy(dst, src, n); }   // bloque
+
+memory_unsafe static void Rellenar(int* p, int n) { ... }
+// método: su cuerpo es memory_unsafe *y* solo se puede llamar desde un contexto memory_unsafe
+// (como 'unsafe fn' en Rust). Úsalo para API peligrosas.
+
+public memory_unsafe class Lista { int* datos; ... }
+// clase o struct: implementación confiable. Sus miembros se siguen pudiendo usar desde código
+// seguro, salvo los que tienen punteros en la firma (y los marcados memory_unsafe).
+
+memory_unsafe namespace Bindings { ... }      // todo lo declarado dentro del namespace
+memory_unsafe;                                // directiva: todo el archivo (al principio)
+<AllowUnsafe>true</AllowUnsafe>               // en el .fstproj: todo el proyecto (o --allow-unsafe)
+```
+
+La palabra `unsafe` de C# no existe: da un error que propone `memory_unsafe`. Declarar una función
+`extern` no requiere contexto (su firma puede usar punteros), pero llamarla sí. Una API con
+implementación insegura y firma sin punteros es un **envoltorio seguro**: quien la llama no
+necesita `memory_unsafe`. Así está escrita la biblioteca estándar (`List<T>`, `StringBuilder`,
+`File`…: clases `memory_unsafe` con API pública segura).
+
+#### Comprobaciones en ejecución
+
+Lo que no se puede demostrar al compilar se comprueba al ejecutar. Están **activas en Debug** y
+desactivadas en Release; se controlan con `<RuntimeChecks>true|false</RuntimeChecks>` o con
+`--checks` / `--no-checks` (además definen el símbolo `RUNTIME_CHECKS` para `#if`):
+
+| Comprobación | Qué detecta |
+|--------------|-------------|
+| referencias nulas | `obj.Campo`, `obj.Metodo()`, propiedades e indexadores sobre una referencia `null` |
+| uso después de `delete` | cada objeto lleva una cabecera que `delete` marca como liberada; usarlo después (o hacer `delete` dos veces) termina con un error en vez de corromper memoria. Los objetos liberados pasan por una cuarentena (4096 objetos / 64 MB) antes de volver a `malloc` |
+| índices de cadenas | `s[i]` fuera de `0..s.Length-1` |
+| división entera | `/`, `%`, `/=` y `%=` por cero, y `int.MinValue / -1` |
+| punteros a función | llamada a través de un `delegate*` nulo |
+
+Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… se comprueban
+**siempre**, también en Release. Un fallo escribe en stderr y termina con **código 101**:
+
+```
+Faset panic: List: índice fuera de rango at programa.fst:10
+```
+
+La línea es la de *tu* código, no la de la biblioteca: los métodos con `[TrackCaller]` (como
+`panic`, `assert` o `List.operator[]`) reciben la ubicación de quien los llama. Con
+`FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb.
+Una biblioteca `--shared` y el programa que la usa deben compilarse con el mismo valor de
+`RuntimeChecks` si se pasan objetos entre ellos (la cabecera de los objetos solo existe con checks).
+
+**Rendimiento** (`examples/benchmark_checks.fst`, gcc, x86-64): en Release las comprobaciones
+cuestan un 3 % en total (≈15 % en código dominado por accesos a campos de objetos; ≈0 % en
+cadenas y listas); en Debug (`-O0`) el programa tarda ≈1,75× más con ellas. Sin comprobaciones
+no se emite ningún código de comprobación ni cabecera en los objetos.
+
+**Lo que no cubre** (usa `faset build --sanitize` para encontrarlo): la propiedad de las cadenas
+sigue siendo manual (`String.Free` de una vista o de un literal); una referencia `T&` o un
+parámetro `ref` a un elemento de una `List<T>` deja de ser válido si la lista crece mientras se
+usa; y un uso después de `delete` ya no se detecta cuando el objeto ha salido de la cuarentena.
 
 ### Interoperabilidad nativa
 
 Cualquier función de C, de una DLL de Windows o del NDK de Android se declara como `extern`
-y se llama directamente:
+y se llama directamente desde un contexto `memory_unsafe`:
 
 ```csharp
 static class LibC { public static extern int printf(byte* format, ...); }
-LibC.printf("%d\n".Ptr, 42);
+memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 ```
 
 `[Export("nombre")]` exporta una función con un nombre de símbolo C concreto, por ejemplo
@@ -260,7 +349,7 @@ LibC.printf("%d\n".Ptr, 42);
 
 | Módulo            | Contenido |
 |-------------------|-----------|
-| `std` (siempre)   | `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment`, extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
+| `std` (siempre)   | `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…; `memory_unsafe`), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment`, extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
 | `std.collections` | `List<T>` (`Add`, `Insert`, `Remove`, `Sort`, `Where`, `Select`, `Any`, `Sum`, `Min`, `Max`…), `Stack<T>`, `Queue<T>`, `Dictionary<K,V>` (con `dict[k]` al estilo de C++), `HashSet<T>`, `Algorithms` (`Sort`, `BinarySearch`, `Swap`, `Reverse`, `Fill`) |
 | `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight` |
 | `std.io`          | `File` (`ReadAllText`, `WriteAllText`, `AppendAllText`, `Exists`, `Delete`), `Directory` (`GetEntries`…), `Path` (`GetFullPath`, `Combine`…) |
@@ -274,6 +363,8 @@ LibC.printf("%d\n".Ptr, 42);
 
 Toda la biblioteca está escrita en Faset: puedes leerla y ampliarla en `lib/std/`.
 Para añadir tu propio módulo, crea `lib/<raiz>/<modulo>.fst`; `using raiz.modulo;` lo cargará.
+La biblioteca no tiene privilegios especiales: cada clase que usa punteros o llama al runtime en C
+está marcada `memory_unsafe` (implementación confiable) y su API pública sigue siendo segura.
 
 **Propiedad de la memoria:** las funciones que crean cadenas o colecciones nuevas
 (`String.Concat`, `ToUpper`, `Text.Join`, `Dictionary.Keys`…) devuelven memoria que debes

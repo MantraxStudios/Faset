@@ -34,7 +34,7 @@ private:
     std::map<std::string, ClassDecl*> hidden_;
     bool hasSection_ = false;
     Access section_ = Access::Private;
-
+    bool nsUnsafe_ = false;   // dentro de 'memory_unsafe namespace X { ... }'
     const Token& cur() const { return (*toks_)[p_]; }
     const Token& peekTok(size_t n = 1) const { return (*toks_)[std::min(p_ + n, toks_->size() - 1)]; }
     bool atEnd() const { return cur().kind == TokKind::End; }
@@ -47,6 +47,8 @@ private:
     std::string expectIdent();
     [[noreturn]] void fail(const std::string& msg);
     [[noreturn]] void fail(const SourceLoc& loc, const std::string& msg);
+    bool isUnsafeKw() const { return isK("memory_unsafe") || isK("unsafe"); }
+    void unsafeKeywordError();
     void skipTo(const char* stop);
 
     // declaraciones

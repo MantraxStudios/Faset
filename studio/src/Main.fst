@@ -16,7 +16,7 @@ using FasetStudio.Platform;
 
 namespace FasetStudio
 {
-    public static class Program
+    public memory_unsafe static class Program
     {
         // Busca el compilador 'faset': variable FASET, carpetas superiores al ejecutable o PATH.
         static string FindCompiler()

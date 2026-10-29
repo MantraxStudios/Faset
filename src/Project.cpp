@@ -93,7 +93,7 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
     static const std::vector<std::string> known = {
         "OutputType", "AssemblyName", "RootNamespace", "TargetPlatform", "TargetArch", "AndroidApi",
         "Configuration", "OutputPath", "StaticLink", "EnableDefaultCompileItems", "Version", "Description",
-        "Authors", "Optimize", "DebugSymbols"};
+        "Authors", "Optimize", "DebugSymbols", "RuntimeChecks", "AllowUnsafe"};
     for (XmlNode& g : root.children) {
         if (g.name == "PropertyGroup") {
             for (XmlNode& p : g.children) {
@@ -210,6 +210,19 @@ bool projectTreeSources(const std::string& projPath, std::vector<std::string>& f
         return true;
     };
     return visit(projPath);
+}
+
+bool projectAllowsUnsafe(const std::string& file) {
+    static std::map<std::string, bool> cache;
+    std::string proj = findProjectFor(file);
+    if (proj.empty()) return false;
+    auto it = cache.find(proj);
+    if (it != cache.end()) return it->second;
+    Project p;
+    std::string err;
+    bool allow = loadProject(proj, p, err) && p.boolProp("AllowUnsafe", false);
+    cache[proj] = allow;
+    return allow;
 }
 
 std::string newProjectXml(const std::string& name, const std::string& outputType) {

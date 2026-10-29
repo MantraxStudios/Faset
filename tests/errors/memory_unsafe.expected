@@ -1,0 +1,19 @@
+12|el tipo puntero 'int\*'
+20|el tipo puntero 'int\*'
+25|el tipo puntero 'int\*'
+26|desreferenciar un puntero
+27|tomar la dirección de una variable
+28|indexar un puntero
+29|la aritmética de punteros
+30|la aritmética de punteros
+31|el tipo puntero 'Punto\*'
+32|a través de un puntero
+33|new T\[n\]
+34|obtener el puntero de una cadena
+36|reinterpretar 'Nodo' como 'Otra'
+37|llamar a la función nativa 'Nativo.abs' \(extern\)
+38|usar 'Peligrosa', marcado como 'memory_unsafe'
+39|usar 'Memory.Alloc', marcado como 'memory_unsafe'
+41|usar un valor de tipo puntero
+42|el tipo puntero 'int\*'
+43|usar un valor de tipo puntero

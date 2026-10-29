@@ -60,7 +60,7 @@ namespace FasetStudio.Gfx
         public VkRect2D Clip;
     }
 
-    public class Renderer
+    public memory_unsafe class Renderer
     {
         const int MaxVertices = 400000;
 

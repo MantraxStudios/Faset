@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <AssemblyName>Nativo</AssemblyName>
+    <!-- Todo el proyecto es un contexto memory_unsafe (bindings y código de bajo nivel). -->
+    <AllowUnsafe>true</AllowUnsafe>
+  </PropertyGroup>
+</Project>

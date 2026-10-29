@@ -148,6 +148,7 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
             }
             auto* file = new FileScope();
             file->fileId = diag.addFile(shown, path);
+            file->unsafeCtx = opts.unsafeFiles.count(path) != 0;
             prog.files.push_back(file);
             if (fs::path(path).extension() == ".fstui") src = generateUiSource(src, file->fileId);
             auto toks = std::make_shared<std::vector<Token>>(tokenize(src, file->fileId));

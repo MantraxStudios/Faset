@@ -5,7 +5,7 @@
 // =============================================================================
 namespace FasetStudio.Gfx
 {
-    public static class LogoShape
+    public memory_unsafe static class LogoShape
     {
         // Puntos del original (imagen de 1254 px); la caja del logotipo mide 462 x 462.
         const float OriginX = 425.5f;  // centra horizontalmente los 437 px de ancho

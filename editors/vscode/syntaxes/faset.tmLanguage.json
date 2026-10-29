@@ -241,7 +241,7 @@
         },
         {
           "name": "storage.modifier.faset",
-          "match": "\\b(public|private|protected|internal|static|extern|const|readonly|unsafe|virtual|override|abstract|sealed|inline|constexpr|ref|out|params|this(?=\\s+[A-Za-z_]))\\b"
+          "match": "\\b(public|private|protected|internal|static|extern|const|readonly|memory_unsafe|virtual|override|abstract|sealed|inline|constexpr|ref|out|params|this(?=\\s+[A-Za-z_]))\\b"
         },
         {
           "name": "storage.type.faset",

@@ -19,6 +19,78 @@ void* faset_alloc_zeroed(int64_t size);
 void faset_free(void* p);
 _Bool faset_str_eq(faset_string a, faset_string b);
 int32_t faset_str_cmp(faset_string a, faset_string b);
+
+/* ---- seguridad de memoria
+   FASET_CHECKS=1 (Debug por defecto, o <RuntimeChecks>true</RuntimeChecks> / --checks):
+   cada objeto de clase lleva una cabecera con un número mágico que 'delete' invalida, y el
+   código generado comprueba referencias nulas, objetos ya liberados, índices de cadenas,
+   divisiones enteras por cero y punteros a función nulos. Un fallo termina con
+     Faset panic: <mensaje> at archivo.fst:línea
+   en stderr y código de salida 101 (FASET_PANIC_ABORT=1 llama a abort() para depurar). */
+#if !defined(FASET_CHECKS)
+#  define FASET_CHECKS 0
+#endif
+#if defined(__GNUC__) || defined(__clang__)
+#  define FASET_UNLIKELY(x) __builtin_expect(!!(x), 0)
+#  define FASET_NORETURN __attribute__((noreturn))
+#  define FASET_CHECK_FN static inline __attribute__((always_inline))
+#else
+#  define FASET_UNLIKELY(x) (x)
+#  define FASET_NORETURN
+#  define FASET_CHECK_FN static inline
+#endif
+
+void* faset_obj_alloc(int64_t size);
+_Bool faset_obj_delete_begin(void* p, const char* file, int32_t line);
+void faset_obj_delete_end(void* p);
+FASET_NORETURN void faset_panic_at(faset_string msg, const char* file, int32_t line);
+FASET_NORETURN void faset_panic_msg(const char* msg, const char* file, int32_t line);
+
+#if FASET_CHECKS
+typedef struct faset_obj_hdr { uint64_t magic; uint64_t size; } faset_obj_hdr;
+#define FASET_OBJ_LIVE 0x4A424F5445534146ULL /* "FASETOBJ" */
+#define FASET_OBJ_DEAD 0xDEADDEADFA5E7DEDULL
+FASET_NORETURN void faset_panic_obj(void* p, const char* file, int32_t line);
+FASET_NORETURN void faset_panic_index(int64_t i, int64_t len, const char* file, int32_t line);
+
+/* Referencia a objeto: no nula y no liberada con 'delete'. */
+FASET_CHECK_FN void* faset_chk_obj(void* p, const char* f, int32_t l) {
+    if (FASET_UNLIKELY(!p || ((faset_obj_hdr*)p)[-1].magic != FASET_OBJ_LIVE)) faset_panic_obj(p, f, l);
+    return p;
+}
+FASET_CHECK_FN void* faset_chk_fn(void* p, const char* f, int32_t l) {
+    if (FASET_UNLIKELY(!p)) faset_panic_msg("llamada a través de un puntero a función nulo", f, l);
+    return p;
+}
+FASET_CHECK_FN uint8_t faset_str_at(faset_string s, int64_t i, const char* f, int32_t l) {
+    if (FASET_UNLIKELY((uint64_t)i >= (uint64_t)s.len)) faset_panic_index(i, s.len, f, l);
+    return s.ptr[i];
+}
+#define FASET_DIV_FN(T, N, MIN)                                                                       \
+    FASET_CHECK_FN T faset_div_##N(T a, T b, const char* f, int32_t l) {                                \
+        if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);                  \
+        if (MIN && FASET_UNLIKELY(b == (T)-1 && a == (T)MIN)) faset_panic_msg("desbordamiento en la división entera", f, l); \
+        return a / b;                                                                                 \
+    }                                                                                                 \
+    FASET_CHECK_FN T faset_mod_##N(T a, T b, const char* f, int32_t l) {                                \
+        if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero (operador %)", f, l);     \
+        if (MIN && FASET_UNLIKELY(b == (T)-1)) return 0;                                              \
+        return a % b;                                                                                 \
+    }
+FASET_DIV_FN(int32_t, i32, INT32_MIN)
+FASET_DIV_FN(int64_t, i64, INT64_MIN)
+FASET_DIV_FN(uint32_t, u32, 0)
+FASET_DIV_FN(uint64_t, u64, 0)
+/* Divisor de '/=' y '%=': solo se comprueba el cero. */
+FASET_CHECK_FN int64_t faset_divisor_i64(int64_t b, const char* f, int32_t l) {
+    if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);
+    return b;
+}
+FASET_CHECK_FN uint64_t faset_divisor_u64(uint64_t b, const char* f, int32_t l) {
+    if (FASET_UNLIKELY(b == 0)) faset_panic_msg("división entera por cero", f, l);
+    return b;
+}
+#endif
 )FASET";
 
 const char* const kRuntimeSource = R"FASET(
@@ -85,6 +157,56 @@ void* faset_realloc(void* p, int64_t size) {
 }
 
 void faset_free(void* p) { free(p); }
+
+/* ---- objetos de clase ('new' / 'delete') */
+#if FASET_CHECKS
+/* Cuarentena: los objetos liberados no se devuelven enseguida a malloc, para que un uso
+   posterior encuentre la cabecera marcada como liberada (y no memoria reutilizada). */
+#define FASET_QUAR_SLOTS 4096
+#define FASET_QUAR_BYTES ((int64_t)64 << 20)
+static faset_obj_hdr* faset_quar[FASET_QUAR_SLOTS];
+static int faset_quar_head, faset_quar_count;
+static int64_t faset_quar_bytes;
+static volatile char faset_quar_lock;
+
+void* faset_obj_alloc(int64_t size) {
+    faset_obj_hdr* h = (faset_obj_hdr*)faset_alloc_zeroed((int64_t)sizeof(faset_obj_hdr) + (size > 0 ? size : 1));
+    h->magic = FASET_OBJ_LIVE;
+    h->size = (uint64_t)size;
+    return h + 1;
+}
+
+_Bool faset_obj_delete_begin(void* p, const char* file, int32_t line) {
+    if (!p) return 0;
+    faset_obj_hdr* h = (faset_obj_hdr*)p - 1;
+    if (h->magic == FASET_OBJ_DEAD) faset_panic_msg("'delete' doble: el objeto ya se había liberado", file, line);
+    if (h->magic != FASET_OBJ_LIVE)
+        faset_panic_msg("'delete' de una referencia que no apunta a un objeto creado con 'new'", file, line);
+    return 1;
+}
+
+void faset_obj_delete_end(void* p) {
+    faset_obj_hdr* h = (faset_obj_hdr*)p - 1;
+    h->magic = FASET_OBJ_DEAD;
+    while (__atomic_test_and_set(&faset_quar_lock, __ATOMIC_ACQUIRE)) {}
+    while (faset_quar_count > 0 &&
+           (faset_quar_count == FASET_QUAR_SLOTS || faset_quar_bytes + (int64_t)h->size > FASET_QUAR_BYTES)) {
+        faset_obj_hdr* old = faset_quar[faset_quar_head];
+        faset_quar_head = (faset_quar_head + 1) % FASET_QUAR_SLOTS;
+        faset_quar_count--;
+        faset_quar_bytes -= (int64_t)old->size;
+        free(old);
+    }
+    faset_quar[(faset_quar_head + faset_quar_count) % FASET_QUAR_SLOTS] = h;
+    faset_quar_count++;
+    faset_quar_bytes += (int64_t)h->size;
+    __atomic_clear(&faset_quar_lock, __ATOMIC_RELEASE);
+}
+#else
+void* faset_obj_alloc(int64_t size) { return faset_alloc_zeroed(size); }
+_Bool faset_obj_delete_begin(void* p, const char* file, int32_t line) { (void)file; (void)line; return p != 0; }
+void faset_obj_delete_end(void* p) { free(p); }
+#endif
 void faset_mem_copy(void* dst, const void* src, int64_t n) { if (n > 0) memmove(dst, src, (size_t)n); }
 void faset_mem_set(void* dst, int32_t v, int64_t n) { if (n > 0) memset(dst, v, (size_t)n); }
 int32_t faset_mem_compare(const void* a, const void* b, int64_t n) { return n > 0 ? memcmp(a, b, (size_t)n) : 0; }
@@ -225,13 +347,48 @@ faset_string faset_read_line(void) {
 
 /* ---- errores */
 
+/* Un 'panic' termina el programa con código 101 (FASET_PANIC_ABORT=1: abort(), para depurar). */
+static FASET_NORETURN void faset_panic_exit(void) {
+    fflush(stderr);
+    const char* a = getenv("FASET_PANIC_ABORT");
+    if (a && *a && *a != '0') abort();
+    exit(101);
+}
+
 void faset_panic(faset_string msg) {
     fflush(stdout);
-    fputs("panic: ", stderr);
+    fputs("Faset panic: ", stderr);
     if (msg.len) fwrite(msg.ptr, 1, (size_t)msg.len, stderr);
     fputc('\n', stderr);
-    abort();
+    faset_panic_exit();
 }
+
+void faset_panic_at(faset_string msg, const char* file, int32_t line) {
+    fflush(stdout);
+    fputs("Faset panic: ", stderr);
+    if (msg.len) fwrite(msg.ptr, 1, (size_t)msg.len, stderr);
+    fprintf(stderr, " at %s:%d\n", file ? file : "?", (int)line);
+    faset_panic_exit();
+}
+
+void faset_panic_msg(const char* msg, const char* file, int32_t line) {
+    faset_panic_at(faset_str_from_cstr((const uint8_t*)msg), file, line);
+}
+
+#if FASET_CHECKS
+void faset_panic_obj(void* p, const char* file, int32_t line) {
+    if (!p) faset_panic_msg("referencia nula (null): el objeto no existe", file, line);
+    if (((faset_obj_hdr*)p)[-1].magic == FASET_OBJ_DEAD)
+        faset_panic_msg("uso de un objeto después de 'delete'", file, line);
+    faset_panic_msg("referencia no válida: no apunta a un objeto creado con 'new'", file, line);
+}
+
+void faset_panic_index(int64_t i, int64_t len, const char* file, int32_t line) {
+    char buf[96];
+    snprintf(buf, sizeof buf, "índice fuera de rango: %lld (longitud %lld)", (long long)i, (long long)len);
+    faset_panic_msg(buf, file, line);
+}
+#endif
 
 void faset_write_err_str(faset_string s) { if (s.len) fwrite(s.ptr, 1, (size_t)s.len, stderr); }
 

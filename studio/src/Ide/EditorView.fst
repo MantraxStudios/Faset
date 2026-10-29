@@ -10,7 +10,7 @@ using FasetStudio.Platform;
 
 namespace FasetStudio.Ide
 {
-    public class EditorView
+    public memory_unsafe class EditorView
     {
         public Document Doc;
         public Designer Designer;   // solo para .fstui

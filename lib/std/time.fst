@@ -7,7 +7,7 @@ namespace std.time
     static extern long faset_time_unix_ms();
     static extern void faset_sleep_ms(long ms);
 
-    public static class Time
+    public memory_unsafe static class Time
     {
         // Milisegundos desde un punto arbitrario (monótono: para medir intervalos).
         public static long TickMs() => faset_ticks_ms();
@@ -17,7 +17,7 @@ namespace std.time
         public static void Sleep(long milliseconds) { faset_sleep_ms(milliseconds); }
     }
 
-    public struct Stopwatch
+    public memory_unsafe struct Stopwatch
     {
         long startMs;
         long accumulated;

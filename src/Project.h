@@ -7,6 +7,8 @@
 //     <TargetPlatform>native</TargetPlatform>   native | linux | windows | android
 //     <TargetArch>x86_64</TargetArch>           x86_64 | x86 | arm64 | armv7
 //     <Configuration>Debug</Configuration>      Debug | Release
+//     <RuntimeChecks>true</RuntimeChecks>        comprobaciones en ejecución (por defecto: solo Debug)
+//     <AllowUnsafe>false</AllowUnsafe>           todo el proyecto es un contexto memory_unsafe
 //   </PropertyGroup>
 //   <ItemGroup>
 //     <Compile Remove="pruebas/**" />
@@ -46,6 +48,9 @@ std::string findProjectFor(const std::string& file);
 
 // Archivos de un proyecto y de todos los que referencia (recursivo).
 bool projectTreeSources(const std::string& projPath, std::vector<std::string>& files, std::string& error);
+
+// ¿El proyecto al que pertenece 'file' tiene <AllowUnsafe>true</AllowUnsafe>? (con caché)
+bool projectAllowsUnsafe(const std::string& file);
 
 // Contenido de un proyecto nuevo.
 std::string newProjectXml(const std::string& name, const std::string& outputType);

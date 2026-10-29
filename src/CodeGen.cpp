@@ -98,6 +98,11 @@ std::string CodeGen::signature(MethodDecl* m) {
     std::vector<std::string> ps;
     if (!m->isStatic()) ps.push_back(m->owner->cname + "* self");
     for (Param& p : m->params) ps.push_back(ctype(p.type) + (p.isRef() ? "*" : "") + " p_" + p.name);
+    // [TrackCaller]: parámetros ocultos con la ubicación de la llamada.
+    if (m->trackCaller) {
+        ps.push_back("const char* fs_file");
+        ps.push_back("int32_t fs_line");
+    }
     if (m->variadic) ps.push_back("...");
     if (ps.empty()) ps.push_back("void");
     for (size_t i = 0; i < ps.size(); i++) s += (i ? ", " : "") + ps[i];
@@ -119,11 +124,30 @@ std::string CodeGen::ctorParams(MethodDecl* ctor, bool withTypes) {
 
 void CodeGen::line(const std::string& s) { out_ << std::string(indent_ * 4, ' ') << s << "\n"; }
 
+std::string CodeGen::loc(SourceLoc l) { return "fs__f" + std::to_string(l.file) + ", " + std::to_string(l.line); }
+
+// Dentro de un método [TrackCaller] se reenvía la ubicación que recibió (como en Rust).
+std::string CodeGen::callerLoc(SourceLoc l) {
+    if (curMethod_ && curMethod_->trackCaller) return "fs_file, fs_line";
+    return loc(l);
+}
+
+// Comprueba (si checks) que una referencia a clase no es nula ni apunta a un objeto liberado.
+std::string CodeGen::chkObj(Expr* obj, const std::string& code) {
+    if (!checks || obj->kind == EK::This) return code;
+    return "((" + ctype(obj->type) + ")faset_chk_obj((void*)" + code + ", " + callerLoc(obj->loc) + "))";
+}
+
 // ------------------------------------------------------------------ programa
 
 std::string CodeGen::generate(bool shared) {
     out_ << "/* Generado por fasetc. No editar a mano. */\n";
+    if (checks) out_ << "#ifndef FASET_CHECKS\n#define FASET_CHECKS 1\n#endif\n";
     out_ << kRuntimeHeader << "\n";
+    // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
+    for (size_t i = 0; i < diag.files.size(); i++)
+        out_ << "static const char fs__f" << i << "[] = " << cstring(diag.files[i]) << ";\n";
+    out_ << "\n";
 
     for (ClassDecl* c : sema_.structOrder) out_ << "typedef struct " << c->cname << " " << c->cname << ";\n";
     out_ << "\n";
@@ -245,7 +269,7 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
         std::string args = ctorParams(ctor, false);
         if (isClass) {
             out_ << c->cname << "* " << name << "(" << params << ") {\n";
-            out_ << "    " << c->cname << "* self = (" << c->cname << "*)faset_alloc_zeroed((int64_t)sizeof(" << c->cname
+            out_ << "    " << c->cname << "* self = (" << c->cname << "*)faset_obj_alloc((int64_t)sizeof(" << c->cname
                  << "));\n";
             out_ << "    " << c->cname << "__init(self);\n";
             if (ctor) out_ << "    " << ctor->cname << "(self" << (args.empty() ? "" : ", " + args) << ");\n";
@@ -378,7 +402,19 @@ void CodeGen::emitStmt(Stmt* s) {
             ClassDecl* target = nullptr;
             if (t->isClass()) target = t->decl;
             else if (t->isPointer() && t->elem->isStruct()) target = t->elem->decl;
-            if (target && target->dtor && !ds->isArray) {
+            if (t->isClass()) {
+                // Objeto de clase: con checks, un 'delete' doble o de algo que no es un objeto
+                // termina con un panic antes de llamar al destructor.
+                std::string tmp = "faset_tmp" + std::to_string(tmp_++);
+                line("{");
+                indent_++;
+                line(target->cname + "* " + tmp + " = " + expr(ds->expr) + ";");
+                std::string dtor = target->dtor && !ds->isArray ? target->dtor->cname + "(" + tmp + "); " : "";
+                line("if (faset_obj_delete_begin(" + tmp + ", " + callerLoc(ds->loc) + ")) { " + dtor +
+                     "faset_obj_delete_end(" + tmp + "); }");
+                indent_--;
+                line("}");
+            } else if (target && target->dtor && !ds->isArray) {
                 std::string tmp = "faset_tmp" + std::to_string(tmp_++);
                 line("{");
                 indent_++;
@@ -403,7 +439,7 @@ std::string CodeGen::memberAccess(Expr* obj, bool arrow, const std::string& fiel
         if (ot->elem->isClass()) return "(*" + o + ")->" + field;
         return "(" + o + ")->" + field;
     }
-    if (ot->isClass()) return "(" + o + ")->" + field;
+    if (ot->isClass()) return "(" + chkObj(obj, o) + ")->" + field;
     return "(" + o + ")." + field;
 }
 
@@ -411,19 +447,21 @@ std::string CodeGen::receiverPtr(Expr* recv, bool arrow) {
     std::string r = expr(recv);
     Type* t = recv->type;
     if (arrow) return t->elem->isClass() ? "(*" + r + ")" : r;
-    if (t->isClass()) return r;
+    if (t->isClass()) return chkObj(recv, r);
     if (isLValue(recv)) return "(&" + r + ")";
     // Receptor temporal (p. ej. resultado de una llamada): literal compuesto de C99.
     return "((" + t->decl->cname + "[]){" + r + "})";
 }
 
-std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args) {
+std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc at) {
     std::vector<std::string> parts;
     if (!m->isStatic()) parts.push_back(self);
     for (size_t i = 0; i < args.size(); i++) {
         bool byRef = i < m->params.size() && m->params[i].isRef();
         parts.push_back(byRef ? "(&" + expr(args[i]) + ")" : expr(args[i]));
+        if (m->trackCaller && i + 1 == m->params.size()) parts.push_back(callerLoc(at));
     }
+    if (m->trackCaller && m->params.empty()) parts.push_back(callerLoc(at));
     std::string s = m->cname + "(";
     for (size_t i = 0; i < parts.size(); i++) s += (i ? ", " : "") + parts[i];
     s += ")";
@@ -468,7 +506,7 @@ std::string CodeGen::expr(Expr* e) {
                 case NameExpr::Ref::Local: return n->var->isRef ? "(*" + n->var->cname + ")" : n->var->cname;
                 case NameExpr::Ref::Field: return "self->" + n->field->cname;
                 case NameExpr::Ref::StaticField: return n->field->cname;
-                case NameExpr::Ref::Property: return call(n->getter, "self", {});
+                case NameExpr::Ref::Property: return call(n->getter, "self", {}, n->loc);
                 default: return "/*?*/0";
             }
         }
@@ -482,31 +520,38 @@ std::string CodeGen::expr(Expr* e) {
                 case MemberExpr::Ref::StrLength: return "((int32_t)" + memberAccess(m->obj, m->arrow, "len") + ")";
                 case MemberExpr::Ref::StrPtr: return "((uint8_t*)" + memberAccess(m->obj, m->arrow, "ptr") + ")";
                 case MemberExpr::Ref::Property:
-                    return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {});
+                    return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {}, m->loc);
                 default: return "/*?*/0";
             }
         }
         case EK::Call: {
             auto* c = static_cast<CallExpr*>(e);
             if (!c->target) {  // puntero a función
-                std::string s = "(" + expr(c->callee) + ")(";
+                std::string fn = expr(c->callee);
+                if (checks)
+                    fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + fn + ", " + callerLoc(c->loc) + "))";
+                std::string s = "(" + fn + ")(";
                 for (size_t i = 0; i < c->args.size(); i++) s += (i ? ", " : "") + expr(c->args[i]);
                 return s + ")";
             }
             std::string self;
             if (!c->target->isStatic()) self = c->implicitThis ? "self" : receiverPtr(c->receiver, c->receiverArrow);
-            return call(c->target, self, c->args);
+            return call(c->target, self, c->args, c->loc);
         }
         case EK::Index: {
             auto* ix = static_cast<IndexExpr*>(e);
-            if (ix->opMethod) return call(ix->opMethod, receiverPtr(ix->obj, false), {ix->index});
-            if (ix->obj->type->is(TK::String)) return "(" + expr(ix->obj) + ").ptr[" + expr(ix->index) + "]";
+            if (ix->opMethod) return call(ix->opMethod, receiverPtr(ix->obj, false), {ix->index}, ix->loc);
+            if (ix->obj->type->is(TK::String)) {
+                if (checks)
+                    return "faset_str_at(" + expr(ix->obj) + ", " + expr(ix->index) + ", " + callerLoc(ix->loc) + ")";
+                return "(" + expr(ix->obj) + ").ptr[" + expr(ix->index) + "]";
+            }
             return "(" + expr(ix->obj) + ")[" + expr(ix->index) + "]";
         }
         case EK::Unary: {
             auto* u = static_cast<UnaryExpr*>(e);
             if (u->funcRef) return "(&" + u->funcRef->cname + ")";
-            if (u->opMethod) return call(u->opMethod, "", {u->operand});
+            if (u->opMethod) return call(u->opMethod, "", {u->operand}, u->loc);
             if (u->op == "-" && u->operand->kind == EK::IntLit) {
                 uint64_t v = static_cast<IntLitExpr*>(u->operand)->value;
                 return "((" + ctype(e->type) + ")(0ULL - " + std::to_string(v) + "ULL))";
@@ -520,7 +565,7 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Binary: {
             auto* b = static_cast<BinaryExpr*>(e);
             if (b->opMethod) {
-                std::string c = call(b->opMethod, "", {b->lhs, b->rhs});
+                std::string c = call(b->opMethod, "", {b->lhs, b->rhs}, b->loc);
                 return b->negate ? "(!" + c + ")" : c;
             }
             std::string l = expr(b->lhs), r = expr(b->rhs);
@@ -533,6 +578,16 @@ std::string CodeGen::expr(Expr* e) {
                 return "(faset_str_cmp(" + l + ", " + r + ") " + b->op + " 0)";
             }
             if (b->op == "-" && lt->isPointer() && b->rhs->type->isPointer()) return "((int64_t)(" + l + " - " + r + "))";
+            if (checks && (b->op == "/" || b->op == "%") && e->type->isIntegral()) {
+                // División entera: el cero (y MIN / -1) terminaría el programa con SIGFPE.
+                int64_t k = 0;
+                bool safeConst = sema_.constEval(b->rhs, k) && k != 0 && k != -1;
+                const char* suffix = e->type->is(TK::Int) ? "i32" : e->type->is(TK::Long) ? "i64"
+                                     : e->type->is(TK::UInt) ? "u32" : e->type->is(TK::ULong) ? "u64" : nullptr;
+                if (!safeConst && suffix)
+                    return std::string(b->op == "/" ? "faset_div_" : "faset_mod_") + suffix + "(" + l + ", " + r + ", " +
+                           callerLoc(b->loc) + ")";
+            }
             return "(" + l + " " + b->op + " " + r + ")";
         }
         case EK::Assign: {
@@ -547,9 +602,17 @@ std::string CodeGen::expr(Expr* e) {
                         self = "self";
                     }
                 }
-                return call(a->setter, self, {a->rhs});
+                return call(a->setter, self, {a->rhs}, a->loc);
             }
-            if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}) + ")";
+            if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}, a->loc) + ")";
+            if (checks && (a->op == "/=" || a->op == "%=") && a->lhs->type->isIntegral()) {
+                int64_t k = 0;
+                if (!(sema_.constEval(a->rhs, k) && k != 0)) {
+                    bool u64 = a->lhs->type->is(TK::ULong);
+                    return "(" + expr(a->lhs) + " " + a->op + " " + (u64 ? "faset_divisor_u64(" : "faset_divisor_i64(") +
+                           expr(a->rhs) + ", " + callerLoc(a->loc) + "))";
+                }
+            }
             return "(" + expr(a->lhs) + " " + a->op + " " + expr(a->rhs) + ")";
         }
         case EK::Cond: {

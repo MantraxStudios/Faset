@@ -101,6 +101,8 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
         interest.insert(focus);
     }
     fo.libDir = findLibDir(argv0);
+    for (const std::string& f : fo.inputs)
+        if (projectAllowsUnsafe(f)) fo.unsafeFiles.insert(normalizePath(f));
     fo.overrides = &overrides;
     fo.analyzeWithParseErrors = true;
 #if defined(_WIN32)

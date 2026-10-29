@@ -24,7 +24,7 @@ namespace std.io
     static extern bool faset_dir_exists(string path);
     static extern bool faset_dir_create(string path);
 
-    public static class File
+    public memory_unsafe static class File
     {
         // Lee todo el archivo. Devuelve una cadena nueva (libérala con String.Free).
         public static bool TryReadAllText(string path, out string content)
@@ -61,7 +61,7 @@ namespace std.io
         }
     }
 
-    public static class Directory
+    public memory_unsafe static class Directory
     {
         public static bool Exists(string path) => faset_dir_exists(path);
         public static bool Create(string path) => faset_dir_create(path);
@@ -121,7 +121,7 @@ namespace std.io
     }
 
     // Las funciones de Path devuelven vistas de la ruta original, salvo Combine.
-    public static class Path
+    public memory_unsafe static class Path
     {
         static int LastSeparator(string path)
         {

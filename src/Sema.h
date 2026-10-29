@@ -68,8 +68,10 @@ private:
         ClassDecl* cls = nullptr;
         MethodDecl* method = nullptr;
         bool isStatic = true;
+        FieldDecl* field = nullptr;  // campo cuyo tipo o inicializador se comprueba
         std::vector<std::map<std::string, VarInfo*>> scopes;
         int loopDepth = 0, switchDepth = 0;
+        int unsafeDepth = 0;  // bloques 'memory_unsafe { }' abiertos
     };
     struct CtxSave {
         Sema& s;
@@ -148,6 +150,13 @@ private:
     std::vector<MethodDecl*> operatorsFor(Type* a, Type* b, const std::string& name);
     void coerceArgs(MethodDecl* m, std::vector<Expr*>& args);
     void checkAccess(Access a, ClassDecl* owner, const std::string& what, SourceLoc loc);
+
+    // seguridad de memoria (memory_unsafe)
+    std::set<std::pair<int, int>> unsafeReported_;  // (archivo, línea): un error por línea
+    bool unsafeCtx() const;
+    void unsafeError(SourceLoc loc, const std::string& what);
+    void requireSafeCall(MethodDecl* m, SourceLoc loc);
+    void pointerExprError(Expr* e);
 
     // conversiones
     bool implicitNumeric(Type* from, Type* to);

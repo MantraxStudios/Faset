@@ -63,6 +63,9 @@ struct Options {
     std::string arch;
     int androidApi = 0;
     int shared = -1, debug = -1, gui = -1, staticLink = -1;  // -1 = no indicado
+    int checks = -1;          // comprobaciones en ejecución; -1 = según la configuración
+    bool allowUnsafe = false;  // --allow-unsafe: todos los archivos son memory_unsafe
+    std::set<std::string> unsafeFiles;  // archivos de proyectos con <AllowUnsafe>
     bool keepC = false, verbose = false, sanitize = false;
     std::string cc;
     std::string configuration;
@@ -103,6 +106,9 @@ static void usage() {
         "  --debug / --release  Atajos de -c Debug / -c Release\n"
         "  --cc <compilador>    Compilador de C (también: variable FASET_CC)\n"
         "  -l <lib>  -L <dir>   Bibliotecas nativas\n"
+        "  --checks/--no-checks Comprobaciones en ejecución: nulos, delete doble, índices,\n"
+        "                       división por cero (por defecto: activas solo en Debug)\n"
+        "  --allow-unsafe       Trata todos los archivos como contexto memory_unsafe\n"
         "  --sanitize           Detecta errores de memoria en ejecución (ASan + UBSan)\n"
         "  --keep-c             Conserva el C generado junto a la salida\n"
         "  -v, --verbose        Muestra los comandos ejecutados\n",
@@ -290,8 +296,11 @@ static bool loadProjectTree(const std::string& path, Options& o) {
             if (!visit(ref, false)) return false;
         }
         stack.pop_back();
-        for (const std::string& f : projectSources(*proj))
+        bool allowUnsafe = proj->boolProp("AllowUnsafe", false);
+        for (const std::string& f : projectSources(*proj)) {
             if (std::find(o.inputs.begin(), o.inputs.end(), f) == o.inputs.end()) o.inputs.push_back(f);
+            if (allowUnsafe) o.unsafeFiles.insert(normalizePath(f));
+        }
         o.libs.insert(o.libs.end(), proj->nativeLibs.begin(), proj->nativeLibs.end());
         o.platformLibs.insert(o.platformLibs.end(), proj->platformLibs.begin(), proj->platformLibs.end());
         o.libDirs.insert(o.libDirs.end(), proj->libPaths.begin(), proj->libPaths.end());
@@ -311,6 +320,7 @@ static void applyProjectSettings(Options& o) {
     if (o.gui < 0) o.gui = ot == "WinExe";
     if (o.staticLink < 0) o.staticLink = p->boolProp("StaticLink", false);
     if (o.configuration.empty()) o.configuration = p->prop("Configuration", "Debug");
+    if (o.checks < 0 && !p->prop("RuntimeChecks").empty()) o.checks = p->boolProp("RuntimeChecks", false);
 }
 
 // ------------------------------------------------------------------ compilación
@@ -319,7 +329,11 @@ static bool frontEnd(Options& o, std::string* csrc) {
     FrontendOptions fo;
     fo.inputs = o.inputs;
     fo.defines = definesFor(o.target, o.configuration);
+    if (o.checks == 1) fo.defines.insert("RUNTIME_CHECKS");
     fo.libDir = findLibDir(o.argv0);
+    fo.unsafeFiles = o.unsafeFiles;
+    if (o.allowUnsafe)
+        for (const std::string& f : o.inputs) fo.unsafeFiles.insert(normalizePath(f));
     if (fo.libDir.empty()) {
         diag.fatal("no se encontró la biblioteca estándar (carpeta 'lib' con std/core.fst); define FASET_LIB");
         return false;
@@ -339,7 +353,11 @@ static bool frontEnd(Options& o, std::string* csrc) {
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
-    if (csrc) *csrc = CodeGen(*r.prog, *r.sema, *r.tc).generate(o.shared == 1);
+    if (csrc) {
+        CodeGen cg(*r.prog, *r.sema, *r.tc);
+        cg.checks = o.checks == 1;
+        *csrc = cg.generate(o.shared == 1);
+    }
     return true;
 }
 
@@ -403,6 +421,7 @@ static int build(Options& o, std::string& outPath) {
     }
     if (o.gui == 1 && o.target == "windows") cmd.push_back("-mwindows");
     if (o.staticLink == 1) cmd.push_back("-static");
+    if (o.checks == 1) cmd.push_back("-DFASET_CHECKS=1");
     if (o.sanitize) {
         cmd.push_back("-fsanitize=address,undefined");
         cmd.push_back("-fno-omit-frame-pointer");
@@ -599,6 +618,9 @@ int main(int argc, char** argv) {
         else if (a == "--release") o.configuration = "Release";
         else if (a == "--keep-c") o.keepC = true;
         else if (a == "--sanitize") o.sanitize = true;
+        else if (a == "--checks" || a == "--runtime-checks") o.checks = 1;
+        else if (a == "--no-checks" || a == "--no-runtime-checks") o.checks = 0;
+        else if (a == "--allow-unsafe") o.allowUnsafe = true;
         else if (a == "--cc") o.cc = next();
         else if (a == "-v" || a == "--verbose") o.verbose = true;
         else if (a == "-l") o.libs.push_back(next());
@@ -649,6 +671,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (o.debug < 0) o.debug = o.configuration == "Debug";
+    if (o.checks < 0) o.checks = o.configuration == "Debug";
     for (auto& [lib, platform] : o.platformLibs)
         if (platform == o.target) o.libs.push_back(lib);
     if (o.target != "linux" && o.target != "windows" && o.target != "android" && o.target != "macos") {

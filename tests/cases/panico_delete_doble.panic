@@ -1,0 +1,1 @@
+Faset panic: 'delete' doble: el objeto ya se había liberado at tests/cases/panico_delete_doble.fst:14

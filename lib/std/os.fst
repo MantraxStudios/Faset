@@ -17,7 +17,7 @@ namespace std.os
     //   auto p = new ChildProcess();
     //   p.Start("faset build", "");
     //   while (!p.HasExited) { p.ReadAvailable(sb); ... }
-    public class ChildProcess
+    public memory_unsafe class ChildProcess
     {
         long handle;
         bool finished;
@@ -83,13 +83,13 @@ namespace std.os
         public void Kill() { if (handle > 0) faset_proc_kill(handle); }
     }
 
-    public static class EventWait
+    public memory_unsafe static class EventWait
     {
         // Espera hasta 'milliseconds' a que el descriptor 'fd' tenga datos.
         public static bool WaitFd(int fd, int milliseconds) => faset_wait_fd(fd, milliseconds);
     }
 
-    public static class Process
+    public memory_unsafe static class Process
     {
         // Ejecuta un comando del sistema y devuelve su código de salida.
         public static int Run(string command) => faset_system(command);

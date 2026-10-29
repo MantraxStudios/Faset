@@ -2,7 +2,10 @@
 //  Bindings de Vulkan 1.0 (+ VK_KHR_surface, VK_KHR_swapchain, VK_KHR_xlib_surface)
 //  escritos en Faset. Los structs reproducen exactamente la disposición en memoria
 //  de los de C; los handles no despachables son ulong y los despachables void*.
+//  Todo el archivo es FFI: se declara entero como contexto memory_unsafe.
 // =============================================================================
+memory_unsafe;
+
 namespace FasetStudio.Gfx
 {
     public static class VK

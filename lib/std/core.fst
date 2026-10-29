@@ -4,12 +4,18 @@
 //  Se importa automáticamente en todos los archivos (como 'using std;').
 //  Contiene: Console, Math, Memory, String, Char, Convert, Environment,
 //  extensiones de 'string' y las funciones globales print/println/panic/assert.
+//
+//  Seguridad de memoria: las clases que llaman al runtime en C o manejan punteros
+//  están marcadas 'memory_unsafe' (implementación confiable); su API pública sigue
+//  siendo utilizable desde código seguro salvo los miembros con punteros en la firma
+//  y los marcados 'memory_unsafe' (Memory.*).
 // =============================================================================
 namespace std
 {
     public enum Platform { Linux, Windows, Android, MacOS, Unknown }
 
-    // ---------------------------------------------------------------- runtime
+    // ---------------------------------------------------------------- runtime (C)
+    //  Funciones nativas: como todo 'extern', solo se pueden llamar desde memory_unsafe.
     static extern void faset_write_str(string s);
     static extern void faset_write_err_str(string s);
     static extern void faset_write_i64(long v);
@@ -21,31 +27,34 @@ namespace std
     static extern void faset_flush();
     static extern string faset_read_line();
     static extern void faset_panic(string msg);
+    [TrackCaller] static extern void faset_panic_at(string msg);
 
     // ---------------------------------------------------------------- funciones globales (estilo C++)
-    public void print(string v) { faset_write_str(v); }
-    public void print(long v) { faset_write_i64(v); }
-    public void print(double v) { faset_write_f64(v); }
-    public void print(char v) { faset_write_char(v); }
-    public void print(bool v) { faset_write_str(v ? "true" : "false"); }
-    public void println() { faset_write_char('\n'); }
-    public void println(string v) { faset_write_str(v); faset_write_char('\n'); }
-    public void println(long v) { faset_write_i64(v); faset_write_char('\n'); }
-    public void println(double v) { faset_write_f64(v); faset_write_char('\n'); }
-    public void println(char v) { faset_write_char(v); faset_write_char('\n'); }
-    public void println(bool v) { faset_write_str(v ? "true" : "false"); faset_write_char('\n'); }
+    public void print(string v) { Console.Write(v); }
+    public void print(long v) { Console.Write(v); }
+    public void print(double v) { Console.Write(v); }
+    public void print(char v) { Console.Write(v); }
+    public void print(bool v) { Console.Write(v ? "true" : "false"); }
+    public void println() { Console.WriteLine(); }
+    public void println(string v) { Console.WriteLine(v); }
+    public void println(long v) { Console.WriteLine(v); }
+    public void println(double v) { Console.WriteLine(v); }
+    public void println(char v) { Console.WriteLine(v); }
+    public void println(bool v) { Console.WriteLine(v ? "true" : "false"); }
 
-    // Termina el programa con un mensaje de error.
-    public void panic(string message) { faset_panic(message); }
+    // Termina el programa con un mensaje de error en stderr y código de salida 101:
+    //   Faset panic: <mensaje> at archivo.fst:línea
+    // [TrackCaller]: la ubicación es la de quien llama (no la de esta función).
+    [TrackCaller] public void panic(string message) { memory_unsafe { faset_panic_at(message); } }
 
     // Comprueba una condición; si es falsa, termina con 'message'.
-    public void assert(bool condition, string message)
+    [TrackCaller] public void assert(bool condition, string message)
     {
-        if (!condition) faset_panic(message);
+        if (!condition) panic(message);
     }
 
     // ---------------------------------------------------------------- Console
-    public static class Console
+    public memory_unsafe static class Console
     {
         public static void Write(string v) { faset_write_str(v); }
         public static void Write(int v) { faset_write_i64(v); }
@@ -81,7 +90,7 @@ namespace std
     }
 
     // ---------------------------------------------------------------- Math
-    public static class Math
+    public memory_unsafe static class Math
     {
         public const double PI = 3.14159265358979323846;
         public const double E = 2.71828182845904523536;
@@ -196,7 +205,8 @@ namespace std
     }
 
     // ---------------------------------------------------------------- Memory (gestión manual estilo C/C++)
-    public static class Memory
+    //  Toda la API es 'memory_unsafe': solo se puede usar desde código memory_unsafe.
+    public memory_unsafe static class Memory
     {
         static extern void* faset_alloc(long size);
         static extern void* faset_alloc_zeroed(long size);
@@ -206,26 +216,26 @@ namespace std
         static extern void faset_mem_set(void* dst, int value, long n);
         static extern int faset_mem_compare(void* a, void* b, long n);
 
-        public static void* Alloc(long size) => faset_alloc(size);
-        public static void* AllocZeroed(long size) => faset_alloc_zeroed(size);
-        public static void* Realloc(void* p, long size) => faset_realloc(p, size);
-        public static void Free(void* p) { faset_free(p); }
-        public static void Copy(void* dst, void* src, long n) { faset_mem_copy(dst, src, n); }
-        public static void Set(void* dst, int value, long n) { faset_mem_set(dst, value, n); }
-        public static int Compare(void* a, void* b, long n) => faset_mem_compare(a, b, n);
+        public memory_unsafe static void* Alloc(long size) => faset_alloc(size);
+        public memory_unsafe static void* AllocZeroed(long size) => faset_alloc_zeroed(size);
+        public memory_unsafe static void* Realloc(void* p, long size) => faset_realloc(p, size);
+        public memory_unsafe static void Free(void* p) { faset_free(p); }
+        public memory_unsafe static void Copy(void* dst, void* src, long n) { faset_mem_copy(dst, src, n); }
+        public memory_unsafe static void Set(void* dst, int value, long n) { faset_mem_set(dst, value, n); }
+        public memory_unsafe static int Compare(void* a, void* b, long n) => faset_mem_compare(a, b, n);
 
         // Reserva 'count' elementos de tipo T inicializados a cero.
-        public static T* New<T>(long count) => (T*)faset_alloc_zeroed(sizeof(T) * count);
+        public memory_unsafe static T* New<T>(long count) => (T*)faset_alloc_zeroed(sizeof(T) * count);
 
         // Cambia el tamaño de un bloque de elementos T.
-        public static T* Resize<T>(T* p, long count) => (T*)faset_realloc(p, sizeof(T) * count);
+        public memory_unsafe static T* Resize<T>(T* p, long count) => (T*)faset_realloc(p, sizeof(T) * count);
 
         // Copia 'count' elementos de tipo T.
-        public static void CopyItems<T>(T* dst, T* src, long count) { faset_mem_copy(dst, src, sizeof(T) * count); }
+        public memory_unsafe static void CopyItems<T>(T* dst, T* src, long count) { faset_mem_copy(dst, src, sizeof(T) * count); }
     }
 
     // ---------------------------------------------------------------- String
-    public static class String
+    public memory_unsafe static class String
     {
         static extern string faset_str_concat(string a, string b);
         static extern string faset_str_copy(string s);
@@ -260,7 +270,7 @@ namespace std
 
     // ---------------------------------------------------------------- extensiones de string
     //  Las cadenas son vistas UTF-8 inmutables: Substring/Trim no copian.
-    public static class StringExtensions
+    public memory_unsafe static class StringExtensions
     {
         public static bool IsEmpty(this string s) => s.Length == 0;
 
@@ -321,13 +331,13 @@ namespace std
             return n;
         }
 
-        public static string Substring(this string s, int start, int length)
+        [TrackCaller] public static string Substring(this string s, int start, int length)
         {
             if (start < 0 || length < 0 || start + length > s.Length) panic("Substring: rango fuera de la cadena");
             return String.FromBytes(s.Ptr + start, length);
         }
 
-        public static string Substring(this string s, int start) => s.Substring(start, s.Length - start);
+        [TrackCaller] public static string Substring(this string s, int start) => s.Substring(start, s.Length - start);
 
         public static string TrimStart(this string s)
         {
@@ -383,9 +393,9 @@ namespace std
         // Conversión a C: la cadena resultante termina en '\0' (copia; libérala con String.Free).
         public static string ToCString(this string s) => String.Copy(s);
 
-        public static int ToInt(this string s) => Convert.ToInt32(s);
-        public static long ToLong(this string s) => Convert.ToInt64(s);
-        public static double ToDouble(this string s) => Convert.ToDouble(s);
+        [TrackCaller] public static int ToInt(this string s) => Convert.ToInt32(s);
+        [TrackCaller] public static long ToLong(this string s) => Convert.ToInt64(s);
+        [TrackCaller] public static double ToDouble(this string s) => Convert.ToDouble(s);
     }
 
     // ---------------------------------------------------------------- Char (ASCII)
@@ -403,7 +413,7 @@ namespace std
     }
 
     // ---------------------------------------------------------------- Convert
-    public static class Convert
+    public memory_unsafe static class Convert
     {
         static extern bool faset_parse_i64(string s, long* outValue);
         static extern bool faset_parse_f64(string s, double* outValue);
@@ -432,21 +442,21 @@ namespace std
             return ok;
         }
 
-        public static long ToInt64(string s)
+        [TrackCaller] public static long ToInt64(string s)
         {
             long v = 0;
             if (!TryToInt64(s, out v)) panic("Convert.ToInt64: formato no válido");
             return v;
         }
 
-        public static int ToInt32(string s)
+        [TrackCaller] public static int ToInt32(string s)
         {
             int v = 0;
             if (!TryToInt32(s, out v)) panic("Convert.ToInt32: formato no válido");
             return v;
         }
 
-        public static double ToDouble(string s)
+        [TrackCaller] public static double ToDouble(string s)
         {
             double v = 0;
             if (!TryToDouble(s, out v)) panic("Convert.ToDouble: formato no válido");
@@ -460,7 +470,7 @@ namespace std
     }
 
     // ---------------------------------------------------------------- Environment
-    public static class Environment
+    public memory_unsafe static class Environment
     {
         static extern void faset_exit(int code);
         static extern long faset_ticks_ms();

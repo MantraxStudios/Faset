@@ -132,6 +132,11 @@
     "prefix": "extern",
     "body": ["public static extern ${1:int} ${2:funcion}(${3});"]
   },
+  "Bloque memory_unsafe": {
+    "prefix": "memory_unsafe",
+    "body": ["memory_unsafe", "{", "\t$0", "}"],
+    "description": "Contexto donde se permiten punteros, '&', '*', '->', extern y Memory.*"
+  },
   "using": {
     "prefix": "using",
     "body": ["using std::${1|collections,text,io,time,random,math,mem,hash,os|};"]

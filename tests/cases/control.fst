@@ -34,7 +34,8 @@ static class Program
 {
     static int Fib(int n) => n < 2 ? n : Fib(n - 1) + Fib(n - 2);
 
-    static void Rellenar(int** destino, int n)
+    // Método 'memory_unsafe': solo se puede llamar desde un contexto memory_unsafe.
+    memory_unsafe static void Rellenar(int** destino, int n)
     {
         *destino = new int[n];
         for (int i = 0; i < n; i++) (*destino)[i] = i + 1;
@@ -103,21 +104,24 @@ static class Program
         Console.WriteLine(Contador.Limite * 2);
         delete a; delete b; delete d;
 
-        // puntero a puntero
-        int* datos = null;
-        Rellenar(&datos, 5);
-        int total = 0;
-        for (int i = 0; i < 5; i++) total += datos[i];
-        Console.WriteLine(total);
-        delete[] datos;
-        Console.WriteLine(datos != null);
+        memory_unsafe
+        {
+            // puntero a puntero
+            int* datos = null;
+            Rellenar(&datos, 5);
+            int total = 0;
+            for (int i = 0; i < 5; i++) total += datos[i];
+            Console.WriteLine(total);
+            delete[] datos;
+            Console.WriteLine(datos != null);
 
-        // memoria cruda
-        byte* buf = (byte*)Memory.Alloc(4);
-        Memory.Set(buf, 65, 3);
-        buf[3] = 0;
-        Console.WriteLine(String.FromCString(buf));
-        Memory.Free(buf);
+            // memoria cruda
+            byte* buf = (byte*)Memory.Alloc(4);
+            Memory.Set(buf, 65, 3);
+            buf[3] = 0;
+            Console.WriteLine(String.FromCString(buf));
+            Memory.Free(buf);
+        }
         return 3;
     }
 }

@@ -2,7 +2,7 @@
 // Para regenerarlo: make -C studio shaders
 namespace FasetStudio.Gfx
 {
-    public static class Shaders
+    public memory_unsafe static class Shaders
     {
         public const int VertexWords = 435;
 
