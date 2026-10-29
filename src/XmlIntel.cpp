@@ -142,7 +142,7 @@ const std::vector<AttrSpec>& uiAttrs() {
         {"Accent", "Color de acento: relleno de casillas, barras y deslizadores ('#RRGGBB').", {}},
         {"Click", "Método que se llama al hacer clic: void Nombre(Widget sender).", {}, false, true},
         {"Changed", "Método que se llama cuando cambia el valor: void Nombre(Widget sender).", {}, false, true},
-        {"Source", "WebView: dirección que carga (https://..., file://...). VideoPlayer: vídeo que se reproduce, ruta (relativa a la carpeta actual o al ejecutable) o URI.", {}},
+        {"Source", "PictureBox: imagen (PNG, JPEG, BMP o GIF), relativa al proyecto (también junto al ejecutable y, en Android, dentro del APK). WebView: dirección que carga (https://..., file://...). VideoPlayer: vídeo, ruta o URI.", {}},
         {"Html", "Documento HTML que muestra el WebView (en vez de Source).", {}},
         {"Navigated", "Método que se llama al terminar de cargar una página: void Nombre(Widget sender).", {}, false, true},
         {"TitleChanged", "Método que se llama cuando cambia el título de la página: void Nombre(Widget sender).", {}, false, true},
@@ -159,6 +159,23 @@ const std::vector<AttrSpec>& uiAttrs() {
         {"Opened", "Método que se llama cuando el vídeo está listo: void Nombre(Widget sender).", {}, false, true},
         {"Ended", "Método que se llama al terminar el vídeo (sin Loop): void Nombre(Widget sender).", {}, false, true},
         {"Failed", "Método que se llama si el vídeo no se puede abrir o reproducir: void Nombre(Widget sender).", {}, false, true},
+        // Controles de imágenes, pestañas, árbol, menús, temporizador y lienzo
+        {"SizeMode", "Cómo se coloca la imagen: Normal (arriba a la izquierda), Stretch (estirada), Zoom (cabe entera sin deformarse), Center (centrada) o Cover (llena y recorta).",
+         {"Normal", "Stretch", "Zoom", "Center", "Cover"}},
+        {"Icon", "Icono (PNG, JPEG, BMP o GIF) que se dibuja a la izquierda del texto.", {}},
+        {"Shortcut", "Atajo de teclado del elemento de menú (Ctrl+S, Ctrl+Shift+N, F5, Supr...): funciona aunque el menú esté cerrado.",
+         {"Ctrl+N", "Ctrl+O", "Ctrl+S", "Ctrl+Shift+S", "Ctrl+Z", "Ctrl+Y", "Ctrl+Q", "F1", "F5", "Supr"}},
+        {"Interval", "Milisegundos entre dos Tick del temporizador.", {"16", "100", "500", "1000"}},
+        {"Expanded", "Si el nodo muestra sus hijos.", kBool},
+        {"Tag", "Dato libre del nodo (una ruta, un identificador...): TreeNode.Tag.", {}},
+        {"ContextMenu", "Menú contextual (Name de un <ContextMenu> de la ventana) que se abre con el botón derecho.", {}},
+        {"SelectedChanged", "Método que se llama al cambiar la selección (pestaña, nodo o elemento): void Nombre(Widget sender).", {}, false, true},
+        {"NodeActivated", "Método que se llama con doble clic o Enter sobre un nodo: void Nombre(Widget sender).", {}, false, true},
+        {"Tick", "Método que se llama cada Interval milisegundos: void Nombre(Widget sender).", {}, false, true},
+        {"Paint", "Método que dibuja el lienzo: void Nombre(Widget sender, Graphics g).", {}, false, true},
+        {"MouseDown", "Botón del ratón pulsado sobre el lienzo: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
+        {"MouseMove", "Ratón movido sobre el lienzo: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
+        {"MouseUp", "Botón del ratón soltado: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
     };
     return v;
 }
@@ -177,7 +194,7 @@ const std::vector<ElemSpec>& uiControls() {
         {"ProgressBar", "Barra de progreso entre Min y Max.", {FST_COMMON, "Value", "Min", "Max", "Accent"}, {}},
         {"RadioButton", "Botón de opción: solo uno de cada Group puede estar marcado.", {FST_COMMON, "Text", "Checked", "Group", "Accent", "Click", "Changed"}, {}},
         {"ComboBox", "Lista desplegable: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
-        {"ListBox", "Lista de elementos: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
+        {"ListBox", "Lista de elementos: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed", "SelectedChanged"}, {}},
         {"WebView", "Navegador web incrustado (WebKitGTK en Linux, android.webkit en Android). Desde JavaScript: window.faset.postMessage(texto).",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "CornerRadius", "Background", "Foreground", "BorderColor",
           "Source", "Html", "Navigated", "TitleChanged", "MessageReceived"},
@@ -186,6 +203,38 @@ const std::vector<ElemSpec>& uiControls() {
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "Background", "BorderColor", "Accent", "Source", "AutoPlay", "Loop",
           "ShowControls", "Volume", "Stretch", "Opened", "Ended", "Failed"},
          {}},
+        {"PictureBox", "Imagen (PNG, JPEG, BMP o GIF) con SizeMode Normal, Stretch, Zoom, Center o Cover.",
+         {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "Source", "SizeMode", "CornerRadius", "Background", "Background2",
+          "GradientDirection", "BorderColor", "ContextMenu", "Click"}, {}},
+        {"TabControl", "Páginas con pestañas: contiene elementos <TabPage>; Ctrl+Tab cambia de página.",
+         {FST_COMMON, "SelectedIndex", "Accent", "ContextMenu", "SelectedChanged"}, {}},
+        {"TreeView", "Árbol de nodos que se expanden y contraen: contiene elementos <TreeNode>.",
+         {FST_COMMON, "ContextMenu", "SelectedChanged", "NodeActivated"}, {}},
+        {"MenuBar", "Barra de menús (arriba de la ventana): contiene elementos <Menu>.",
+         {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "Background", "Foreground", "BorderColor"}, {}},
+        {"Canvas", "Lienzo de dibujo libre: Paint recibe un Graphics; MouseDown/MouseMove/MouseUp, un MouseArgs.",
+         {"Name", "X", "Y", "Width", "Height", "Anchor", "Enabled", "Visible", "CornerRadius", "Background", "Background2",
+          "GradientDirection", "BorderColor", "ContextMenu", "Paint", "MouseDown", "MouseMove", "MouseUp"}, {}},
+        {"Timer", "Temporizador (componente no visual): lanza Tick cada Interval milisegundos mientras Enabled es true.",
+         {"Name", "Interval", "Enabled", "Tick"}, {}},
+        {"ContextMenu", "Menú contextual (componente no visual): se abre con el botón derecho sobre los controles que lo nombran.",
+         {"Name", "FontSize"}, {}},
+    };
+    return v;
+}
+
+// Elementos que solo van dentro de otro (páginas, nodos y menús).
+const std::vector<ElemSpec>& uiParts() {
+    static const std::vector<ElemSpec> v = {
+        {"TabPage", "Página de un <TabControl>: contiene los controles que se ven al elegir su pestaña.",
+         {"Name", "Text", "Enabled", "Background", "Background2", "GradientDirection"}, {}},
+        {"TreeNode", "Nodo de un <TreeView> (puede contener otros nodos). Con Name se genera un campo TreeNode.",
+         {"Name", "Text", "Expanded", "Tag"}, {}},
+        {"Menu", "Menú desplegable de un <MenuBar> o submenú: contiene <MenuItem>, <Menu> y <Separator>.",
+         {"Name", "Text", "Enabled", "Visible", "Icon"}, {}},
+        {"MenuItem", "Elemento de un menú: Click se llama al elegirlo; Shortcut es su atajo de teclado.",
+         {"Name", "Text", "Shortcut", "Icon", "Checked", "Enabled", "Visible", "Click"}, {}},
+        {"Separator", "Línea que separa grupos de elementos de un menú.", {"Name", "Visible"}, {}},
     };
     return v;
 }
@@ -238,7 +287,35 @@ const AttrSpec* uiAttr(const std::string& n) {
 const ElemSpec* uiElem(const std::string& n) {
     if (n == "Window") return &kUiWindow;
     if (const ElemSpec* e = findSpec(audioComponents(), n)) return e;
+    if (const ElemSpec* p = findSpec(uiParts(), n)) return p;
     return findSpec(uiControls(), n);
+}
+
+bool uiIsComponent(const std::string& n) { return n == "Timer" || n == "ContextMenu"; }
+bool uiIsMenuOwner(const std::string& n) { return n == "MenuBar" || n == "Menu" || n == "MenuItem" || n == "ContextMenu"; }
+
+// Texto que se inserta al completar el elemento 'name' (etiqueta recién empezada).
+std::string uiSnippet(const std::string& name) {
+    if (name == "TabControl")
+        return "TabControl Name=\"$0\" X=\"0\" Y=\"0\" Width=\"400\" Height=\"300\">\n  <TabPage Text=\"Página 1\">\n  </TabPage>\n</TabControl>";
+    if (name == "TreeView") return "TreeView Name=\"$0\" X=\"0\" Y=\"0\" Width=\"220\" Height=\"260\">\n</TreeView>";
+    if (name == "MenuBar") return "MenuBar Name=\"$0\">\n  <Menu Text=\"Archivo\">\n  </Menu>\n</MenuBar>";
+    if (name == "TabPage") return "TabPage Text=\"$0\">\n</TabPage>";
+    if (name == "TreeNode") return "TreeNode Text=\"$0\" />";
+    if (name == "Menu") return "Menu Text=\"$0\">\n</Menu>";
+    if (name == "MenuItem") return "MenuItem Text=\"$0\" Click=\"\" />";
+    if (name == "Separator") return "Separator />";
+    if (name == "ContextMenu") return "ContextMenu Name=\"$0\">\n  <MenuItem Text=\"\" Click=\"\" />\n</ContextMenu>";
+    if (name == "Timer") return "Timer Name=\"$0\" Interval=\"1000\" Enabled=\"true\" Tick=\"\" />";
+    return name + " Name=\"$0\" X=\"0\" Y=\"0\" Width=\"120\" Height=\"32\"" + (name == "Panel" ? "></Panel>" : " />");
+}
+
+// Parámetros del manejador de un evento.
+std::string uiHandlerParams(const std::string& ev) {
+    if (ev == "Paint") return "Widget sender, Graphics g";
+    if (ev == "MouseDown" || ev == "MouseMove" || ev == "MouseUp") return "Widget sender, MouseArgs e";
+    if (ev == "MessageReceived") return "Widget sender, string message";
+    return "Widget sender";
 }
 
 const ElemSpec* projectElem(const std::string& n) {
@@ -786,16 +863,22 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
             std::string cls = fs::path(path).stem().string();
             add(out, "Window", kElement, kUiWindow.doc,
                 bare ? "Window Class=\"" + cls + "\" Title=\"$0\" Width=\"640\" Height=\"480\">\n</Window>" : "");
-        } else if (pname == "Window" || pname == "Panel") {
+        } else if (pname == "Window" || pname == "Panel" || pname == "TabPage") {
             for (const ElemSpec& e : uiControls()) {
-                std::string ins;
-                if (bare)
-                    ins = std::string(e.name) + " Name=\"$0\" X=\"0\" Y=\"0\" Width=\"120\" Height=\"32\"" +
-                          (std::string(e.name) == "Panel" ? "></Panel>" : " />");
-                add(out, e.name, kElement, e.doc, ins);
+                if (uiIsComponent(e.name) && pname != "Window") continue;  // los componentes van en <Window>
+                add(out, e.name, kElement, e.doc, bare ? uiSnippet(e.name) : "");
             }
-            for (const ElemSpec& e : audioComponents())
-                add(out, e.name, kElement, e.doc, bare ? std::string(e.name) + " Name=\"$0\" Source=\"\" />" : "");
+            if (pname == "Window")
+                for (const ElemSpec& e : audioComponents())
+                    add(out, e.name, kElement, e.doc, bare ? std::string(e.name) + " Name=\"$0\" Source=\"\" />" : "");
+        } else {
+            // Contenedores con hijos de un tipo concreto (reglas de anidamiento de UiGen).
+            std::vector<std::string> kids;
+            if (pname == "TabControl") kids = {"TabPage"};
+            else if (pname == "TreeView" || pname == "TreeNode") kids = {"TreeNode"};
+            else if (uiIsMenuOwner(pname)) kids = {"Menu", "MenuItem", "Separator"};
+            for (const std::string& k : kids)
+                if (const ElemSpec* e = uiElem(k)) add(out, e->name, kElement, e->doc, bare ? uiSnippet(k) : "");
         }
         return;
     }
@@ -819,10 +902,14 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
         if (!as) return;
         if (as->handler) {
             if (!code) return;
-            // MessageReceived recibe también el texto: void Nombre(Widget sender, string message).
-            bool message = a.name == "MessageReceived";
-            for (const XmlUiCodeInfo::Method& m : code->methods)
-                if (m.handler && (m.signature.find(", string") != std::string::npos) == message) add(out, m.name, kMethod, m.signature);
+            std::string params = uiHandlerParams(a.name);
+            for (const XmlUiCodeInfo::Method& m : code->methods) {
+                // Paint, los eventos del ratón y MessageReceived reciben un segundo parámetro.
+                bool fits = params == "Widget sender" ? m.handler
+                          : params.find("string") != std::string::npos ? m.signature.find(", string") != std::string::npos
+                          : m.signature.find(params.find("Graphics") != std::string::npos ? "Graphics" : "MouseArgs") != std::string::npos;
+                if (fits) add(out, m.name, kMethod, m.signature);
+            }
             // Nombre propuesto para un manejador nuevo: On + nombre del control (sin prefijo) + evento.
             const XAttr* nm = t.attr("Name");
             std::string base = nm && !nm->value.empty() ? nm->value : t.name;
@@ -833,8 +920,34 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
             std::string fresh = "On" + base + a.name;
             bool exists = false;
             for (const XmlUiCodeInfo::Method& m : code->methods) exists |= m.name == fresh;
-            if (!exists)
-                add(out, fresh, kMethod, "nuevo manejador: void " + fresh + (message ? "(Widget sender, string message)" : "(Widget sender)"));
+            if (!exists) add(out, fresh, kMethod, "nuevo manejador: void " + fresh + "(" + params + ")");
+            return;
+        }
+        if (a.name == "ContextMenu") {
+            // Menús contextuales del documento.
+            for (const XTag& o : sc.tags)
+                if (!o.closing && o.name == "ContextMenu")
+                    if (const XAttr* nm = o.attr("Name"))
+                        if (!nm->value.empty()) add(out, nm->value, kValue, "<ContextMenu Name=\"" + nm->value + "\">");
+            return;
+        }
+        if ((a.name == "Source" && t.name == "PictureBox") || a.name == "Icon") {
+            // Imágenes de la carpeta del .fstui (y sus subcarpetas, como Assets/).
+            std::error_code ec;
+            fs::path dir = fs::path(path).parent_path();
+            int seen = 0;
+            for (auto it = fs::recursive_directory_iterator(dir, ec); it != fs::recursive_directory_iterator() && seen < 200;
+                 it.increment(ec)) {
+                if (it.depth() > 3 || it->path().filename().string().rfind(".", 0) == 0 || it->path().filename() == "bin" ||
+                    it->path().filename() == "obj") {
+                    if (it->is_directory(ec)) it.disable_recursion_pending();
+                    continue;
+                }
+                std::string ext = lower(it->path().extension().string());
+                if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp" && ext != ".gif") continue;
+                add(out, fs::relative(it->path(), dir, ec).generic_string(), kFile, "imagen");
+                seen++;
+            }
             return;
         }
         if (a.name == "Class" && t.name == "Window") {

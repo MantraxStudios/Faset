@@ -36,6 +36,7 @@
 #include "Project.h"
 #include "Runtime.h"
 #include "Sema.h"
+#include "Xml.h"
 
 namespace fs = std::filesystem;
 
@@ -76,6 +77,8 @@ struct Options {
     bool noApk = false;      // Android: ejecutable ELF suelto en vez de APK
     std::string configuration;
     std::vector<std::string> libs, libDirs;
+    std::vector<std::string> extraC;  // fuentes C de los módulos (lib/std/ui/*.c)
+    std::vector<std::string> uiAssets;  // imágenes de los .fstui (Source/Icon), relativas a la entrada
     std::vector<std::string> runArgs;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
     std::vector<std::string> extraSources;  // C de la biblioteca estándar (p. ej. el WebView de std.ui)
@@ -138,6 +141,15 @@ static bool writeFile(const fs::path& path, const std::string& data) {
     if (!f) return false;
     f << data;
     return (bool)f;
+}
+
+static bool readText(const fs::path& path, std::string& out) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return false;
+    std::stringstream ss;
+    ss << f.rdbuf();
+    out = ss.str();
+    return true;
 }
 
 static std::string quote(const std::string& s) {
@@ -369,6 +381,19 @@ static bool frontEnd(Options& o, std::string* csrc) {
         }
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
+        // Un módulo puede traer código C en la carpeta del mismo nombre (lib/std/ui/*.c).
+        std::string rel = mod;
+        std::replace(rel.begin(), rel.end(), '.', '/');
+        fs::path dir = fs::path(fo.libDir) / rel;
+        std::error_code dec;
+        if (fs::exists(fs::path(fo.libDir) / (rel + ".fst"), dec) && fs::is_directory(dir, dec)) {
+            std::vector<std::string> found;
+            for (auto& e : fs::directory_iterator(dir, dec))
+                if (e.is_regular_file() && e.path().extension() == ".c") found.push_back(e.path().string());
+            std::sort(found.begin(), found.end());
+            for (const std::string& f : found)
+                if (std::find(o.extraC.begin(), o.extraC.end(), f) == o.extraC.end()) o.extraC.push_back(f);
+        }
     }
     // std.ui: capa nativa del WebView (WebKitGTK en Linux con dlopen, android.webkit en Android).
     if (r.prog->requestedModules.count("std.ui") && o.target != "windows") {
@@ -461,6 +486,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.insert(cmd.end(), extraSources.begin(), extraSources.end());
     cmd.insert(cmd.end(), o.extraSources.begin(), o.extraSources.end());
     cmd.insert(cmd.end(), o.cSources.begin(), o.cSources.end());
+    cmd.insert(cmd.end(), o.extraC.begin(), o.extraC.end());
     cmd.push_back("-o");
     cmd.push_back(outPath);
     cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());
@@ -477,6 +503,60 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
         return 1;
     }
     return 0;
+}
+
+// ------------------------------------------------------------------ imágenes de la interfaz
+
+// Archivos que la interfaz carga en ejecución: la carpeta Assets/ del proyecto y las imágenes que
+// nombran los .fstui (Source, Icon). Devuelve (ruta relativa al proyecto, archivo local).
+static std::vector<std::pair<std::string, std::string>> uiAssets(const Options& o) {
+    std::vector<std::pair<std::string, std::string>> out;
+    fs::path base = o.project ? fs::path(o.project->dir)
+                    : o.singleFile ? fs::absolute(o.inputs[0]).parent_path()
+                                   : fs::current_path();
+    std::set<std::string> seen;
+    std::error_code ec;
+    auto add = [&](const std::string& rel) {
+        fs::path r = fs::path(rel).lexically_normal();
+        if (rel.empty() || r.is_absolute() || r.generic_string().rfind("..", 0) == 0) return;
+        fs::path local = base / r;
+        if (!fs::is_regular_file(local, ec) || !seen.insert(r.generic_string()).second) return;
+        out.push_back({r.generic_string(), local.string()});
+    };
+    fs::path assets = base / "Assets";
+    if (fs::is_directory(assets, ec)) {
+        std::vector<std::string> found;
+        for (auto it = fs::recursive_directory_iterator(assets, ec); it != fs::recursive_directory_iterator(); it.increment(ec))
+            if (it->is_regular_file(ec)) found.push_back(fs::relative(it->path(), base, ec).generic_string());
+        std::sort(found.begin(), found.end());
+        for (const std::string& f : found) add(f);
+    }
+    std::function<void(const XmlNode&)> walk = [&](const XmlNode& n) {
+        for (const char* key : {"Source", "Icon"}) {
+            auto it = n.attrs.find(key);
+            if (it != n.attrs.end()) add(it->second);
+        }
+        for (const XmlNode& c : n.children) walk(c);
+    };
+    for (const std::string& in : o.inputs) {
+        if (fs::path(in).extension() != ".fstui") continue;
+        std::string xml, err;
+        XmlNode root;
+        if (readText(in, xml) && parseXml(xml, root, err)) walk(root);
+    }
+    return out;
+}
+
+// Copia las imágenes de la interfaz junto al ejecutable (conservando la ruta relativa).
+static void copyUiAssets(const Options& o, const std::string& outPath) {
+    fs::path dir = fs::absolute(outPath).parent_path();
+    std::error_code ec;
+    for (auto& [rel, local] : uiAssets(o)) {
+        fs::path dest = dir / rel;
+        if (fs::exists(dest, ec) && fs::equivalent(dest, local, ec)) continue;
+        fs::create_directories(dest.parent_path(), ec);
+        fs::copy_file(local, dest, fs::copy_options::update_existing, ec);
+    }
 }
 
 // ------------------------------------------------------------------ Android (APK)
@@ -595,6 +675,12 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
         }
         spec.files.push_back({"assets/" + rel, src});
     }
+    // Imágenes de la interfaz (sin repetir las que ya son <Asset>): se leen con AAssetManager.
+    for (auto& [rel, local] : uiAssets(o)) {
+        bool dup = false;
+        for (const auto& f : spec.files) dup |= f.first == "assets/" + rel;
+        if (!dup) spec.files.push_back({"assets/" + rel, local});
+    }
 
     spec.name = name;
     spec.package = androidPackage(o);
@@ -663,6 +749,7 @@ static int build(Options& o, std::string& outPath) {
     outPath = o.output.empty() ? defaultOutput(o) : o.output;
     if (o.target == "windows" && o.shared != 1 && fs::path(outPath).extension() != ".exe") outPath += ".exe";
     if (int r = compileC(o, csrc, outPath)) return r;
+    if (!o.extraC.empty()) copyUiAssets(o, outPath);  // imágenes de los .fstui (solo programas con std.ui)
     return copyAssets(o, outPath);
 }
 

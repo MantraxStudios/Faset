@@ -1,0 +1,30 @@
+<Window Class="Ventana" Namespace="Interfaz" Title="Prueba" Width="600" Height="400">
+  <MenuBar Name="menu">
+    <Menu Text="Archivo">
+      <MenuItem Name="mnuGuardar" Text="Guardar" Shortcut="Ctrl+S" Click="OnGuardar" />
+      <Separator />
+      <Menu Text="Más">
+        <MenuItem Text="Sub" Click="OnSub" />
+      </Menu>
+    </Menu>
+  </MenuBar>
+  <TabControl Name="tabs" X="10" Y="40" Width="300" Height="200" SelectedIndex="1" SelectedChanged="OnTab">
+    <TabPage Name="pagUno" Text="Uno">
+      <Button Name="btnUno" X="10" Y="10" Width="80" Height="30" Text="Uno" />
+    </TabPage>
+    <TabPage Text="Dos">
+      <Canvas Name="lienzo" X="0" Y="0" Width="298" Height="163" Paint="OnPintar" MouseDown="OnRaton" />
+    </TabPage>
+  </TabControl>
+  <TreeView Name="arbol" X="320" Y="40" Width="270" Height="200" ContextMenu="ctx" SelectedChanged="OnNodo" NodeActivated="OnActivado">
+    <TreeNode Name="raiz" Text="Raíz">
+      <TreeNode Text="Hijo" Tag="h1" />
+    </TreeNode>
+    <TreeNode Text="Otro" />
+  </TreeView>
+  <PictureBox Name="foto" X="10" Y="250" Width="100" Height="100" Source="Assets/a.png" SizeMode="Stretch" />
+  <Timer Name="reloj" Interval="100" Enabled="true" Tick="OnTick" />
+  <ContextMenu Name="ctx">
+    <MenuItem Text="Borrar" Click="OnBorrar" />
+  </ContextMenu>
+</Window>

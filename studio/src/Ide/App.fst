@@ -1410,17 +1410,14 @@ namespace FasetStudio.Ide
             {
                 string method = d.RequestHandler;
                 d.RequestHandler = String.Copy("");
-                handlerParams = d.RequestHandlerParams;
-                OpenHandler(v, method);
+                OpenHandler(v, method, d.RequestParams);
                 String.Free(method);
             }
         }
 
         // Abre el código de la ventana (Nombre.fst junto a Nombre.fstui) en el manejador 'method',
         // creándolo (y creando el archivo) si no existe.
-        string handlerParams = "Widget sender";  // parámetros del manejador que se crea (OpenHandler)
-
-        void OpenHandler(EditorView designView, string method)
+        void OpenHandler(EditorView designView, string method, string parameters)
         {
             string uiPath = designView.Doc.FullPath;
             string codePath = String.Copy(uiPath.Substring(0, uiPath.Length - 2));
@@ -1496,7 +1493,7 @@ namespace FasetStudio.Ide
                         StringBuilder stub = new StringBuilder();
                         bool blank = closeLine > 0 && b.LineText(closeLine - 1).Trim().Length > 0 && b.LineText(closeLine - 1).Trim() != "{";
                         if (blank) stub.Append("\n");
-                        stub.Append(indent).Append("void ").Append(method).Append("(").Append(handlerParams).Append(")\n");
+                        stub.Append(indent).Append("void ").Append(method).Append("(").Append(parameters).Append(")\n");
                         stub.Append(indent).Append("{\n").Append(indent).Append("    \n").Append(indent).Append("}\n");
                         b.NewGroup();
                         b.Insert(new TextPos(closeLine, 0), stub.View(), v.Cursor);

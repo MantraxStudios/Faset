@@ -22,6 +22,7 @@
  * ============================================================================= */
 #define _GNU_SOURCE 1
 #include <android_native_app_glue.h>
+#include <android/asset_manager.h>
 #include <android/configuration.h>
 #include <android/input.h>
 #include <android/keycodes.h>
@@ -505,6 +506,29 @@ void faset_android_present(const uint32_t* px, int32_t w, int32_t h) {
 }
 
 /* ------------------------------------------------------------------ fuentes (stb_truetype) */
+
+/* Archivo empaquetado en el APK (carpeta assets/: imágenes de los .fstui y Assets/ del proyecto).
+ * Devuelve 1 y un búfer de malloc (lo libera el llamador con free) o 0 si no existe. */
+int32_t faset_android_asset(const char* name, uint8_t** data, int64_t* len) {
+    if (!g_app || !g_app->activity || !g_app->activity->assetManager || !name) return 0;
+    AAsset* a = AAssetManager_open(g_app->activity->assetManager, name, AASSET_MODE_BUFFER);
+    if (!a) return 0;
+    off_t n = AAsset_getLength(a);
+    uint8_t* buf = (uint8_t*)malloc((size_t)n + 1);
+    if (!buf) {
+        AAsset_close(a);
+        return 0;
+    }
+    int got = n > 0 ? AAsset_read(a, buf, (size_t)n) : 0;
+    AAsset_close(a);
+    if (got != (int)n) {
+        free(buf);
+        return 0;
+    }
+    *data = buf;
+    *len = (int64_t)n;
+    return 1;
+}
 
 typedef struct {
     stbtt_fontinfo info;

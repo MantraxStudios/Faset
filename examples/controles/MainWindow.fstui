@@ -1,0 +1,66 @@
+<Window Class="MainWindow" Namespace="Controles" Title="Controles de std.ui" Width="900" Height="600" Theme="Dark" MinWidth="640" MinHeight="420">
+  <MenuBar Name="menu">
+    <Menu Text="Archivo">
+      <MenuItem Name="mnuAbrir" Text="Abrir..." Shortcut="Ctrl+O" Icon="Assets/abrir.png" Click="OnAbrir" />
+      <MenuItem Name="mnuGuardar" Text="Guardar" Shortcut="Ctrl+S" Icon="Assets/guardar.png" Click="OnGuardar" />
+      <Separator />
+      <Menu Text="Recientes">
+        <MenuItem Text="notas.txt" Click="OnReciente" />
+        <MenuItem Text="lista.txt" Click="OnReciente" />
+      </Menu>
+      <Separator />
+      <MenuItem Text="Salir" Shortcut="Ctrl+Q" Click="OnSalir" />
+    </Menu>
+    <Menu Text="Ver">
+      <MenuItem Name="mnuAnimar" Text="Animación" Shortcut="F5" Checked="true" Click="OnAnimar" />
+      <MenuItem Name="mnuDeshabilitado" Text="Opción deshabilitada" Enabled="false" />
+    </Menu>
+    <Menu Text="Ayuda">
+      <MenuItem Text="Acerca de" Shortcut="F1" Click="OnAcercaDe" />
+    </Menu>
+  </MenuBar>
+  <TreeView Name="tvProyecto" X="16" Y="46" Width="220" Height="470" Anchor="Left,Top,Bottom" ContextMenu="menuArbol" SelectedChanged="OnNodo" NodeActivated="OnNodoActivado">
+    <TreeNode Text="Proyecto" Expanded="true">
+      <TreeNode Text="src" Expanded="true">
+        <TreeNode Text="Program.fst" Tag="src/Program.fst" />
+        <TreeNode Text="MainWindow.fst" Tag="src/MainWindow.fst" />
+      </TreeNode>
+      <TreeNode Name="nodoAssets" Text="Assets">
+        <TreeNode Text="paisaje.jpg" Tag="Assets/paisaje.jpg" />
+        <TreeNode Text="tablero.bmp" Tag="Assets/tablero.bmp" />
+        <TreeNode Text="punto.gif" Tag="Assets/punto.gif" />
+      </TreeNode>
+      <TreeNode Text="README.md" />
+    </TreeNode>
+  </TreeView>
+  <TabControl Name="tabs" X="252" Y="46" Width="632" Height="470" Anchor="Left,Top,Right,Bottom" SelectedChanged="OnPestana">
+    <TabPage Name="pagImagenes" Text="Imágenes">
+      <PictureBox Name="picPaisaje" X="16" Y="16" Width="360" Height="230" Source="Assets/paisaje.jpg" SizeMode="Zoom" Background="#0b0b0d" BorderColor="#3a3a41" />
+      <Label X="392" Y="16" Width="200" Height="20" Text="SizeMode" Style="Subtle" FontSize="13" />
+      <ComboBox Name="cmbModo" X="392" Y="40" Width="200" Height="36" Items="Normal;Stretch;Zoom;Center;Cover" SelectedIndex="2" Changed="OnModo" />
+      <PictureBox Name="picTablero" X="392" Y="92" Width="96" Height="96" Source="Assets/tablero.bmp" SizeMode="Center" />
+      <PictureBox Name="picPunto" X="496" Y="92" Width="96" Height="96" Source="Assets/punto.gif" SizeMode="Zoom" />
+      <PictureBox Name="picCubrir" X="16" Y="262" Width="360" Height="110" Source="Assets/paisaje.jpg" SizeMode="Cover" />
+      <Label Name="lblImagen" X="392" Y="204" Width="220" Height="60" Text="Clic en una imagen" Style="Subtle" FontSize="13" />
+    </TabPage>
+    <TabPage Name="pagLienzo" Text="Lienzo">
+      <Canvas Name="lienzo" X="12" Y="12" Width="606" Height="404" Anchor="Left,Top,Right,Bottom" Paint="OnPintar" MouseDown="OnLienzoAbajo" MouseMove="OnLienzoMover" />
+    </TabPage>
+    <TabPage Name="pagFormulario" Text="Formulario">
+      <Label X="20" Y="20" Width="200" Height="20" Text="Nombre" Style="Subtle" FontSize="13" />
+      <TextBox Name="txtNombre" X="20" Y="44" Width="300" Height="36" Placeholder="Escribe tu nombre..." />
+      <CheckBox Name="chkAviso" X="20" Y="96" Width="240" Height="24" Text="Recibir avisos" Checked="true" />
+      <Button Name="btnAbrir" X="20" Y="140" Width="130" Height="38" Text="Abrir" Icon="Assets/abrir.png" Click="OnAbrir" />
+      <Button Name="btnGuardar" X="162" Y="140" Width="130" Height="38" Text="Guardar" Style="Primary" Icon="Assets/guardar.png" Click="OnGuardar" />
+    </TabPage>
+  </TabControl>
+  <Label Name="lblEstado" X="16" Y="532" Width="620" Height="24" Text="Listo" Style="Subtle" Anchor="Left,Right,Bottom" />
+  <ProgressBar Name="prgReloj" X="652" Y="541" Width="232" Height="6" Anchor="Right,Bottom" />
+  <Timer Name="reloj" Interval="40" Enabled="true" Tick="OnTick" />
+  <ContextMenu Name="menuArbol">
+    <MenuItem Text="Abrir" Click="OnMenuArbol" />
+    <MenuItem Text="Renombrar" Click="OnMenuArbol" />
+    <Separator />
+    <MenuItem Text="Borrar" Shortcut="Supr" Click="OnBorrarNodo" />
+  </ContextMenu>
+</Window>

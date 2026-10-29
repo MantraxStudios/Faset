@@ -288,3 +288,24 @@ Music = Música
 Audio = Audio
 Add a sound (std.audio) = Añadir un sonido (std.audio)
 Add music (std.audio) = Añadir música (std.audio)
+
+# Diseñador: imágenes, pestañas, árbol, menús, lienzo y componentes
+PictureBox = Imagen
+TabControl = Pestañas
+TabPage = Página
+TreeView = Árbol
+TreeNode = Nodo
+MenuBar = Barra de menús
+Menu = Menú
+MenuItem = Elemento de menú
+Separator = Separador
+Canvas = Lienzo
+Timer = Temporizador
+ContextMenu = Menú contextual
+COMPONENTS = COMPONENTES
+Add page = Añadir página
+Add node = Añadir nodo
+Add menu = Añadir menú
+Add item = Añadir elemento
+Add separator = Añadir separador
+Add submenu = Añadir submenú

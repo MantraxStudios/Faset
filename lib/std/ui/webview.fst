@@ -70,13 +70,7 @@ namespace std.ui
         internal int webH = -1;
         internal bool webShown;
 
-        // Dirección actual (asignarla navega).
-        public string Source
-        {
-            get => webSource;
-            set { Navigate(value); }
-        }
-
+        // Dirección actual (Source, en image.fst, navega al asignarla en un WebView).
         public string Url => webSource;
 
         // Título del documento cargado.
@@ -132,7 +126,8 @@ namespace std.ui
         public void GoBack() { Command(1); }
         public void GoForward() { Command(2); }
         public void Reload() { Command(3); }
-        public void Stop() { Command(4); }
+        // Stop (en timer.fst) detiene la carga en un WebView.
+        internal void StopLoading() { Command(4); }
 
         void Command(int cmd)
         {
