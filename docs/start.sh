@@ -11,6 +11,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 export PORT=${PORT:-8871}
 export HOST=${HOST:-127.0.0.1}
+# Caché de npm propia: así no molesta una ~/.npm con archivos de root (de algún 'sudo npm').
+export npm_config_cache=${npm_config_cache:-$PWD/../.npm-cache}
 BUILD=1
 SERVE=1
 for a in "$@"; do

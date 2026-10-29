@@ -4,6 +4,21 @@ La web es estática (`npm run build` → `out/`). `start.sh` la compila y la sir
 `127.0.0.1:8871` con `deploy/serve.mjs` (Node, sin dependencias), y nginx la publica en
 `https://faset.lat` con un certificado de Let's Encrypt.
 
+## Servidor actual
+
+La web está publicada en `rhythm@192.168.1.57`, en `~/Escritorio/Faset` (junto a SRServi):
+
+- servicio systemd `faset-web` → `docs/start.sh --no-build` en `127.0.0.1:8871`;
+- nginx: `/etc/nginx/sites-available/faset.lat` (copia de `deploy/nginx/faset.lat.conf`);
+- certificado de Let's Encrypt en `/etc/letsencrypt/live/faset.lat` (se renueva con `certbot.timer`);
+- el dominio está detrás de Cloudflare (modo SSL *Full*): Cloudflare se conecta al servidor por HTTPS.
+
+Actualizar:
+
+```bash
+cd ~/Escritorio/Faset && git pull && cd docs && ./start.sh --build-only && sudo systemctl restart faset-web
+```
+
 ## 1. DNS
 
 En el panel del dominio `faset.lat`, apunta el dominio a la IP pública del servidor:
