@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, foreach, lambdas, interpolación de cadenas, excepciones…",
+  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, lambdas, excepciones…",
 };
 
 # Limitaciones actuales
@@ -13,13 +13,11 @@ export const metadata = {
 | No disponible | Alternativa |
 |---|---|
 | Herencia, `interface`, `virtual`/`override` | Composición y [punteros a función](/lenguaje/delegados/). Están en la hoja de ruta. |
-| `foreach` | `for (int i = 0; i < lista.Count; i++)` |
 | Lambdas | Funciones con nombre y `&Funcion` |
-| Interpolación `$"..."` | Concatenación con `+` (`"x = " + x`) o `StringBuilder` |
 | Excepciones (`try`, `catch`, `throw`) | Devolver `bool`/códigos de error y `out` (no se añadirán) |
-| `is` / `as` | Un campo `Kind` (enum) en tus tipos |
-| Operador `??` | `x != null ? x : y` |
-| Parámetros con valor por defecto, `params` | Sobrecargas |
+| `is Tipo` / `as` (sí existe `is` con [patrones](/lenguaje/patrones/): `x is > 0`) | Un campo `Kind` (enum) en tus tipos |
+| Parámetros con valor por defecto | Sobrecargas (o [`params`](/lenguaje/comodidades/#params)) |
+| `Console.WriteLine(tupla)` (no hay `object`) | `Console.WriteLine($"{tupla}")` |
 | Inicializadores de objeto `new T { X = 1 }` | Constructores |
 | Inicializadores de constructor `: this(...)` | Un método privado común |
 | Tipos anidados | Tipos en el mismo namespace |

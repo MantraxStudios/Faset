@@ -62,6 +62,20 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const symbols = await request('textDocument/documentSymbol', { textDocument: { uri } });
     assert.deepStrictEqual(symbols.map((s) => s.name), ['Punto', 'Doble', 'main'], 'esquema');
 
+    // ---- azúcar: hover y autocompletado dentro de los huecos de $"..." y en foreach/tuplas
+    lines[0] = 'using std::collections;';
+    lines[16] = '    string s = $"total {lista.Count} y {p.X}"; foreach (var n in lista) { var t = (a: n, b: 2); println(t.a); }';
+    change(lines.join('\n'));
+    const holeHover = await request('textDocument/hover', at(16, lines[16].indexOf('Count') + 1));
+    assert.match(holeHover.contents.value, /int List<int>\.Count/, 'hover dentro de un hueco');
+    const loopVar = await request('textDocument/hover', at(16, lines[16].indexOf('var n') + 4));
+    assert.match(loopVar.contents.value, /variable local\) int n/, 'hover de la variable de foreach');
+    lines[16] = '    string s = $"total {lista.Count} y {p.}";';
+    change(lines.join('\n'));
+    items = await request('textDocument/completion', { ...at(16, lines[16].indexOf('{p.') + 3), context: { triggerKind: 2, triggerCharacter: '.' } });
+    assert.ok(items.some((i) => i.label === 'X') && items.some((i) => i.label === 'Suma'), 'autocompletado dentro de un hueco');
+    lines[16] = '';
+
     // ---- .fstui (clase partial generada) y .fstproj
     const dir = path.join(__dirname, 'ui');
     const open = (name, languageId) => {

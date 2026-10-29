@@ -1,0 +1,1 @@
+Faset panic: List: la colección se modificó durante un foreach at tests/cases/panico_foreach.fst:9

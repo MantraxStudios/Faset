@@ -30,6 +30,12 @@ export const nav: NavSection[] = [
     items: [
       { title: "Tipos y variables", href: "/lenguaje/tipos/" },
       { title: "Control de flujo", href: "/lenguaje/control/" },
+      { title: "foreach", href: "/lenguaje/foreach/" },
+      { title: "switch y patrones", href: "/lenguaje/patrones/" },
+      { title: "Cadenas interpoladas", href: "/lenguaje/cadenas-interpoladas/" },
+      { title: "null: ??, ?. y T?", href: "/lenguaje/nulos/" },
+      { title: "Tuplas", href: "/lenguaje/tuplas/" },
+      { title: "params, using y más", href: "/lenguaje/comodidades/" },
       { title: "Clases y structs", href: "/lenguaje/clases-y-structs/" },
       { title: "Propiedades", href: "/lenguaje/propiedades/" },
       { title: "Clases parciales", href: "/lenguaje/clases-parciales/" },

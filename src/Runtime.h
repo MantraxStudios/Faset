@@ -11,3 +11,7 @@ extern const char* const kRuntimeOsSource;
 extern const char* const kRuntimeGcSource;
 // Reproducción de vídeo de std.ui (VideoPlayer): se añade al runtime cuando se usa std.video.
 extern const char* const kRuntimeVideoSource;
+// Azúcar sintáctico (cadenas interpoladas, formatos, switch sin coincidencia; ver RuntimeSugar.cpp):
+// la cabecera va en el C generado y la implementación se añade a kRuntimeSource.
+extern const char* const kRuntimeSugarHeader;
+extern const char* const kRuntimeSugarSource;

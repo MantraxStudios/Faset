@@ -28,7 +28,7 @@ namespace {
 
 // Ordenados de mayor a menor longitud para que gane la coincidencia más larga.
 const char* const kPuncts[] = {
-    "<<=", ">>=", "...", "::", "->", "++", "--", "&&", "||", "==", "!=", "<=", ">=", "+=", "-=", "*=",
+    "?\?=", "<<=", ">>=", "...", "::", "->", "++", "--", "&&", "||", "==", "!=", "<=", ">=", "+=", "-=", "*=",
     "/=",  "%=",  "&=",  "|=", "^=", "<<", ">>", "??", "=>", "{",  "}",  "(",  ")",  "[",  "]",
     ";",   ",",   ".",   ":",  "?",  "+",  "-",  "*",  "/",  "%",  "&",  "|",  "^",  "!",  "~",
     "=",   "<",   ">",
@@ -38,6 +38,7 @@ struct Lex {
     const std::string& s;
     int file;
     size_t i = 0;
+    size_t limit = std::string::npos;  // fin del rango a analizar (huecos de $"...")
     int line = 1, col = 1;
     std::vector<Token> out;
 
@@ -322,8 +323,22 @@ struct Lex {
         push(t);
     }
 
+    // Cadena interpolada: $"...", $@"..." o @$"..." (definida al final del archivo).
+    void lexInterpolated();
+
     void run() {
-        while (i < s.size()) {
+        lexRange();
+        if (!conds.empty()) diag.error(conds.back().loc, "falta #endif");
+        Token end;
+        end.kind = TokKind::End;
+        end.loc = here();
+        end.text = "<fin de archivo>";
+        push(end);
+    }
+
+    void lexRange() {
+        size_t stop = limit == std::string::npos ? s.size() : limit;
+        while (i < stop) {
             char c = peek();
             if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
                 get();
@@ -368,9 +383,9 @@ struct Lex {
                 push(t);
                 continue;
             }
-            if (c == '$' && (peek(1) == '"' || peek(1) == '@')) {
-                diag.error(here(), "las cadenas interpoladas ($\"...\") aún no están soportadas");
-                get();
+            if ((c == '$' && (peek(1) == '"' || (peek(1) == '@' && peek(2) == '"'))) ||
+                (c == '@' && peek(1) == '$' && peek(2) == '"')) {
+                lexInterpolated();
                 continue;
             }
             if (c == '"' || (c == '@' && peek(1) == '"')) {
@@ -452,14 +467,160 @@ struct Lex {
                 get();
             }
         }
-        if (!conds.empty()) diag.error(conds.back().loc, "falta #endif");
-        Token end;
-        end.kind = TokKind::End;
-        end.loc = here();
-        end.text = "<fin de archivo>";
-        push(end);
     }
 };
+
+// $"Hola {nombre}, {precio,8:F2} {{literal}}": se parte en tokens. Los huecos se analizan con
+// el mismo analizador léxico y conservan su posición (hover y autocompletado funcionan dentro).
+void Lex::lexInterpolated() {
+    Token begin;
+    begin.loc = here();
+    begin.kind = TokKind::InterpBegin;
+    begin.text = "$\"";
+    bool verbatim = false;
+    while (peek() == '$' || peek() == '@')
+        if (get() == '@') verbatim = true;
+    get();  // comilla de apertura
+    push(begin);
+    Token lit;
+    lit.kind = TokKind::String;
+    lit.loc = here();
+    auto flush = [&]() {
+        if (!lit.text.empty()) push(lit);
+        lit.text.clear();
+        lit.loc = here();
+    };
+    bool closed = false;
+    while (i < s.size()) {
+        char d = peek();
+        if (d == '"') {
+            if (verbatim && peek(1) == '"') {
+                get(), get();
+                lit.text += '"';
+                continue;
+            }
+            get();
+            closed = true;
+            break;
+        }
+        if (!verbatim && d == '\n') break;
+        if (!verbatim && d == '\\') {
+            SourceLoc el = here();
+            get();
+            appendUtf8(lit.text, readEscape(el));
+            continue;
+        }
+        if (d == '{' && peek(1) == '{') {
+            get(), get();
+            lit.text += '{';
+            continue;
+        }
+        if (d == '}') {
+            if (peek(1) == '}') {
+                get(), get();
+                lit.text += '}';
+                continue;
+            }
+            diag.error(here(), "'}' sin pareja en una cadena interpolada (escribe '}}' para un '}' literal)");
+            get();
+            continue;
+        }
+        if (d != '{') {
+            lit.text += get();
+            continue;
+        }
+        // ---- hueco: { expresión [, alineación] [: formato] }
+        flush();
+        Token hole;
+        hole.kind = TokKind::InterpHole;
+        hole.loc = here();
+        get();  // '{'
+        size_t exprBegin = i;
+        int exprLine = line, exprCol = col;
+        int depth = 0;
+        size_t j = i, exprEnd = std::string::npos;
+        while (j < s.size()) {
+            char e = s[j];
+            if (e == '\n' && !verbatim) break;
+            if (e == '"' || e == '\'') {  // literal anidado: se salta entero
+                char q = e;
+                j++;
+                while (j < s.size() && s[j] != q && s[j] != '\n') j += s[j] == '\\' ? 2 : 1;
+                j++;
+                continue;
+            }
+            if (e == '(' || e == '[' || e == '{') {
+                depth++;
+            } else if ((e == ')' || e == ']' || e == '}') && depth > 0) {
+                depth--;
+            } else if (depth == 0 && (e == '}' || e == ',' ||
+                                      (e == ':' && !(j + 1 < s.size() && s[j + 1] == ':') && !(j > 0 && s[j - 1] == ':')))) {
+                exprEnd = j;
+                break;
+            }
+            j++;
+        }
+        if (exprEnd == std::string::npos) {
+            diag.error(hole.loc, "hueco '{' sin cerrar en la cadena interpolada");
+            while (i < j && i < s.size()) get();
+            break;
+        }
+        bool empty = true;
+        for (size_t k = exprBegin; k < exprEnd; k++)
+            if (!isspace((unsigned char)s[k])) empty = false;
+        if (empty) diag.error(hole.loc, "hueco vacío '{}' en la cadena interpolada");
+        push(hole);
+        size_t holeIndex = out.size() - 1;
+        {
+            Lex sub(s, file);
+            sub.i = exprBegin;
+            sub.line = exprLine;
+            sub.col = exprCol;
+            sub.limit = exprEnd;
+            sub.lexRange();
+            for (Token& t : sub.out) out.push_back(std::move(t));
+        }
+        while (i < exprEnd) get();
+        if (peek() == ',') {  // alineación: entero constante con signo
+            get();
+            while (peek() == ' ') get();
+            bool neg = false;
+            if (peek() == '-') neg = true, get();
+            std::string digits;
+            while (isdigit((unsigned char)peek())) digits += get();
+            while (peek() == ' ') get();
+            if (digits.empty() || digits.size() > 6) {
+                diag.error(here(), "la alineación de un hueco debe ser un entero constante ({valor,10} o {valor,-10})");
+                while (i < s.size() && peek() != '}' && peek() != ':' && peek() != '"' && peek() != '\n') get();
+            } else {
+                int v = std::atoi(digits.c_str());
+                out[holeIndex].isLong = true;
+                out[holeIndex].intVal = (uint64_t)(int64_t)(neg ? -v : v);
+            }
+        }
+        if (peek() == ':') {
+            get();
+            std::string fmt;
+            while (i < s.size() && peek() != '}' && peek() != '"' && peek() != '\n') fmt += get();
+            out[holeIndex].text = fmt;
+        }
+        Token holeEnd;
+        holeEnd.kind = TokKind::InterpHoleEnd;
+        holeEnd.loc = here();
+        holeEnd.text = "}";
+        if (peek() == '}') get();
+        else diag.error(here(), "se esperaba '}' al final del hueco de la cadena interpolada");
+        push(holeEnd);
+        lit.loc = here();
+    }
+    if (!closed) diag.error(begin.loc, "cadena interpolada sin cerrar");
+    flush();
+    Token end;
+    end.kind = TokKind::InterpEnd;
+    end.loc = here();
+    end.text = "\"";
+    push(end);
+}
 
 }  // namespace
 

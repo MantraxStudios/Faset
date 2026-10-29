@@ -1,0 +1,29 @@
+abre a
+abre b
+usa a
+fin del bloque
+cierra b
+cierra a
+abre c
+usa c
+cierra c
+abre anónimo
+dentro
+cierra anónimo
+abre ret
+cierra ret
+1
+abre ret
+usa ret
+cierra ret
+2
+abre vuelta0
+cierra vuelta0
+abre vuelta1
+cierra vuelta1
+using con null no falla
+cantidad Recurso Titulo Contar
+0||0|-1
+true
+1000000 4294967295 10 240 1234.56
+3

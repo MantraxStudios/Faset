@@ -87,7 +87,7 @@ namespace FasetStudio.Ide
 
         public Highlighter()
         {
-            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof this null nullptr true false var auto delegate operator ref out in is as params default get set where typename inline", TokenKind.Keyword);
+            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof this null nullptr true false var auto delegate operator ref out in is as params default get set where typename inline when and or not nameof", TokenKind.Keyword);
             AddAll("if else while do for foreach break continue return switch case goto throw try catch finally", TokenKind.Control);
             AddAll("void bool char sbyte byte short ushort int uint long ulong float double string object", TokenKind.Type);
         }
@@ -143,6 +143,13 @@ namespace FasetStudio.Ide
                 {
                     Memory.Set(kinds + i, TokenKind.Directive, n - i);
                     return false;
+                }
+                // Cadena interpolada: $"..{expr,alineación:formato}..", $@"..", @$"..".
+                if ((c == '$' && i + 1 < n && (line[i + 1] == '"' || (line[i + 1] == '@' && i + 2 < n && line[i + 2] == '"'))) ||
+                    (c == '@' && i + 2 < n && line[i + 1] == '$' && line[i + 2] == '"'))
+                {
+                    i = ColorizeInterpolated(line, kinds, i);
+                    continue;
                 }
                 if (c == '"' || c == '\'' || (c == '@' && i + 1 < n && line[i + 1] == '"'))
                 {
@@ -204,6 +211,83 @@ namespace FasetStudio.Ide
                 i++;
             }
             return inComment;
+        }
+
+        // Colorea una cadena interpolada a partir de 'i' (en '$' o '@'); devuelve la posición
+        // siguiente. El texto es cadena; '{{', '}}' y las llaves de los huecos, escape; el código
+        // de cada hueco se colorea como código normal y el formato (:F2) como cadena.
+        int ColorizeInterpolated(string line, byte* kinds, int i)
+        {
+            int n = line.Length;
+            bool verbatim = false;
+            while (i < n && (line[i] == '$' || line[i] == '@'))
+            {
+                if (line[i] == '@') verbatim = true;
+                kinds[i] = TokenKind.String;
+                i++;
+            }
+            if (i < n) kinds[i] = TokenKind.String;  // comilla de apertura
+            i++;
+            while (i < n)
+            {
+                byte d = line[i];
+                if (d == '"')
+                {
+                    if (verbatim && i + 1 < n && line[i + 1] == '"')
+                    {
+                        kinds[i] = TokenKind.Escape;
+                        kinds[i + 1] = TokenKind.Escape;
+                        i += 2;
+                        continue;
+                    }
+                    kinds[i] = TokenKind.String;
+                    return i + 1;
+                }
+                if ((!verbatim && d == '\\' && i + 1 < n) || ((d == '{' || d == '}') && i + 1 < n && line[i + 1] == d))
+                {
+                    kinds[i] = TokenKind.Escape;
+                    kinds[i + 1] = TokenKind.Escape;
+                    i += 2;
+                    continue;
+                }
+                if (d != '{')
+                {
+                    kinds[i] = TokenKind.String;
+                    i++;
+                    continue;
+                }
+                kinds[i] = TokenKind.Escape;  // '{' del hueco
+                i++;
+                int start = i;
+                int depth = 0;
+                while (i < n)
+                {
+                    byte e = line[i];
+                    if (e == '"' || e == '\'')
+                    {
+                        i++;
+                        while (i < n && line[i] != e) i++;
+                    }
+                    else if (e == '(' || e == '[' || e == '{') depth++;
+                    else if ((e == ')' || e == ']' || e == '}') && depth > 0) depth--;
+                    else if (depth == 0 && (e == '}' || (e == ':' && !(i + 1 < n && line[i + 1] == ':') && line[i - 1] != ':'))) break;
+                    i++;
+                }
+                if (i > n) i = n;
+                if (i > start) Colorize(line.Substring(start, i - start), kinds + start, false);
+                if (i < n && line[i] == ':')
+                {
+                    int f = i;
+                    while (i < n && line[i] != '}' && line[i] != '"') i++;
+                    Memory.Set(kinds + f, TokenKind.String, i - f);
+                }
+                if (i < n && line[i] == '}')
+                {
+                    kinds[i] = TokenKind.Escape;
+                    i++;
+                }
+            }
+            return i;
         }
     }
 }

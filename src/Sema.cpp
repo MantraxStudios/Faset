@@ -51,6 +51,7 @@ int numRank(TK k) {
 bool isAssignOrCallLike(Expr* e) {
     switch (e->kind) {
         case EK::Call: case EK::Assign: case EK::Postfix: case EK::New: return true;
+        case EK::CondAccess: case EK::CoalesceAssign: return true;  // obj?.Metodo();  a ??= b;
         case EK::Unary: {
             auto* u = static_cast<UnaryExpr*>(e);
             return u->op == "++" || u->op == "--";
@@ -420,6 +421,7 @@ Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
 }
 
 Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
+    if (tr->isTuple || tr->nullable) return resolveSugarType(tr, allowVoid);  // (int, string), T? (Sugar.cpp)
     Type* base = nullptr;
     if (tr->isFuncPtr) {
         std::vector<Type*> params;
@@ -492,6 +494,7 @@ void Sema::resolveMethodSignature(MethodDecl* m) {
         if (!names.insert(p.name).second) diag.error(p.loc, "el parámetro '" + p.name + "' está duplicado");
     }
     if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "solo los métodos 'extern' pueden ser variádicos (...)");
+    checkParamsSignature(m);  // 'params' (Sugar.cpp)
 }
 
 void Sema::resolveClassSignatures(ClassDecl* c) {
@@ -731,6 +734,7 @@ MethodDecl* Sema::instantiateMethod(MethodDecl* tmpl, const std::vector<Type*>& 
 
 bool Sema::unify(TypeRef* p, Type* a, MethodDecl* tmpl, std::map<std::string, Type*>& b) {
     if (!a || a->isError() || a->is(TK::Null)) return true;
+    if (p->isTuple || p->nullable) return sugarUnify(p, a, tmpl, b);  // (T, U), T? (Sugar.cpp)
     Type* t = a;
     for (int i = 0; i < p->ptrDepth; i++) {
         if (!t->isPointer()) return true;
@@ -770,6 +774,7 @@ bool Sema::inferTypeArgs(MethodDecl* tmpl, const std::vector<Expr*>& args, const
     size_t n = std::min(tmpl->params.size(), args.size());
     for (size_t i = 0; i < n; i++)
         if (!unify(tmpl->params[i].tref, args[i]->type, tmpl, b)) return false;
+    inferParamsTypeArgs(tmpl, args, b);  // params List<T> con argumentos sueltos (Sugar.cpp)
     for (const std::string& name : tmpl->typeParams) {
         auto it = b.find(name);
         if (it == b.end()) return false;
@@ -914,6 +919,7 @@ void Sema::checkCondition(Expr*& e) {
 }
 
 void Sema::checkStmt(Stmt* s) {
+    if (checkSugarStmt(s)) return;  // foreach, deconstrucción, using, switch con patrones (Sugar.cpp)
     switch (s->kind) {
         case SK::Empty: break;
         case SK::Block: {
@@ -936,7 +942,7 @@ void Sema::checkStmt(Stmt* s) {
                 if (dc.init) {
                     Type* it = checkValue(dc.init);
                     if (isVar) {
-                        if (it->is(TK::Null)) diag.error(dc.loc, "no se puede inferir el tipo de 'null'");
+                        if (it->is(TK::Null)) diag.error(dc.loc, std::string("no se puede inferir el tipo de ") + (isDefaultLiteral(dc.init) ? "'default'" : "'null'"));
                         else if (it->isVoid()) diag.error(dc.loc, "no se puede asignar 'void' a una variable");
                         t = it->is(TK::Null) || it->isVoid() ? tc_.error() : it;
                     } else if (isRef) {
@@ -1049,7 +1055,7 @@ void Sema::checkStmt(Stmt* s) {
         }
         case SK::Switch: {
             auto* ss = static_cast<SwitchStmt*>(s);
-            Type* st = checkValue(ss->subject);
+            Type* st = ss->subject->type ? ss->subject->type : checkValue(ss->subject);  // ya comprobado en Sugar.cpp
             if (!st->isError() && !st->isIntegral() && !st->isEnum())
                 diag.error(ss->subject->loc, "'switch' solo admite tipos enteros, 'char' y enums (no '" + st->str() + "')");
             std::set<int64_t> seen;
@@ -1086,6 +1092,7 @@ void Sema::checkStmt(Stmt* s) {
             if (target && !ds->isArray) useMethod(target->dtor);
             break;
         }
+        default: break;  // SK del azúcar: Sugar.cpp
     }
 }
 
@@ -1184,6 +1191,7 @@ bool Sema::implicitNumeric(Type* from, Type* to) {
 
 bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     if (from == to || from->isError() || to->isError()) return true;
+    if (int r = sugarImplicit(e, from, to); r >= 0) return r == 1;  // T?, tuplas, 'default' (Sugar.cpp)
     if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr();
     if (to->isVoidPointer() && from->isPointer()) return true;
     if (from->isNumeric() && to->isNumeric() && implicitNumeric(from, to)) return true;
@@ -1220,6 +1228,7 @@ int Sema::convCost(Expr* e, Type* to) {
 void Sema::coerce(Expr*& e, Type* to) {
     Type* from = e->type;
     if (!from || from == to || from->isError() || to->isError()) return;
+    if (sugarCoerce(e, to)) return;  // T?, tuplas, 'default' (Sugar.cpp)
     if (!canImplicit(e, from, to)) {
         std::string msg = "no se puede convertir implícitamente el tipo '" + from->str() + "' en '" + to->str() + "'";
         if (canExplicit(from, to)) msg += " (existe una conversión explícita; ¿falta un cast?)";
@@ -1479,6 +1488,7 @@ void Sema::checkAccess(Access a, ClassDecl* owner, const std::string& what, Sour
 }
 
 Type* Sema::checkInner(Expr* e) {
+    if (isSugarExpr(e->kind)) return checkSugar(e);  // Sugar.cpp
     switch (e->kind) {
         case EK::IntLit: {
             auto* l = static_cast<IntLitExpr*>(e);
@@ -1558,7 +1568,10 @@ Type* Sema::checkInner(Expr* e) {
             so->target = resolveType(so->tref);
             return tc_.get(TK::Int);
         }
-        case EK::Default: return resolveType(static_cast<DefaultExpr*>(e)->tref);
+        case EK::Default:  // sin tipo: literal 'default', toma el tipo del destino (sugarCoerce)
+            if (!static_cast<DefaultExpr*>(e)->tref) return tc_.get(TK::Null);
+            return resolveType(static_cast<DefaultExpr*>(e)->tref);
+        default: break;  // EK del azúcar: Sugar.cpp
     }
     return tc_.error();
 }
@@ -1904,6 +1917,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             return tc_.pointerTo(tc_.get(TK::Byte));
         }
     }
+    if (Type* t = sugarMember(e, base)) return t;  // t.nombre en tuplas con nombre (Sugar.cpp)
     if (base->isAggregate()) {
         ClassDecl* c = base->decl;
         for (FieldDecl* f : c->fields) {
@@ -1974,6 +1988,11 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
         } else if (!typeArgs.empty()) {
             continue;
         }
+        if (paramsMethod(m)) {  // forma normal o expandida de 'params' (Sugar.cpp)
+            int c = paramsCost(m, args);
+            if (c >= 0) viable.push_back({m, c, generic});
+            continue;
+        }
         size_t n = m->params.size();
         if (args.size() < n || (args.size() > n && !m->variadic)) continue;
         int cost = 0;
@@ -2008,6 +2027,7 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
 }
 
 void Sema::coerceArgs(MethodDecl* m, std::vector<Expr*>& args) {
+    if (paramsMethod(m)) packParams(m, args);  // argumentos de 'params' -> List<T> (Sugar.cpp)
     for (size_t i = 0; i < args.size(); i++) {
         if (i < m->params.size()) {
             if (!m->params[i].isRef()) coerce(args[i], m->params[i].type);
@@ -2305,9 +2325,11 @@ Type* Sema::checkBinary(BinaryExpr* e) {
         checkCondition(e->rhs);
         return boolT;
     }
+    if (op == "??") return checkCoalesce(e, checkValue(e->lhs));  // a ?? b (Sugar.cpp)
     Type* L = checkValue(e->lhs);
     Type* R = checkValue(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
+    if (Type* t = sugarBinary(e, L, R)) return t;  // T?, tuplas (Sugar.cpp)
     bool eq = op == "==" || op == "!=";
     bool cmp = eq || op == "<" || op == ">" || op == "<=" || op == ">=";
     bool bitwise = op == "&" || op == "|" || op == "^";
@@ -2350,8 +2372,8 @@ Type* Sema::checkBinary(BinaryExpr* e) {
     }
 
     // Concatenación como en C#: "x = " + 5. La memoria la recupera el recolector.
-    auto concatable = [](Type* t) {
-        return t->is(TK::String) || t->isNumeric() || t->is(TK::Bool) || t->isEnum();
+    auto concatable = [this](Type* t) {
+        return t->is(TK::String) || t->isNumeric() || t->is(TK::Bool) || t->isEnum() || sugarConcatable(t);
     };
     if (op == "+" && (L->is(TK::String) || R->is(TK::String)) && concatable(L) && concatable(R))
         return tc_.get(TK::String);
@@ -2425,6 +2447,8 @@ Type* Sema::checkBinary(BinaryExpr* e) {
 }
 
 Type* Sema::checkAssign(AssignExpr* e) {
+    if (e->op == "?\?=") return checkCoalesceAssign(e);                      // Sugar.cpp
+    if (e->lhs->kind == EK::Tuple) return checkDeconstructAssign(e);         // (a, b) = (b, a)
     Type* L = checkValue(e->lhs);
     Type* R = checkValue(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
@@ -2466,7 +2490,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
         return tc_.error();
     };
     if (op == "+" && L->is(TK::String) &&
-        (R->is(TK::String) || R->isNumeric() || R->is(TK::Bool) || R->isEnum()))
+        (R->is(TK::String) || R->isNumeric() || R->is(TK::Bool) || R->isEnum() || sugarConcatable(R)))
         return L;  // s += x
     if (L->isAggregate()) {
         std::vector<MethodDecl*> cands;
@@ -2730,6 +2754,8 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
         addCompletion("Length", kProperty, "(propiedad) int string.Length");
         addCompletion("Ptr", kProperty, "(propiedad) byte* string.Ptr");
     }
+    for (size_t i = 0; isTupleType(base) && i < base->tupleNames.size(); i++)  // (int x, int y): x, y
+        if (!base->tupleNames[i].empty()) addCompletion(base->tupleNames[i], kField, base->decl->fields[i]->type->str() + " " + base->tupleNames[i]);
     if (base->isAggregate()) {
         ClassDecl* c = base->decl;
         for (FieldDecl* f : c->fields)

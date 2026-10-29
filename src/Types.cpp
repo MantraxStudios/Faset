@@ -30,7 +30,15 @@ std::string Type::str() const {
         case TK::String: return "string";
         case TK::Null: return "null";
         case TK::Pointer: return elem->str() + "*";
-        case TK::Class: case TK::Struct: case TK::Enum: return decl->displayName;
+        case TK::Class: case TK::Struct: case TK::Enum:
+            if (!tupleNames.empty() && decl->isTuple) {  // (int x, int y)
+                std::string s = "(";
+                for (size_t i = 0; i < decl->fields.size(); i++)
+                    s += (i ? ", " : "") + decl->fields[i]->type->str() +
+                         (i < tupleNames.size() && !tupleNames[i].empty() ? " " + tupleNames[i] : "");
+                return s + ")";
+            }
+            return decl->displayName;
         case TK::FuncPtr: {
             std::string s = "delegate*<";
             for (Type* p : params) s += p->str() + ", ";

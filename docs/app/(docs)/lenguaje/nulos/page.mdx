@@ -1,0 +1,116 @@
+export const metadata = {
+  title: "null: ??, ?. y T?",
+  description: "Operadores ?? ??= ?. ?[] y tipos por valor anulables (int?, double?, struct?) en Faset.",
+};
+
+# null: `??`, `?.` y `T?`
+
+<p className="lead">
+  Las referencias a clases pueden ser <code>null</code>; los tipos por valor (<code>int</code>,
+  <code>double</code>, structs, <code>string</code>…) no, salvo que se escriban con <code>?</code>:
+  <code>int?</code> es un entero que también puede «no tener valor». Varios operadores ahorran las
+  comprobaciones a mano.
+</p>
+
+## `??` y `??=`
+
+`a ?? b` vale `a` si no es `null` y `b` en caso contrario (`b` solo se evalúa si hace falta).
+`a ??= b` asigna `b` a `a` solo si `a` es `null`.
+
+```faset
+class Config
+{
+    public string Nombre = "por defecto";
+}
+
+void main()
+{
+    Config c = null;
+    Config usada = c ?? new Config();
+    println(usada.Nombre);      // por defecto
+
+    c ??= new Config();         // ahora c ya no es null
+    c ??= new Config();         // no hace nada
+    int? limite = null;
+    println(limite ?? 100);     // 100
+}
+```
+
+## `?.` y `?[]`
+
+`obj?.Miembro` y `obj?[i]` devuelven `null` si `obj` es `null`, sin evaluar el resto de la cadena.
+Si el miembro es de un tipo por valor, el resultado es anulable: `persona?.Edad` es un `int?`.
+Lo habitual es terminar con `??`:
+
+```faset
+using std.collections;
+
+class Nodo
+{
+    public int Valor;
+    public Nodo Siguiente;
+    public Nodo(int v) { Valor = v; }
+    public void Saludar() { println("hola " + Valor); }
+}
+
+void main()
+{
+    Nodo a = new Nodo(1);
+    Nodo nada = null;
+    println(a?.Valor ?? -1);                        // 1
+    println(nada?.Valor ?? -1);                     // -1
+    println(a.Siguiente?.Siguiente?.Valor ?? -1);   // -1
+    a?.Saludar();                                   // hola 1
+    nada?.Saludar();                                // (no hace nada)
+
+    List<int> lista = null;
+    println(lista?[0] ?? 0);                        // 0
+    println(lista?.Count ?? 0);                     // 0
+}
+```
+
+## Tipos por valor anulables: `T?`
+
+`int?`, `double?`, `bool?`, `string?` o `Punto?` (un struct) son `Nullable<T>`: un valor más un
+indicador de si lo tiene. Para las clases, `?` no cambia nada (ya admiten `null`).
+
+| Operación | Resultado |
+|---|---|
+| `int? x = 5;` / `x = null;` | conversión implícita desde `T` y desde `null` |
+| `x.HasValue` | `true` si tiene valor |
+| `x.Value` | el valor; **panic** si no lo tiene |
+| `x.GetValueOrDefault()` / `x.GetValueOrDefault(d)` | el valor, o `0`/`d` |
+| `x ?? d` | el valor, o `d` |
+| `x == null`, `x != null`, `x == 5`, `x > 3` | comparaciones (con `null`, `<` y `>` dan `false`) |
+| `x is int v` | `true` si tiene valor, que queda en `v` |
+
+```faset
+using std.collections;
+
+int? Buscar(List<string> xs, string s)
+{
+    for (int i = 0; i < xs.Count; i++)
+        if (xs[i] == s) return i;
+    return null;
+}
+
+void main()
+{
+    List<string> frutas = new List<string>();
+    frutas.Add("pera");
+    frutas.Add("uva");
+
+    int? pos = Buscar(frutas, "uva");
+    if (pos != null) println("uva en " + pos.Value);       // uva en 1
+    if (Buscar(frutas, "kiwi") is int p) println(p);
+    else println("no hay kiwi");                           // no hay kiwi
+
+    double? media = null;
+    println($"media: [{media}] {media ?? 0.0}");           // media: [] 0
+}
+```
+
+<Callout type="nota">
+Las operaciones aritméticas no se «elevan» a `T?`: `x + 1` con `x` de tipo `int?` es un error. Obtén
+antes el valor con `x ?? 0` o `x.Value`.
+</Callout>

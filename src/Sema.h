@@ -1,10 +1,12 @@
 // Faset - análisis semántico: namespaces, resolución de nombres, comprobación de tipos,
 // sobrecargas, plantillas (instanciadas por tipo), operadores y conversiones.
 #pragma once
+#include <functional>
 #include <map>
 #include <set>
 
 #include "AST.h"
+#include "Sugar.h"
 
 struct NamespaceSym {
     std::string name;  // nombre completo con puntos; "" = global
@@ -177,4 +179,56 @@ private:
     void completeScope();
     void completeMembers(Expr* obj, bool arrow, Type* ot);
     void completeTypes(const std::vector<std::string>& prefix);
+
+    // ---- azúcar sintáctico (Sugar.cpp): foreach, interpolación, ?? ?. , T?, tuplas, patrones,
+    // switch de expresión, params, deconstrucción y 'default'. Casi todo se reescribe (campo
+    // 'lowered' de Expr/Stmt) en construcciones que CodeGen ya sabe emitir.
+    int hiddenCounter_ = 0;
+    std::map<std::string, ClassDecl*> tupleDecls_;
+    std::map<std::pair<ClassDecl*, std::vector<std::string>>, Type*> tupleNamed_;
+    using SubjectFn = std::function<Expr*()>;
+    bool isSugarExpr(EK k) const;
+    Type* checkSugar(Expr* e);
+    bool checkSugarStmt(Stmt* s);
+    VarInfo* hiddenLocal(Type* t, SourceLoc loc, bool hoisted);
+    VarInfo* patternVar(const std::string& name, Type* t, SourceLoc loc);
+    VarDeclStmt* bindDecl(VarInfo* v, Expr* checkedInit);
+    void checkHiddenDecl(VarDeclStmt* d);
+    Type* resolveSugarType(TypeRef* tr, bool allowVoid);
+    ClassDecl* nullableTemplate();
+    Type* nullableOf(Type* t, SourceLoc loc);
+    ClassDecl* tupleDecl(const std::vector<Type*>& elems, SourceLoc loc);
+    Type* tupleType(const std::vector<Type*>& elems, const std::vector<std::string>& names, SourceLoc loc);
+    int sugarImplicit(Expr* e, Type* from, Type* to);  // -1: sin opinión, 0/1: resultado
+    bool sugarCoerce(Expr*& e, Type* to);
+    bool sugarUnify(TypeRef* p, Type* a, MethodDecl* tmpl, std::map<std::string, Type*>& b);
+    Type* sugarBinary(BinaryExpr* e, Type*& L, Type*& R);  // nullptr: no es azúcar
+    Type* sugarMember(MemberExpr* e, Type* base);         // nullptr: no es azúcar
+    bool sugarConcatable(Type* t);
+    bool toStringable(Type* t, int depth = 0);
+    Type* checkInterp(InterpExpr* e);
+    Type* checkCoalesce(BinaryExpr* e, Type* L);
+    Type* checkCoalesceAssign(AssignExpr* e);
+    Type* checkDeconstructAssign(AssignExpr* e);
+    Type* checkCondAccess(CondAccessExpr* e);
+    Type* checkTuple(TupleExpr* e);
+    Type* checkSwitchExpr(SwitchExpr* e);
+    Type* checkIsPattern(IsPatternExpr* e);
+    // Condición (sin comprobar) de que subj() encaja con el patrón; subj() crea cada vez una
+    // expresión nueva del sujeto (de tipo st). Las variables del patrón se declaran en el ámbito actual.
+    Expr* patternTest(Pattern* p, const SubjectFn& subj, Type* st);
+    Expr* propertyTests(Pattern* p, const SubjectFn& subj, Type* st);  // { Prop: patrón, ... }
+    Expr* bindPatternVar(Pattern* p, const std::string& name, Type* t, Expr* value);  // (x = valor, true)
+    // GANCHO para los patrones de tipo ('case Perro p:', 'x is Perro p', 'Perro { Edad: > 3 }',
+    // 'case Perro:'): ver el comentario de la implementación en Sugar.cpp.
+    Expr* lowerTypePattern(Pattern* p, Type* target, const SubjectFn& subj, Type* st);
+    bool lowerSwitchStmt(SwitchStmt* s);
+    void checkForeach(ForeachStmt* s);
+    void checkDeconstruct(DeconstructStmt* s);
+    void checkUsing(UsingStmt* s);
+    bool paramsMethod(MethodDecl* m) const { return !m->params.empty() && m->params.back().isParams; }
+    int paramsCost(MethodDecl* m, std::vector<Expr*>& args);
+    void packParams(MethodDecl* m, std::vector<Expr*>& args);
+    void checkParamsSignature(MethodDecl* m);
+    void inferParamsTypeArgs(MethodDecl* tmpl, const std::vector<Expr*>& args, std::map<std::string, Type*>& b);
 };

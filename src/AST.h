@@ -32,6 +32,11 @@ struct TypeRef {
     int ptrDepth = 0;
     bool isRef = false;              // T&
     bool isFuncPtr = false;          // delegate*<A, B, R>
+    // Azúcar (Sugar.cpp): (int, string) / (int x, int y) usan typeArgs como elementos;
+    // T? es un tipo que admite null (Nullable<T> para los tipos por valor).
+    bool isTuple = false;
+    std::vector<std::string> tupleNames;
+    bool nullable = false;
     bool isVar() const {
         return parts.size() == 1 && (parts[0] == "var" || parts[0] == "auto") && ptrDepth == 0 && typeArgs.empty() &&
                !isFuncPtr;
@@ -39,13 +44,20 @@ struct TypeRef {
     std::string str() const {
         std::string s;
         if (isFuncPtr) s = "delegate*";
+        if (isTuple) {
+            s = "(";
+            for (size_t i = 0; i < typeArgs.size(); i++)
+                s += (i ? ", " : "") + typeArgs[i]->str() +
+                     (i < tupleNames.size() && !tupleNames[i].empty() ? " " + tupleNames[i] : "");
+            return s + ")" + (nullable ? "?" : "");
+        }
         for (size_t i = 0; i < parts.size(); i++) s += (i ? "." : "") + parts[i];
         if (!typeArgs.empty()) {
             s += "<";
             for (size_t i = 0; i < typeArgs.size(); i++) s += (i ? ", " : "") + typeArgs[i]->str();
             s += ">";
         }
-        return s + std::string(ptrDepth, '*') + (isRef ? "&" : "");
+        return s + (nullable ? "?" : "") + std::string(ptrDepth, '*') + (isRef ? "&" : "");
     }
 };
 
@@ -90,13 +102,16 @@ struct VarInfo {
     bool isRef = false;  // referencia (T&): se guarda como puntero en C
     Expr* constInit = nullptr;
     SourceLoc loc;
+    bool hoisted = false;  // temporal de Sugar.cpp: se declara al principio de la función en C
 };
 
 // ---------------------------------------------------------------- expresiones
 
 enum class EK {
     IntLit, FloatLit, BoolLit, CharLit, StringLit, Null, Name, Member, Call, Index, Unary, Postfix,
-    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default
+    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default,
+    // Azúcar sintáctico (Sugar.cpp / SugarGen.cpp)
+    Interp, CondAccess, CondRecv, Tuple, Let, SwitchExpr, IsPattern, ParamsList, MatchFail, CoalesceAssign
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -110,6 +125,8 @@ struct Expr {
     Type* typeValue = nullptr;          // vk == TypeName
     NamespaceSym* nsValue = nullptr;    // vk == Namespace
     std::vector<MethodDecl*> group;     // vk == MethodGroup
+    // Forma reescrita por Sema (Sugar.cpp): si existe, CodeGen emite esta en su lugar.
+    Expr* lowered = nullptr;
     Expr(EK k, SourceLoc l) : kind(k), loc(l) {}
     virtual ~Expr() = default;
 };
@@ -258,11 +275,13 @@ struct DefaultExpr : Expr {  // default(T): valor cero del tipo
 
 // ---------------------------------------------------------------- sentencias
 
-enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty };
+enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty,
+    Foreach, Deconstruct, Using };
 
 struct Stmt {
     SK kind;
     SourceLoc loc;
+    Stmt* lowered = nullptr;  // forma reescrita por Sema (Sugar.cpp)
     Stmt(SK k, SourceLoc l) : kind(k), loc(l) {}
     virtual ~Stmt() = default;
 };
@@ -270,6 +289,7 @@ struct Stmt {
 struct BlockStmt : Stmt {
     std::vector<Stmt*> stmts;
     bool memoryUnsafe = false;  // memory_unsafe { ... }
+    bool noScope = false;       // generado: sus declaraciones quedan en el ámbito de fuera
     explicit BlockStmt(SourceLoc l) : Stmt(SK::Block, l) {}
 };
 
@@ -334,12 +354,17 @@ struct ReturnStmt : Stmt {
     explicit ReturnStmt(SourceLoc l) : Stmt(SK::Return, l) {}
 };
 
+struct Pattern;
 struct SwitchStmt : Stmt {
     struct Section {
         std::vector<Expr*> labels;
         std::vector<int64_t> values;
         bool hasDefault = false;
         std::vector<Stmt*> body;
+        // Patrones (Sugar.cpp): uno por 'case', con su guarda 'when' opcional. Los 'case' de
+        // constante simple también están en 'labels'.
+        std::vector<Pattern*> patterns;
+        std::vector<Expr*> guards;
     };
     Expr* subject = nullptr;
     std::vector<Section> sections;
@@ -359,6 +384,7 @@ struct Param {
     TypeRef* tref = nullptr;
     std::string name;
     bool isThis = false;  // primer parámetro de un método de extensión
+    bool isParams = false;  // 'params List<T> xs' (o 'params T[] xs'): último parámetro
     Type* type = nullptr;
     VarInfo* var = nullptr;
     bool isRef() const { return tref && tref->isRef; }
@@ -450,6 +476,7 @@ struct ClassDecl {
     FileScope* file = nullptr;
     NamespaceSym* nsSym = nullptr;
     bool isNamespaceScope = false;  // contenedor oculto de funciones/variables globales
+    bool isTuple = false;           // struct anónimo de una tupla (Sugar.cpp): Item1..ItemN
     bool unsafeCtx = false;         // 'memory_unsafe class': implementación confiable
 
     // Plantillas (genéricos)
@@ -466,6 +493,143 @@ struct ClassDecl {
     bool isTemplate() const { return !typeParams.empty() && !templateOf; }
     // ¿Necesita una definición de struct en C? (clases no estáticas y structs)
     bool hasLayout() const { return kind != ClassKind::Enum && !mods.isStatic && !isTemplate(); }
+};
+
+// ---------------------------------------------------------------- azúcar sintáctico (Sugar.cpp)
+
+// $"Hola {nombre,10:F2}": texto literal y huecos con alineación y formato opcionales.
+struct InterpExpr : Expr {
+    struct Part {
+        std::string text;
+        Expr* expr = nullptr;  // nulo: texto literal
+        bool hasAlign = false;
+        int align = 0;
+        std::string format;
+        MethodDecl* toString = nullptr;  // ToString() del usuario
+    };
+    std::vector<Part> parts;
+    explicit InterpExpr(SourceLoc l) : Expr(EK::Interp, l) {}
+};
+
+// obj?.resto  /  obj?[i]: 'access' es la cadena de miembros aplicada a un CondRecvExpr.
+struct CondAccessExpr : Expr {
+    Expr* obj = nullptr;
+    Expr* access = nullptr;
+    Type* recvType = nullptr;  // tipo del receptor (T si obj es T?)
+    VarInfo* tmp = nullptr;
+    bool objNullable = false;  // obj es Nullable<T>
+    explicit CondAccessExpr(SourceLoc l) : Expr(EK::CondAccess, l) {}
+};
+struct CondRecvExpr : Expr {
+    CondAccessExpr* owner = nullptr;
+    explicit CondRecvExpr(SourceLoc l) : Expr(EK::CondRecv, l) {}
+};
+
+// (1, "a")  /  (x: 1, y: 2)
+struct TupleExpr : Expr {
+    std::vector<Expr*> elems;
+    std::vector<std::string> names;  // "" si el elemento no tiene nombre
+    explicit TupleExpr(SourceLoc l) : Expr(EK::Tuple, l) {}
+};
+
+// (t1 = e1, t2 = e2, seq...): temporales con nombre oculto (generado por Sema).
+struct LetExpr : Expr {
+    std::vector<std::pair<VarInfo*, Expr*>> binds;
+    std::vector<Expr*> seq;
+    explicit LetExpr(SourceLoc l) : Expr(EK::Let, l) {}
+};
+
+enum class PK { Constant, Relational, And, Or, Not, Discard, Var, Property, Positional, Type };
+
+// Patrones de 'switch', 'case' e 'is'.
+struct Pattern {
+    PK kind;
+    SourceLoc loc;
+    Expr* value = nullptr;      // Constant / Relational
+    std::string op;             // Relational: < > <= >= (y == !=)
+    Pattern* a = nullptr;       // And / Or / Not
+    Pattern* b = nullptr;
+    std::string name;           // Var: 'var x'; Type: designación opcional 'Perro p'
+    SourceLoc nameLoc;
+    TypeRef* tref = nullptr;    // Type (y Property con tipo: Perro { Edad: > 3 })
+    std::vector<std::pair<std::string, Pattern*>> props;  // Property: { Edad: > 18 }
+    std::vector<SourceLoc> propLocs;
+    std::vector<Pattern*> elems;  // Positional: (0, _)
+    Pattern(PK k, SourceLoc l) : kind(k), loc(l) {}
+};
+
+// x switch { 1 => "uno", > 5 => "muchos", _ => "otro" }
+struct SwitchExpr : Expr {
+    struct Arm {
+        SourceLoc loc;
+        Pattern* pat = nullptr;
+        Expr* guard = nullptr;
+        Expr* value = nullptr;
+    };
+    Expr* subject = nullptr;
+    std::vector<Arm> arms;
+    explicit SwitchExpr(SourceLoc l) : Expr(EK::SwitchExpr, l) {}
+};
+
+// x is > 0 and < 10
+struct IsPatternExpr : Expr {
+    Expr* subject = nullptr;
+    Pattern* pat = nullptr;
+    explicit IsPatternExpr(SourceLoc l) : Expr(EK::IsPattern, l) {}
+};
+
+// Argumentos de un parámetro 'params': se empaquetan en una List<T> nueva.
+struct ParamsListExpr : Expr {
+    std::vector<Expr*> items;
+    MethodDecl* ctor = nullptr;  // List<T>(int capacidad)
+    size_t ctorIndex = 0;
+    MethodDecl* add = nullptr;   // List<T>.Add
+    explicit ParamsListExpr(SourceLoc l) : Expr(EK::ParamsList, l) {}
+};
+
+// Ningún brazo de un 'switch' de expresión coincidió: panic en tiempo de ejecución.
+struct MatchFailExpr : Expr {
+    Expr* value = nullptr;  // valor que no coincidió (para el mensaje), si se puede mostrar
+    explicit MatchFailExpr(SourceLoc l) : Expr(EK::MatchFail, l) {}
+};
+
+// a ??= b (lhs es un lvalue; se evalúa una sola vez)
+struct CoalesceAssignExpr : Expr {
+    Expr* lhs = nullptr;
+    Expr* rhs = nullptr;
+    bool nullableLhs = false;
+    explicit CoalesceAssignExpr(SourceLoc l) : Expr(EK::CoalesceAssign, l) {}
+};
+
+// foreach (var x in c) / foreach (int x in c) / foreach (var (k, v) in dic)
+struct ForeachStmt : Stmt {
+    TypeRef* tref = nullptr;            // tipo del elemento (o 'var')
+    std::string name;                   // vacío si se deconstruye
+    SourceLoc nameLoc;
+    std::vector<std::string> names;     // foreach (var (a, b) in ...)
+    std::vector<TypeRef*> types;        // tipo de cada nombre (nulo = var)
+    std::vector<SourceLoc> nameLocs;
+    Expr* coll = nullptr;
+    Stmt* body = nullptr;
+    explicit ForeachStmt(SourceLoc l) : Stmt(SK::Foreach, l) {}
+};
+
+// var (a, b) = expr;   (int a, string b) = expr;
+struct DeconstructStmt : Stmt {
+    std::vector<std::string> names;  // "_" descarta
+    std::vector<TypeRef*> types;     // nulo = var
+    std::vector<SourceLoc> locs;
+    Expr* init = nullptr;
+    explicit DeconstructStmt(SourceLoc l) : Stmt(SK::Deconstruct, l) {}
+};
+
+// using var x = expr;  /  using (var x = expr) cuerpo  /  using (expr) cuerpo
+struct UsingStmt : Stmt {
+    VarDeclStmt* decl = nullptr;  // declaración (o nulo si es una expresión)
+    Expr* expr = nullptr;
+    Stmt* body = nullptr;         // nulo en 'using var' (llega hasta el final del bloque)
+    std::vector<VarInfo*> vars;   // objetos a liberar (destructor) al salir
+    explicit UsingStmt(SourceLoc l) : Stmt(SK::Using, l) {}
 };
 
 struct Program {

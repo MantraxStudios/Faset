@@ -62,7 +62,8 @@ int main()
 
 ## switch
 
-`switch` admite enteros, `char` y enums. Cada `case` termina en `break`, `return` o `continue`.
+`switch` admite enteros, `char`, enums y cadenas (además de [patrones](/lenguaje/patrones/)). Cada
+`case` termina en `break`, `return` o `continue`.
 
 ```faset
 enum Color { Rojo, Verde, Azul }
@@ -102,6 +103,8 @@ int main()
 `panic(mensaje)` termina el programa con un mensaje de error; `assert(cond, mensaje)` hace lo mismo
 si la condición es falsa.
 
-<Callout type="nota">
-`foreach` todavía no existe: usa `for` con un índice. Consulta las [limitaciones actuales](/lenguaje/limitaciones/).
+<Callout type="consejo">
+Para recorrer listas, diccionarios y cadenas usa [`foreach`](/lenguaje/foreach/). El `switch` también
+admite cadenas, patrones, guardas `when` y una forma de expresión: consulta
+[switch y patrones](/lenguaje/patrones/).
 </Callout>

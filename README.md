@@ -884,7 +884,7 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
-- Sin `foreach`, interpolación `$"..."` (usa `"x = " + x`) ni lambdas (usa `&Funcion`).
+- Sin lambdas (usa `&Funcion`). `foreach`, `$"..."`, `?? ?. T?`, tuplas, patrones y `params` sí existen.
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.

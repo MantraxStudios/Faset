@@ -673,4 +673,78 @@ namespace std
             return (char)c;
         }
     }
+    // ---------------------------------------------------------------- Nullable<T> (T?)
+    //  'int? x = null;' es un Nullable<int>. El compilador añade la conversión desde T y desde
+    //  null, los operadores ?? ??= ?. y las comparaciones (x == null, x == 5, x < y).
+    public struct Nullable<T>
+    {
+        bool hasValue;  // el orden de los campos lo usa el compilador: {hasValue, value}
+        T value;
+
+        public Nullable(T v)
+        {
+            hasValue = true;
+            value = v;
+        }
+
+        public bool HasValue => hasValue;
+
+        [TrackCaller] public T Value
+        {
+            get
+            {
+                if (!hasValue) panic("Nullable: no tiene valor (comprueba HasValue o usa ??)");
+                return value;
+            }
+        }
+
+        public T GetValueOrDefault() => value;
+        public T GetValueOrDefault(T defaultValue) => hasValue ? value : defaultValue;
+    }
+
+    // ---------------------------------------------------------------- foreach sobre string
+    //  foreach (char c in texto) recorre los caracteres (puntos de código Unicode), no los bytes:
+    //  "año" da 'a', 'ñ', 'o'. Una secuencia UTF-8 no válida da U+FFFD.
+    public struct StringEnumerator
+    {
+        string text;
+        int pos;
+        char current;
+
+        public StringEnumerator(string s)
+        {
+            text = s;
+            pos = 0;
+            current = '\0';
+        }
+
+        public char Current => current;
+
+        public bool MoveNext()
+        {
+            if (pos >= text.Length) return false;
+            int b = text[pos];
+            pos++;
+            int extra = b >= 0xF0 ? 3 : b >= 0xE0 ? 2 : b >= 0xC0 ? 1 : 0;
+            int cp = extra == 3 ? b & 0x07 : extra == 2 ? b & 0x0F : extra == 1 ? b & 0x1F : b;
+            if (b >= 0x80 && extra == 0) cp = 0xFFFD;
+            for (int k = 0; k < extra; k++)
+            {
+                if (pos >= text.Length || (text[pos] & 0xC0) != 0x80)
+                {
+                    cp = 0xFFFD;
+                    break;
+                }
+                cp = (cp << 6) | (text[pos] & 0x3F);
+                pos++;
+            }
+            current = (char)cp;
+            return true;
+        }
+    }
+
+    public static class StringEnumeration
+    {
+        public static StringEnumerator GetEnumerator(this string s) => new StringEnumerator(s);
+    }
 }

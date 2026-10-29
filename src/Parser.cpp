@@ -366,8 +366,12 @@ void Parser::parseParams(MethodDecl* m) {
             bool byRef = false;
             if (acceptK("ref") || acceptK("out")) byRef = true;
             acceptK("const");
-            if (isK("params")) fail("'params' aún no está soportado");
+            if (acceptK("params")) {  // params List<T> xs  /  params T[] xs (= List<T>)
+                prm.isParams = true;
+                allowArraySuffix_ = true;
+            }
             prm.tref = parseType();
+            allowArraySuffix_ = false;
             if (byRef) prm.tref->isRef = true;
             prm.name = expectIdent();
             if (isP("=")) fail("los parámetros con valor por defecto aún no están soportados");
@@ -748,7 +752,11 @@ TypeRef* Parser::tryParseType() {
         halfGt_ = saveHalf;
         return nullptr;
     };
-    if (isK("delegate")) {
+    if (isP("(")) {  // tupla: (int, string) / (int x, int y)
+        TypeRef* t = tryParseTupleType();
+        if (!t) return failType();
+        tr = t;
+    } else if (isK("delegate")) {
         p_++;
         if (!acceptP("*") || !isP("<")) return failType();
         tr->isFuncPtr = true;
@@ -771,6 +779,10 @@ TypeRef* Parser::tryParseType() {
         return failType();
     }
     if (halfGt_ && !saveHalf) return tr;  // el '>' pendiente pertenece a la lista exterior
+    if (isP("?") && nullableMarkFollows()) {  // int? x
+        tr->nullable = true;
+        p_++;
+    }
     while (isP("*")) {
         tr->ptrDepth++;
         p_++;
@@ -779,7 +791,16 @@ TypeRef* Parser::tryParseType() {
         tr->isRef = true;
         p_++;
     }
-    if (isP("[") && peekTok().kind == TokKind::Punct && peekTok().text == "]") return failType();
+    if (isP("[") && peekTok().kind == TokKind::Punct && peekTok().text == "]") {
+        if (!allowArraySuffix_) return failType();
+        p_ += 2;  // params T[] xs: se representa como List<T>
+        auto* list = new TypeRef();
+        list->loc = tr->loc;
+        list->parts = {"std", "collections", "List"};
+        list->typeArgs = {tr};
+        requestModule({"std", "collections"});
+        return list;
+    }
     return tr;
 }
 
@@ -821,7 +842,7 @@ bool Parser::looksLikeDecl() {
     if (isK("const") || isK("delegate")) return true;
     if (isPrimitiveKw() && !(peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "::")))
         return true;
-    if (cur().kind != TokKind::Ident) return false;
+    if (cur().kind != TokKind::Ident && !isP("(")) return false;  // '(' : (int, string) t = ...
     size_t save = p_;
     TypeRef* tr = tryParseType();
     bool r = false;
@@ -861,7 +882,7 @@ Stmt* Parser::parseSwitch() {
         bool any = false;
         for (;;) {
             if (acceptK("case")) {
-                sec.labels.push_back(parseExpr());
+                parseSwitchLabel(sec);  // patrón [when guarda] (ParserSugar.cpp)
                 expectP(":");
                 any = true;
             } else if (isK("default")) {
@@ -948,7 +969,9 @@ Stmt* Parser::parseStatement() {
         s->body = parseStatement();
         return s;
     }
-    if (isK("foreach")) fail("'foreach' aún no está soportado; usa un bucle 'for'");
+    if (isK("foreach")) return parseForeach();
+    if (isK("using")) return parseUsingStmt();
+    if (Stmt* d = tryParseDeconstruct()) return d;  // var (a, b) = ...;  (int a, string b) = ...;
     if (acceptK("break")) {
         expectP(";");
         return new BreakStmt(loc);
@@ -990,7 +1013,7 @@ Expr* Parser::parseExpr() { return parseAssign(); }
 
 Expr* Parser::parseAssign() {
     Expr* lhs = parseConditional();
-    static const char* const ops[] = {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="};
+    static const char* const ops[] = {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=", "?\?="};
     for (const char* op : ops) {
         if (isP(op)) {
             auto* a = new AssignExpr(cur().loc);
@@ -1006,6 +1029,7 @@ Expr* Parser::parseAssign() {
 
 Expr* Parser::parseConditional() {
     Expr* c = parseBinary(1);
+    if (isP("??")) c = parseCoalesce(c);  // a ?? b (ParserSugar.cpp)
     if (isP("?")) {
         auto* e = new CondExpr(cur().loc);
         p_++;
@@ -1015,7 +1039,6 @@ Expr* Parser::parseConditional() {
         e->b = parseAssign();
         return e;
     }
-    if (isP("??")) fail("el operador '?\?' aún no está soportado");
     return c;
 }
 
@@ -1041,8 +1064,19 @@ static int binaryPrec(const Token& t) {
 Expr* Parser::parseBinary(int minPrec) {
     Expr* lhs = parseUnary();
     for (;;) {
+        if (isK("switch")) {  // x switch { ... } (ParserSugar.cpp)
+            lhs = parseSwitchExpr(lhs);
+            continue;
+        }
         int prec = binaryPrec(cur());
-        if (prec == -2) fail("los operadores 'is' y 'as' aún no están soportados");
+        if (prec == -2) {
+            if (minPrec > 7) return lhs;
+            if (isK("is")) {  // x is > 0 and < 10 (patrones; ParserSugar.cpp)
+                lhs = parseIsPattern(lhs);
+                continue;
+            }
+            fail("el operador 'as' aún no está soportado");
+        }
         if (prec < minPrec) return lhs;
         auto* b = new BinaryExpr(cur().loc);
         b->op = cur().text;
@@ -1133,6 +1167,8 @@ Expr* Parser::parsePostfix(Expr* e) {
             ix->index = parseExpr();
             expectP("]");
             e = ix;
+        } else if (isP("?") && peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "[")) {
+            return parseConditionalAccess(e);  // obj?.Campo, obj?[i] (ParserSugar.cpp)
         } else if (isP("++") || isP("--")) {
             auto* pe = new PostfixExpr(loc);
             pe->op = cur().text;
@@ -1182,7 +1218,9 @@ Expr* Parser::parsePrimary() {
             }
             return e;
         }
+        case TokKind::InterpBegin: return parseInterpolated();  // $"..." (ParserSugar.cpp)
         case TokKind::Ident: {
+            if (tk.text == "nameof" && peekTok().kind == TokKind::Punct && peekTok().text == "(") return parseNameof(loc);
             auto* e = new NameExpr(loc);
             e->name = tk.text;
             if (tk.text == kCompletionMarker) sawMarker_ = true;
@@ -1205,6 +1243,7 @@ Expr* Parser::parsePrimary() {
                 expectP(")");
                 return e;
             }
+            if (acceptK("default")) return new DefaultExpr(loc);  // literal 'default' (tipo por el destino)
             if (acceptK("sizeof")) {
                 auto* e = new SizeOfExpr(loc);
                 expectP("(");
@@ -1242,11 +1281,7 @@ Expr* Parser::parsePrimary() {
             break;
         }
         case TokKind::Punct:
-            if (acceptP("(")) {
-                Expr* e = parseExpr();
-                expectP(")");
-                return e;
-            }
+            if (acceptP("(")) return parseParenOrTuple(loc);  // (e) o tupla (1, "a")
             break;
         default:
             break;

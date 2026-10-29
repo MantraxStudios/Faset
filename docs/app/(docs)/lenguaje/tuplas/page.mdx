@@ -1,0 +1,84 @@
+export const metadata = {
+  title: "Tuplas",
+  description: "Tuplas (int, string), elementos con nombre, deconstrucción, intercambio e igualdad en Faset.",
+};
+
+# Tuplas
+
+<p className="lead">
+  Una tupla agrupa varios valores sin declarar un tipo: <code>(int, string)</code>. Son ideales para
+  devolver más de un resultado desde un método.
+</p>
+
+```faset
+(int cociente, int resto) DivMod(int a, int b) => (a / b, a % b);
+
+void main()
+{
+    (int, string) t = (1, "uno");
+    println(t.Item1 + " " + t.Item2);       // 1 uno
+
+    var punto = (x: 3, y: 4);               // elementos con nombre
+    println(punto.x * punto.y);             // 12
+
+    var r = DivMod(17, 5);
+    println(r.cociente + " " + r.resto);    // 3 2
+    println($"{r}");                        // (3, 2)
+}
+```
+
+Los elementos siempre se llaman `Item1`, `Item2`…; si la tupla tiene nombres (en el tipo, en el
+literal `(x: 1, y: 2)` o tomados de las variables en `(ancho, alto)`) también se pueden usar.
+Dos tuplas con la misma forma y distintos nombres son compatibles entre sí.
+
+## Deconstrucción
+
+```faset
+(string, int) Persona() => ("Ana", 30);
+
+void main()
+{
+    var (nombre, edad) = Persona();
+    println(nombre + " " + edad);           // Ana 30
+
+    (string n, int e) = Persona();          // con tipos explícitos
+    var (_, soloEdad) = Persona();          // '_' descarta un elemento
+    println(soloEdad);                      // 30
+
+    int a = 1, b = 2;
+    (a, b) = (b, a);                        // intercambio
+    println(a + " " + b);                   // 2 1
+}
+```
+
+Un tipo propio se puede deconstruir si tiene un método `Deconstruct(out A a, out B b)`, como
+`KeyValuePair<K, V>` (así funciona `foreach (var (clave, valor) in diccionario)`).
+
+## Igualdad y conversiones
+
+`==` y `!=` comparan elemento a elemento (las cadenas por contenido). Un literal se adapta al tipo
+de destino: `(long, double) t = (1, 2);` convierte cada elemento.
+
+```faset
+using std.collections;
+
+void main()
+{
+    println((1, "a") == (1, "a"));          // true
+    List<(string, int)> notas = new List<(string, int)>();
+    notas.Add(("Ana", 9));
+    notas.Add(("Luis", 7));
+    foreach (var (quien, nota) in notas) println(quien + ": " + nota);
+}
+```
+
+## Representación
+
+Cada forma de tupla (por ejemplo `(int, string)`) se compila a un struct anónimo de C con los campos
+`Item1`, `Item2`…: se copian por valor como cualquier `struct`, sin reservar memoria. Las tuplas
+pueden usarse en campos, parámetros, genéricos (`List<(int, int)>`) y anidadas.
+
+<Callout type="nota">
+`Console.WriteLine(t)` no acepta una tupla (Faset no tiene `object`); escribe
+`Console.WriteLine($"{t}")`. Una `List<(int x, int y)>` y una `List<(int, int)>` son tipos distintos.
+</Callout>
