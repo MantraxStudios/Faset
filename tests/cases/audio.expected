@@ -1,0 +1,37 @@
+pcm8: ok ch=1 rate=8000 frames=4000 dur=0.5 s0=0.5 s1=0.5
+pcm16: ok ch=2 rate=44100 frames=22050 dur=0.5 s0=0.25 s1=-0.25
+pcm24: ok ch=2 rate=48000 frames=96000 dur=2 s0=-0.75 s1=0.75
+pcm32: ok ch=1 rate=16000 frames=1600 dur=0.1 s0=0.5 s1=0.5
+float32: ok ch=2 rate=22050 frames=11025 dur=0.5 s0=0.125 s1=-0.125
+false
+formato de audio desconocido (se admiten WAV, OGG Vorbis y MP3)
+WAV no admitido (solo PCM de 8/16/24/32 bits o float de 32/64): formato 1 con 12 bits
+no se puede leer el archivo de audio: no/existe.wav
+false
+ogg: 1 22050 0.5 pico 1/8: sí
+mp3: 2 44100 dur>=0.5: sí pico: 0.088 frames: 25344
+music ogg: 0.5 22050
+music mp3: sí
+true
+offline
+48000
+true
+0.02
+centro: 0.5 0.5 pos=0.01
+después: 0 activa=no voces=0
+izquierda: 0.25 0
+general: 0.5
+rápida a 470: sí
+rápida a 950: no
+bucle: sí pos=0
+pausa: sí
+silencio: 0
+reanudada: 0.5
+parada: no
+música: 1
+pos: 0.5
+valor: 0.5
+vuelta: 0.5 sí
+salto: 0.35
+sigue sonando: no voces=0
+false

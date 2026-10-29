@@ -20,6 +20,8 @@ struct Gen {
     int nextEvent = 1;
     int unnamed = 0;
     bool ok = true;
+    // Componentes no visuales de std.audio (<Sound>, <Music>): (tipo, nombre).
+    std::vector<std::pair<std::string, std::string>> components;
 
     void error(int line, const std::string& msg) {
         diag.error(SourceLoc{fileId, line, 1}, msg);
@@ -127,7 +129,41 @@ struct Gen {
         return h;
     }
 
+    // <Sound Name="Click" Source="click.wav" Volume="0.8" Loop="false" AutoPlay="false"/> y <Music .../>:
+    // campo de tipo Sound o Music (std.audio) cargado en InitializeComponent.
+    bool component(const XmlNode& n) {
+        if (n.name != "Sound" && n.name != "Music") return false;
+        std::string name;
+        auto nm = n.attrs.find("Name");
+        if (nm != n.attrs.end()) {
+            name = nm->second;
+            if (!isIdent(name)) error(n.line, "'Name' debe ser un identificador válido (es '" + name + "')");
+            else if (name == "Window" || !names.insert(name).second) error(n.line, "ya existe un control llamado '" + name + "'");
+        } else {
+            name = "__ui" + std::to_string(++unnamed);
+        }
+        components.push_back({n.name, name});
+        auto src = n.attrs.find("Source");
+        if (src == n.attrs.end() || src->second.empty())
+            error(n.line, "<" + n.name + "> necesita un atributo 'Source' con el archivo de audio (WAV, OGG o MP3)");
+        std::string code = name + " = " + n.name + ".Load(" + quote(src == n.attrs.end() ? "" : src->second) + ");";
+        std::string autoPlay;
+        for (const std::string& key : n.attrOrder) {
+            const std::string& v = n.attrs.at(key);
+            std::string num;
+            if (key == "Name" || key == "Source") continue;
+            if (key == "Volume" || key == "Pan" || key == "Speed") numAttr(n, key, num), code += " " + name + "." + key + " = " + num + ";";
+            else if (key == "Loop") code += " " + name + ".Loop = " + boolValue(n, key, v) + ";";
+            else if (key == "AutoPlay") autoPlay = boolValue(n, key, v) == "true" ? " " + name + ".Play();" : "";
+            else error(n.line, "atributo desconocido '" + key + "' en <" + n.name + "> (válidos: Name, Source, Volume, Pan, Speed, Loop, AutoPlay)");
+        }
+        emit(n.line, " if (ev == 0) { " + code + autoPlay + " }");
+        if (!n.children.empty()) error(n.children[0].line, "<" + n.name + "> no puede contener otros elementos");
+        return true;
+    }
+
     void widget(const XmlNode& n, const std::string& parent) {
+        if (component(n)) return;
         static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
                                                        "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
         if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
@@ -257,9 +293,11 @@ std::string generateUiSource(const std::string& xml, int fileId) {
 
     // Línea 1: todo lo que no corresponde a un control concreto.
     std::string head = "using std; using std.ui;";
+    if (!g.components.empty()) head += " using std.audio;";
     if (!ns.empty()) head += " namespace " + ns + " {";
     head += " public partial class " + cls + " { public Window Window;";
     for (const std::string& f : g.fields) head += " Widget " + f + ";";
+    for (const auto& c : g.components) head += " " + c.first + " " + c.second + ";";
     head += " void InitializeComponent() { __ui_build(0, null); }";
     head += " memory_unsafe static void __ui_event(void* self, Widget sender, int ev) { ((" + cls +
             ")self).__ui_build(ev, sender); }";

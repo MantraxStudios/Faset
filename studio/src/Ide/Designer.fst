@@ -347,7 +347,7 @@ namespace FasetStudio.Ide
         public string Options;
     }
 
-    public class Designer
+    public partial class Designer
     {
         public const float ToolboxWidth = 196;
         public const float PropsWidth = 330;
@@ -586,6 +586,7 @@ namespace FasetStudio.Ide
             for (int i = n.Children.Count - 1; i >= 0; i--)
             {
                 UiNode c = n.Children[i];
+                if (UiComponents.IsComponent(c.Kind)) continue;   // están en la bandeja
                 if (px >= c.SX && py >= c.SY && px < c.SX + c.SW && py < c.SY + c.SH)
                 {
                     UiNode inner = HitTest(c, px, py);
@@ -620,7 +621,7 @@ namespace FasetStudio.Ide
         // Asa de redimensión bajo el punto (0..7 desde arriba-izquierda en sentido horario) o -1.
         int HandleAt(float px, float py)
         {
-            if (selected == null || selected == root) return -1;
+            if (!Placeable) return -1;
             for (int i = 0; i < 8; i++)
             {
                 float hx = 0, hy = 0;
@@ -835,6 +836,7 @@ namespace FasetStudio.Ide
 
         string UniqueName(string kind)
         {
+            if (UiComponents.IsComponent(kind)) return UniqueComponentName(kind);
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
                           : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar"
                           : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : "panel";
@@ -947,6 +949,7 @@ namespace FasetStudio.Ide
             c.SetInt("X", selected.Int("X", 0) + 16);
             c.SetInt("Y", selected.Int("Y", 0) + 16);
             c.Parent = selected.Parent;
+            StripGeometry(c);
             selected.Parent.Children.Add(c);
             selected = c;
             Commit(before);
@@ -965,7 +968,7 @@ namespace FasetStudio.Ide
 
         void Nudge(int dx, int dy)
         {
-            if (selected == null || selected == root) return;
+            if (!Placeable) return;
             string before = Snapshot();
             selected.SetInt("X", selected.Int("X", 0) + dx);
             selected.SetInt("Y", selected.Int("Y", 0) + dy);
@@ -1009,6 +1012,7 @@ namespace FasetStudio.Ide
                 n.SetInt("X", n.Int("X", 0) + 16);
                 n.SetInt("Y", n.Int("Y", 0) + 16);
             }
+            StripGeometry(n);
             n.Parent = parent;
             parent.Children.Add(n);
             selected = n;
@@ -1030,7 +1034,7 @@ namespace FasetStudio.Ide
         // 6: traer al frente; 7: enviar al fondo.
         void Arrange(int what)
         {
-            if (selected == null || selected == root) return;
+            if (!Placeable) return;
             UiNode p = selected.Parent;
             int pw = p.Int("Width", p == root ? 800 : 100), ph = p.Int("Height", p == root ? 600 : 32);
             int w = selected.Int("Width", 100), h = selected.Int("Height", 32);
@@ -1059,7 +1063,7 @@ namespace FasetStudio.Ide
 
         int ArrangeAt(float px, float py)
         {
-            if (selected == null || selected == root) return -1;
+            if (!Placeable) return -1;
             float ty = Y + ArrangeTop;
             if (py < ty || py >= ty + 30 || px < PropsX + 18) return -1;
             int i = (int)Math.Floor((px - (PropsX + 18)) / ArrangeButtonWidth);
@@ -1110,6 +1114,7 @@ namespace FasetStudio.Ide
         void OpenEvent(UiNode n, string ev)
         {
             if (n == null || n == root) return;
+            if (UiComponents.IsComponent(n.Kind)) return;   // sin eventos
             string method = String.Copy(n.Get(ev));
             if (method.Length == 0)
             {
@@ -1159,6 +1164,7 @@ namespace FasetStudio.Ide
                 Def(l, "GradientDirection", 4, "Vertical|Horizontal", "Vertical", "Colors");
                 return l;
             }
+            if (UiComponents.IsComponent(k)) return ComponentProps(l, k);
             Def(l, "Name", 7, "", "", "Control");
             if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Text", 0, "", "", "Control");
             if (k == "TextBox" || k == "ComboBox") Def(l, "Placeholder", 0, "", "", "Control");
@@ -1486,6 +1492,7 @@ namespace FasetStudio.Ide
                 BarClick(bar);
                 return;
             }
+            if (TrayMouse(px, py, clicks)) return;
             pressX = px;
             pressY = py;
             dragMoved = false;
@@ -1627,7 +1634,7 @@ namespace FasetStudio.Ide
                 for (int i = -1; i < parent.Children.Count; i++)
                 {
                     UiNode o = i < 0 ? parent : parent.Children[i];
-                    if (o == n) continue;
+                    if (o == n || UiComponents.IsComponent(o.Kind)) continue;
                     int os = i < 0 ? 0 : (horizontal ? o.Int("X", 0) : o.Int("Y", 0));
                     int ol = horizontal ? o.Int("Width", 100) : o.Int("Height", 32);
                     if (i < 0) ol = horizontal ? parent.Int("Width", 800) : parent.Int("Height", 600);
@@ -1666,7 +1673,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < parent.Children.Count; i++)
             {
                 UiNode o = parent.Children[i];
-                if (o == n) continue;
+                if (o == n || UiComponents.IsComponent(o.Kind)) continue;
                 int os = horizontal ? o.Int("X", 0) : o.Int("Y", 0);
                 int ol = horizontal ? o.Int("Width", 100) : o.Int("Height", 32);
                 for (int k = 0; k < 2; k++)
@@ -2005,6 +2012,7 @@ namespace FasetStudio.Ide
             if (showGrid) DrawDots(r);
             DrawWindow(r);
             DrawBar(r);
+            DrawTray(r);
             r.PopClip();
             DrawToolbox(r);
             DrawProps(r);
@@ -2071,7 +2079,7 @@ namespace FasetStudio.Ide
             if (dropTarget != null && dragMoved && (dragMode == 3 || (dragMode == 1 && dropTarget != selected.Parent)))
                 r.RoundBorder(dropTarget.SX - 2, dropTarget.SY - 2, dropTarget.SW + 4, dropTarget.SH + 4, 8, 2, Accent);
             // Selección
-            if (selected != null && selected != root)
+            if (Placeable)
             {
                 r.RectOutline(selected.SX - 1, selected.SY - 1, selected.SW + 2, selected.SH + 2, 1.5f, Accent);
                 for (int i = 0; i < 8; i++)
@@ -2141,6 +2149,7 @@ namespace FasetStudio.Ide
 
         void DrawNode(Renderer r, UiNode n, float ox, float oy)
         {
+            if (UiComponents.IsComponent(n.Kind)) return;   // se dibujan en la bandeja (DesignerTray.fst)
             float x = ox + n.Int("X", 0) * zoom, y = oy + n.Int("Y", 0) * zoom;
             float w = n.Int("Width", 100) * zoom, h = n.Int("Height", 32) * zoom;
             n.SX = x;
@@ -2481,7 +2490,7 @@ namespace FasetStudio.Ide
             r.RoundRect(px + PropsWidth - 18 - kw, Y + 14, kw, 20, 6, Theme.Elevated);
             r.Text(r.UiSmall, px + PropsWidth - 11 - kw, Y + 16, kindLabel, Theme.TextSecondary);
             float top = Y + 44;
-            if (selected != root)
+            if (Placeable)
             {
                 DrawArrangeBar(r, px + 18, Y + ArrangeTop);
                 top = Y + ArrangeTop + 38;

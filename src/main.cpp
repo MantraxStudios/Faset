@@ -78,6 +78,8 @@ struct Options {
     std::vector<std::string> libs, libDirs;
     std::vector<std::string> runArgs;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
+    std::vector<std::string> cSources;  // fuentes C de la biblioteca estándar (p. ej. lib/audio/faset_audio.c)
+    std::vector<std::pair<std::string, std::string>> assets;  // <Asset Include="..."/>: (ruta relativa, archivo)
     bool singleFile = false;
     Project* project = nullptr;
     std::string argv0;
@@ -286,6 +288,9 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         for (const std::string& perm : proj->androidPermissions)
             if (std::find(o.androidPermissions.begin(), o.androidPermissions.end(), perm) == o.androidPermissions.end())
                 o.androidPermissions.push_back(perm);
+        for (const auto& a : projectAssets(*proj))
+            if (std::none_of(o.assets.begin(), o.assets.end(), [&](const auto& b) { return b.first == a.first; }))
+                o.assets.push_back(a);
         return true;
     };
     return visit(path, true);
@@ -338,6 +343,14 @@ static bool frontEnd(Options& o, std::string* csrc) {
             need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
         else if (mod == "std.net" && o.target == "windows")
             need = {"ws2_32"};
+        else if (mod == "std.audio") {
+            // Mezclador en C; PulseAudio/ALSA (Linux) y AAudio (Android) se cargan con dlopen.
+            need = o.target == "windows" ? std::vector<std::string>{"winmm"}
+                 : o.target == "android" ? std::vector<std::string>{"OpenSLES", "android", "log"}
+                                         : std::vector<std::string>{"dl", "pthread"};
+            std::string c = (fs::path(fo.libDir) / "audio" / "faset_audio.c").string();
+            if (std::find(o.cSources.begin(), o.cSources.end(), c) == o.cSources.end()) o.cSources.push_back(c);
+        }
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
@@ -417,6 +430,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.push_back(rtC.string());
     cmd.push_back(gcC.string());
     cmd.insert(cmd.end(), extraSources.begin(), extraSources.end());
+    cmd.insert(cmd.end(), o.cSources.begin(), o.cSources.end());
     cmd.push_back("-o");
     cmd.push_back(outPath);
     cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());
@@ -542,6 +556,16 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
             }
     }
 
+    // Recursos (<Asset>): assets/<ruta relativa>, sin comprimir (AAssetManager los lee directamente).
+    for (const auto& [rel, src] : o.assets) {
+        std::error_code aec;
+        if (!fs::is_regular_file(src, aec)) {
+            diag.fatal("no existe el recurso '" + rel + "' (<Asset Include=\"" + rel + "\"/>)");
+            return 1;
+        }
+        spec.files.push_back({"assets/" + rel, src});
+    }
+
     spec.name = name;
     spec.package = androidPackage(o);
     spec.label = p ? p->prop("AppName", name) : name;
@@ -576,6 +600,29 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
     return 0;
 }
 
+// <Asset Include="..."/>: copia los recursos junto al ejecutable, con la misma ruta relativa
+// (solo si cambiaron), para que el programa los encuentre esté donde esté la carpeta actual.
+static int copyAssets(const Options& o, const std::string& outPath) {
+    fs::path dir = fs::absolute(outPath).parent_path();
+    for (const auto& [rel, src] : o.assets) {
+        std::error_code ec;
+        if (!fs::is_regular_file(src, ec)) {
+            diag.fatal("no existe el recurso '" + rel + "' (<Asset Include=\"" + rel + "\"/>)");
+            return 1;
+        }
+        fs::path dst = dir / rel;
+        if (fs::exists(dst, ec) && fs::file_size(dst, ec) == fs::file_size(src, ec) &&
+            fs::last_write_time(dst, ec) >= fs::last_write_time(src, ec))
+            continue;
+        fs::create_directories(dst.parent_path(), ec);
+        if (!fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec)) {
+            diag.fatal("no se pudo copiar el recurso '" + rel + "' a " + dst.string() + ": " + ec.message());
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int build(Options& o, std::string& outPath) {
     std::string csrc;
     if (!frontEnd(o, &csrc)) {
@@ -585,7 +632,8 @@ static int build(Options& o, std::string& outPath) {
     if (o.target == "android" && o.shared != 1 && !o.noApk) return buildApk(o, csrc, outPath);
     outPath = o.output.empty() ? defaultOutput(o) : o.output;
     if (o.target == "windows" && o.shared != 1 && fs::path(outPath).extension() != ".exe") outPath += ".exe";
-    return compileC(o, csrc, outPath);
+    if (int r = compileC(o, csrc, outPath)) return r;
+    return copyAssets(o, outPath);
 }
 
 static std::string identifierFrom(const std::string& name) {

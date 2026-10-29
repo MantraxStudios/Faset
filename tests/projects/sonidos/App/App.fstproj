@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>App</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Se copia junto al ejecutable (sonidos/clic.wav): Source se resuelve también desde ahí. -->
+    <Asset Include="sonidos/*.wav" />
+  </ItemGroup>
+</Project>
