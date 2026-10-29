@@ -373,17 +373,17 @@ LibC.printf("%d\n".Ptr, 42);
 
 | Módulo            | Contenido |
 |-------------------|-----------|
-| `std` (siempre)   | `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment`, extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
+| `std` (siempre)   | `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment` (`GetVariable`, `TryGetVariable`, argumentos…), `Utf16` (`Encode`, `Decode`), extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
 | `std.collections` | `List<T>` (`Add`, `Insert`, `Remove`, `Sort`, `Where`, `Select`, `Any`, `Sum`, `Min`, `Max`…), `Stack<T>`, `Queue<T>`, `Dictionary<K,V>` (con `dict[k]` al estilo de C++), `HashSet<T>`, `Algorithms` (`Sort`, `BinarySearch`, `Swap`, `Reverse`, `Fill`) |
 | `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight` |
-| `std.io`          | `File` (`ReadAllText`, `WriteAllText`, `AppendAllText`, `Exists`, `Delete`), `Directory` (`GetEntries`…), `Path` (`GetFullPath`, `Combine`…) |
+| `std.io`          | `File` (texto, bytes y líneas; `Copy`/`Move` con `overwrite`, `Delete`, `GetSize`, `GetLastWriteTime`, permisos, `OpenRead`/`OpenWrite`/`OpenAppend`), `FileStream` (búfer, `ReadLine`, `Write`, `Seek`, `Position`, `Length`), `Directory` (`Create` recursivo, `Delete`, `GetFiles`/`GetDirectories` con patrón y recursión, `Move`, `GetCurrent`/`SetCurrent`, `CreateTemp`), `Path` (`Combine`, `GetFileName`, `GetExtension`, `ChangeExtension`, `Normalize`, `GetFullPath`, `GetRelativePath`, `IsRooted`, `GetTempPath`, `GetTempFileName`, `MatchesPattern`), `FileInfo`, `FileWatcher` |
 | `std.time`        | `Time` (`TickMs`, `TickNs`, `NowUnixMs`, `Sleep`), `DateTime`, `TimeSpan`, `TimeZone`, `Stopwatch` (alta resolución) |
 | `std.thread`      | `Thread`, `Mutex`, `RecursiveMutex`, `ConditionVariable`, `Semaphore`, `Atomic`, `AtomicInt`/`AtomicLong`, `ThreadPool`, `Parallel.For`, `Channel<T>` |
 | `std.random`      | `Random` (xorshift64*: `Next`, `NextDouble`, `Shuffle<T>`) |
 | `std.math`        | `Vec2`, `Vec3`, `Rect` con operadores; `Interp` (`Lerp`, `Remap`, `SmoothStep`) |
 | `std.mem`         | `Span<T>` con comprobación de límites, `Arena`, `Box<T>` |
 | `std.hash`        | `Hash.Of` (FNV-1a, splitmix64), `Hash.Combine` |
-| `std.os`          | `Process.Run`, `Process.Capture`, `ChildProcess` (salida en vivo), `OS.Name`… |
+| `std.os`          | `Process` (`Start` con argv sin shell, stdin/stdout/stderr, `WaitForExit(ms)`, `ExitCode`, `Kill`, `Execute`, `Run`, `Capture`), `ProcessStartInfo`, `ChildProcess` (salida en vivo), `CommandLine` (comillas), `Environment` (`SetVariable`, `UnsetVariable`, `GetVariables`, `GetMachineName`, `GetUserName`, `GetHomeDirectory`, `ProcessorCount`, `ProcessId`), `OS` (`Name`, `Version`, `Architecture`) |
 | `std.json`        | `Json.Parse`, `JsonValue` (`Get`, `At`, `AsString`…), `Json.WriteString` |
 | `std.net`         | `IPAddress`, `IPEndPoint`, `Dns`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `Uri`, `HttpClient` (ver abajo) |
 
@@ -438,6 +438,49 @@ Los tiempos de espera van en milisegundos y `-1` significa sin límite.
 proxies, compresión ni keep-alive (cada petición usa `Connection: close`); el cuerpo de la
 respuesta se guarda entero en memoria. En Windows solo x86-64 (las funciones de Winsock son
 `__stdcall`, que en x86 de 32 bits no coincide con las declaraciones `extern`).
+
+### Archivos y procesos (`std.io`, `std.os`)
+
+Funcionan igual en Linux y en Windows. Las rutas son UTF-8; en Windows se usan las API W de
+Win32 (UTF-16) y se aceptan `/` y `\`. Las fechas son milisegundos Unix (UTC).
+
+```csharp
+using std.io;
+using std.os;
+
+string tmp = Directory.CreateTemp("demo-");               // carpeta temporal única
+string log = Path.Combine(tmp, "log.txt");
+File.WriteAllText(log, "uno\ndos\n");
+FileStream f = File.OpenRead(log);                         // null si no se puede abrir
+string line;
+while (f.ReadLine(out line)) { println(line); String.Free(line); }
+delete f;                                                  // cierra el archivo
+
+List<string> fuentes = Directory.GetFiles("src", "*.fst", true);   // recursivo
+Directory.FreeList(fuentes);
+FileInfo info = File.GetInfo(log);                         // Length, LastWriteTimeMs, Mode, IsSymlink…
+
+ProcessStartInfo si = new ProcessStartInfo("git");         // argv: sin shell, sin inyección
+si.AddArgument("log").AddArgument("--oneline");
+si.RedirectStandardOutput = true;
+Process p = Process.Start(si);                             // null si no arranca
+if (p.WaitForExit(5000)) print(p.Output); else p.Kill();
+println(p.ExitCode);
+delete p;
+delete si;
+Directory.Delete(tmp);                                     // recursivo; no sigue enlaces
+```
+
+- `File.Copy`/`File.Move`/`Directory.Move` fallan si el destino existe (como en C#), salvo
+  `Copy(a, b, true)` / `Move(a, b, true)`. `Directory.Create` crea las carpetas intermedias.
+- `Process.Start` no usa shell: en POSIX `fork` + `execvp`; en Windows `CreateProcessW` con
+  las comillas de `CommandLine.QuoteWindows` (los `.bat`/`.cmd` se rechazan: usa `UseShell`).
+  La salida redirigida se acumula en `Output`/`Error` mientras se espera, así el hijo no se
+  bloquea. `NewProcessGroup` hace que `Kill()` termine también a los nietos (grupo / Job).
+- `Process.Run`, `Process.Capture` y `ChildProcess` interpretan una línea de shell
+  (`sh -c` / `cmd.exe /C`); para datos externos usa `CommandLine.QuoteShell` o `Process.Start`.
+- `FileWatcher` usa inotify en Linux y compara instantáneas (`PollIntervalMs`) en el resto.
+- `Environment.SetVariable`, `GetVariables`… están en `std.os` (amplían `std.Environment`).
 
 **Propiedad de la memoria:** las funciones que crean cadenas o colecciones nuevas
 (`String.Concat`, `ToUpper`, `Text.Join`, `Dictionary.Keys`…) devuelven memoria que debes
@@ -530,7 +573,8 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 ## Limitaciones actuales
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
-- Sin `foreach`, propiedades con `set`, interpolación `$"..."` ni lambdas (usa `&Funcion`).
+- No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
+- Sin `foreach`, interpolación `$"..."` ni lambdas (usa `&Funcion`).
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.

@@ -1,0 +1,52 @@
+CreateTemp: ok
+WriteAllText: ok
+AppendAllText: ok
+Exists: ok
+15
+3
+hola
+mundo
+fin
+TryReadAllBytes: ok
+WriteAllBytes: ok
+ReadAllBytes: ok
+Copy: ok
+Copy sin sobrescribir falla: ok
+Copy con sobrescritura: ok
+Move: ok
+Move sin sobrescribir falla: ok
+Move con sobrescritura: ok
+Delete: ok
+Delete inexistente: ok
+OpenWrite: ok
+34890
+3000
+línea 2999
+EndOfStream: ok
+Seek + ReadByte: ok
+34890
+ReadWrite: ok
+9
+10
+línea 0
+l++
+CreateNew existente falla: ok
+OpenRead inexistente: ok
+FileInfo: ok
+SetLastWriteTime: ok
+SetUnixMode: ok
+SetReadOnly: ok
+No existe: ok
+Create recursivo: ok
+Create existente: ok
+uno.fst
+y/dos.fst
+uno.fst
+y
+y/z
+y/z/tres.txt
+Delete no recursivo falla: ok
+Directory.Move: ok
+SetCurrent: ok
+Ruta relativa: ok
+Delete recursivo: ok
