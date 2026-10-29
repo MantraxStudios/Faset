@@ -36,6 +36,9 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
   - autocompletado tras `.`, `::` y `->`, al empezar una palabra o con `Ctrl+Espacio`
   - información al pasar el ratón: firmas, tipos y mensajes de error
   - ir a la definición con `F12` o `Ctrl+clic`, también dentro de la biblioteca estándar
+  - también en los `.fstproj` y en la vista de código de los `.fstui`: elementos tras `<`, atributos
+    (con espacio), valores tras `="` (`OutputType`, `Anchor`, `Style`…), manejadores para `Click`/`Changed`,
+    errores en la línea y el atributo exactos, y `F12` del manejador al código y del control al `.fstui`
 - **Compilar y ejecutar** con la salida en vivo (`Ctrl+B`, `F5`, `Shift+F5` para detener) y Debug/Release
 - Paneles redimensionables (arrastra los separadores)
 - Edición: deshacer y rehacer, sangría automática, cierre de `()` `[]` `""`, `Tab`/`Shift+Tab`

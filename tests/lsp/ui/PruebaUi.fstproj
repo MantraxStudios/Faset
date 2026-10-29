@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>PruebaUi</AssemblyName>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+</Project>
