@@ -333,9 +333,12 @@ static bool frontEnd(Options& o, std::string* csrc) {
     }
     // Bibliotecas del sistema que necesitan algunos módulos de la biblioteca estándar.
     for (const std::string& mod : r.prog->requestedModules) {
-        if (mod != "std.ui") continue;
-        std::vector<std::string> need = o.target == "windows" ? std::vector<std::string>{"user32", "gdi32"}
-                                                              : std::vector<std::string>{"X11", "freetype"};
+        std::vector<std::string> need;
+        if (mod == "std.ui")
+            need = o.target == "windows" ? std::vector<std::string>{"user32", "gdi32"}
+                                         : std::vector<std::string>{"X11", "freetype"};
+        else if (mod == "std.thread" && o.target != "windows" && o.target != "android")
+            need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
