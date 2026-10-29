@@ -1,0 +1,39 @@
+GET /inicio HTTP/1.1
+  Host: <equipo>:<puerto>
+  User-Agent: Faset/1.0
+  Accept: */*
+  X-Cliente: faset
+  Connection: close
+GET /final?x=1 HTTP/1.1
+  Host: <equipo>:<puerto>
+  User-Agent: Faset/1.0
+  Accept: */*
+  X-Cliente: faset
+  Connection: close
+POST /datos HTTP/1.1
+  Host: <equipo>:<puerto>
+  User-Agent: Faset/1.0
+  Accept: */*
+  X-Cliente: faset
+  Content-Type: application/x-www-form-urlencoded
+  Content-Length: 9
+  Connection: close
+  cuerpo: a=1&b=dos
+GET /inicio HTTP/1.1
+  Host: <equipo>:<puerto>
+  User-Agent: Faset/1.0
+  Accept: */*
+  X-Cliente: faset
+  Connection: close
+GET /inicio HTTP/1.1
+  Host: <equipo>:<puerto>
+  User-Agent: Faset/1.0
+  Accept: */*
+  X-Cliente: faset
+  Connection: close
+--- cliente ---
+200 OK | X-Prueba=si | cuerpo=[hola desde el servidor]
+201 Created | X-Prueba=post | cuerpo=[creado]
+error: respuesta del servidor no válida
+301 Moved Permanently | X-Prueba= | cuerpo=[fin!]
+código de salida del cliente: 0

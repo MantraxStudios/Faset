@@ -272,9 +272,59 @@ LibC.printf("%d\n".Ptr, 42);
 | `std.hash`        | `Hash.Of` (FNV-1a, splitmix64), `Hash.Combine` |
 | `std.os`          | `Process.Run`, `Process.Capture`, `ChildProcess` (salida en vivo), `OS.Name`… |
 | `std.json`        | `Json.Parse`, `JsonValue` (`Get`, `At`, `AsString`…), `Json.WriteString` |
+| `std.net`         | `IPAddress`, `IPEndPoint`, `Dns`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `Uri`, `HttpClient` (ver abajo) |
 
 Toda la biblioteca está escrita en Faset: puedes leerla y ampliarla en `lib/std/`.
 Para añadir tu propio módulo, crea `lib/<raiz>/<modulo>.fst`; `using raiz.modulo;` lo cargará.
+
+### Redes (`std.net`)
+
+Sockets BSD de libc en Linux/Android y Winsock2 en Windows (el compilador enlaza `ws2_32`
+automáticamente cuando se usa `std.net`).
+
+```csharp
+using std.net;
+
+auto http = new HttpClient();
+HttpResponse r = http.Get("http://example.com/");
+if (r != null) println(r.Body);
+else println(http.ErrorMessage);
+delete r;
+
+auto server = new TcpListener(IPAddress.Loopback, 0);   // puerto 0 = cualquiera libre
+server.Start();
+auto client = new TcpClient();
+client.Connect("127.0.0.1", server.LocalEndPoint.Port, 2000);
+TcpClient peer = server.AcceptTcpClient(2000);
+client.WriteLine("hola");
+string line;
+if (peer.ReadLine(out line)) println(line);
+String.Free(line);
+```
+
+| Tipo | API |
+|------|-----|
+| `IPAddress` (struct) | `TryParse`/`Parse` (IPv4, IPv6 con `::`, `%scope` y `[...]`), `ToString` (RFC 5952), `V4`, `V6`, `FromBytes`, `GetByte`, `Any`, `Loopback`, `IPv6Any`, `IPv6Loopback`, `IsLoopback`, `MapToIPv4`/`MapToIPv6`, `==` |
+| `IPEndPoint` (struct) | `Address`, `Port`, `TryParse("[::1]:80")`, `ToString` |
+| `Dns` | `GetHostAddresses(host, lista)`, `TryResolve(host, out ip)`, `GetHostName()`, `LastError` |
+| `Socket` | `Connect(ep, timeoutMs)`, `FinishConnect`, `Bind`, `Listen`, `Accept`, `Send`/`SendAll`, `Receive`, `SendTo`/`ReceiveFrom`, `Poll(ms, SelectMode)`, `Blocking`, `ReceiveTimeout`/`SendTimeout`, `Available`, `SetNoDelay`/`SetReuseAddress`/`SetBroadcast`/`SetKeepAlive`/`SetDualMode`, `LocalEndPoint`/`RemoteEndPoint`, `Shutdown`, `Close` |
+| `TcpClient` | `Connect(host, port, timeoutMs)` (prueba todas las direcciones), `Write`, `WriteLine`, `Send`, `Receive`, `Read(StringBuilder)`, `ReadLine(out s)`, `ReadToEnd`, `Available`, `Shutdown`, `Close` |
+| `TcpListener` | `Start(backlog)`, `LocalEndPoint`, `Pending(ms)`, `AcceptTcpClient(ms)`, `AcceptSocket(ms)`, `Stop` |
+| `UdpClient` | `Bind`, `Connect`, `Send(datos, ep)`, `Receive(buf, n, out ep)`, `Receive(out texto, out ep)`, `SetBroadcast`, `ReceiveTimeout` |
+| `Uri` | `Parse`/`TryCreate`, `Scheme`, `UserInfo`, `Host`, `Port`, `Path`, `Query`, `Fragment`, `PathAndQuery()`, `Authority()`, `Resolve(ref)`, `Escape`, `Unescape`, `UnescapeForm`, `GetQueryParameter` |
+| `HttpClient` | `Get`, `Post`, `Send(HttpRequest)`, `DefaultHeaders`, `UserAgent`, `Timeout`, `FollowRedirects`, `MaxRedirects`, `BuildRequest` |
+| `HttpResponse` | `StatusCode`, `ReasonPhrase`, `Version`, `Headers` (`Get`, `Contains`, sin distinguir mayúsculas), `Body`, `IsSuccess`, `Parse(texto)`, `DecodeChunked`; `HttpResponseReader` para analizar por trozos |
+
+**Errores:** no hay excepciones. Las operaciones devuelven `bool`, un número de bytes (`-1` = error)
+o un objeto (`null` = error), y el motivo queda en `Error` (`SocketError`: `TimedOut`,
+`ConnectionRefused`, `WouldBlock`, `HostNotFound`…), `ErrorMessage` (texto en español) y
+`NativeError` (errno / `WSAGetLastError`) del objeto que falló; `Dns` usa `Dns.LastError`.
+Los tiempos de espera van en milisegundos y `-1` significa sin límite.
+
+**Limitaciones:** sin HTTPS/TLS (una URL `https://` falla con `SocketError.Unsupported`), sin
+proxies, compresión ni keep-alive (cada petición usa `Connection: close`); el cuerpo de la
+respuesta se guarda entero en memoria. En Windows solo x86-64 (las funciones de Winsock son
+`__stdcall`, que en x86 de 32 bits no coincide con las declaraciones `extern`).
 
 **Propiedad de la memoria:** las funciones que crean cadenas o colecciones nuevas
 (`String.Concat`, `ToUpper`, `Text.Join`, `Dictionary.Keys`…) devuelven memoria que debes

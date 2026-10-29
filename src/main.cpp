@@ -339,6 +339,8 @@ static bool frontEnd(Options& o, std::string* csrc) {
                                          : std::vector<std::string>{"X11", "freetype"};
         else if (mod == "std.thread" && o.target != "windows" && o.target != "android")
             need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
+        else if (mod == "std.net" && o.target == "windows")
+            need = {"ws2_32"};
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
