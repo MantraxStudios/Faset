@@ -13,6 +13,12 @@ const nextConfig = {
   turbopack: { root: import.meta.dirname },
 };
 
-const withMDX = createMDX({});
+// remark-gfm: tablas, tachado y listas de tareas de GitHub en los .mdx. Con Turbopack los
+// plugins se indican por nombre (deben ser serializables).
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: [["remark-gfm", { singleTilde: false }]],
+  },
+});
 
 export default withMDX(nextConfig);
