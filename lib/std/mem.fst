@@ -44,6 +44,28 @@ namespace std.mem
             if (destination.Length < Length) throw new ArgumentException("Span.CopyTo: destino demasiado pequeño");
             Memory.CopyItems<T>(destination.Data, Data, Length);
         }
+
+        public SpanEnumerator<T> GetEnumerator() => new SpanEnumerator<T>(this);
+    }
+
+    // Enumerador de Span<T> para foreach.
+    public memory_unsafe struct SpanEnumerator<T>
+    {
+        Span<T> span;
+        int index;
+
+        public SpanEnumerator(Span<T> s)
+        {
+            span = s;
+            index = -1;
+        }
+
+        public T Current => span.Data[index];
+        public bool MoveNext()
+        {
+            index++;
+            return index < span.Length;
+        }
     }
 
     // Reserva memoria de bloques grandes; todo se libera junto con Reset o delete.

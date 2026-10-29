@@ -14,3 +14,7 @@ extern const char* const kRuntimeVideoSource;
 // Excepciones: cabecera (se añade a faset_rt.h) y runtime (al final de faset_rt.c); ver RuntimeExc.cpp.
 extern const char* const kRuntimeExcHeader;
 extern const char* const kRuntimeExcSource;
+// Azúcar sintáctico (cadenas interpoladas, formatos, switch sin coincidencia; ver RuntimeSugar.cpp):
+// la cabecera va en el C generado y la implementación se añade a kRuntimeSource.
+extern const char* const kRuntimeSugarHeader;
+extern const char* const kRuntimeSugarSource;

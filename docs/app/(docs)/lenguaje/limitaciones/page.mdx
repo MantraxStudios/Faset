@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset: herencia, interfaces, foreach, interpolación de cadenas…",
+  description: "Qué no admite todavía Faset: herencia, interfaces, valores por defecto en parámetros…",
 };
 
 # Limitaciones actuales
@@ -13,12 +13,10 @@ export const metadata = {
 | No disponible | Alternativa |
 |---|---|
 | Herencia, `interface`, `virtual`/`override` | Composición y [delegados](/lenguaje/delegados/). Están en la hoja de ruta. |
-| `foreach` | `for (int i = 0; i < lista.Count; i++)` |
-| Interpolación `$"..."` | Concatenación con `+` (`"x = " + x`) o `StringBuilder` |
 | Expresiones `throw` (`x ?? throw ...`) | Una instrucción `throw` (las [excepciones](/lenguaje/excepciones/) sí existen) |
-| `is` / `as` | Un campo `Kind` (enum) en tus tipos |
-| Operador `??` | `x != null ? x : y` |
-| Parámetros con valor por defecto, `params` | Sobrecargas |
+| `is Tipo` / `as` (sí existe `is` con [patrones](/lenguaje/patrones/): `x is > 0`) | Un campo `Kind` (enum) en tus tipos |
+| Parámetros con valor por defecto | Sobrecargas (o [`params`](/lenguaje/comodidades/#params)) |
+| `Console.WriteLine(tupla)` (no hay `object`) | `Console.WriteLine($"{tupla}")` |
 | Inicializadores de objeto `new T { X = 1 }` | Constructores |
 | Inicializadores de constructor `: this(...)` | Un método privado común |
 | Tipos anidados | Tipos en el mismo namespace |

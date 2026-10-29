@@ -1,0 +1,1 @@
+Faset panic: Nullable: no tiene valor (comprueba HasValue o usa ??) at tests/cases/panico_nullable.fst:8

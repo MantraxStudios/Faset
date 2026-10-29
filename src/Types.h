@@ -22,6 +22,7 @@ struct Type {
     std::vector<Type*> params;  // FuncPtr/Delegate: parámetros
     Type* ret = nullptr;        // FuncPtr/Delegate: retorno
     int id = 0;                 // FuncPtr/Delegate: índice para el typedef / la función de invocación en C
+    std::vector<std::string> tupleNames;  // tupla con nombres: (int x, int y) (Sugar.cpp)
 
     explicit Type(TK k) : kind(k) {}
 

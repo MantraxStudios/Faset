@@ -558,7 +558,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     fs::path mainC = tmp / (stem + ".c");
     fs::path rtC = tmp / "faset_rt.c";
     fs::path gcC = tmp / "faset_gc.c";
-    std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource;
+    std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource + kRuntimeSugarSource;
     if (o.video) runtime += kRuntimeVideoSource;
     runtime += kRuntimeExcSource;
     if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", std::string(kRuntimeHeader) + kRuntimeExcHeader) ||

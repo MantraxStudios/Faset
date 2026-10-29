@@ -222,6 +222,8 @@ void CodeGen::emitLambdaBodies() {
         std::string n = lamName(l);
         out_ << "static " << lambdaSig(l) << " {\n";
         indent_ = 1;
+        pushHoist();            // temporales de expresión del azúcar (switch, ?., tuplas...)
+        usings_.push_back({});  // 'using var' del cuerpo
         if (needsEnv(l)) line(n + "_env* fs_env = (" + n + "_env*)fs_envp;");
         else line("(void)fs_envp;");
         if (l->usesThis) line(l->ownerClass->cname + "* self = fs_env->self;");
@@ -233,7 +235,10 @@ void CodeGen::emitLambdaBodies() {
             else line("return " + expr(l->exprBody) + ";");
         } else {
             for (Stmt* s : l->blockBody->stmts) emitStmt(s);
+            if (std::string clean = usingCleanup(0); !clean.empty()) line(clean);
         }
+        usings_.pop_back();
+        popHoist();
         indent_ = 0;
         out_ << "}\n\n";
     }

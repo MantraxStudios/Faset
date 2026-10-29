@@ -155,7 +155,7 @@ std::string CodeGen::chkObj(Expr* obj, const std::string& code) {
 std::string CodeGen::generate(bool shared) {
     out_ << "/* Generado por fasetc. No editar a mano. */\n";
     if (checks) out_ << "#ifndef FASET_CHECKS\n#define FASET_CHECKS 1\n#endif\n";
-    out_ << kRuntimeHeader << kRuntimeExcHeader << "\n";
+    out_ << kRuntimeHeader << kRuntimeExcHeader << kRuntimeSugarHeader << "\n";
     out_ << kDelegateRuntime << "\n";
     // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
     for (size_t i = 0; i < diag.files.size(); i++)
@@ -226,7 +226,10 @@ std::string CodeGen::generate(bool shared) {
     }
     out_ << "\n";
 
-    // Cuerpos.
+    // Cuerpos (las funciones auxiliares del azúcar, helpers_, se insertan antes de ellos).
+    std::string head = out_.str();
+    out_.str("");
+    out_.clear();
     for (ClassDecl* c : prog_.types) {
         if (c->isTemplate() || c->kind == ClassKind::Enum) continue;
         if (c->hasLayout()) {
@@ -247,10 +250,12 @@ std::string CodeGen::generate(bool shared) {
     out_ << "static void fs__static_init(void) {\n";
     indent_ = 1;
     if (sema_.exceptionClass) line("fs__exc_setup();");
+    pushHoist();
     for (FieldDecl* f : sema_.staticInits) {
         curClass_ = f->owner;
         line(f->cname + " = " + expr(f->init) + ";");
     }
+    popHoist();
     indent_ = 0;
     out_ << "}\n\n";
 
@@ -271,16 +276,18 @@ std::string CodeGen::generate(bool shared) {
         }
         out_ << "}\n";
     }
-    return out_.str();
+    return head + helpers_ + out_.str();
 }
 
 void CodeGen::emitConstructionHelpers(ClassDecl* c) {
     out_ << "static void " << c->cname << "__init(" << c->cname << "* self) {\n";
     indent_ = 1;
+    pushHoist();
     line("(void)self;");
     emitExcInit(c);  // excepciones: tipo dinámico y nombre del tipo
     for (FieldDecl* f : c->fields)
         if (!f->isStatic() && f->init) line("self->" + f->cname + " = " + expr(f->init) + ";");
+    popHoist();
     indent_ = 0;
     out_ << "}\n\n";
 
@@ -315,11 +322,16 @@ void CodeGen::emitMethod(MethodDecl* m) {
     curMethod_ = m;
     out_ << signature(m) << " {\n";
     indent_ = 1;
+    pushHoist();          // temporales de expresión (SugarGen.cpp)
+    usings_.push_back({});  // objetos de 'using var' del cuerpo
     if (!m->isStatic()) line("(void)self;");
     std::vector<VarInfo*> params;
     for (Param& p : m->params) params.push_back(p.var);
     boxParams(params);  // parámetros capturados por lambdas
     for (Stmt* s : m->body->stmts) emitStmt(s);
+    if (std::string clean = usingCleanup(0); !clean.empty()) line(clean);
+    usings_.pop_back();
+    popHoist();
     indent_ = 0;
     out_ << "}\n\n";
     curMethod_ = nullptr;
@@ -340,6 +352,7 @@ void CodeGen::emitBody(Stmt* s) {
 }
 
 void CodeGen::emitStmt(Stmt* s) {
+    if (emitSugarStmt(s)) return;  // formas reescritas, bloques y 'using' (SugarGen.cpp)
     switch (s->kind) {
         case SK::Empty: break;
         case SK::Block: {
@@ -450,6 +463,7 @@ void CodeGen::emitStmt(Stmt* s) {
         }
         case SK::Try: emitTry(static_cast<TryStmt*>(s)); break;
         case SK::Throw: emitThrow(static_cast<ThrowStmt*>(s)); break;
+        default: break;  // SK del azúcar: SugarGen.cpp
     }
 }
 
@@ -501,10 +515,13 @@ std::string CodeGen::toStr(Expr* e) {
     if (t->is(TK::Float)) return "faset_f32_to_str(" + v + ")";
     if (t->is(TK::Double)) return "faset_f64_to_str(" + v + ")";
     if (t->isUnsignedInt()) return "faset_u64_to_str((uint64_t)(" + v + "))";
+    if (t->isAggregate()) return toStrCode(t, v);  // tuplas, T? y ToString() (SugarGen.cpp)
     return "faset_i64_to_str((int64_t)(" + v + "))";
 }
 
 std::string CodeGen::expr(Expr* e) {
+    if (e->lowered) return expr(e->lowered);           // forma reescrita por Sema (Sugar.cpp)
+    if (isSugarKind(e->kind)) return sugarExpr(e);     // SugarGen.cpp
     switch (e->kind) {
         case EK::IntLit: {
             uint64_t v = static_cast<IntLitExpr*>(e)->value;
@@ -691,6 +708,7 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Cast: {
             auto* c = static_cast<CastExpr*>(e);
             if (c->type == c->operand->type) return expr(c->operand);
+            if (std::string s; sugarCast(c, s)) return s;  // T? y tuplas (SugarGen.cpp)
             if (c->operand->type->isFloating() && (c->type->isIntegral() || c->type->isEnum())) {
                 // Real -> entero: saturado (en C, un valor fuera de rango es comportamiento indefinido).
                 Type* t = c->type;
@@ -731,6 +749,7 @@ std::string CodeGen::expr(Expr* e) {
         }
         case EK::Lambda: return lambdaExpr(static_cast<LambdaExpr*>(e));
         case EK::DelegateConv: return delegateConv(static_cast<DelegateConvExpr*>(e));
+        default: break;  // EK del azúcar: SugarGen.cpp
     }
     return "0";
 }

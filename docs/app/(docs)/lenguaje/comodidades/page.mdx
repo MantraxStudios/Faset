@@ -1,0 +1,95 @@
+export const metadata = {
+  title: "params, using y otras comodidades",
+  description: "params, using var, nameof, el literal default, constantes locales, separadores de dígitos y literales binarios en Faset.",
+};
+
+# params, using y otras comodidades
+
+<p className="lead">
+  Pequeñas construcciones de C# que ahorran código repetitivo.
+</p>
+
+## params
+
+Un último parámetro `params List<T>` (o `params T[]`, que en Faset es lo mismo: no hay arreglos
+administrados) acepta cualquier número de argumentos, que llegan empaquetados en una `List<T>`
+nueva. También se le puede pasar una lista directamente.
+
+```faset
+using std.collections;
+
+int Sumar(params int[] xs)
+{
+    int s = 0;
+    foreach (int x in xs) s += x;
+    return s;
+}
+
+T Mayor<T>(T primero, params List<T> resto)
+{
+    T m = primero;
+    foreach (T x in resto)
+        if (m < x) m = x;
+    return m;
+}
+
+void main()
+{
+    println(Sumar());               // 0
+    println(Sumar(1, 2, 3));        // 6
+    List<int> l = new List<int>();
+    l.Add(10);
+    println(Sumar(l));              // 10
+    println(Mayor(3, 9, 4));        // 9
+}
+```
+
+## using
+
+`using var x = ...;` ejecuta el destructor del objeto (como `delete x`) al salir del bloque, también
+si se sale con `return`, `break` o `continue`. La forma con paréntesis delimita el ámbito. El objeto
+debe ser de una clase; si es `null` no se hace nada.
+
+```faset
+class Archivo
+{
+    string nombre;
+    public Archivo(string n) { nombre = n; println("abre " + n); }
+    ~Archivo() { println("cierra " + nombre); }
+}
+
+void main()
+{
+    {
+        using var a = new Archivo("a.txt");
+        println("trabajando");
+    }                                   // cierra a.txt
+    using (Archivo b = new Archivo("b.txt"))
+    {
+        println("otro");
+    }                                   // cierra b.txt
+}
+```
+
+## nameof, default y constantes
+
+```faset
+struct Config
+{
+    public int Ancho;
+}
+
+void main()
+{
+    int cantidad = 3;
+    println(nameof(cantidad) + " " + nameof(Config.Ancho));   // cantidad Ancho
+
+    int cero = default;          // el literal 'default' toma el tipo del destino
+    Config c = default;
+    double? nada = default;
+    println(cero + c.Ancho);     // 0
+
+    const int Limite = 1_000_000;            // separadores de dígitos
+    println(Limite + 0b1010 + 0x_FF);        // 1000265
+}
+```

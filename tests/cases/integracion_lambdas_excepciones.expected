@@ -1,0 +1,9 @@
+finally lambda 42
+42
+finally lambda xx
+-1
+capturada: desde lambda
+total tras excepción: 12
+división en Select
+cambio 1
+evento lanzó: dos

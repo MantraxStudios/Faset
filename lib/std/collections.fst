@@ -1,7 +1,8 @@
 // =============================================================================
 //  std.collections  —  colecciones genéricas y algoritmos.
 //
-//    List<T>, Stack<T>, Queue<T>, Dictionary<K, V>, HashSet<T>
+//    List<T>, Stack<T>, Queue<T>, Dictionary<K, V>, HashSet<T>, KeyValuePair<K, V>
+//    Enumeradores para foreach: ListEnumerator<T>, DictionaryEnumerator<K, V>, ...
 //    Algorithms: Sort, BinarySearch, Reverse, Swap, Min, Max, Fill
 //
 //  Las colecciones son clases: se crean con 'new' y se liberan con 'delete'
@@ -18,6 +19,7 @@ namespace std.collections
         T* items;
         int count;
         int capacity;
+        int version;  // cambia con cada modificación: foreach detecta cambios durante el recorrido
 
         public List() { }
         public List(int initialCapacity) { Reserve(initialCapacity); }
@@ -26,6 +28,9 @@ namespace std.collections
         public int Count => count;
         public int Capacity => capacity;
         public bool IsEmpty => count == 0;
+        // Contador de modificaciones (lo usa ListEnumerator para detectar cambios en un foreach).
+        public int Version => version;
+        public ListEnumerator<T> GetEnumerator() => new ListEnumerator<T>(this);
         // Puntero a los elementos (válido hasta la próxima modificación).
         public T* Data => items;
 
@@ -47,10 +52,12 @@ namespace std.collections
             if (count == capacity) Reserve(capacity < 8 ? 8 : capacity * 2);
             items[count] = item;
             count++;
+            version++;
         }
 
         public void AddRange(List<T> other)
         {
+            version++;
             Reserve(count + other.Count);
             for (int i = 0; i < other.Count; i++) items[count + i] = other.Data[i];
             count += other.Count;
@@ -63,6 +70,7 @@ namespace std.collections
             for (int i = count; i > index; i--) items[i] = items[i - 1];
             items[index] = item;
             count++;
+            version++;
         }
 
         [TrackCaller] public void RemoveAt(int index)
@@ -70,6 +78,7 @@ namespace std.collections
             if (index < 0 || index >= count) throw new ArgumentOutOfRangeException("List.RemoveAt: índice fuera de rango", null);
             for (int i = index; i < count - 1; i++) items[i] = items[i + 1];
             count--;
+            version++;
         }
 
         public bool Remove(T item)
@@ -88,7 +97,7 @@ namespace std.collections
         }
 
         public bool Contains(T item) => IndexOf(item) >= 0;
-        public void Clear() { count = 0; }
+        public void Clear() { count = 0; version++; }
 
         [TrackCaller] public T First()
         {
@@ -106,12 +115,13 @@ namespace std.collections
         {
             if (count == 0) throw new InvalidOperationException("List.Pop: la lista está vacía");
             count--;
+            version++;
             return items[count];
         }
 
-        public void Reverse() { Algorithms.Reverse<T>(items, count); }
-        public void Sort() { Algorithms.Sort<T>(items, count); }
-        public void Sort(delegate*<T, T, int> compare) { Algorithms.Sort<T>(items, count, compare); }
+        public void Reverse() { Algorithms.Reverse<T>(items, count); version++; }
+        public void Sort() { Algorithms.Sort<T>(items, count); version++; }
+        public void Sort(delegate*<T, T, int> compare) { Algorithms.Sort<T>(items, count, compare); version++; }
 
         public T Sum()
         {
@@ -584,15 +594,28 @@ namespace std.collections
         [TrackCaller] public T operator[](int index) => Items[index];
     }
 
-    // Par clave/valor de un diccionario (Dictionary.Pairs()).
-    public struct KeyValuePair<K, V>
+    // Enumerador de List<T> para foreach. Si la lista se modifica durante el recorrido,
+    // MoveNext termina con panic (como InvalidOperationException en C#).
+    public memory_unsafe struct ListEnumerator<T>
     {
-        public K Key;
-        public V Value;
-        public KeyValuePair(K key, V value)
+        List<T> list;
+        int index;
+        int version;
+
+        public ListEnumerator(List<T> source)
         {
-            Key = key;
-            Value = value;
+            list = source;
+            index = -1;
+            version = source.Version;
+        }
+
+        public T Current => list.Data[index];
+
+        [TrackCaller] public bool MoveNext()
+        {
+            if (version != list.Version) panic("List: la colección se modificó durante un foreach");
+            index++;
+            return index < list.Count;
         }
     }
 
@@ -608,6 +631,8 @@ namespace std.collections
         [TrackCaller] public T Pop() => items.Pop();
         [TrackCaller] public T Peek() => items.Last();
         public void Clear() { items.Clear(); }
+        // foreach recorre la pila de la base a la cima (en el orden en que se apilaron).
+        public ListEnumerator<T> GetEnumerator() => items.GetEnumerator();
     }
 
     // ---------------------------------------------------------------- Queue<T> (búfer circular)
@@ -669,6 +694,7 @@ namespace std.collections
         int count;
         int capacity;
         int tombstones;
+        int version;  // cambia con cada inserción o borrado (foreach detecta cambios)
 
         ~Dictionary()
         {
@@ -679,6 +705,14 @@ namespace std.collections
 
         public int Count => count;
         public bool IsEmpty => count == 0;
+
+        // ---- para DictionaryEnumerator (foreach): huecos de la tabla y contador de cambios
+        public int Version => version;
+        public int SlotCount => capacity;
+        public bool SlotUsed(int i) => used[i] == 1;
+        public K SlotKey(int i) => keys[i];
+        public V SlotValue(int i) => values[i];
+        public DictionaryEnumerator<K, V> GetEnumerator() => new DictionaryEnumerator<K, V>(this);
 
         int Find(K key)
         {
@@ -729,6 +763,7 @@ namespace std.collections
                     keys[slot] = key;
                     values[slot] = default(V);
                     count++;
+                    version++;
                     return slot;
                 }
                 if (used[i] == 2 && firstFree < 0) firstFree = i;
@@ -787,6 +822,7 @@ namespace std.collections
             used[i] = 2;
             count--;
             tombstones++;
+            version++;
             return true;
         }
 
@@ -795,6 +831,7 @@ namespace std.collections
             if (capacity > 0) Memory.Set(used, 0, capacity);
             count = 0;
             tombstones = 0;
+            version++;
         }
 
         // Nuevas listas con las claves / valores.
@@ -871,6 +908,62 @@ namespace std.collections
         }
     }
 
+    // Par clave/valor de un Dictionary (lo que recorre foreach y devuelve Pairs()). Admite deconstrucción:
+    //   foreach (var (clave, valor) in dic) ...
+    public struct KeyValuePair<K, V>
+    {
+        public K Key;
+        public V Value;
+
+        public KeyValuePair(K key, V value)
+        {
+            Key = key;
+            Value = value;
+        }
+
+        public void Deconstruct(out K key, out V value)
+        {
+            key = Key;
+            value = Value;
+        }
+    }
+
+    // Enumerador de Dictionary<K, V> para foreach (orden de la tabla hash, no de inserción).
+    public struct DictionaryEnumerator<K, V>
+    {
+        Dictionary<K, V> dict;
+        int index;
+        int version;
+
+        public DictionaryEnumerator(Dictionary<K, V> source)
+        {
+            dict = source;
+            index = -1;
+            version = source.Version;
+        }
+
+        public KeyValuePair<K, V> Current => new KeyValuePair<K, V>(dict.SlotKey(index), dict.SlotValue(index));
+
+        [TrackCaller] public bool MoveNext()
+        {
+            if (version != dict.Version) panic("Dictionary: la colección se modificó durante un foreach");
+            index++;
+            while (index < dict.SlotCount && !dict.SlotUsed(index)) index++;
+            return index < dict.SlotCount;
+        }
+    }
+
+    // Enumerador de HashSet<T> para foreach.
+    public struct HashSetEnumerator<T>
+    {
+        DictionaryEnumerator<T, bool> inner;
+
+        public HashSetEnumerator(DictionaryEnumerator<T, bool> e) { inner = e; }
+
+        public T Current => inner.Current.Key;
+        [TrackCaller] public bool MoveNext() => inner.MoveNext();
+    }
+
     // ---------------------------------------------------------------- HashSet<T>
     public class HashSet<T>
     {
@@ -884,6 +977,7 @@ namespace std.collections
         public bool Remove(T item) => map.Remove(item);
         public void Clear() { map.Clear(); }
         public List<T> ToList() => map.Keys();
+        public HashSetEnumerator<T> GetEnumerator() => new HashSetEnumerator<T>(map.GetEnumerator());
     }
 
     // ---------------------------------------------------------------- algoritmos genéricos

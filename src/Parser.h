@@ -99,4 +99,24 @@ private:
     // lambdas y delegados (ParserLambdas.cpp)
     Expr* tryParseLambda();
     void parseDelegateDecl(ClassDecl* owner, std::vector<Attribute> attrs, Modifiers mods);
+    // ---- azúcar sintáctico (ParserSugar.cpp)
+    bool allowArraySuffix_ = false;  // 'params T[] xs' (se convierte en List<T>)
+    bool isIdentText(const char* s) const { return cur().kind == TokKind::Ident && cur().text == s; }
+    bool nullableMarkFollows() const;
+    TypeRef* tryParseTupleType();
+    Expr* parseInterpolated();
+    Expr* parseParenOrTuple(SourceLoc loc);
+    Expr* parseConditionalAccess(Expr* obj);
+    Expr* parseCoalesce(Expr* lhs);
+    Expr* parseSwitchExpr(Expr* subject);
+    Expr* parseIsPattern(Expr* subject);
+    Expr* parseNameof(SourceLoc loc);
+    Pattern* parsePattern();
+    Pattern* parseAndPattern();
+    Pattern* parseNotPattern();
+    Pattern* parsePrimaryPattern();
+    Stmt* parseForeach();
+    Stmt* parseUsingStmt();
+    Stmt* tryParseDeconstruct();
+    void parseSwitchLabel(SwitchStmt::Section& sec);
 };

@@ -1,0 +1,157 @@
+export const metadata = {
+  title: "switch y patrones",
+  description: "switch sobre cadenas, switch de expresión, patrones relacionales, lógicos, de propiedades y posicionales, guardas when e is en Faset.",
+};
+
+# switch y patrones
+
+<p className="lead">
+  Además del <code>switch</code> clásico sobre enteros y enums, Faset admite <code>switch</code> sobre
+  cadenas, la forma de expresión <code>x switch { ... }</code>, guardas <code>when</code> y los
+  patrones de C#, que también se usan con <code>is</code>.
+</p>
+
+## switch sobre cadenas
+
+```faset
+string Comando(string s)
+{
+    switch (s)
+    {
+        case "abrir":
+        case "open":
+            return "abriendo";
+        case "cerrar":
+            return "cerrando";
+        default:
+            return "¿" + s + "?";
+    }
+}
+
+void main()
+{
+    println(Comando("open"));   // abriendo
+    println(Comando("volar"));  // ¿volar?
+}
+```
+
+## switch de expresión
+
+Cada brazo es `patrón => valor`, separados por comas. El resultado tiene el tipo común de los
+brazos (si alguno es `null`, el tipo pasa a ser `T?`).
+
+```faset
+string Cantidad(int x) => x switch
+{
+    0 => "cero",
+    1 => "uno",
+    2 or 3 => "pocos",
+    > 10 and <= 100 => "muchos",
+    < 0 => "negativo",
+    _ => "algunos"
+};
+
+void main()
+{
+    println(Cantidad(3));    // pocos
+    println(Cantidad(50));   // muchos
+    println(Cantidad(7));    // algunos
+}
+```
+
+Si ningún brazo coincide (no hay `_`), el programa termina con
+`Faset panic: ningún brazo del 'switch' coincide con el valor 7`. Un brazo que nunca se puede
+alcanzar porque otro anterior ya cubre todos los valores es un error de compilación.
+
+## Patrones
+
+| Patrón | Ejemplo | Coincide si… |
+|---|---|---|
+| constante | `5`, `"abrir"`, `Color.Rojo`, `null` | el valor es igual (`==`) |
+| relacional | `> 5`, `<= 0`, `< "m"` | la comparación es cierta |
+| `and`, `or`, `not` | `> 0 and < 10`, `1 or 2`, `not null` | combinación lógica |
+| descarte | `_` | siempre |
+| `var` | `var x` | siempre; guarda el valor en `x` |
+| propiedades | `{ Edad: >= 18, Nombre: "Ana" }` | no es `null` y cada propiedad encaja |
+| posicional | `(0, _)`, `(> 0, > 0)` | cada elemento de la tupla encaja |
+| tipo | `int v` (sobre un `int?`) | tiene valor; lo guarda en `v` |
+
+Los patrones se anidan: `{ Pareja: { Nombre: var n } }`.
+
+```faset
+class Persona
+{
+    public string Nombre;
+    public int Edad;
+    public Persona(string n, int e) { Nombre = n; Edad = e; }
+}
+
+string Describir(Persona p) => p switch
+{
+    null => "nadie",
+    { Edad: < 18 } => p.Nombre + " es menor",
+    { Nombre: "Ana", Edad: var e } => "Ana con " + e,
+    _ => p.Nombre + " es adulto"
+};
+
+string Cuadrante((int, int) pt) => pt switch
+{
+    (0, 0) => "origen",
+    (> 0, > 0) => "primero",
+    (_, 0) or (0, _) => "eje",
+    _ => "otro"
+};
+
+void main()
+{
+    println(Describir(new Persona("Leo", 12)));   // Leo es menor
+    println(Describir(new Persona("Ana", 30)));   // Ana con 30
+    println(Cuadrante((2, 3)));                   // primero
+    println(Cuadrante((5, 0)));                   // eje
+}
+```
+
+## Guardas `when` en case
+
+```faset
+int Clase(char c)
+{
+    switch (c)
+    {
+        case >= 'a' and <= 'z': return 1;
+        case >= 'A' and <= 'Z': return 2;
+        case var d when d >= '0' && d <= '9': return 3;
+        default: return 0;
+    }
+}
+
+void main()
+{
+    println(Clase('q') + " " + Clase('Q') + " " + Clase('7') + " " + Clase('#'));   // 1 2 3 0
+}
+```
+
+Con patrones o guardas, el `switch` se compila como una cadena de comparaciones en el orden escrito
+(`default` siempre se prueba al final). Sin ellos, sobre enteros y enums, sigue siendo un `switch`
+de C.
+
+## is
+
+`x is patrón` devuelve `bool`. Las variables del patrón (`var v`, `int v`) quedan disponibles
+después, en el mismo bloque.
+
+```faset
+void main()
+{
+    int t = 7;
+    println(t is > 0 and < 10);    // true
+    println(t is not 7);           // false
+    int? quizas = 15;
+    if (quizas is int v && v > 10) println("vale " + v);   // vale 15
+}
+```
+
+<Callout type="nota">
+Los patrones de tipo entre clases distintas (`case Perro p:` sobre un `Animal`) necesitan herencia,
+que todavía no está disponible.
+</Callout>

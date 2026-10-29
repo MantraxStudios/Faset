@@ -1,0 +1,150 @@
+export const metadata = {
+  title: "foreach",
+  description: "Recorrer List, Dictionary, HashSet, Span, cadenas y tus propios tipos con foreach en Faset.",
+};
+
+# foreach
+
+<p className="lead">
+  <code>foreach</code> recorre los elementos de una colección sin manejar índices. Funciona con
+  <code>List&lt;T&gt;</code>, <code>Dictionary&lt;K, V&gt;</code>, <code>HashSet&lt;T&gt;</code>,
+  <code>Stack&lt;T&gt;</code>, <code>Span&lt;T&gt;</code>, <code>string</code> y cualquier tipo tuyo
+  que tenga un método <code>GetEnumerator()</code>.
+</p>
+
+## Listas
+
+```faset
+using std.collections;
+
+void main()
+{
+    List<int> notas = new List<int>();
+    notas.Add(7);
+    notas.Add(9);
+    notas.Add(4);
+
+    int suma = 0;
+    foreach (int n in notas) suma += n;
+    println(suma);              // 20
+
+    foreach (var n in notas)    // 'var' toma el tipo del elemento
+    {
+        if (n < 5) continue;    // continue y break funcionan como en for
+        println(n);
+    }
+}
+```
+
+La variable del bucle es **nueva en cada vuelta**: vive solo dentro del cuerpo. Si escribes un tipo
+(`foreach (long n in notas)`), cada elemento se convierte implícitamente a ese tipo.
+
+### Modificar la lista durante el recorrido
+
+Añadir o quitar elementos de una `List<T>` mientras la recorres con `foreach` es un error de
+programación: el siguiente paso del bucle termina con un `Faset panic` que señala la línea del
+`foreach`. Si necesitas modificarla, recorre una copia (`lista.Clone()`) o usa un `for` con índice.
+
+```faset
+using std.collections;
+
+void main()
+{
+    List<int> l = new List<int>();
+    l.Add(1);
+    foreach (int x in l)
+        l.Add(x);   // termina aquí: List: la colección se modificó durante un foreach
+}
+```
+
+## Diccionarios
+
+Cada elemento de un `Dictionary<K, V>` es un `KeyValuePair<K, V>` con `Key` y `Value`. También se
+puede **deconstruir** directamente en dos variables:
+
+```faset
+using std.collections;
+
+void main()
+{
+    Dictionary<string, int> edades = new Dictionary<string, int>();
+    edades["Ana"] = 30;
+    edades["Luis"] = 25;
+
+    int total = 0;
+    foreach (var par in edades) total += par.Value;
+    println(total);             // 55
+
+    foreach (var (nombre, edad) in edades)
+        if (edad > 26) println(nombre + " tiene " + edad);   // Ana tiene 30
+}
+```
+
+El orden es el de la tabla hash, no el de inserción. Modificar el diccionario durante el recorrido
+también termina con `panic`.
+
+## Cadenas
+
+`foreach` sobre un `string` recorre sus **caracteres** (puntos de código Unicode, de tipo `char`),
+no sus bytes: `"año"` da `'a'`, `'ñ'` y `'o'`. Para trabajar con bytes usa `s[i]` y `s.Length`.
+
+```faset
+void main()
+{
+    int vocales = 0;
+    foreach (char c in "Mañana será otro día")
+        if (c == 'a' || c == 'e' || c == 'i' || c == 'o' || c == 'u' || c == 'á' || c == 'í') vocales++;
+    println(vocales);   // 9
+}
+```
+
+## Tus propios tipos
+
+`foreach` sigue el mismo protocolo que C#: el tipo necesita un método `GetEnumerator()` que
+devuelva un enumerador con `bool MoveNext()` y una propiedad (o campo) `Current`.
+
+```faset
+struct Cuenta
+{
+    int desde, hasta;
+    public Cuenta(int a, int b) { desde = a; hasta = b; }
+    public CuentaEnumerador GetEnumerator() => new CuentaEnumerador(desde, hasta);
+}
+
+struct CuentaEnumerador
+{
+    int actual, fin;
+    public CuentaEnumerador(int a, int b) { actual = a - 1; fin = b; }
+    public int Current => actual;
+    public bool MoveNext()
+    {
+        actual++;
+        return actual <= fin;
+    }
+}
+
+void main()
+{
+    foreach (int i in new Cuenta(1, 5)) print(i);   // 12345
+    println();
+}
+```
+
+Si tu clase envuelve una lista, basta con devolver su enumerador:
+`public ListEnumerator<string> GetEnumerator() => items.GetEnumerator();`.
+
+## Cómo se compila
+
+`foreach (T x in c) cuerpo` equivale a:
+
+```fst
+var e = c.GetEnumerator();
+while (e.MoveNext())
+{
+    T x = e.Current;
+    cuerpo
+}
+```
+
+Los enumeradores de la biblioteca son `struct`, así que el bucle no reserva memoria y el compilador
+de C lo optimiza como un `for` con índice.

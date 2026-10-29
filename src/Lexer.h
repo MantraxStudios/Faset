@@ -4,7 +4,9 @@
 
 #include "Common.h"
 
-enum class TokKind { End, Ident, Keyword, Punct, Int, Float, Char, String };
+// InterpBegin ... InterpEnd: cadena interpolada $"...". Dentro: String (texto literal) y huecos
+// InterpHole (text = formato, intVal = alineación si isLong) + tokens de la expresión + InterpHoleEnd.
+enum class TokKind { End, Ident, Keyword, Punct, Int, Float, Char, String, InterpBegin, InterpHole, InterpHoleEnd, InterpEnd };
 
 struct Token {
     TokKind kind = TokKind::End;

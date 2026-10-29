@@ -174,6 +174,37 @@
     "strings": {
       "patterns": [
         {
+          "name": "string.quoted.double.interpolated.verbatim.faset",
+          "begin": "(?:\\$@|@\\$)\"",
+          "end": "\"(?!\")",
+          "patterns": [
+            {
+              "name": "constant.character.escape.faset",
+              "match": "\"\"|\\{\\{|\\}\\}"
+            },
+            {
+              "include": "#interpolation"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.interpolated.faset",
+          "begin": "\\$\"",
+          "end": "\"|$",
+          "patterns": [
+            {
+              "name": "constant.character.escape.faset",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "include": "#escapes"
+            },
+            {
+              "include": "#interpolation"
+            }
+          ]
+        },
+        {
           "name": "string.quoted.double.verbatim.faset",
           "begin": "@\"",
           "end": "\"(?!\")",
@@ -232,6 +263,11 @@
     "keywords": {
       "patterns": [
         {
+          "comment": "Patrones: x is > 0 and < 10, case var x when ..., not null",
+          "name": "keyword.operator.pattern.faset",
+          "match": "\\b(when|and|or|not)\\b(?!\\s*[=;,.(\\[])"
+        },
+        {
           "name": "keyword.control.faset",
           "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally)\\b"
         },
@@ -242,7 +278,7 @@
         },
         {
           "name": "keyword.operator.memory.faset",
-          "match": "\\b(new|delete|sizeof|typeof|stackalloc|is|as)\\b"
+          "match": "\\b(new|delete|sizeof|typeof|nameof|stackalloc|is|as|using(?=\\s*\\(|\\s+var\\b))\\b"
         },
         {
           "name": "storage.modifier.faset",
@@ -339,6 +375,10 @@
     "operators": {
       "patterns": [
         {
+          "name": "keyword.operator.null-coalescing.faset",
+          "match": "\\?\\?=?|\\?(?=\\.|\\[)"
+        },
+        {
           "name": "punctuation.accessor.faset",
           "match": "::|->|\\."
         },
@@ -409,6 +449,38 @@
         {
           "name": "punctuation.squarebracket.close.faset",
           "match": "\\]"
+        }
+      ]
+    },
+    "interpolation": {
+      "name": "meta.interpolation.faset",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.interpolation.begin.faset"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.interpolation.end.faset"
+        }
+      },
+      "patterns": [
+        {
+          "comment": "Formato y alineación del hueco: {precio,10:F2}",
+          "match": "(?<!:)(:)(?!:)([^}\"]*)(?=\\})",
+          "captures": {
+            "1": {
+              "name": "punctuation.separator.format.faset"
+            },
+            "2": {
+              "name": "constant.other.format-spec.faset"
+            }
+          }
+        },
+        {
+          "include": "$self"
         }
       ]
     }

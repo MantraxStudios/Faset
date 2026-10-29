@@ -931,8 +931,7 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
-- Sin `foreach` ni interpolación `$"..."` (usa `"x = " + x`). LINQ evalúa de forma inmediata
-  (cada operación devuelve una `List<T>` nueva).
+- LINQ evalúa de forma inmediata (cada operación devuelve una `List<T>` nueva).
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.

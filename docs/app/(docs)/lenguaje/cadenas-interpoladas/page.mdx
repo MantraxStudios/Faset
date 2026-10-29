@@ -1,0 +1,100 @@
+export const metadata = {
+  title: "Cadenas interpoladas",
+  description: "Cadenas $\"...\" con huecos, alineación y formatos numéricos, y cadenas literales @\"...\" en Faset.",
+};
+
+# Cadenas interpoladas
+
+<p className="lead">
+  Una cadena precedida de <code>$</code> puede contener expresiones entre llaves: se evalúan y se
+  convierten en texto. Es más legible que encadenar <code>+</code> y se compila a una única
+  concatenación.
+</p>
+
+```faset
+void main()
+{
+    string nombre = "Ana";
+    int edad = 30;
+    println($"Hola {nombre}, tienes {edad} años");      // Hola Ana, tienes 30 años
+    println($"El año que viene tendrás {edad + 1}");     // El año que viene tendrás 31
+    println($"{nombre.ToUpper()} tiene {nombre.Length} letras: {(edad > 18 ? "adulta" : "menor")}");
+}
+```
+
+Dentro de un hueco vale cualquier expresión. Un operador `?:` va entre paréntesis (como en C#),
+porque los dos puntos marcan el formato. Para escribir llaves literales se duplican: `{{` y `}}`.
+
+## Qué se puede interpolar
+
+| Tipo | Texto |
+|---|---|
+| `string`, `char` | tal cual |
+| enteros y reales | como `Console.Write` (`1.5`, `1E+20`) |
+| `bool` | `True` / `False` |
+| enums | su valor numérico |
+| `T?` | el valor, o nada si es `null` |
+| tuplas | `(1, Ana)` |
+| clases y structs con `public string ToString()` | lo que devuelva `ToString()` (nada si el objeto es `null`) |
+
+Un tipo sin `ToString()` da un error de compilación. Lo mismo vale para la concatenación con `+`:
+`"punto: " + p` usa el `ToString()` de `p`.
+
+## Alineación y formatos
+
+`{valor,ancho}` rellena con espacios hasta `ancho` caracteres: a la izquierda si es positivo y a la
+derecha si es negativo. `{valor:formato}` aplica un formato numérico; se pueden combinar:
+`{precio,10:F2}`.
+
+```faset
+void main()
+{
+    double precio = 1234.5678;
+    int n = 42;
+    println($"[{"Ana",6}] [{"Ana",-6}]");          // [   Ana] [Ana   ]
+    println($"{precio:F2} {precio:N2} {precio:E2}"); // 1234.57 1,234.57 1.23E+003
+    println($"{n:D5} {n:X} {255:x4} {0.256:P1}");    // 00042 2A 00ff 25.6 %
+    println($"{precio:0.0} {precio:#,##0.00} {7:000}"); // 1234.6 1,234.57 007
+    println($"{precio,12:F3}|");                    //     1234.568|
+}
+```
+
+| Formato | Significado | Ejemplo |
+|---|---|---|
+| `D` + dígitos | entero con ceros a la izquierda (solo enteros) | `{7:D3}` → `007` |
+| `X` / `x` + dígitos | hexadecimal (solo enteros; los negativos en complemento a dos) | `{255:X4}` → `00FF` |
+| `F` + decimales | punto fijo (por defecto 2) | `{3.14159:F3}` → `3.142` |
+| `N` + decimales | con separador de miles | `{1234567:N0}` → `1,234,567` |
+| `E` / `e` + decimales | exponencial (por defecto 6) | `{1234.5:E2}` → `1.23E+003` |
+| `P` + decimales | porcentaje (×100) | `{0.5:P0}` → `50 %` |
+| `G` + dígitos | general (sin dígitos: la forma más corta) | `{1.0/3:G3}` → `0.333` |
+| `0`, `#`, `.`, `,`, `%` | formato personalizado | `{2.5:0.00}` → `2.50`, `{0.5:#.##}` → `.5` |
+
+Los formatos siguen la cultura invariante de .NET (punto decimal y coma de miles) y se comprueban
+al compilar: `{n:Q}` o `{"texto":F2}` son errores.
+
+## Cadenas literales (@"...")
+
+Con `@` las barras invertidas no son escapes y la cadena puede ocupar varias líneas; una comilla se
+escribe `""`. Se combina con `$` en cualquier orden: `$@"..."` o `@$"..."`.
+
+```faset
+void main()
+{
+    string carpeta = "datos";
+    println(@"C:\Programas\Faset");             // C:\Programas\Faset
+    println(@"Dijo ""hola""");                  // Dijo "hola"
+    println($@"C:\{carpeta}\archivo.txt");     // C:\datos\archivo.txt
+}
+```
+
+## Rendimiento
+
+`$"a {x} b {y}"` se compila a una sola llamada al runtime que calcula la longitud total y copia las
+partes una vez (no crea cadenas intermedias como `"a " + x + " b " + y`). La memoria la recupera el
+recolector.
+
+<Callout type="consejo">
+En el editor (VS Code y FasetStudio) los huecos se colorean como código, y el hover y el
+autocompletado funcionan dentro de las llaves.
+</Callout>

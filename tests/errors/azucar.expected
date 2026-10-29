@@ -1,0 +1,18 @@
+15|'params' solo se puede usar en el último parámetro
+15|'params' debe ser List<T>
+20|'foreach' no puede recorrer un valor de tipo 'int'
+22|el operador '\?\?' necesita a la izquierda un valor que admita null
+24|el operador '\?\.' necesita un valor que admita null
+25|no se puede convertir 'Punto' en texto
+26|el formato ':F2' solo se aplica a números
+27|formato numérico no válido ':Q9'
+29|el operador '\+' no está definido para 'int\?'
+30|no se puede deconstruir una tupla de 3 elementos en 2 variables
+31|no se puede inferir el tipo de 'null' en una tupla
+32|no se puede convertir implícitamente el tipo '\(int, string\)' en '\(int, int\)'
+33|los brazos del 'switch' no tienen un tipo común
+34|este brazo del 'switch' nunca se alcanza
+35|el patrón de tipo 'Punto' sobre un valor de tipo 'Caja'
+36|ninguna sobrecarga de 'Sumar'
+37|el operador '\?\?=' necesita a la izquierda
+38|no se puede inferir el tipo de 'default'
