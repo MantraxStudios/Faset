@@ -218,6 +218,7 @@ Could not find the window class in the code file = No se encontró la clase de l
 RadioButton = Botón de opción
 ComboBox = Lista desplegable
 ListBox = Lista
+WebView = Navegador web
 OUTLINE = ESQUEMA
 Ctrl+C / Ctrl+V copy and paste = Ctrl+C / Ctrl+V copiar y pegar
 Tab: next control = Tab: siguiente control

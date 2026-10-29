@@ -78,6 +78,7 @@ struct Options {
     std::vector<std::string> libs, libDirs;
     std::vector<std::string> runArgs;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
+    std::vector<std::string> extraSources;  // C de la biblioteca estándar (p. ej. el WebView de std.ui)
     bool singleFile = false;
     Project* project = nullptr;
     std::string argv0;
@@ -307,6 +308,16 @@ static void applyProjectSettings(Options& o) {
 
 // ------------------------------------------------------------------ compilación
 
+// ¿Usa el programa el control WebView? (un <WebView> en un .fstui o WidgetKind.WebView en el código)
+static bool usesWebView(const std::vector<std::string>& inputs) {
+    for (const std::string& f : inputs) {
+        std::ifstream in(f, std::ios::binary);
+        std::string src((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        if (src.find("<WebView") != std::string::npos || src.find("WidgetKind.WebView") != std::string::npos) return true;
+    }
+    return false;
+}
+
 static bool frontEnd(Options& o, std::string* csrc) {
     FrontendOptions fo;
     fo.inputs = o.inputs;
@@ -340,6 +351,18 @@ static bool frontEnd(Options& o, std::string* csrc) {
             need = {"ws2_32"};
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
+    }
+    // std.ui: capa nativa del WebView (WebKitGTK en Linux con dlopen, android.webkit en Android).
+    if (r.prog->requestedModules.count("std.ui") && o.target != "windows") {
+        fs::path c = fs::path(fo.libDir) / (o.target == "android" ? "android" : "linux") / "faset_webview.c";
+        if (fs::exists(c) && std::find(o.extraSources.begin(), o.extraSources.end(), c.string()) == o.extraSources.end())
+            o.extraSources.push_back(c.string());
+        if (o.target != "android" && std::find(o.libs.begin(), o.libs.end(), "dl") == o.libs.end()) o.libs.push_back("dl");
+        // Android: un WebView carga páginas de la red, así que la app necesita el permiso INTERNET.
+        if (o.target == "android" && usesWebView(o.inputs) &&
+            std::find(o.androidPermissions.begin(), o.androidPermissions.end(), "INTERNET") == o.androidPermissions.end() &&
+            std::find(o.androidPermissions.begin(), o.androidPermissions.end(), "android.permission.INTERNET") == o.androidPermissions.end())
+            o.androidPermissions.push_back("INTERNET");
     }
     if (csrc) {
         CodeGen cg(*r.prog, *r.sema, *r.tc);
@@ -417,6 +440,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.push_back(rtC.string());
     cmd.push_back(gcC.string());
     cmd.insert(cmd.end(), extraSources.begin(), extraSources.end());
+    cmd.insert(cmd.end(), o.extraSources.begin(), o.extraSources.end());
     cmd.push_back("-o");
     cmd.push_back(outPath);
     cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());

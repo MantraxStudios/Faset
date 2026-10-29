@@ -267,8 +267,10 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
             mi.path = path;
             mi.line = m->loc.line;
             mi.col = m->loc.col;
-            mi.handler = !m->isStatic() && m->params.size() == 1 && m->params[0].tref &&
-                         m->params[0].tref->str().size() >= 6 &&
+            // void Nombre(Widget sender), o (Widget sender, string message) para MessageReceived del WebView.
+            mi.handler = !m->isStatic() && (m->params.size() == 1 || (m->params.size() == 2 && m->params[1].tref &&
+                                                                       m->params[1].tref->str() == "string")) &&
+                         m->params[0].tref && m->params[0].tref->str().size() >= 6 &&
                          m->params[0].tref->str().compare(m->params[0].tref->str().size() - 6, 6, "Widget") == 0;
             info.methods.push_back(mi);
         }

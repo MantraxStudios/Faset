@@ -129,10 +129,11 @@ struct Gen {
 
     void widget(const XmlNode& n, const std::string& parent) {
         static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
-                                                       "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
+                                                       "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox",
+                                                       "WebView"};
         if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
             error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
-                          "ProgressBar, RadioButton, ComboBox, ListBox)");
+                          "ProgressBar, RadioButton, ComboBox, ListBox, WebView)");
             return;
         }
         std::string name;
@@ -156,6 +157,7 @@ struct Gen {
         std::string events;
         std::string post;  // SelectedIndex va después de Items, esté donde esté en el XML
         int clickId = 0, changedId = 0;
+        int webEvents[3] = {0, 0, 0};  // WebView: Navigated, TitleChanged, MessageReceived
         for (const std::string& key : n.attrOrder) {
             const std::string& v = n.attrs.at(key);
             std::string num;
@@ -195,15 +197,29 @@ struct Gen {
             } else if (key == "Changed") {
                 changedId = nextEvent++;
                 events += " if (ev == " + std::to_string(changedId) + ") " + handler(n, key) + "(sender);";
+            } else if (n.name == "WebView" && key == "Source") {
+                code += " " + name + ".Source = " + quote(v) + ";";
+            } else if (n.name == "WebView" && key == "Html") {
+                code += " " + name + ".LoadHtml(" + quote(v) + ");";
+            } else if (n.name == "WebView" && (key == "Navigated" || key == "TitleChanged" || key == "MessageReceived")) {
+                int k = key == "Navigated" ? 0 : key == "TitleChanged" ? 1 : 2;
+                webEvents[k] = nextEvent++;
+                // MessageReceived recibe también el texto: void Nombre(Widget sender, string message).
+                events += " if (ev == " + std::to_string(webEvents[k]) + ") " + handler(n, key) +
+                          (k == 2 ? "(sender, sender.Message);" : "(sender);");
             } else {
                 error(n.line, "atributo desconocido '" + key + "' en <" + n.name + ">");
             }
         }
         code += post;
         // El enlace de eventos pasa 'this' como void*: es código memory_unsafe generado (confiable).
-        if (clickId || changedId)
+        bool web = webEvents[0] || webEvents[1] || webEvents[2];
+        if (clickId || changedId || web)
             code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " +
                     std::to_string(changedId) + "); }";
+        if (web)
+            code += " " + name + ".SetWebEvents(" + std::to_string(webEvents[0]) + ", " + std::to_string(webEvents[1]) + ", " +
+                    std::to_string(webEvents[2]) + ");";
         emit(n.line, " if (ev == 0) { " + code + " }" + events);
         if (!n.children.empty() && n.name != "Panel") error(n.children[0].line, "solo <Panel> puede contener otros controles");
         for (const XmlNode& c : n.children) widget(c, name);

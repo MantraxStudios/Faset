@@ -1,0 +1,8 @@
+<Window Class="MainWindow" Namespace="Prueba" Title="WebView" Width="400" Height="300" Theme="Light">
+  <Label Name="lblEstado" X="10" Y="10" Width="380" Height="20" Text="..." />
+  <WebView Name="Web" X="10" Y="40" Width="380" Height="250" Anchor="Left,Top,Right,Bottom" Source="https://faset.dev/"
+           Navigated="OnNavigated" TitleChanged="OnTitle" MessageReceived="OnMessage" />
+  <Panel Name="panel" X="0" Y="0" Width="10" Height="10" Visible="false">
+    <WebView Name="Oculto" X="0" Y="0" Width="10" Height="10" Html="&lt;p&gt;hola&lt;/p&gt;" />
+  </Panel>
+</Window>
