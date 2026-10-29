@@ -62,6 +62,21 @@ Al abrir un `.fstui` se muestra el diseñador visual (botón **Diseño | Código
   - `Ctrl+↑` / `Ctrl+↓` traer al frente o enviar al fondo.
   - Flechas para mover (`Shift`: de 8 en 8).
 - **Doble clic** en un control crea su manejador (`OnGuardarClick`…) en el código de la ventana.
+- **Moverse por el lienzo:** rueda (vertical), `Shift`+rueda (horizontal) o arrastrar con la rueda pulsada.
+- **Colores:** sección *Colores* con muestra, código `#RRGGBB` (o `#RRGGBBAA`) y paleta.
+  - `Background` + `Background2` crean un degradado; su dirección se elige con `GradientDirection`.
+  - `Foreground` es el color del texto y `BorderColor` el del borde.
+  - `Accent` colorea la casilla marcada, el deslizador y la barra de progreso.
+  - La ventana también admite `Background`, `Background2` y `GradientDirection`.
+
+## Paneles acoplables
+
+Explorador, Salida y Problemas se pueden colocar a la izquierda, a la derecha o abajo.
+- **Arrastra su pestaña** hacia un borde. Aparecen guías y una vista previa del hueco donde quedará.
+- **Botón derecho en la pestaña:** acoplar a un lado, ocultar o restablecer la disposición.
+- Los paneles que están en el mismo lado se muestran como pestañas.
+- **Ver → Explorador / Salida / Problemas** los muestra u oculta.
+- La disposición y los tamaños se guardan en `~/.config/fasetstudio/settings.ini`.
 
 Los RadioButton con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. ComboBox y
 ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `SelectedIndex` y

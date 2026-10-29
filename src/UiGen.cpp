@@ -85,6 +85,25 @@ struct Gen {
         return true;
     }
 
+    // "#RGB", "#RRGGBB" o "#RRGGBBAA" -> literal 0xAARRGGBB.
+    std::string colorValue(const XmlNode& n, const std::string& key, const std::string& v) {
+        std::string hex = v.size() > 1 && v[0] == '#' ? v.substr(1) : "";
+        bool good = hex.size() == 3 || hex.size() == 6 || hex.size() == 8;
+        for (char c : hex)
+            if (!std::isxdigit((unsigned char)c)) good = false;
+        if (!good) {
+            error(n.line, "el atributo '" + key + "' debe ser un color '#RRGGBB' o '#RRGGBBAA' (es '" + v + "')");
+            return "0";
+        }
+        if (hex.size() == 3) hex = std::string{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]};
+        std::string argb = hex.size() == 8 ? hex.substr(6, 2) + hex.substr(0, 6) : "ff" + hex;
+        return "0x" + lower(argb);
+    }
+
+    static bool isColorKey(const std::string& k) {
+        return k == "Background" || k == "Background2" || k == "Foreground" || k == "BorderColor" || k == "Accent";
+    }
+
     std::string boolValue(const XmlNode& n, const std::string& key, const std::string& v) {
         std::string l = lower(v);
         if (l == "true" || l == "false") return l;
@@ -151,6 +170,10 @@ struct Gen {
             else if (key == "Value" || key == "Min" || key == "Max") numAttr(n, key, num), code += " " + name + "." + key + " = " + num + ";";
             else if (key == "Style")
                 code += " " + name + ".Style = " + enumValue(n, key, v, "WidgetStyle", {"Default", "Primary", "Subtle", "Danger"}) + ";";
+            else if (isColorKey(key)) code += " " + name + "." + key + " = " + colorValue(n, key, v) + ";";
+            else if (key == "GradientDirection")
+                code += " " + name + ".GradientHorizontal = " +
+                        (enumValue(n, key, v, "TextAlign", {"Vertical", "Horizontal"}) == "TextAlign.Horizontal" ? "true" : "false") + ";";
             else if (key == "TextAlign")
                 code += " " + name + ".TextAlign = " + enumValue(n, key, v, "TextAlign", {"Left", "Center", "Right"}) + ";";
             else if (key == "Anchor") {
@@ -221,6 +244,10 @@ std::string generateUiSource(const std::string& xml, int fileId) {
         if (key == "Theme") code += " Window.Theme = " + g.enumValue(root, key, v, "UiTheme", {"Dark", "Light"}) + ";";
         else if (key == "Resizable") code += " Window.Resizable = " + g.boolValue(root, key, v) + ";";
         else if (key == "MinWidth" || key == "MinHeight") g.intAttr(root, key, num), code += " Window." + key + " = " + num + ";";
+        else if (key == "Background" || key == "Background2") code += " Window." + key + " = " + g.colorValue(root, key, v) + ";";
+        else if (key == "GradientDirection")
+            code += " Window.GradientHorizontal = " +
+                    std::string(g.enumValue(root, key, v, "X", {"Vertical", "Horizontal"}) == "X.Horizontal" ? "true" : "false") + ";";
         else g.error(root.line, "atributo desconocido '" + key + "' en <Window>");
     }
     g.emit(root.line, " if (ev == 0) { " + code + " }");

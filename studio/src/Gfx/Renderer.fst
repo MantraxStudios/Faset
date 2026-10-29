@@ -886,6 +886,23 @@ namespace FasetStudio.Gfx
 
         public void RoundRect(float x, float y, float w, float h, float radius, Color c) { Shape(x, y, w, h, radius, 0, 0, c); }
 
+        // Rectángulo redondeado con degradado lineal (el color se interpola entre vértices).
+        public void GradientRoundRect(float x, float y, float w, float h, float radius, Color from, Color to, bool horizontal)
+        {
+            int before = vertexCount;
+            Shape(x, y, w, h, radius, 0, 0, from);
+            if (vertexCount == before) return;
+            Vertex* v = vertices + vertexCount - 6;
+            for (int i = 0; i < 6; i++)
+            {
+                float t = horizontal ? (v[i].X - x) / w : (v[i].Y - y) / h;
+                v[i].R = from.R + (to.R - from.R) * t;
+                v[i].G = from.G + (to.G - from.G) * t;
+                v[i].B = from.B + (to.B - from.B) * t;
+                v[i].A = from.A + (to.A - from.A) * t;
+            }
+        }
+
         public void RoundBorder(float x, float y, float w, float h, float radius, float thickness, Color c)
         {
             Shape(x, y, w, h, radius, thickness, 0, c);

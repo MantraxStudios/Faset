@@ -37,6 +37,39 @@ namespace std.ui
     {
         public static uint Of(uint rgb) => 0xff000000 | rgb;
         public static uint Alpha(uint rgb, float a) => ((uint)(Math.Clamp((double)a, 0.0, 1.0) * 255) << 24) | (rgb & 0xffffff);
+
+        // Mezcla lineal de dos colores ARGB (t = 0..1).
+        public static uint Mix(uint a, uint b, float t)
+        {
+            if (t <= 0) return a;
+            if (t >= 1) return b;
+            uint r = 0;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                float ca = (float)((a >> shift) & 0xff), cb = (float)((b >> shift) & 0xff);
+                r |= ((uint)(ca + (cb - ca) * t + 0.5f) & 0xff) << shift;
+            }
+            return r;
+        }
+
+        // "#RGB", "#RRGGBB" o "#RRGGBBAA" -> 0xAARRGGBB; 0 si no es válido.
+        public static uint Parse(string s)
+        {
+            if (s.Length == 0 || s[0] != '#') return 0;
+            uint v = 0;
+            int digits = s.Length - 1;
+            if (digits != 3 && digits != 6 && digits != 8) return 0;
+            for (int i = 1; i < s.Length; i++)
+            {
+                byte c = s[i];
+                uint d = c >= '0' && c <= '9' ? (uint)(c - '0') : (c >= 'a' && c <= 'f' ? (uint)(c - 'a' + 10) : (c >= 'A' && c <= 'F' ? (uint)(c - 'A' + 10) : 99));
+                if (d == 99) return 0;
+                v = (v << 4) | d;
+            }
+            if (digits == 3) return 0xff000000 | ((v >> 8) * 0x110000) | (((v >> 4) & 15) * 0x1100) | ((v & 15) * 0x11);
+            if (digits == 6) return 0xff000000 | v;
+            return (v >> 8) | ((v & 0xff) << 24);
+        }
     }
 
     public class Palette
@@ -197,16 +230,23 @@ namespace std.ui
 
         public void FillRoundRect(float x, float y, float w, float h, float r, uint color)
         {
-            StrokeOrFill(x, y, w, h, r, -1, color);
+            StrokeOrFill(x, y, w, h, r, -1, color, color, false);
+        }
+
+        // Degradado lineal de 'from' a 'to' (de arriba abajo, o de izquierda a derecha).
+        public void FillRoundRectGradient(float x, float y, float w, float h, float r, uint from, uint to, bool horizontal)
+        {
+            StrokeOrFill(x, y, w, h, r, -1, from, to, horizontal);
         }
 
         public void StrokeRoundRect(float x, float y, float w, float h, float r, float thickness, uint color)
         {
-            StrokeOrFill(x, y, w, h, r, thickness, color);
+            StrokeOrFill(x, y, w, h, r, thickness, color, color, false);
         }
 
-        void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color)
+        void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color, uint color2, bool horizontal)
         {
+            bool gradient = color2 != color;
             if (w <= 0 || h <= 0) return;
             float maxR = (w < h ? w : h) / 2;
             if (r > maxR) r = maxR;
@@ -222,7 +262,9 @@ namespace std.ui
                     float d = RoundRectDistance(px + 0.5f, fy, cx, cy, hw, hh, r);
                     float c = Cov(d);
                     if (thickness > 0) c = c - Cov(d + thickness);
-                    if (c > 0) Blend(px, py, color, (int)(c * 255 + 0.5f));
+                    if (c <= 0) continue;
+                    uint col = gradient ? Rgb.Mix(color, color2, horizontal ? (px + 0.5f - x) / w : (fy - y) / h) : color;
+                    Blend(px, py, col, (int)(c * 255 + 0.5f));
                 }
             }
         }
@@ -532,6 +574,14 @@ namespace std.ui
         public bool Visible = true;
         public int CornerRadius = -1;  // -1 = según el tipo
         public void* Tag;
+
+        // Colores 0xAARRGGBB; 0 = el del tema. Con Background2 el fondo es un degradado.
+        public uint Background;
+        public uint Background2;
+        public bool GradientHorizontal;
+        public uint Foreground;
+        public uint BorderColor;
+        public uint Accent;          // casilla marcada, deslizador y barra de progreso
 
         int x;
         int y;
@@ -864,22 +914,24 @@ namespace std.ui
             bool pressed = w.Pressed == this && hot;
             bool focused = w.Focused == this;
             UiFont font = UiFont.Get(FontSize, Bold || (Kind == WidgetKind.Button && Style == WidgetStyle.Primary));
-            uint textColor = Enabled ? p.Text : p.TextMuted;
+            uint textColor = Foreground != 0 ? Foreground : (Enabled ? p.Text : p.TextMuted);
+            uint accent = Accent != 0 ? Accent : p.Primary;
             switch (Kind)
             {
                 case WidgetKind.Panel:
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : 10;
-                    if (Style != WidgetStyle.Subtle)
-                    {
-                        c.FillRoundRect(fx, fy, fw, fh, r, p.Surface);
-                        c.StrokeRoundRect(fx, fy, fw, fh, r, 1, p.Border);
-                    }
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+                    else if (Style != WidgetStyle.Subtle) c.FillRoundRect(fx, fy, fw, fh, r, p.Surface);
+                    if (BorderColor != 0 || (Style != WidgetStyle.Subtle && Background == 0))
+                        c.StrokeRoundRect(fx, fy, fw, fh, r, 1, BorderColor != 0 ? BorderColor : p.Border);
                     break;
                 }
                 case WidgetKind.Label:
                 {
-                    uint color = Style == WidgetStyle.Subtle ? p.TextMuted : (Style == WidgetStyle.Danger ? p.Danger : textColor);
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, CornerRadius >= 0 ? CornerRadius : 0, 0);
+                    if (BorderColor != 0) c.StrokeRoundRect(fx, fy, fw, fh, CornerRadius >= 0 ? CornerRadius : 0, 1, BorderColor);
+                    uint color = Foreground != 0 ? Foreground : Style == WidgetStyle.Subtle ? p.TextMuted : (Style == WidgetStyle.Danger ? p.Danger : textColor);
                     DrawLabelText(c, font, text, fx, fy, fw, fh, color);
                     break;
                 }
@@ -911,7 +963,11 @@ namespace std.ui
                     }
                     if (pressed) bg = Style == WidgetStyle.Default || Style == WidgetStyle.Subtle ? p.SurfacePressed : Darken(bg);
                     if (!Enabled && Style != WidgetStyle.Default) bg = Rgb.Alpha(bg, 0.45f);
-                    if (bg != 0) c.FillRoundRect(fx, fy, fw, fh, r, bg);
+                    if (Foreground != 0) fg = Foreground;
+                    if (Background != 0 && Style == WidgetStyle.Default) border = 0;
+                    if (BorderColor != 0) border = BorderColor;
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, pressed ? -1 : (hot ? 1 : 0));
+                    else if (bg != 0) c.FillRoundRect(fx, fy, fw, fh, r, bg);
                     if (border != 0) c.StrokeRoundRect(fx, fy, fw, fh, r, 1, border);
                     if (focused && w.FocusVisible) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
                     float tw = font.Measure(text);
@@ -928,7 +984,7 @@ namespace std.ui
                     float by = fy + (fh - box) / 2;
                     if (isChecked)
                     {
-                        c.FillRoundRect(fx, by, box, box, 5, Enabled ? p.Primary : p.TextMuted);
+                        c.FillRoundRect(fx, by, box, box, 5, Enabled ? accent : p.TextMuted);
                         c.Line(fx + 4.5f, by + 9.5f, fx + 7.8f, by + 12.8f, 2, p.PrimaryText);
                         c.Line(fx + 7.8f, by + 12.8f, fx + 13.5f, by + 5.8f, 2, p.PrimaryText);
                     }
@@ -947,10 +1003,10 @@ namespace std.ui
                     float thumb = 8;
                     float left = fx + thumb, right = fx + fw - thumb;
                     float pos = left + (right - left) * Fraction;
-                    c.FillRoundRect(fx, cy - 2, fw, 4, 2, p.Track);
-                    c.FillRoundRect(fx, cy - 2, pos - fx, 4, 2, Enabled ? p.Primary : p.TextMuted);
+                    c.FillRoundRect(fx, cy - 2, fw, 4, 2, Background != 0 ? Background : p.Track);
+                    c.FillRoundRect(fx, cy - 2, pos - fx, 4, 2, Enabled ? accent : p.TextMuted);
                     if (focused && w.FocusVisible) c.FillCircle(pos, cy, thumb + 4, p.Focus);
-                    c.FillCircle(pos, cy, thumb + (hot || pressed ? 1 : 0), Enabled ? p.Primary : p.TextMuted);
+                    c.FillCircle(pos, cy, thumb + (hot || pressed ? 1 : 0), Enabled ? accent : p.TextMuted);
                     c.FillCircle(pos, cy, 3, p.Background);
                     break;
                 }
@@ -960,7 +1016,7 @@ namespace std.ui
                     float cx = fx + box / 2, cy = fy + fh / 2;
                     if (isChecked)
                     {
-                        c.FillCircle(cx, cy, box / 2, Enabled ? p.Primary : p.TextMuted);
+                        c.FillCircle(cx, cy, box / 2, Enabled ? accent : p.TextMuted);
                         c.FillCircle(cx, cy, 3.5f, p.PrimaryText);
                     }
                     else
@@ -976,8 +1032,9 @@ namespace std.ui
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : 8;
                     bool open = w.DropDown == this;
-                    c.FillRoundRect(fx, fy, fw, fh, r, hot || open ? p.SurfaceHover : p.Surface);
-                    c.StrokeRoundRect(fx, fy, fw, fh, r, open ? 1.5f : 1, open ? p.Focus : (hot ? p.BorderStrong : p.Border));
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, hot || open ? 1 : 0);
+                    else c.FillRoundRect(fx, fy, fw, fh, r, hot || open ? p.SurfaceHover : p.Surface);
+                    c.StrokeRoundRect(fx, fy, fw, fh, r, open ? 1.5f : 1, open ? p.Focus : (BorderColor != 0 ? BorderColor : (hot ? p.BorderStrong : p.Border)));
                     if (focused && w.FocusVisible && !open) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
                     float baseline = fy + (fh - font.LineHeight) / 2 + font.Ascent;
                     c.Clip(ScreenX + 1, ScreenY + 1, ActualWidth - 34, ActualHeight - 2);
@@ -995,13 +1052,31 @@ namespace std.ui
                 case WidgetKind.ProgressBar:
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : fh / 2;
-                    c.FillRoundRect(fx, fy, fw, fh, r, p.Track);
+                    c.FillRoundRect(fx, fy, fw, fh, r, Background != 0 ? Background : p.Track);
                     float filled = fw * Fraction;
-                    if (filled > 0) c.FillRoundRect(fx, fy, filled < fh ? fh : filled, fh, r, p.Primary);
+                    if (filled > 0) c.FillRoundRect(fx, fy, filled < fh ? fh : filled, fh, r, accent);
                     break;
                 }
             }
             for (int i = 0; i < Children.Count; i++) Children[i].Draw(c, p, w);
+        }
+
+        // Fondo propio (sólido o degradado); shade: 1 más claro (encima), -1 más oscuro (pulsado).
+        void FillBackground(Canvas c, float x, float y, float w, float h, float r, int shade)
+        {
+            uint a = Background, b = Background2 != 0 ? Background2 : Background;
+            if (shade > 0)
+            {
+                a = Rgb.Mix(a, 0xffffffff, 0.08f) & 0xffffff | (a & 0xff000000);
+                b = Rgb.Mix(b, 0xffffffff, 0.08f) & 0xffffff | (b & 0xff000000);
+            }
+            else if (shade < 0)
+            {
+                a = Darken(a);
+                b = Darken(b);
+            }
+            if (a == b) c.FillRoundRect(x, y, w, h, r, a);
+            else c.FillRoundRectGradient(x, y, w, h, r, a, b, GradientHorizontal);
         }
 
         static uint Darken(uint c)
@@ -1034,8 +1109,9 @@ namespace std.ui
         void DrawListBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, uint textColor)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
-            c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
-            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : p.Border);
+            if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+            else c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
+            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (BorderColor != 0 ? BorderColor : p.Border));
             ClampScroll();
             int rh = RowHeight, rows = VisibleRows;
             bool bar = items.Count > rows;
@@ -1063,8 +1139,9 @@ namespace std.ui
         void DrawTextBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, bool hot)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
-            c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
-            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (hot ? p.BorderStrong : p.Border));
+            if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+            else c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
+            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (BorderColor != 0 ? BorderColor : (hot ? p.BorderStrong : p.Border)));
             float pad = 10;
             float inner = fw - pad * 2;
             float caretX = font.MeasureBytes(text, caret);
@@ -1082,7 +1159,7 @@ namespace std.ui
                 float ex = fx + pad - scroll + font.MeasureBytes(text, b);
                 c.FillRoundRect(sx, baseline - font.Ascent - 2, ex - sx, font.LineHeight + 4, 3, p.Selection);
             }
-            c.Text(font, text, fx + pad - scroll, baseline, Enabled ? p.Text : p.TextMuted);
+            c.Text(font, text, fx + pad - scroll, baseline, Foreground != 0 ? Foreground : (Enabled ? p.Text : p.TextMuted));
             if (focused && w.CaretOn)
                 c.FillRect((int)(fx + pad - scroll + caretX), (int)(baseline - font.Ascent - 1), 2 - 1 + 1, (int)(font.LineHeight + 2), p.Text);
             c.ResetClip();
@@ -1240,6 +1317,9 @@ namespace std.ui
         public bool Resizable = true;
         public int MinWidth = 200;
         public int MinHeight = 120;
+        public uint Background;          // 0 = el del tema
+        public uint Background2;         // con valor: degradado de Background a Background2
+        public bool GradientHorizontal;
 
         string title;
         int designWidth;
@@ -1354,7 +1434,9 @@ namespace std.ui
             if (palette == null) palette = Palette.For(Theme);
             canvas.Resize(width, height);
             canvas.ResetClip();
-            canvas.Clear(palette.Background);
+            canvas.Clear(Background != 0 ? Background : palette.Background);
+            if (Background != 0 && Background2 != 0)
+                canvas.FillRoundRectGradient(0, 0, width, height, 0, Background, Background2, GradientHorizontal);
             for (int i = 0; i < Children.Count; i++)
             {
                 Children[i].Layout(0, 0, width - designWidth, height - designHeight);
@@ -1848,7 +1930,7 @@ namespace std.ui
             String.Free(shot);
 
             native = new NativeWindow();
-            if (!native.Create(title, width, height, Resizable, MinWidth, MinHeight, Palette.For(Theme).Background))
+            if (!native.Create(title, width, height, Resizable, MinWidth, MinHeight, Background != 0 ? Background : Palette.For(Theme).Background))
             {
                 Console.ErrorLine("std.ui: no se pudo abrir la ventana (¿hay un entorno gráfico?)");
                 return 1;
