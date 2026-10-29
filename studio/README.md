@@ -9,7 +9,7 @@ make studio                       # desde la raíz del repositorio
 ./studio/bin/Release/linux-x86_64/FasetStudio  ruta/a/MiProyecto  # abrir directamente
 ```
 
-Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
+Se le puede pasar una carpeta, un `.fstproj`, una solución `.fstp` o un archivo `.fst`.
 
 ## Funciones
 
@@ -53,6 +53,37 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
   - `Ctrl+Intro` / `Ctrl+Shift+Intro` crean una línea nueva debajo o encima.
 - `Ctrl+P` abrir rápido, `Ctrl+N` nuevo archivo, `Ctrl+F`/`F3` buscar, `Ctrl+G` ir a la línea,
   `Ctrl+S` guardar (`Ctrl+Shift+S` todo), `Ctrl+W` cerrar pestaña, `Ctrl+Tab` cambiar de pestaña
+
+## Soluciones (`.fstp`)
+
+Una solución abre **varios proyectos a la vez**, como en Visual Studio (formato y comandos `faset sln`
+en el [README principal](../README.md#soluciones-fstp)).
+
+- **Abrir:** Archivo → Abrir acepta un `.fstp`, y una carpeta que contiene un `.fstp` se abre como
+  solución. Las soluciones aparecen en *Abrir recientes* con la etiqueta «solución». Un `.fstproj`
+  suelto se sigue abriendo como siempre.
+- **Crear:** en Archivo → Nuevo proyecto, la casilla **Crear una solución** genera
+  `Nombre/Nombre.fstp` con el proyecto dentro (`Nombre/Nombre/`).
+- **Explorador de soluciones:** la raíz es «Solución 'MiJuego' (N proyectos)», debajo las carpetas de
+  solución y cada proyecto con sus archivos. El proyecto de inicio va en **negrita** y los que no
+  existen en el disco aparecen en gris como «(no disponible)».
+- **Menú contextual de la solución:** compilar, ejecutar el proyecto de inicio, limpiar, agregar un
+  proyecto nuevo (el diálogo de nuevo proyecto, dentro de la carpeta de la solución), agregar un
+  proyecto existente, agregar una carpeta de solución, renombrar y abrir el `.fstp`.
+- **Menú contextual de una carpeta de solución:** agregar proyectos o subcarpetas dentro de ella, o
+  quitarla (sus proyectos pasan a la carpeta superior).
+- **Menú contextual de un proyecto:** establecer como proyecto de inicio, compilar solo ese proyecto,
+  agregar una referencia a otra biblioteca de la solución (escribe `<ProjectReference>` en su
+  `.fstproj`), nuevo archivo o carpeta, propiedades y quitar de la solución (los archivos se conservan).
+- **Compilar y ejecutar** (`Ctrl+B`, `F5`): toda la solución en orden de dependencias y después se
+  ejecuta el proyecto de inicio; la salida muestra cada proyecto (`[1/3] Compilando Motor ...`).
+- **IntelliSense:** cada archivo se analiza con su propio proyecto (el analizador elige, entre los de
+  la solución, el que lo compila), así que el autocompletado y `F12` llegan también a las bibliotecas
+  referenciadas. El propio `.fstp` tiene autocompletado (`Project`, `Folder`, `Path` con los
+  `.fstproj` de la carpeta, `Startup`...) y marca los proyectos que no existen.
+
+Todos los cambios se hacen con `faset sln` (el IDE lo llama), así que el `.fstp` queda igual que si
+se editara desde la línea de órdenes.
 
 ## Diseñador de interfaces (`.fstui`)
 
@@ -157,3 +188,5 @@ Para regenerar los shaders hace falta `npm install @webgpu/glslang@0.0.15` y lue
 - Solo Linux (X11/XWayland) por ahora. La versión de Windows necesita un backend Win32 para la ventana.
 - Los programas que se ejecutan con F5 no reciben entrada por teclado: la salida va al panel *Salida*.
 - No hay depurador ni refactorizaciones (renombrar, buscar referencias).
+- En una solución, los proyectos no se pueden arrastrar entre carpetas de solución desde el explorador
+  (usa `faset sln move`), y quitar una referencia de proyecto se hace en Propiedades.

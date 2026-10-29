@@ -215,6 +215,36 @@ binario (o una única `lib<App>.so` en el APK) para cualquier objetivo, sin `.so
 desplegar. `faset build` dentro de una biblioteca produce su `lib<Nombre>.so` / `.dll`.
 Ejemplo: `tests/projects/cadena` (App → Motor → Base, y App → Base).
 
+### Soluciones `.fstp`
+
+Una solución agrupa varios proyectos, como las `.sln` de Visual Studio. Es un XML con rutas
+relativas a la carpeta del `.fstp`, carpetas de solución (solo organizan el árbol) y un proyecto
+de inicio:
+
+```xml
+<Solution Name="MiJuego" Configuration="Debug">   <!-- Configuration y TargetPlatform: opcionales -->
+  <Project Path="Juego/Juego.fstproj" Startup="true" />
+  <Folder Name="Bibliotecas">
+    <Project Path="Motor/Motor.fstproj" />
+  </Folder>
+</Solution>
+```
+
+```bash
+faset new MiJuego --solution   # MiJuego/MiJuego.fstp + MiJuego/MiJuego/MiJuego.fstproj
+faset new sln                  # .fstp en la carpeta actual con los .fstproj que encuentre
+faset sln add Motor/Motor.fstproj --folder Bibliotecas
+faset sln ref Juego Motor      # escribe <ProjectReference> en Juego.fstproj
+faset sln startup Juego        # también: remove, list [--json], folder, move, rename (faset sln help)
+faset build MiJuego.fstp       # todos los proyectos en orden de dependencias
+faset run                      # en una carpeta con un .fstp y sin .fstproj: ejecuta el de inicio
+```
+
+`build`, `check` y `clean` recorren los proyectos en orden de `ProjectReference` (los que dependen
+de uno con errores se omiten); `run` compila los demás y ejecuta el proyecto de inicio (el marcado
+con `Startup="true"` o, si no hay, el primer ejecutable); `-o` se aplica al proyecto de inicio.
+Ejemplo: `tests/projects/solucion`.
+
 ### Otros comandos
 
 ```bash

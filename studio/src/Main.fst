@@ -1,7 +1,7 @@
 // =============================================================================
 //  FasetStudio — entorno de desarrollo para Faset, escrito en Faset.
 //
-//    FasetStudio [carpeta | proyecto.fstproj | archivo.fst]
+//    FasetStudio [carpeta | proyecto.fstproj | solución.fstp | archivo.fst]
 //
 //  Opciones de prueba (sin ventana, renderizado fuera de pantalla con Vulkan):
 //    --screenshot salida.ppm   --size 1400x860   --script "orden | orden | ..."

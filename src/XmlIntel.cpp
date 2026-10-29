@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
 #include <set>
 
 #include "Xml.h"
@@ -99,6 +100,32 @@ const std::vector<AttrSpec>& projectAttrs() {
 const ElemSpec kProjectRoot = {"Project", "Proyecto de Faset: grupos <PropertyGroup> con propiedades y <ItemGroup> con archivos y referencias.", {}, {}};
 const ElemSpec kPropertyGroup = {"PropertyGroup", "Propiedades del proyecto (OutputType, AssemblyName, TargetPlatform...).", {}, {}};
 const ElemSpec kItemGroup = {"ItemGroup", "Elementos del proyecto: Compile, NativeLibrary, LibraryPath y ProjectReference.", {}, {}};
+
+// ---- .fstp (ver src/Solution.cpp)
+
+const ElemSpec kSolutionRoot = {"Solution", "Solución de Faset: varios proyectos (.fstproj) que se abren y compilan juntos.",
+                                {"Name", "Configuration", "TargetPlatform"}, {}};
+const ElemSpec kSolutionProject = {"Project", "Proyecto de la solución. Path es relativo al .fstp; Startup=\"true\" lo marca como "
+                                   "proyecto de inicio (el que ejecuta 'faset run').", {"Path", "Startup"}, {}};
+const ElemSpec kSolutionFolder = {"Folder", "Carpeta de solución: solo organiza los proyectos en el árbol (puede anidarse).", {"Name"}, {}};
+
+const std::vector<AttrSpec>& solutionAttrs() {
+    static const std::vector<AttrSpec> v = {
+        {"Name", "Nombre (de la solución o de la carpeta de solución).", {}},
+        {"Configuration", "Configuración por defecto de todos los proyectos si no se indica -c.", {"Debug", "Release"}},
+        {"TargetPlatform", "Plataforma por defecto de todos los proyectos si no se indica --target.", {"native", "linux", "windows", "android", "macos"}},
+        {"Path", "Ruta del .fstproj, relativa a la carpeta de la solución.", {}},
+        {"Startup", "Proyecto de inicio: el que se ejecuta con 'faset run' y F5 (solo uno).", {"true", "false"}},
+    };
+    return v;
+}
+
+const ElemSpec* solutionElem(const std::string& n) {
+    if (n == "Solution") return &kSolutionRoot;
+    if (n == "Project") return &kSolutionProject;
+    if (n == "Folder") return &kSolutionFolder;
+    return nullptr;
+}
 
 // ---- .fstui (ver src/UiGen.cpp)
 
@@ -704,6 +731,121 @@ struct ProjectValidator {
     }
 };
 
+// ================================================================== validación del .fstp
+
+// Errores de estructura (etiquetas sin cerrar, atributos sin valor...).
+void structureDiagnostics(const XScan& sc, const std::function<void(size_t, const std::string&)>& at) {
+    for (const XTag& t : sc.tags) {
+        if (t.name.empty()) {
+            at(t.beg, t.closing ? "falta el nombre de la etiqueta de cierre" : "falta el nombre del elemento");
+            continue;
+        }
+        if (!t.complete) at(t.beg, "falta '>' en la etiqueta <" + std::string(t.closing ? "/" : "") + t.name + ">");
+        for (const XAttr& a : t.attrs) {
+            if (!a.hasValue) at(a.nameBeg, "falta el valor del atributo '" + a.name + "' (" + a.name + "=\"...\")");
+            else if (!a.closed) at(a.valBeg, "falta la comilla de cierre en el atributo '" + a.name + "'");
+        }
+        if (t.closing && t.match < 0) at(t.beg, "</" + t.name + "> no cierra ningún elemento abierto");
+    }
+    for (int k : sc.unclosed) at(sc.tags[k].beg, "falta </" + sc.tags[k].name + "> para cerrar <" + sc.tags[k].name + ">");
+}
+
+struct SolutionValidator {
+    const std::string& path;
+    const std::string& s;
+    XScan sc;
+    std::vector<XmlDiagnostic> out;
+    int startups = 0;
+    std::set<std::string> seen;
+
+    SolutionValidator(const std::string& p, const std::string& text) : path(p), s(text), sc(text) {}
+
+    void at(size_t off, const std::string& msg, int severity = 1) {
+        XmlDiagnostic d;
+        lineCol(s, off, d.line, d.col);
+        d.severity = severity;
+        d.message = msg;
+        out.push_back(d);
+    }
+
+    void checkAttrs(const XTag& t, const ElemSpec& spec) {
+        for (const XAttr& a : t.attrs) {
+            if (std::find(spec.attrs.begin(), spec.attrs.end(), a.name) == spec.attrs.end()) {
+                at(a.nameBeg, "atributo desconocido '" + a.name + "' en <" + t.name + "> (válidos: " + joinValues(spec.attrs) + ")");
+                continue;
+            }
+            const AttrSpec* as = findSpec(solutionAttrs(), a.name);
+            if (as && !as->values.empty() && a.closed && a.hasValue) {
+                std::string v = a.name == "Startup" ? lower(trim(a.value)) : trim(a.value);
+                if (std::find(as->values.begin(), as->values.end(), v) == as->values.end())
+                    at(a.valBeg, a.name + " debe ser " + joinOr(as->values) + " (no '" + a.value + "')");
+            }
+        }
+    }
+
+    void children(int parent) {
+        for (int k : sc.childrenOf(parent)) {
+            const XTag& t = sc.tags[k];
+            if (t.name == "Project") {
+                checkAttrs(t, kSolutionProject);
+                const XAttr* p = t.attr("Path");
+                if (!p) {
+                    at(t.nameBeg, "<Project> necesita el atributo Path (ruta del .fstproj)");
+                } else if (p->closed) {
+                    std::string rel = trim(p->value);
+                    std::error_code ec;
+                    fs::path target = (fs::path(path).parent_path() / rel).lexically_normal();
+                    if (rel.empty()) at(p->valBeg, "Path está vacío");
+                    else if (fs::path(rel).extension() != ".fstproj") at(p->valBeg, "Path debe ser un archivo .fstproj (no '" + rel + "')");
+                    else if (!fs::exists(target, ec)) at(p->valBeg, "no existe el proyecto '" + rel + "'");
+                    else if (!seen.insert(fs::weakly_canonical(target, ec).string()).second)
+                        at(p->valBeg, "el proyecto '" + rel + "' está repetido en la solución", 2);
+                }
+                if (const XAttr* st = t.attr("Startup"))
+                    if (lower(trim(st->value)) == "true" && ++startups > 1)
+                        at(st->nameBeg, "solo un proyecto puede tener Startup=\"true\"");
+                for (int c : sc.childrenOf(k)) at(sc.tags[c].nameBeg, "<Project> no puede contener elementos");
+            } else if (t.name == "Folder") {
+                checkAttrs(t, kSolutionFolder);
+                const XAttr* n = t.attr("Name");
+                if (!n || trim(n->value).empty()) at(t.nameBeg, "<Folder> necesita el atributo Name");
+                else if (n->value.find('/') != std::string::npos) at(n->valBeg, "el nombre de la carpeta no puede contener '/'");
+                children(k);
+            } else {
+                at(t.nameBeg, "elemento desconocido <" + t.name + "> (se esperaba Project o Folder)");
+            }
+        }
+    }
+
+    void run() {
+        structureDiagnostics(sc, [&](size_t off, const std::string& msg) { at(off, msg); });
+        std::vector<int> roots = sc.childrenOf(-1);
+        if (roots.empty()) {
+            at(0, "el archivo de solución necesita un elemento <Solution>");
+            return;
+        }
+        for (size_t i = 0; i < roots.size(); i++) {
+            const XTag& r = sc.tags[roots[i]];
+            if (i > 0) at(r.nameBeg, "solo puede haber un elemento raíz <Solution>");
+            else if (r.name != "Solution") at(r.nameBeg, "el elemento raíz debe ser <Solution> (no <" + r.name + ">)");
+            else {
+                checkAttrs(r, kSolutionRoot);
+                children(roots[i]);
+            }
+        }
+        if (out.empty()) {
+            XmlNode root;
+            std::string err;
+            if (!parseXml(s, root, err)) {
+                XmlDiagnostic d;
+                d.message = "XML no válido: " + err;
+                if (err.rfind("línea ", 0) == 0) d.line = std::atoi(err.c_str() + 7);
+                out.push_back(d);
+            }
+        }
+    }
+};
+
 // ================================================================== contexto del cursor
 
 enum class Ctx { None, ElementName, AttrName, AttrValue, Text };
@@ -845,6 +987,68 @@ void completeProject(const XScan& sc, const std::string& path, const CursorCtx& 
             add(out, stem, kValue, "nombre del proyecto");
         }
         for (const std::string& v : spec->values) add(out, v, kValue, spec->doc);
+    }
+}
+
+void completeSolution(const XScan& sc, const std::string& path, const CursorCtx& c, std::vector<XmlCompletionItem>& out) {
+    const XTag* parent = c.parent >= 0 ? &sc.tags[c.parent] : nullptr;
+    std::string pname = parent ? parent->name : "";
+    if (c.kind == Ctx::ElementName) {
+        const XTag& t = sc.tags[c.tag];
+        if (t.closing) {
+            if (parent) add(out, pname, kElement, "cierra <" + pname + ">", pname + ">");
+            return;
+        }
+        bool bare = bareTag(t);
+        if (!parent) {
+            std::string name = fs::path(path).stem().string();
+            add(out, "Solution", kElement, kSolutionRoot.doc, bare ? "Solution Name=\"" + name + "\">\n  $0\n</Solution>" : "");
+        } else if (pname == "Solution" || pname == "Folder") {
+            add(out, "Project", kElement, kSolutionProject.doc, bare ? "Project Path=\"$0\" />" : "");
+            add(out, "Folder", kElement, kSolutionFolder.doc, bare ? "Folder Name=\"$0\">\n</Folder>" : "");
+        }
+        return;
+    }
+    if (c.kind == Ctx::AttrName) {
+        const XTag& t = sc.tags[c.tag];
+        const ElemSpec* spec = solutionElem(t.name);
+        if (!spec) return;
+        for (const std::string& a : spec->attrs) {
+            if (t.attr(a)) continue;
+            const AttrSpec* as = findSpec(solutionAttrs(), a);
+            add(out, a, kProperty, as ? as->doc : "", a + "=\"$0\"");
+        }
+        return;
+    }
+    if (c.kind == Ctx::AttrValue) {
+        const XTag& t = sc.tags[c.tag];
+        if (c.attr->name == "Path" && t.name == "Project") {
+            // Los .fstproj bajo la carpeta de la solución que aún no están en ella.
+            std::set<std::string> present;
+            for (const XTag& o : sc.tags)
+                if (&o != &t && !o.closing && o.name == "Project")
+                    if (const XAttr* p = o.attr("Path")) present.insert(trim(p->value));
+            std::error_code ec;
+            fs::path dir = fs::path(path).parent_path();
+            auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec);
+            int found = 0;
+            for (; it != fs::recursive_directory_iterator() && found < 200; it.increment(ec)) {
+                if (ec) break;
+                std::string name = it->path().filename().string();
+                if (it->is_directory(ec)) {
+                    if (name == "bin" || name == "obj" || (!name.empty() && name[0] == '.') || it.depth() >= 4) it.disable_recursion_pending();
+                    continue;
+                }
+                if (it->path().extension() != ".fstproj") continue;
+                std::string rel = fs::relative(it->path(), dir, ec).generic_string();
+                if (present.count(rel)) continue;
+                add(out, rel, kFile, "proyecto " + it->path().stem().string());
+                found++;
+            }
+            return;
+        }
+        if (const AttrSpec* as = findSpec(solutionAttrs(), c.attr->name))
+            for (const std::string& v : as->values) add(out, v, kValue, as->doc);
     }
 }
 
@@ -995,11 +1199,18 @@ XmlDocKind xmlDocKind(const std::string& path) {
     std::string ext = fs::path(path).extension().string();
     if (ext == ".fstproj") return XmlDocKind::Project;
     if (ext == ".fstui") return XmlDocKind::Ui;
+    if (ext == ".fstp") return XmlDocKind::Solution;
     return XmlDocKind::None;
 }
 
 std::vector<XmlDiagnostic> xmlValidateProject(const std::string& path, const std::string& text) {
     ProjectValidator v(path, text);
+    v.run();
+    return v.out;
+}
+
+std::vector<XmlDiagnostic> xmlValidateSolution(const std::string& path, const std::string& text) {
+    SolutionValidator v(path, text);
     v.run();
     return v.out;
 }
@@ -1012,6 +1223,7 @@ std::vector<XmlCompletionItem> xmlComplete(XmlDocKind kind, const std::string& p
     if (c.kind == Ctx::None) return out;
     if (kind == XmlDocKind::Project) completeProject(sc, path, c, out);
     else if (kind == XmlDocKind::Ui) completeUi(sc, path, c, code, out);
+    else if (kind == XmlDocKind::Solution) completeSolution(sc, path, c, out);
     return out;
 }
 
@@ -1030,7 +1242,9 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
     if (kind == XmlDocKind::Ui) xmlUiClass(text, cls, ns);
     for (const XTag& t : sc.tags) {
         if (t.name.empty()) continue;
-        const ElemSpec* spec = kind == XmlDocKind::Project ? projectElem(t.name) : uiElem(t.name);
+        const ElemSpec* spec = kind == XmlDocKind::Project    ? projectElem(t.name)
+                             : kind == XmlDocKind::Solution ? solutionElem(t.name)
+                                                            : uiElem(t.name);
         if (spec) {
             std::string h = "<" + t.name + "> — " + spec->doc;
             if (!spec->values.empty()) h += "\nValores: " + joinValues(spec->values);
@@ -1038,6 +1252,21 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
         }
         if (t.closing) continue;
         for (const XAttr& a : t.attrs) {
+            if (kind == XmlDocKind::Solution) {
+                if (const AttrSpec* as = findSpec(solutionAttrs(), a.name)) ref(a.nameBeg, a.name.size(), attrHover(*as));
+                if (t.name == "Project" && a.name == "Path" && a.closed && !a.value.empty()) {
+                    // Ir a la definición abre el .fstproj.
+                    fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
+                    std::error_code ec;
+                    bool exists = fs::exists(target, ec);
+                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(), (exists ? "proyecto " : "no existe el proyecto ") + target.string());
+                    if (exists) {
+                        r.defPath = target.string();
+                        r.defLine = r.defCol = 1;
+                    }
+                }
+                continue;
+            }
             if (kind == XmlDocKind::Project) {
                 if (const AttrSpec* as = findSpec(projectAttrs(), a.name)) ref(a.nameBeg, a.name.size(), attrHover(*as));
                 if (t.name == "ProjectReference" && a.name == "Include" && a.closed && !a.value.empty()) {

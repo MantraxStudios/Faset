@@ -53,7 +53,8 @@
           "fstproj"
         ],
         "extensions": [
-          ".fstproj"
+          ".fstproj",
+          ".fstp"
         ],
         "configuration": "./fstproj-language-configuration.json"
       }

@@ -1,4 +1,4 @@
-// Faset - IntelliSense de los archivos XML de Faset: proyectos .fstproj e interfaces .fstui.
+// Faset - IntelliSense de los archivos XML de Faset: proyectos .fstproj, soluciones .fstp e interfaces .fstui.
 //
 // Lo usa 'faset __analyze' (y por tanto el servidor de lenguaje y FasetStudio):
 //   - autocompletado de elementos, atributos y valores según el esquema de cada archivo
@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-enum class XmlDocKind { None, Project, Ui };
+enum class XmlDocKind { None, Project, Ui, Solution };
 
 XmlDocKind xmlDocKind(const std::string& path);
 
@@ -50,6 +50,9 @@ struct XmlUiCodeInfo {
 
 // Validación completa de un .fstproj (estructura XML, elementos, propiedades y valores).
 std::vector<XmlDiagnostic> xmlValidateProject(const std::string& path, const std::string& text);
+
+// Validación de una solución .fstp (elementos, atributos y proyectos que no existen).
+std::vector<XmlDiagnostic> xmlValidateSolution(const std::string& path, const std::string& text);
 
 // Sugerencias en la posición 'offset' (en bytes) del texto.
 std::vector<XmlCompletionItem> xmlComplete(XmlDocKind kind, const std::string& path, const std::string& text, size_t offset,

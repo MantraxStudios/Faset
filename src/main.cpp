@@ -37,6 +37,7 @@
 #include "Project.h"
 #include "Runtime.h"
 #include "Sema.h"
+#include "Solution.h"
 #include "Xml.h"
 
 namespace fs = std::filesystem;
@@ -105,6 +106,10 @@ static void usage() {
         "  faset check  [entrada]                Comprueba errores sin compilar\n"
         "  faset emit-c [entrada] [-o f.c]       Genera el código C intermedio\n"
         "  faset clean  [proyecto]               Borra bin/ y obj/\n"
+        "  faset new sln [Nombre]                Crea una solución .fstp (sin nombre: en la carpeta actual)\n"
+        "  faset new <Nombre> --solution [...]   Solución con un primer proyecto (Nombre/Nombre.fstp)\n"
+        "  faset sln <orden>                     add, remove, list, startup, folder, move, rename, ref\n"
+        "                                        (faset sln help)\n"
         "  faset android <comando>               devices, avds, emulator, logcat, stop, uninstall\n"
         "                                        (faset android help)\n"
         "  faset doctor                          Muestra los compiladores y el SDK de Android detectados\n"
@@ -112,8 +117,10 @@ static void usage() {
         "                                        Instala lo que necesita cada plataforma (sin módulo: la actual)\n"
         "  faset lsp                             Servidor de lenguaje (para VS Code y otros editores)\n"
         "  faset version | help\n\n"
-        "Entrada: un .fstproj, una carpeta con un .fstproj, o archivos .fst sueltos.\n"
-        "         Sin entrada se usa el .fstproj de la carpeta actual.\n\n"
+        "Entrada: un .fstproj, una solución .fstp, una carpeta con uno de ellos, o archivos .fst sueltos.\n"
+        "         Sin entrada se usa el .fstproj de la carpeta actual (o su .fstp si no hay .fstproj).\n"
+        "         Con una solución se compilan todos sus proyectos en orden de dependencias,\n"
+        "         'run' ejecuta el proyecto de inicio y -o se aplica a ese proyecto.\n\n"
         "Opciones:\n"
         "  -o <ruta>            Archivo de salida\n"
         "  -c <Debug|Release>   Configuración\n"
@@ -942,6 +949,8 @@ int main(int argc, char** argv) {
         if (args.size() < 3) return 2;
         return runAnalyzer(args[1], args[2], o.argv0);
     }
+    // Soluciones .fstp: 'faset sln', 'faset new sln' y build/run/check/clean de una solución (src/SolutionCli.cpp).
+    if (int code = 0; solutionCommand(args, o.argv0, code)) return code;
     if (o.command == "new") return cmdNew(std::vector<std::string>(args.begin() + 1, args.end()));
     if (o.command == "android") {
         // El paquete del proyecto de la carpeta actual (para stop, uninstall y logcat --app).

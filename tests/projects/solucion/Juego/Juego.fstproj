@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Juego</AssemblyName>
+    <RootNamespace>Juego</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+
+  <!-- Todos los .fst de esta carpeta se compilan automáticamente.
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />
+    <NativeLibrary Include="user32" />
+    <ProjectReference Include="../OtraBiblioteca/OtraBiblioteca.fstproj" />
+  </ItemGroup>
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
+  </ItemGroup>
+</Project>
