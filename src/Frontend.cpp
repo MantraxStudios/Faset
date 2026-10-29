@@ -150,7 +150,20 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
             file->fileId = diag.addFile(shown, path);
             file->unsafeCtx = opts.unsafeFiles.count(path) != 0;
             prog.files.push_back(file);
-            if (fs::path(path).extension() == ".fstui") src = generateUiSource(src, file->fileId);
+            if (fs::path(path).extension() == ".fstui") {
+                std::string gen = generateUiSource(src, file->fileId);
+                // En el editor, mientras el XML está a medio escribir se usa la última versión guardada
+                // para generar la clase: así el código de la ventana no se llena de errores.
+                std::string disk;
+                if (gen.empty() && have && opts.ideMode && readFile(path, disk) && disk != src) {
+                    size_t keep = diag.captured.size();
+                    int errors = diag.errorCount;
+                    gen = generateUiSource(disk, file->fileId);
+                    diag.captured.resize(keep);
+                    diag.errorCount = errors;
+                }
+                src = gen;
+            }
             auto toks = std::make_shared<std::vector<Token>>(tokenize(src, file->fileId));
             Parser(toks, prog, file, fs::path(path).parent_path().string(), &libRoots).parseFile();
         }

@@ -36,13 +36,60 @@ Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`.
   - autocompletado tras `.`, `::` y `->`, al empezar una palabra o con `Ctrl+Espacio`
   - información al pasar el ratón: firmas, tipos y mensajes de error
   - ir a la definición con `F12` o `Ctrl+clic`, también dentro de la biblioteca estándar
+  - también en los `.fstproj` y en la vista de código de los `.fstui`: elementos tras `<`, atributos
+    (con espacio), valores tras `="` (`OutputType`, `Anchor`, `Style`…), manejadores para `Click`/`Changed`,
+    errores en la línea y el atributo exactos, y `F12` del manejador al código y del control al `.fstui`
 - **Compilar y ejecutar** con la salida en vivo (`Ctrl+B`, `F5`, `Shift+F5` para detener) y Debug/Release
 - Paneles redimensionables (arrastra los separadores)
 - Edición: deshacer y rehacer, sangría automática, cierre de `()` `[]` `""`, `Tab`/`Shift+Tab`
   sobre bloques, `Ctrl+/` comentar, `Ctrl+D` duplicar línea, `Ctrl+Shift+K` borrar línea,
   doble y triple clic, portapapeles del sistema
+- Navegación y edición rápidas:
+  - `Ctrl+←/→` salta por palabras y `Ctrl+↑/↓` por bloques (hasta la siguiente línea en blanco); con `Shift` se selecciona.
+  - `Alt+↑/↓` mueve la línea o las líneas seleccionadas y `Alt+Shift+↑/↓` las duplica encima o debajo.
+  - `Ctrl+Retroceso` / `Ctrl+Supr` borran la palabra anterior o siguiente.
+  - `Ctrl+L` selecciona la línea (repetido, amplía la selección).
+  - `Ctrl+Intro` / `Ctrl+Shift+Intro` crean una línea nueva debajo o encima.
 - `Ctrl+P` abrir rápido, `Ctrl+N` nuevo archivo, `Ctrl+F`/`F3` buscar, `Ctrl+G` ir a la línea,
   `Ctrl+S` guardar (`Ctrl+Shift+S` todo), `Ctrl+W` cerrar pestaña, `Ctrl+Tab` cambiar de pestaña
+
+## Diseñador de interfaces (`.fstui`)
+
+Al abrir un `.fstui` se muestra el diseñador visual (botón **Diseño | Código** para ver el XML).
+
+- **Herramientas:** Label, Button, TextBox, CheckBox, RadioButton, ComboBox, ListBox, Slider,
+  ProgressBar y Panel. Se arrastran a la ventana o se añaden con un clic.
+- **Esquema:** árbol de todos los controles. Un clic selecciona y un doble clic va al evento.
+- **Mover y redimensionar** con asas, ajustando a la cuadrícula y a guías inteligentes (`Ctrl` desactiva el ajuste).
+- **Barra de alinear** en el contenedor (izquierda, centro, derecha, arriba, medio, abajo) y de orden (frente/fondo).
+- **Propiedades** por categorías. `Items` usa `;` como separador (`Rojo;Verde;Azul`).
+- **Atajos:**
+  - `Ctrl+C` / `Ctrl+X` / `Ctrl+V` copiar, cortar y pegar controles.
+  - `Ctrl+D` duplicar y `Supr` borrar.
+  - `Ctrl+Z` / `Ctrl+Y` deshacer y rehacer.
+  - `Tab` pasa al siguiente control.
+  - `Ctrl+↑` / `Ctrl+↓` traer al frente o enviar al fondo.
+  - Flechas para mover (`Shift`: de 8 en 8).
+- **Doble clic** en un control crea su manejador (`OnGuardarClick`…) en el código de la ventana.
+- **Moverse por el lienzo:** rueda (vertical), `Shift`+rueda (horizontal) o arrastrar con la rueda pulsada.
+- **Colores:** sección *Colores* con muestra, código `#RRGGBB` (o `#RRGGBBAA`) y paleta.
+  - `Background` + `Background2` crean un degradado; su dirección se elige con `GradientDirection`.
+  - `Foreground` es el color del texto y `BorderColor` el del borde.
+  - `Accent` colorea la casilla marcada, el deslizador y la barra de progreso.
+  - La ventana también admite `Background`, `Background2` y `GradientDirection`.
+
+## Paneles acoplables
+
+Explorador, Salida y Problemas se pueden colocar a la izquierda, a la derecha o abajo.
+- **Arrastra su pestaña** hacia un borde. Aparecen guías y una vista previa del hueco donde quedará.
+- **Botón derecho en la pestaña:** acoplar a un lado, ocultar o restablecer la disposición.
+- Los paneles que están en el mismo lado se muestran como pestañas.
+- **Ver → Explorador / Salida / Problemas** los muestra u oculta.
+- La disposición y los tamaños se guardan en `~/.config/fasetstudio/settings.ini`.
+
+Los RadioButton con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. ComboBox y
+ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `SelectedIndex` y
+`SelectedItem`, y lanzan `Changed` al elegir.
 
 ## Arquitectura
 

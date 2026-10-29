@@ -515,7 +515,11 @@ void faset_sleep_ms(int64_t ms) {
 
 int64_t faset_time_unix_ms(void) {
     struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts); /* timespec_get solo existe desde la API 29 */
+#else
     timespec_get(&ts, TIME_UTC);
+#endif
     return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
@@ -690,10 +694,40 @@ typedef struct { int used; int fd; int exited; int code;
 } faset_proc;
 static faset_proc faset_procs[FASET_MAX_PROCS];
 
+/* La tabla se comparte entre hilos: un cerrojo de giro protege la reserva de huecos,
+   la espera (waitpid solo puede recoger al hijo una vez), kill y close. */
+static int faset_procs_lock;
+static void faset_procs_acquire(void) {
+    while (__atomic_exchange_n(&faset_procs_lock, 1, __ATOMIC_ACQUIRE)) {
+#if defined(_WIN32)
+        Sleep(0);
+#else
+        struct timespec ts = { 0, 1000 };
+        nanosleep(&ts, NULL);
+#endif
+    }
+}
+static void faset_procs_release(void) { __atomic_store_n(&faset_procs_lock, 0, __ATOMIC_RELEASE); }
+
+static int64_t faset_proc_start_in(int slot, faset_string cmd, faset_string cwd);
+
 int64_t faset_proc_start(faset_string cmd, faset_string cwd) {
     int slot = -1;
-    for (int i = 1; i < FASET_MAX_PROCS; i++) if (!faset_procs[i].used) { slot = i; break; }
+    faset_procs_acquire();
+    for (int i = 1; i < FASET_MAX_PROCS; i++)
+        if (!faset_procs[i].used) { slot = i; faset_procs[i].used = 2; /* reservado */ break; }
+    faset_procs_release();
     if (slot < 0) return -1;
+    int64_t r = faset_proc_start_in(slot, cmd, cwd);
+    if (r < 0) {
+        faset_procs_acquire();
+        memset(&faset_procs[slot], 0, sizeof faset_procs[slot]);
+        faset_procs_release();
+    }
+    return r;
+}
+
+static int64_t faset_proc_start_in(int slot, faset_string cmd, faset_string cwd) {
     char* c = faset_cstr(cmd);
     char* dir = cwd.len ? faset_cstr(cwd) : NULL;
 #if defined(_WIN32)
@@ -734,15 +768,17 @@ int64_t faset_proc_start(faset_string cmd, faset_string cwd) {
     faset_procs[slot].fd = fds[0];
     free(c); free(dir);
 #endif
+    faset_procs_acquire();
     faset_procs[slot].used = 1;
     faset_procs[slot].exited = 0;
     faset_procs[slot].code = -1;
+    faset_procs_release();
     return slot;
 }
 
 /* Bytes leídos (>0), 0 si no hay datos ahora, -1 si la salida terminó. */
 int32_t faset_proc_read(int64_t h, uint8_t* buf, int32_t cap) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return -1;
+    if (h <= 0 || h >= FASET_MAX_PROCS || __atomic_load_n(&faset_procs[h].used, __ATOMIC_ACQUIRE) != 1) return -1;
 #if defined(_WIN32)
     DWORD avail = 0;
     if (!PeekNamedPipe(faset_procs[h].pipe, NULL, 0, NULL, &avail, NULL)) return -1;
@@ -760,9 +796,11 @@ int32_t faset_proc_read(int64_t h, uint8_t* buf, int32_t cap) {
 
 /* -1 mientras sigue en ejecución; después, el código de salida. */
 int32_t faset_proc_status(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return -2;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return -2;
+    faset_procs_acquire();
     faset_proc* p = &faset_procs[h];
-    if (p->exited) return p->code;
+    if (p->used != 1) { faset_procs_release(); return -2; }
+    if (p->exited) { int32_t c = p->code; faset_procs_release(); return c; }
 #if defined(_WIN32)
     DWORD code;
     if (GetExitCodeProcess(p->process, &code) && code != STILL_ACTIVE) { p->exited = 1; p->code = (int)code; }
@@ -773,20 +811,28 @@ int32_t faset_proc_status(int64_t h) {
         p->code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
     }
 #endif
-    return p->exited ? p->code : -1;
+    int32_t r = p->exited ? p->code : -1;
+    faset_procs_release();
+    return r;
 }
 
 void faset_proc_kill(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return;
+    faset_procs_acquire();
+    if (faset_procs[h].used == 1 && !faset_procs[h].exited) {
 #if defined(_WIN32)
-    TerminateProcess(faset_procs[h].process, 1);
+        TerminateProcess(faset_procs[h].process, 1);
 #else
-    kill(-faset_procs[h].pid, SIGKILL);
+        kill(-faset_procs[h].pid, SIGKILL);
 #endif
+    }
+    faset_procs_release();
 }
 
 void faset_proc_close(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return;
+    faset_procs_acquire();
+    if (faset_procs[h].used != 1) { faset_procs_release(); return; }
 #if defined(_WIN32)
     CloseHandle(faset_procs[h].pipe);
     CloseHandle(faset_procs[h].process);
@@ -795,6 +841,7 @@ void faset_proc_close(int64_t h) {
     if (!faset_procs[h].exited) waitpid(faset_procs[h].pid, NULL, WNOHANG);
 #endif
     memset(&faset_procs[h], 0, sizeof faset_procs[h]);
+    faset_procs_release();
 }
 
 /* Espera hasta 'ms' milisegundos a que haya datos en un descriptor (bucles de eventos). */
@@ -840,5 +887,114 @@ int32_t faset_platform(void) {
 #else
     return 4;
 #endif
+}
+/* ---- atómicos (std.thread) y reloj de alta resolución / zona horaria (std.time) */
+
+int32_t faset_atomic_add_i32(int32_t* p, int32_t v) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_add_i64(int64_t* p, int64_t v) { return __atomic_add_fetch(p, v, __ATOMIC_SEQ_CST); }
+int32_t faset_atomic_load_i32(int32_t* p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_load_i64(int64_t* p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+void* faset_atomic_load_ptr(void** p) { return __atomic_load_n(p, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_i32(int32_t* p, int32_t v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_i64(int64_t* p, int64_t v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+void faset_atomic_store_ptr(void** p, void* v) { __atomic_store_n(p, v, __ATOMIC_SEQ_CST); }
+int32_t faset_atomic_xchg_i32(int32_t* p, int32_t v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+int64_t faset_atomic_xchg_i64(int64_t* p, int64_t v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+void* faset_atomic_xchg_ptr(void** p, void* v) { return __atomic_exchange_n(p, v, __ATOMIC_SEQ_CST); }
+/* Devuelven el valor anterior (como Interlocked.CompareExchange). */
+int32_t faset_atomic_cas_i32(int32_t* p, int32_t desired, int32_t expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+int64_t faset_atomic_cas_i64(int64_t* p, int64_t desired, int64_t expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+void* faset_atomic_cas_ptr(void** p, void* desired, void* expected) {
+    __atomic_compare_exchange_n(p, &expected, desired, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return expected;
+}
+void faset_atomic_fence(void) { __atomic_thread_fence(__ATOMIC_SEQ_CST); }
+
+/* Escribe en 'out' (struct timespec del sistema) el instante CLOCK_REALTIME + ms. */
+void faset_timespec_after_ms(void* out, int64_t ms) {
+    struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts); /* timespec_get solo existe desde la API 29 */
+#else
+    timespec_get(&ts, TIME_UTC);
+#endif
+    if (ms < 0) ms = 0;
+    int64_t ns = (int64_t)ts.tv_nsec + (ms % 1000) * 1000000;
+    ts.tv_sec += (time_t)(ms / 1000 + ns / 1000000000);
+    ts.tv_nsec = (long)(ns % 1000000000);
+    memcpy(out, &ts, sizeof ts);
+}
+
+int32_t faset_cpu_count(void) {
+#if defined(_WIN32)
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int32_t)si.dwNumberOfProcessors;
+#else
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int32_t)n : 1;
+#endif
+}
+
+/* Nanosegundos de un reloj monótono de alta resolución. */
+int64_t faset_ticks_ns(void) {
+#if defined(_WIN32)
+    static LARGE_INTEGER freq;
+    LARGE_INTEGER now;
+    if (freq.QuadPart == 0) QueryPerformanceFrequency(&freq); /* idempotente: carrera benigna */
+    QueryPerformanceCounter(&now);
+    return (int64_t)(now.QuadPart / freq.QuadPart) * 1000000000 +
+           (int64_t)(now.QuadPart % freq.QuadPart) * 1000000000 / freq.QuadPart;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+#endif
+}
+
+int64_t faset_time_unix_ns(void) {
+    struct timespec ts;
+#if defined(__ANDROID__)
+    clock_gettime(CLOCK_REALTIME, &ts);
+#else
+    timespec_get(&ts, TIME_UTC);
+#endif
+    return (int64_t)ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
+
+static int64_t faset_days_from_tm(const struct tm* t) {
+    int64_t y = (int64_t)t->tm_year + 1900, m = t->tm_mon + 1, d = t->tm_mday;
+    y -= m <= 2;
+    int64_t era = (y >= 0 ? y : y - 399) / 400;
+    int64_t yoe = y - era * 400;
+    int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + doe - 719468;
+}
+
+/* Desfase (segundos) de la hora local respecto a UTC en el instante 'unix_sec'. */
+int32_t faset_tz_offset_sec(int64_t unix_sec) {
+    time_t t = (time_t)unix_sec;
+    struct tm lt, gt;
+#if defined(_WIN32)
+    /* En el CRT de Windows localtime/gmtime usan almacenamiento por hilo. */
+    struct tm* p = localtime(&t);
+    if (!p) return 0;
+    lt = *p;
+    p = gmtime(&t);
+    if (!p) return 0;
+    gt = *p;
+#else
+    if (!localtime_r(&t, &lt) || !gmtime_r(&t, &gt)) return 0;
+#endif
+    int64_t a = faset_days_from_tm(&lt) * 86400 + lt.tm_hour * 3600 + lt.tm_min * 60 + lt.tm_sec;
+    int64_t b = faset_days_from_tm(&gt) * 86400 + gt.tm_hour * 3600 + gt.tm_min * 60 + gt.tm_sec;
+    return (int32_t)(a - b);
 }
 )FASET";

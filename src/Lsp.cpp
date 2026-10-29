@@ -5,6 +5,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <deque>
 #include <filesystem>
 #include <fstream>
@@ -26,6 +27,7 @@
 #include "Frontend.h"
 #include "Json.h"
 #include "Project.h"
+#include "XmlIntel.h"
 
 namespace fs = std::filesystem;
 
@@ -38,6 +40,20 @@ bool readText(const std::string& path, std::string& out) {
     ss << f.rdbuf();
     out = ss.str();
     return true;
+}
+
+// Línea 'line0' (desde 0) de un texto, sin el salto de línea.
+std::string textLine(const std::string& text, int line0) {
+    size_t start = 0;
+    for (int i = 0; i < line0; i++) {
+        start = text.find('\n', start);
+        if (start == std::string::npos) return "";
+        start++;
+    }
+    size_t end = text.find('\n', start);
+    std::string l = text.substr(start, end == std::string::npos ? std::string::npos : end - start);
+    if (!l.empty() && l.back() == '\r') l.pop_back();
+    return l;
 }
 
 bool writeText(const std::string& path, const std::string& data) {
@@ -83,21 +99,80 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
 
     diag.reset();
     diag.capture = true;
+    // Las rutas se comparan normalizadas (sin enlaces simbólicos), pero se devuelven tal como las
+    // escribió el cliente: si abrió el proyecto por un enlace, sus documentos tienen esas rutas.
+    std::vector<std::pair<std::string, std::string>> clientDirs;  // carpeta normalizada -> carpeta del cliente
+    std::map<std::string, std::string> clientNames;
+    auto remember = [&](const std::string& raw) {
+        std::string norm = normalizePath(raw);
+        if (norm == raw || raw.empty()) return norm;
+        clientNames.emplace(norm, raw);
+        std::string nd = fs::path(norm).parent_path().string(), rd = fs::path(raw).parent_path().string();
+        if (nd != rd && std::find(clientDirs.begin(), clientDirs.end(), std::make_pair(nd, rd)) == clientDirs.end())
+            clientDirs.push_back({nd, rd});
+        return norm;
+    };
+    auto clientPath = [&](const std::string& p) -> std::string {
+        auto it = clientNames.find(p);
+        if (it != clientNames.end()) return it->second;
+        for (const auto& [nd, rd] : clientDirs)
+            if (p.size() > nd.size() && p.compare(0, nd.size(), nd) == 0 && (p[nd.size()] == '/' || p[nd.size()] == '\\'))
+                return rd + p.substr(nd.size());
+        return p;
+    };
     std::map<std::string, std::string> overrides;
-    for (auto& [path, text] : req.get("overrides").items()) overrides[normalizePath(path)] = text.asString();
+    for (auto& [path, text] : req.get("overrides").items()) overrides[remember(path)] = text.asString();
     std::set<std::string> interest;
-    for (const Json& p : req.get("interest").elements()) interest.insert(normalizePath(p.asString()));
+    for (const Json& p : req.get("interest").elements()) interest.insert(remember(p.asString()));
+
+    // Autocompletado en un .fstproj o .fstui: el marcador no es XML válido, así que se quita
+    // del texto y se recuerda su posición.
+    std::string xmlCompletePath;
+    size_t xmlCompleteOffset = 0;
+    for (auto& [path, text] : overrides) {
+        if (xmlDocKind(path) == XmlDocKind::None) continue;
+        size_t m = text.find(kCompletionMarker);
+        if (m == std::string::npos) continue;
+        text.erase(m, std::strlen(kCompletionMarker));
+        xmlCompletePath = path;
+        xmlCompleteOffset = m;
+    }
+    std::map<std::string, std::string> diskCache;
+    auto textOf = [&](const std::string& path) -> const std::string& {
+        auto it = overrides.find(path);
+        if (it != overrides.end()) return it->second;
+        auto c = diskCache.find(path);
+        if (c == diskCache.end()) {
+            std::string t;
+            readText(path, t);
+            c = diskCache.emplace(path, t).first;
+        }
+        return c->second;
+    };
 
     FrontendOptions fo;
-    for (const Json& p : req.get("inputs").elements()) fo.inputs.push_back(p.asString());
-    // Sin 'inputs': se usa el proyecto (.fstproj) del archivo 'focus', como hace el servidor.
+    std::set<std::string> projects;  // .fstproj que se validan aunque no estén abiertos
+    std::string projectError, projectPath;
+    for (const Json& p : req.get("inputs").elements())
+        if (xmlDocKind(p.asString()) != XmlDocKind::Project) fo.inputs.push_back(p.asString());
+    // Sin 'inputs': se usa el proyecto (.fstproj) del archivo 'focus'.
     if (fo.inputs.empty() && req.has("focus")) {
-        std::string focus = normalizePath(req.get("focus").asString());
-        std::string proj = findProjectFor(focus);
-        std::string err;
-        if (!proj.empty()) projectTreeSources(proj, fo.inputs, err);
+        std::string focus = remember(req.get("focus").asString());
+        bool focusIsProject = xmlDocKind(focus) == XmlDocKind::Project;
+        projectPath = focusIsProject ? focus : findProjectFor(focus);
+        if (!projectPath.empty()) {
+            projectPath = normalizePath(projectPath);
+            projects.insert(projectPath);
+            if (!projectTreeSources(projectPath, fo.inputs, projectError)) {
+                // Proyecto no válido (o a medio editar): se analizan igualmente los archivos de su
+                // carpeta, para que el resto del IntelliSense siga funcionando.
+                Project p;
+                p.dir = fs::path(projectPath).parent_path().string();
+                fo.inputs = projectSources(p);
+            }
+        }
         for (auto& f : fo.inputs) f = normalizePath(f);
-        if (std::find(fo.inputs.begin(), fo.inputs.end(), focus) == fo.inputs.end()) fo.inputs.push_back(focus);
+        if (!focusIsProject && std::find(fo.inputs.begin(), fo.inputs.end(), focus) == fo.inputs.end()) fo.inputs.push_back(focus);
         interest.insert(focus);
     }
     fo.libDir = findLibDir(argv0);
@@ -115,28 +190,90 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
     Json out = Json::object();
     FrontendResult r;
     if (fo.libDir.empty()) diag.fatal("no se encontró la biblioteca estándar de Faset (define FASET_LIB)");
-    else r = runFrontend(fo);
+    else if (!fo.inputs.empty()) r = runFrontend(fo);
 
     auto pathOf = [](int file) -> std::string {
         return file >= 0 && file < (int)diag.paths.size() ? diag.paths[file] : "";
     };
 
     Json diags = Json::array();
-    for (const auto& d : diag.captured) {
+    auto addDiag = [&](const std::string& path, int line, int col, int severity, const std::string& message) {
         Json j = Json::object();
-        j["path"] = d.hasLoc ? pathOf(d.loc.file) : "";
-        j["line"] = d.loc.line;
-        j["col"] = d.loc.col;
-        j["severity"] = d.severity == Diagnostics::Severity::Error ? 1 : 3;
-        j["message"] = d.message;
+        j["path"] = clientPath(path);
+        j["line"] = line;
+        j["col"] = col;
+        j["severity"] = severity;
+        j["message"] = message;
         diags.push(std::move(j));
+    };
+    for (const auto& d : diag.captured) {
+        std::string path = d.hasLoc ? pathOf(d.loc.file) : "";
+        int line = d.loc.line, col = d.loc.col;
+        // El código generado de un .fstui no se corresponde columna a columna con el XML.
+        if (xmlDocKind(path) == XmlDocKind::Ui) xmlRefineUiDiagnostic(textOf(path), d.message, line, col);
+        addDiag(path, line, col, d.severity == Diagnostics::Severity::Error ? 1 : 3, d.message);
+    }
+    // Validación de los proyectos: el abierto, los que se están editando y el del archivo enfocado.
+    for (const std::string& p : interest)
+        if (xmlDocKind(p) == XmlDocKind::Project) projects.insert(p);
+    for (const std::string& p : projects) {
+        std::vector<XmlDiagnostic> list = xmlValidateProject(p, textOf(p));
+        for (const XmlDiagnostic& d : list) addDiag(p, d.line, d.col, d.severity, d.message);
+        if (p == projectPath && !projectError.empty() && list.empty()) addDiag(p, 1, 1, 1, projectError);
     }
     out["diagnostics"] = std::move(diags);
 
     Json analyzed = Json::array();
     for (const std::string& p : diag.paths)
-        if (!p.empty()) analyzed.push(p);
+        if (!p.empty()) analyzed.push(clientPath(p));
+    for (const std::string& p : projects) analyzed.push(clientPath(p));
     out["analyzed"] = std::move(analyzed);
+
+    // Clase de cada ventana .fstui: manejadores para Click/Changed y destinos de 'ir a la definición'.
+    auto uiCodeInfo = [&](const std::string& uiPath) {
+        XmlUiCodeInfo info;
+        std::string cls, ns;
+        if (!r.sema || !xmlUiClass(textOf(uiPath), cls, ns)) return info;
+        ClassDecl* found = nullptr;
+        for (ClassDecl* c : r.prog->types)
+            if (!c->templateOf && !c->isNamespaceScope && c->displayName == cls && (c->ns == ns || ns.empty())) found = c;
+        if (!found) return info;
+        info.found = true;
+        info.classSignature = "partial class " + (found->ns.empty() ? "" : found->ns + ".") + cls;
+        std::vector<MethodDecl*> all = found->ctors;
+        all.insert(all.end(), found->methods.begin(), found->methods.end());
+        for (MethodDecl* m : all) {
+            std::string path = pathOf(m->loc.file);
+            if (path.empty() || xmlDocKind(path) != XmlDocKind::None) continue;
+            if (info.classPath.empty()) {
+                // Línea de 'class Nombre' en el código de la ventana.
+                info.classPath = path;
+                info.classLine = m->loc.line;
+                info.classCol = m->loc.col;
+                const std::string& src = textOf(path);
+                size_t k = src.find("class " + cls);
+                while (k != std::string::npos && k + 6 + cls.size() < src.size() && isalnum((unsigned char)src[k + 6 + cls.size()]))
+                    k = src.find("class " + cls, k + 1);
+                if (k != std::string::npos) {
+                    info.classLine = 1 + (int)std::count(src.begin(), src.begin() + (long)k, '\n');
+                    size_t ls = src.rfind('\n', k);
+                    info.classCol = (int)(k + 6 - (ls == std::string::npos ? 0 : ls + 1)) + 1;
+                }
+            }
+            if (m->kind != MethodKind::Normal || m->name.rfind("__", 0) == 0) continue;
+            XmlUiCodeInfo::Method mi;
+            mi.name = m->name;
+            mi.signature = Sema::methodSignature(m);
+            mi.path = path;
+            mi.line = m->loc.line;
+            mi.col = m->loc.col;
+            mi.handler = !m->isStatic() && m->params.size() == 1 && m->params[0].tref &&
+                         m->params[0].tref->str().size() >= 6 &&
+                         m->params[0].tref->str().compare(m->params[0].tref->str().size() - 6, 6, "Widget") == 0;
+            info.methods.push_back(mi);
+        }
+        return info;
+    };
 
     Json refs = Json::array();
     Json completions = Json::array();
@@ -144,17 +281,26 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
     if (r.sema) {
         for (const auto& ref : r.sema->refs) {
             std::string path = pathOf(ref.loc.file);
-            if (!interest.count(path)) continue;
+            if (!interest.count(path) || xmlDocKind(path) != XmlDocKind::None) continue;
             Json j = Json::object();
-            j["path"] = path;
+            j["path"] = clientPath(path);
             j["line"] = ref.loc.line;
             j["col"] = ref.loc.col;
             j["len"] = ref.length;
             j["hover"] = ref.hover;
             if (ref.hasDef) {
-                j["defPath"] = pathOf(ref.def.file);
-                j["defLine"] = ref.def.line;
-                j["defCol"] = ref.def.col;
+                std::string defPath = pathOf(ref.def.file);
+                int defLine = ref.def.line, defCol = ref.def.col;
+                if (xmlDocKind(defPath) == XmlDocKind::Ui) {
+                    // Campo generado de un control: se va a su Name="..." en el .fstui.
+                    std::string line = textLine(textOf(path), ref.loc.line - 1);
+                    std::string ident = ref.loc.col >= 1 && ref.loc.col - 1 < (int)line.size()
+                                            ? line.substr(ref.loc.col - 1, ref.length) : "";
+                    if (!xmlUiControlPos(textOf(defPath), ident, defLine, defCol)) defLine = defCol = 1;
+                }
+                j["defPath"] = clientPath(defPath);
+                j["defLine"] = defLine;
+                j["defCol"] = defCol;
             }
             refs.push(std::move(j));
         }
@@ -187,7 +333,7 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
                 if (e.is_directory()) addNs(e.path().filename().string(), "namespace " + prefix + e.path().filename().string());
                 else if (e.path().extension() == ".fst" && stem != "core") addNs(stem, "módulo " + prefix + stem);
             }
-        } else {
+        } else if (xmlCompletePath.empty()) {
             for (const auto& c : r.sema->completions) {
                 Json j = Json::object();
                 j["label"] = c.label;
@@ -201,8 +347,8 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
             std::string path = pathOf(c->loc.file);
             if (c->isNamespaceScope && !c->methods.empty()) path = pathOf(c->methods[0]->loc.file);
             else if (c->isNamespaceScope && !c->fields.empty()) path = pathOf(c->fields[0]->loc.file);
-            if (!interest.count(path)) continue;
-            Json& list = symbols[path];
+            if (!interest.count(path) || xmlDocKind(path) != XmlDocKind::None) continue;
+            Json& list = symbols[clientPath(path)];
             if (!list.isArray()) list = Json::array();
             if (c->isNamespaceScope) {
                 for (MethodDecl* m : c->methods)
@@ -223,6 +369,40 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
             if (c->dtor) children.push(symbolAt(c->dtor->name, skMethod, "destructor", c->dtor->loc));
             s["children"] = std::move(children);
             list.push(std::move(s));
+        }
+    }
+
+    // .fstproj y .fstui: información emergente y autocompletado según su esquema.
+    for (const std::string& path : interest) {
+        XmlDocKind kind = xmlDocKind(path);
+        if (kind == XmlDocKind::None) continue;
+        XmlUiCodeInfo info = kind == XmlDocKind::Ui ? uiCodeInfo(path) : XmlUiCodeInfo();
+        for (const XmlSymbolRef& x : xmlRefs(kind, path, textOf(path), &info)) {
+            Json j = Json::object();
+            j["path"] = clientPath(path);
+            j["line"] = x.line;
+            j["col"] = x.col;
+            j["len"] = x.len;
+            j["hover"] = x.hover;
+            j["doc"] = true;  // texto, no código
+            if (!x.defPath.empty()) {
+                j["defPath"] = clientPath(normalizePath(x.defPath));
+                j["defLine"] = x.defLine;
+                j["defCol"] = x.defCol;
+            }
+            refs.push(std::move(j));
+        }
+    }
+    if (!xmlCompletePath.empty()) {
+        XmlDocKind kind = xmlDocKind(xmlCompletePath);
+        XmlUiCodeInfo info = kind == XmlDocKind::Ui ? uiCodeInfo(xmlCompletePath) : XmlUiCodeInfo();
+        for (const XmlCompletionItem& c : xmlComplete(kind, xmlCompletePath, textOf(xmlCompletePath), xmlCompleteOffset, &info)) {
+            Json j = Json::object();
+            j["label"] = c.label;
+            j["kind"] = c.kind;
+            j["detail"] = c.detail;
+            if (!c.insert.empty()) j["insert"] = c.insert;
+            completions.push(std::move(j));
         }
     }
     out["refs"] = std::move(refs);
@@ -459,15 +639,8 @@ void Server::notify(const std::string& method, Json params) {
 Json Server::analyze(const std::string& focus, const std::map<std::string, std::string>* focusOverride,
                      const Json* usingPath) {
     Json req = Json::object();
-    std::vector<std::string> inputs;
-    std::string proj = findProjectFor(focus);
-    std::string err;
-    if (!proj.empty()) projectTreeSources(proj, inputs, err);
-    for (auto& f : inputs) f = normalizePath(f);
-    if (std::find(inputs.begin(), inputs.end(), focus) == inputs.end()) inputs.push_back(focus);
-    Json in = Json::array();
-    for (const auto& f : inputs) in.push(f);
-    req["inputs"] = std::move(in);
+    // El subproceso calcula los archivos del proyecto de 'focus' (y sabe tratar los .fstproj).
+    req["focus"] = focus;
     Json ov = Json::object();
     Json interest = Json::array();
     for (const auto& [path, doc] : docs_) {
@@ -613,7 +786,8 @@ Json Server::hover(const Json& params) {
     Json h = Json::object();
     Json contents = Json::object();
     contents["kind"] = "markdown";
-    contents["value"] = "```faset\n" + r->get("hover").asString() + "\n```";
+    if (r->get("doc").asBool()) contents["value"] = r->get("hover").asString();
+    else contents["value"] = "```faset\n" + r->get("hover").asString() + "\n```";
     h["contents"] = std::move(contents);
     h["range"] = range(path, r->get("line").asInt(), r->get("col").asInt(), r->get("len").asInt());
     return h;
@@ -643,15 +817,24 @@ Json Server::completion(const Json& params) {
     int byteCol = utf16ToByte(l, params.get("position").get("character").asInt());
     std::string trigger = params.get("context").get("triggerCharacter").asString();
     std::string before = l.substr(0, (size_t)byteCol);
-    // ':' y '>' solo cuentan como '::' y '->'.
-    if (trigger == ":" && (before.size() < 2 || before.compare(before.size() - 2, 2, "::") != 0)) return items;
-    if (trigger == ">" && (before.size() < 2 || before.compare(before.size() - 2, 2, "->") != 0)) return items;
+    bool xml = xmlDocKind(path) != XmlDocKind::None;
+    if (xml) {
+        // En XML: '<', comillas, ',' y espacio (dentro de una etiqueta).
+        if (trigger == "." || trigger == ":" || trigger == ">") return items;
+        if (trigger == " " && before.rfind('<') == std::string::npos) return items;
+        if (trigger == " " && before.rfind('>') != std::string::npos && before.rfind('>') > before.rfind('<')) return items;
+    } else {
+        if (trigger == "<" || trigger == "\"" || trigger == " " || trigger == ",") return items;
+        // ':' y '>' solo cuentan como '::' y '->'.
+        if (trigger == ":" && (before.size() < 2 || before.compare(before.size() - 2, 2, "::") != 0)) return items;
+        if (trigger == ">" && (before.size() < 2 || before.compare(before.size() - 2, 2, "->") != 0)) return items;
+    }
 
     Json result;
     // using / import: sugerir namespaces
     size_t k = before.find_first_not_of(" \t");
     std::string trimmed = k == std::string::npos ? "" : before.substr(k);
-    if (trimmed.rfind("using ", 0) == 0 || trimmed.rfind("import ", 0) == 0) {
+    if (!xml && (trimmed.rfind("using ", 0) == 0 || trimmed.rfind("import ", 0) == 0)) {
         std::string rest = trimmed.substr(trimmed.find(' ') + 1);
         if (rest.rfind("namespace ", 0) == 0) rest = rest.substr(10);
         if (rest.find('=') == std::string::npos && rest.find('"') == std::string::npos) {
@@ -689,6 +872,11 @@ Json Server::completion(const Json& params) {
         item["label"] = c.get("label").asString();
         item["kind"] = c.get("kind").asInt();
         if (!c.get("detail").asString().empty()) item["detail"] = c.get("detail").asString();
+        if (c.has("insert")) {
+            // "$0" marca la posición del cursor: se envía como fragmento (snippet).
+            item["insertText"] = c.get("insert").asString();
+            item["insertTextFormat"] = 2;
+        }
         // Los miembros del ámbito local aparecen antes que las palabras clave.
         item["sortText"] = (c.get("kind").asInt() == 14 ? "9" : "1") + c.get("label").asString();
         items.push(std::move(item));
@@ -736,7 +924,7 @@ void Server::handle(const Json& msg, std::set<std::string>& dirty) {
         caps["textDocumentSync"] = std::move(sync);
         Json comp = Json::object();
         Json triggers = Json::array();
-        for (const char* t : {".", ":", ">"}) triggers.push(t);
+        for (const char* t : {".", ":", ">", "<", "\"", " ", ","}) triggers.push(t);
         comp["triggerCharacters"] = std::move(triggers);
         caps["completionProvider"] = std::move(comp);
         caps["hoverProvider"] = true;

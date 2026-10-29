@@ -5,3 +5,5 @@
 extern const char* const kRuntimeHeader;
 // Implementación del runtime (se compila junto al programa).
 extern const char* const kRuntimeSource;
+// Capa POSIX de std.io / std.os (se añade a kRuntimeSource; ver RuntimeOs.cpp).
+extern const char* const kRuntimeOsSource;

@@ -225,7 +225,6 @@ namespace FasetStudio.Ide
 
         public void Draw(Renderer r, string projectName)
         {
-            r.Text(r.UiSmall, X + 16, Y + 12, L.T("EXPLORER"), Theme.TextTertiary);
             r.PushClip(X, Y + HeaderHeight, W, H - HeaderHeight - 4);
             int visible = (int)((H - HeaderHeight) / RowHeight) + 1;
             for (int n = 0; n < visible; n++)

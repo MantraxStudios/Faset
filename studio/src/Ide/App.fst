@@ -99,20 +99,36 @@ namespace FasetStudio.Ide
         int activeGroup;
         List<HitBox> hits = new List<HitBox>();
 
-        // Paneles
-        float explorerWidth = 270;
-        float panelHeight = 210;
+        // Paneles acoplables: Explorador (0), Salida (1) y Problemas (2). Cada uno está en un lado
+        // (0 izquierda, 1 derecha, 2 abajo); los del mismo lado se muestran como pestañas.
+        const int ActTool = 50;   // 50..52: pestañas de los paneles
+        List<int> toolSide = new List<int>();
+        List<bool> toolShown = new List<bool>();
+        List<int> sideActive = new List<int>();     // panel visible en cada lado (-1: lado vacío)
+        List<float> toolRect = new List<float>();   // x, y, w, h de cada panel en el último dibujo (w = 0: no se ve)
+        float leftWidth = 270;
+        float rightWidth = 320;
+        float bottomHeight = 210;
         float splitRatio = 0.5f;
-        int dragSplitter;  // 1 explorador, 2 panel inferior, 3 división de editores
-        int panelTab;      // 0 salida, 1 lista de errores
-        int panelScroll;
-        float panelX;
-        float panelY;
-        float panelW;
-        float panelH;
-        float splitExplorerX;
-        float splitPanelY;
+        int dragSplitter;  // 1 lado izquierdo, 2 lado inferior, 3 división de editores, 4 lado derecho
+        int outputScroll;
+        int problemsScroll;
+        float editorsX;
+        float editorsW;
+        float editorsBottom;
+        float bottomX;
+        float bottomW;
+        float splitLeftX;
+        float splitRightX;
+        float splitBottomY;
         float splitGroupsX;
+        // Arrastre de una pestaña de panel para acoplarlo en otro lado.
+        int dockTool = -1;
+        bool dockDragging;
+        float dockPressX;
+        float dockPressY;
+        int dockTarget = -1;
+        int contextTool = -1;
         float overlayInputX;
         float overlayInputY;
         float overlayInputW;
@@ -193,6 +209,7 @@ namespace FasetStudio.Ide
             win = window;
             analyzer = new Analyzer(fasetPath);
             groups.Add(new EditorGroup());
+            LoadLayout();
             SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
             return true;
         }
@@ -248,7 +265,7 @@ namespace FasetStudio.Ide
             }
             AddRecent(folder);
             UpdateTitle();
-            SetStatus(L.T("Ready"));
+            SetStatus(analyzer.Available ? L.T("Ready") : L.T("Compiler 'faset' not found: IntelliSense and builds are disabled"));
         }
 
         void SetStatus(string text)
@@ -535,12 +552,34 @@ namespace FasetStudio.Ide
             EditorView v = Editor;
             if (v == null || !completionOpen || filtered.Count == 0) return;
             CompletionItem c = completions[filtered[completionSel]];
-            v.Anchor = completionStart;
+            TextPos start = completionStart;
+            v.Anchor = start;
             v.Cursor = v.WordEnd(v.Cursor);
-            v.InsertText(c.Label, false);
+            if (c.Insert.Length == 0) v.InsertText(c.Label, false);
+            else
+            {
+                // Fragmento de .fstproj/.fstui: "$0" marca dónde queda el cursor (p. ej. Anchor="$0").
+                int mark = c.Insert.IndexOf("$0");
+                string text = mark < 0 ? String.Copy(c.Insert) : String.Concat(c.Insert.Substring(0, mark), c.Insert.Substring(mark + 2));
+                v.InsertText(text, false);
+                if (mark >= 0)
+                {
+                    int line = start.Line, col = start.Col;
+                    for (int i = 0; i < mark; i++)
+                    {
+                        if (text[i] == '\n') { line++; col = 0; }
+                        else col++;
+                    }
+                    v.SetCursor(new TextPos(line, col), false);
+                }
+                String.Free(text);
+            }
+            bool valueNext = c.Insert.Contains("\"$0\"") || c.Insert.Contains(">$0</");
             CloseCompletion();
             lastEditMs = Environment.TickCount64();
             analysisPending = true;
+            // Tras insertar un atributo o una propiedad, sus valores posibles (Anchor, Style, OutputType...).
+            if (valueNext) RequestCompletion();
         }
 
         void CloseCompletion()
@@ -570,6 +609,7 @@ namespace FasetStudio.Ide
             string path = String.Copy(s.DefPath);
             EditorView target = OpenFile(path);
             String.Free(path);
+            if (target != null && target.Designer != null) target.DesignMode = false;  // control de un .fstui: su XML
             if (target != null) target.GoToLine(line, col, r);
         }
 
@@ -598,7 +638,7 @@ namespace FasetStudio.Ide
                     if (d.Line == p.Line && p.Col >= d.Col && p.Col <= Math.Max(end.Col, d.Col + 1))
                     {
                         if (sb.Length > 0) sb.Append("\n");
-                        sb.Append(d.Severity == 1 ? "error: " : "note: ").Append(d.Message);
+                        sb.Append(d.Severity == 1 ? "error: " : d.Severity == 2 ? "warning: " : "note: ").Append(d.Message);
                     }
                 }
                 if (v.Doc.AnalyzedVersion == v.Doc.Buffer.Version)
@@ -638,8 +678,8 @@ namespace FasetStudio.Ide
             }
             SaveAll();
             output.Clear();
-            panelTab = 0;
-            panelScroll = 0;
+            ShowTool(1);
+            outputScroll = 0;
             string faset = Analyzer.Quote(analyzer.Compiler);
             StringBuilder cmd = new StringBuilder();
             cmd.Append(faset).Append(run ? " run" : " build");
@@ -1063,7 +1103,8 @@ namespace FasetStudio.Ide
             {
                 string line = v.Doc.Buffer.LineText(v.Cursor.Line);
                 byte prev = v.Cursor.Col >= 2 ? line[v.Cursor.Col - 2] : (byte)0;
-                bool member = e.Char == '.' || (e.Char == ':' && prev == ':') || (e.Char == '>' && prev == '-');
+                bool member = v.Doc.IsXml ? XmlTrigger(line, v.Cursor.Col, e.Char, prev)
+                                          : e.Char == '.' || (e.Char == ':' && prev == ':') || (e.Char == '>' && prev == '-');
                 bool identChar = Char.IsLetterOrDigit(e.Char) || e.Char == '_';
                 if (member) RequestCompletion();
                 else if (completionOpen && identChar) FilterCompletions();
@@ -1079,6 +1120,25 @@ namespace FasetStudio.Ide
                 if (k == Keys.BackSpace) FilterCompletions();
                 else CloseCompletion();
             }
+        }
+
+        // .fstproj / .fstui: '<' abre la lista de elementos, '="' la de valores, ',' la siguiente opción
+        // de una lista (Anchor) y el espacio dentro de una etiqueta la de atributos.
+        static bool XmlTrigger(string line, int col, char ch, byte prev)
+        {
+            int quotes = 0, lt = -1, gt = -1;
+            for (int i = 0; i < col && i < line.Length; i++)
+            {
+                if (line[i] == '"') quotes++;
+                else if (line[i] == '<') lt = i;
+                else if (line[i] == '>') gt = i;
+            }
+            bool inValue = quotes % 2 == 1;
+            if (ch == '<') return !inValue;
+            if (ch == '"') return prev == '=';
+            if (ch == ',') return inValue;
+            if (ch == ' ') return !inValue && lt > gt && prev != ' ' && prev != '<';
+            return false;
         }
 
         void MarkEdited()
@@ -1184,6 +1244,23 @@ namespace FasetStudio.Ide
                     else ActivateTab(h.Group, h.Id);
                     return;
                 }
+                if (h.Group == -1 && h.Id >= ActTool && h.Id < ActTool + 3)
+                {
+                    // Pestaña de panel: clic la activa, arrastrar la acopla en otro lado, botón derecho abre su menú.
+                    int t = h.Id - ActTool;
+                    sideActive[toolSide[t]] = t;
+                    if (e.Button == 3)
+                    {
+                        contextTool = t;
+                        OpenToolMenu(x, y);
+                        return;
+                    }
+                    dockTool = t;
+                    dockDragging = false;
+                    dockPressX = x;
+                    dockPressY = y;
+                    return;
+                }
                 if (h.Group == -1)
                 {
                     DoAction(h.Id);
@@ -1192,7 +1269,7 @@ namespace FasetStudio.Ide
                 if (h.Group == -2) return;
             }
             // Explorador: el clic se resuelve al soltar (para poder arrastrar)
-            if (x >= explorer.X && x < explorer.X + explorer.W && y > TitleHeight && y < r.Height - StatusHeight)
+            if (InTool(0, x, y))
             {
                 int row = explorer.RowAt(x, y);
                 if (e.Button == 3)
@@ -1216,6 +1293,7 @@ namespace FasetStudio.Ide
                     if (v.Designer != null && v.DesignMode)
                     {
                         if (e.Button == 1) v.Designer.MouseDown(x, y, forcedClicks > 0 ? forcedClicks : (win != null ? win.ClickCount : 1), e.Shift, e.Ctrl);
+                        else if (e.Button == 2) v.Designer.PanStart(x, y);
                         AfterDesigner(v);
                         return;
                     }
@@ -1230,11 +1308,11 @@ namespace FasetStudio.Ide
                     return;
                 }
             }
-            // Panel inferior
-            if (y >= panelY + PanelHeaderHeight && x >= panelX)
+            // Paneles de salida y de problemas
+            if (InTool(2, x, y) && y >= toolRect[9] + PanelHeaderHeight)
             {
-                int row = panelScroll + (int)Math.Floor((y - panelY - PanelHeaderHeight - 4) / r.Code.LineHeight);
-                if (panelTab == 1 && row >= 0 && row < problems.Count)
+                int row = ProblemRowAt(y);
+                if (row >= 0)
                 {
                     Problem p = problems[row];
                     string path = String.Copy(p.Path);
@@ -1243,12 +1321,13 @@ namespace FasetStudio.Ide
                     String.Free(path);
                     if (v != null) v.GoToLine(line, col, r);
                 }
-                else if (panelTab == 0)
-                {
-                    List<string> lines = Text.Split(output.View(), "\n");
-                    if (row >= 0 && row < lines.Count) OpenLocation(lines[row]);
-                    delete lines;
-                }
+            }
+            else if (InTool(1, x, y) && y >= toolRect[5] + PanelHeaderHeight)
+            {
+                int row = outputScroll + (int)Math.Floor((y - toolRect[5] - PanelHeaderHeight - 4) / r.Code.LineHeight);
+                List<string> lines = Text.Split(output.View(), "\n");
+                if (row >= 0 && row < lines.Count) OpenLocation(lines[row]);
+                delete lines;
             }
         }
 
@@ -1407,15 +1486,19 @@ namespace FasetStudio.Ide
                 if (v != null && v.Designer != null) v.DesignMode = id < ActCodeView;
                 if (gi < groups.Count && groups[gi].Active >= 0) ActivateTab(gi, groups[gi].Active);
             }
-            else if (id == ActPanelOutput || id == ActPanelErrors)
-            {
-                panelTab = id == ActPanelOutput ? 0 : 1;
-                panelScroll = 0;
-            }
         }
 
         void MouseUp(Event e)
         {
+            if (dockTool >= 0)
+            {
+                if (dockDragging && dockTarget >= 0) DockTool(dockTool, dockTarget);
+                dockTool = -1;
+                dockDragging = false;
+                dockTarget = -1;
+                needsRedraw = true;
+            }
+            if (dragSplitter != 0) SaveLayout();
             if (pressRow >= 0)
             {
                 int row = pressRow;
@@ -1488,14 +1571,26 @@ namespace FasetStudio.Ide
                     explorer.DropTarget = over >= 0 && explorer.RowIsDir(over) && over != pressRow ? over : -1;
                 }
             }
+            if (dockTool >= 0 && e.Button == 1)
+            {
+                if (!dockDragging && Math.Abs(mouseX - dockPressX) + Math.Abs(mouseY - dockPressY) > 8) dockDragging = true;
+                if (dockDragging)
+                {
+                    dockTarget = DockTargetAt(mouseX, mouseY);
+                    needsRedraw = true;
+                    UpdateCursor();
+                    return;
+                }
+            }
             mouseMoveMs = Environment.TickCount64();
             if (hoverText.Length > 0 && (Math.Abs(mouseX - hoverX) > 8 || Math.Abs(mouseY - hoverY) > 8)) ClearHover();
-            if (dragSplitter == 1) explorerWidth = (float)Math.Clamp(mouseX - Gap - Gap / 2, 160.0, r.Width * 0.45);
-            else if (dragSplitter == 2) panelHeight = (float)Math.Clamp(r.Height - StatusHeight - mouseY - Gap / 2, 90.0, r.Height * 0.7);
+            if (dragSplitter == 1) leftWidth = (float)Math.Clamp(mouseX - Gap - Gap / 2, 160.0, r.Width * 0.45);
+            else if (dragSplitter == 4) rightWidth = (float)Math.Clamp(r.Width - Gap - Gap / 2 - mouseX, 160.0, r.Width * 0.45);
+            else if (dragSplitter == 2) bottomHeight = (float)Math.Clamp(r.Height - StatusHeight - mouseY - Gap / 2, 90.0, r.Height * 0.7);
             else if (dragSplitter == 3)
             {
-                float left = panelX;
-                float total = panelW - Gap;
+                float left = editorsX;
+                float total = editorsW - Gap;
                 splitRatio = (float)Math.Clamp((mouseX - left - Gap / 2) / total, 0.15, 0.85);
             }
             for (int k = 0; k < groups.Count; k++)
@@ -1517,8 +1612,9 @@ namespace FasetStudio.Ide
         {
             ClearHover();
             float x = e.X, y = e.Y;
-            if (x < explorer.X + explorer.W) explorer.ScrollBy(e.ScrollLines);
-            else if (y >= panelY) panelScroll = Math.Max(0, panelScroll + e.ScrollLines);
+            if (InTool(0, x, y)) explorer.ScrollBy(e.ScrollLines);
+            else if (InTool(1, x, y)) outputScroll = Math.Max(0, outputScroll + e.ScrollLines);
+            else if (InTool(2, x, y)) problemsScroll = Math.Max(0, problemsScroll + e.ScrollLines);
             else
             {
                 for (int k = 0; k < groups.Count; k++)
@@ -1526,7 +1622,7 @@ namespace FasetStudio.Ide
                     EditorView v = groups[k].Current;
                     if (v != null && x >= v.X && x < v.X + v.W)
                     {
-                        if (v.Designer != null && v.DesignMode) v.Designer.Scroll(x, e.ScrollLines, e.Shift);
+                        if (v.Designer != null && v.DesignMode) v.Designer.Scroll(x, y, e.ScrollLines, e.Shift, e.Ctrl);
                         else v.Scroll(e.ScrollLines);
                     }
                 }
@@ -2012,8 +2108,10 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Quick open"), "Ctrl+P", 6, ws);
                 m.Add(groups.Count == 2 ? L.T("Join views") : L.T("Split view"), "Ctrl+\\", 122, ws);
                 m.Separator();
-                m.Add(L.T("Output"), "", 123, ws);
-                m.Add(L.T("Problems"), "", 124, ws);
+                m.Add(L.T("Explorer"), ToolVisible(0) ? "✓" : "", 126, ws);
+                m.Add(L.T("Output"), ToolVisible(1) ? "✓" : "", 123, ws);
+                m.Add(L.T("Problems"), ToolVisible(2) ? "✓" : "", 124, ws);
+                m.Add(L.T("Reset layout"), "", 127, ws);
                 m.Separator();
                 m.Add(L.T("Change language"), "", 125, true);
             }
@@ -2154,8 +2252,12 @@ namespace FasetStudio.Ide
             else if (id == 118) EditorShortcut('/', false);
             else if (id == 119) EditorShortcut('d', false);
             else if (id == 122) ToggleSplit();
-            else if (id == 123) panelTab = 0;
-            else if (id == 124) panelTab = 1;
+            else if (id == 123) ToggleTool(1);
+            else if (id == 124) ToggleTool(2);
+            else if (id == 126) ToggleTool(0);
+            else if (id == 127) ResetLayout();
+            else if (id >= 170 && id <= 172 && contextTool >= 0) DockTool(contextTool, id - 170);
+            else if (id == 173 && contextTool >= 0) HideTool(contextTool);
             else if (id == 125) DoAction(ActLanguage);
             else if (id == 130) StartProcess(false);
             else if (id == 131) StartProcess(true);
@@ -2203,7 +2305,7 @@ namespace FasetStudio.Ide
             StringBuilder cmd = new StringBuilder();
             cmd.Append(qf).Append(" clean");
             output.Clear();
-            panelTab = 0;
+            ShowTool(1);
             if (process == null) process = new ChildProcess();
             process.Start(cmd.View(), rootFolder);
             processIsRun = false;
@@ -2461,23 +2563,27 @@ namespace FasetStudio.Ide
 
             float top = TitleHeight;
             float bottom = H - StatusHeight;
-            panelH = panelHeight;
-            explorer.X = Gap;
-            explorer.Y = top;
-            explorer.W = explorerWidth;
-            explorer.H = bottom - top;
-            Card(explorer.X, explorer.Y, explorer.W, explorer.H, Theme.Surface);
-            explorer.Draw(r, projectName);
-
-            panelX = Gap + explorerWidth + Gap;
-            panelW = W - panelX - Gap;
-            panelY = bottom - panelH;
-            splitExplorerX = Gap + explorerWidth + Gap / 2;
-            splitPanelY = panelY - Gap / 2;
+            bool hasL = sideActive[0] >= 0, hasR = sideActive[1] >= 0, hasB = sideActive[2] >= 0;
+            for (int i = 0; i < 12; i++) toolRect[i] = 0;
+            explorer.W = 0;
+            leftWidth = (float)Math.Clamp(leftWidth, 160.0, W * 0.45);
+            rightWidth = (float)Math.Clamp(rightWidth, 160.0, W * 0.45);
+            bottomHeight = (float)Math.Clamp(bottomHeight, 90.0, H * 0.7);
+            editorsX = Gap + (hasL ? leftWidth + Gap : 0);
+            editorsW = W - Gap - (hasR ? rightWidth + Gap : 0) - editorsX;
+            editorsBottom = hasB ? bottom - bottomHeight - Gap : bottom;
+            bottomX = editorsX;
+            bottomW = editorsW;
+            splitLeftX = hasL ? Gap + leftWidth + Gap / 2 : -100;
+            splitRightX = hasR ? W - Gap - rightWidth - Gap / 2 : -100;
+            splitBottomY = hasB ? bottom - bottomHeight - Gap / 2 : -100;
+            if (hasL) DrawSide(0, Gap, top, leftWidth, bottom - top);
+            if (hasR) DrawSide(1, W - Gap - rightWidth, top, rightWidth, bottom - top);
+            if (hasB) DrawSide(2, bottomX, bottom - bottomHeight, bottomW, bottomHeight);
 
             // Grupos de editores
-            float edX = panelX, edW = panelW;
-            float edH = panelY - Gap - top;
+            float edX = editorsX, edW = editorsW;
+            float edH = editorsBottom - top;
             for (int k = 0; k < groups.Count; k++)
             {
                 EditorGroup g = groups[k];
@@ -2496,8 +2602,8 @@ namespace FasetStudio.Ide
                 DrawGroup(g, k);
             }
 
-            DrawPanel();
             DrawStatus(W, H);
+            if (dockDragging) DrawDockGuides();
 
             if (completionOpen) DrawCompletion();
             if (hoverText.Length > 0) DrawTooltip(hoverText, hoverX + 14, hoverY + 20);
@@ -2705,60 +2811,277 @@ namespace FasetStudio.Ide
             return w;
         }
 
-        void DrawPanel()
+        // ------------------------------------------------------------------ paneles acoplables
+
+        void InitLayout()
         {
-            Card(panelX, panelY, panelW, panelH, Theme.Surface);
-            float tx = panelX + 8;
-            tx += PanelTab(tx, panelY + 6, L.T("Output"), 0, ActPanelOutput, panelTab == 0) + 4;
-            PanelTab(tx, panelY + 6, L.T("Problems"), ErrorCount(), ActPanelErrors, panelTab == 1);
-            if (panelTab == 0 && output.Length > 0)
+            toolSide.Clear();
+            toolShown.Clear();
+            sideActive.Clear();
+            toolRect.Clear();
+            for (int t = 0; t < 3; t++)
+            {
+                toolSide.Add(t == 0 ? 0 : 2);
+                toolShown.Add(true);
+            }
+            for (int s = 0; s < 3; s++) sideActive.Add(s == 0 ? 0 : (s == 2 ? 1 : -1));
+            for (int i = 0; i < 12; i++) toolRect.Add(0);
+            leftWidth = 270;
+            rightWidth = 320;
+            bottomHeight = 210;
+        }
+
+        // Disposición guardada: "lado:visible" por panel y los tamaños de los lados.
+        void LoadLayout()
+        {
+            InitLayout();
+            List<string> parts = Text.Split(Settings.Get("layout.tools", ""), ",");
+            if (parts.Count == 3)
+                for (int t = 0; t < 3; t++)
+                {
+                    string p = parts[t];
+                    if (p.Length == 3 && p[0] >= '0' && p[0] <= '2')
+                    {
+                        toolSide[t] = (int)p[0] - 48;
+                        toolShown[t] = p[2] == '1';
+                    }
+                }
+            delete parts;
+            List<string> sizes = Text.Split(Settings.Get("layout.sizes", ""), ",");
+            if (sizes.Count == 3)
+            {
+                leftWidth = (float)Math.Clamp((double)sizes[0].ToInt(), 160.0, 1200.0);
+                rightWidth = (float)Math.Clamp((double)sizes[1].ToInt(), 160.0, 1200.0);
+                bottomHeight = (float)Math.Clamp((double)sizes[2].ToInt(), 90.0, 1200.0);
+            }
+            delete sizes;
+            for (int s = 0; s < 3; s++) sideActive[s] = -1;
+            NormalizeSides();
+        }
+
+        void SaveLayout()
+        {
+            StringBuilder sb = new StringBuilder();
+            for (int t = 0; t < 3; t++)
+            {
+                if (t > 0) sb.Append(",");
+                sb.Append((long)toolSide[t]).Append(":").Append(toolShown[t] ? "1" : "0");
+            }
+            Settings.Set("layout.tools", sb.View());
+            sb.Clear();
+            sb.Append((long)leftWidth).Append(",").Append((long)rightWidth).Append(",").Append((long)bottomHeight);
+            Settings.Set("layout.sizes", sb.View());
+            delete sb;
+        }
+
+        void ResetLayout()
+        {
+            InitLayout();
+            SaveLayout();
+        }
+
+        // Cada lado muestra uno de sus paneles visibles (o ninguno).
+        void NormalizeSides()
+        {
+            for (int s = 0; s < 3; s++)
+            {
+                int a = sideActive[s];
+                if (a >= 0 && toolShown[a] && toolSide[a] == s) continue;
+                sideActive[s] = -1;
+                for (int t = 0; t < 3; t++)
+                    if (sideActive[s] < 0 && toolShown[t] && toolSide[t] == s) sideActive[s] = t;
+            }
+        }
+
+        bool ToolVisible(int t) => toolShown[t] && sideActive[toolSide[t]] == t;
+
+        void ShowTool(int t)
+        {
+            if (t < 0 || t > 2) return;
+            toolShown[t] = true;
+            sideActive[toolSide[t]] = t;
+            NormalizeSides();
+            SaveLayout();
+        }
+
+        void HideTool(int t)
+        {
+            toolShown[t] = false;
+            NormalizeSides();
+            SaveLayout();
+        }
+
+        void ToggleTool(int t)
+        {
+            if (ToolVisible(t)) HideTool(t);
+            else ShowTool(t);
+        }
+
+        void DockTool(int t, int side)
+        {
+            if (t < 0 || t > 2 || side < 0 || side > 2) return;
+            toolSide[t] = side;
+            toolShown[t] = true;
+            sideActive[side] = t;
+            NormalizeSides();
+            SaveLayout();
+        }
+
+        static string ToolName(int t) => t == 0 ? "Explorer" : (t == 1 ? "Output" : "Problems");
+
+        bool InTool(int t, float x, float y)
+        {
+            float w = toolRect[t * 4 + 2];
+            return w > 0 && x >= toolRect[t * 4] && x < toolRect[t * 4] + w && y >= toolRect[t * 4 + 1] && y < toolRect[t * 4 + 1] + toolRect[t * 4 + 3];
+        }
+
+        void OpenToolMenu(float x, float y)
+        {
+            Menu m = new Menu();
+            int side = toolSide[contextTool];
+            m.Add(L.T("Dock left"), side == 0 ? "✓" : "", 170, true);
+            m.Add(L.T("Dock right"), side == 1 ? "✓" : "", 171, true);
+            m.Add(L.T("Dock bottom"), side == 2 ? "✓" : "", 172, true);
+            m.Separator();
+            m.Add(L.T("Hide"), "", 173, true);
+            m.Add(L.T("Reset layout"), "", 127, true);
+            ShowMenu(m, x, y, -1);
+        }
+
+        // Lado en el que caería el panel arrastrado (cerca de un borde), o -1.
+        int DockTargetAt(float x, float y)
+        {
+            float top = TitleHeight, bottom = r.Height - StatusHeight;
+            if (y < top || y > bottom) return -1;
+            if (x < r.Width * 0.2f) return 0;
+            if (x > r.Width * 0.8f) return 1;
+            if (y > top + (bottom - top) * 0.6f) return 2;
+            return -1;
+        }
+
+        void DrawSide(int side, float x, float y, float w, float h)
+        {
+            Card(x, y, w, h, Theme.Surface);
+            int active = sideActive[side];
+            r.PushClip(x, y, w, PanelHeaderHeight);
+            float tx = x + 8;
+            for (int t = 0; t < 3; t++)
+            {
+                if (!toolShown[t] || toolSide[t] != side) continue;
+                tx += PanelTab(tx, y + 6, L.T(ToolName(t)), t == 2 ? ErrorCount() : 0, ActTool + t, t == active) + 4;
+            }
+            if (active == 1 && output.Length > 0)
             {
                 string clear = L.T("Clear");
-                Pill(panelX + panelW - PillWidth(clear, "") - 8, panelY + 5, clear, "", ActClearOutput, 2);
-            }
-            r.Rect(panelX, panelY + PanelHeaderHeight, panelW, 1, Theme.Border);
-            float lh = r.Code.LineHeight;
-            float y0 = panelY + PanelHeaderHeight + 4;
-            int visible = (int)((panelH - PanelHeaderHeight - 10) / lh);
-            r.PushClip(panelX, y0, panelW, panelH - PanelHeaderHeight - 8);
-            if (panelTab == 0)
-            {
-                List<string> lines = Text.Split(output.View(), "\n");
-                if (process != null && process.IsRunning) panelScroll = Math.Max(0, lines.Count - visible);
-                if (panelScroll > Math.Max(0, lines.Count - 1)) panelScroll = Math.Max(0, lines.Count - 1);
-                if (output.Length == 0) r.Text(r.Ui, panelX + 16, y0 + 4, L.T("Build or run the project to see its output here."), Theme.TextTertiary);
-                for (int i = 0; i < visible + 1; i++)
-                {
-                    int li = panelScroll + i;
-                    if (li >= lines.Count) break;
-                    string line = lines[li];
-                    Color c = line.Contains(": error:") ? Theme.Error
-                              : line.StartsWith(">") ? Theme.TextTertiary
-                              : line.StartsWith("[") || line.StartsWith("Compilado") ? Theme.TextSecondary : Theme.Text;
-                    r.Text(r.Code, panelX + 16, y0 + i * lh + 2, line, c);
-                }
-                delete lines;
-            }
-            else
-            {
-                if (problems.Count == 0) r.Text(r.Ui, panelX + 16, y0 + 4, L.T("No problems have been detected in the workspace."), Theme.TextTertiary);
-                for (int i = 0; i < visible + 1; i++)
-                {
-                    int pi = panelScroll + i;
-                    if (pi >= problems.Count) break;
-                    Problem p = problems[pi];
-                    float ry = y0 + i * lh;
-                    bool hover = mouseX >= panelX && mouseX < panelX + panelW && mouseY >= ry && mouseY < ry + lh;
-                    if (hover) r.RoundRect(panelX + 6, ry, panelW - 12, lh, 6, Theme.Hover);
-                    r.RoundRect(panelX + 16, ry + lh / 2 - 4, 8, 8, 4, p.Severity == 1 ? Theme.Error : Theme.Info);
-                    float mx = r.Text(r.Ui, panelX + 34, ry + 3, p.Message, Theme.Text);
-                    StringBuilder where = new StringBuilder();
-                    where.Append(p.File).Append("  ").Append((long)(p.Line + 1)).Append(":").Append((long)(p.Col + 1));
-                    r.Text(r.Ui, mx + 12, ry + 3, where.View(), Theme.TextTertiary);
-                    delete where;
-                }
+                Pill(x + w - PillWidth(clear, "") - 8, y + 5, clear, "", ActClearOutput, 2);
             }
             r.PopClip();
+            r.Rect(x, y + PanelHeaderHeight, w, 1, Theme.Border);
+            toolRect[active * 4] = x;
+            toolRect[active * 4 + 1] = y;
+            toolRect[active * 4 + 2] = w;
+            toolRect[active * 4 + 3] = h;
+            if (active == 0)
+            {
+                explorer.X = x;
+                explorer.Y = y;
+                explorer.W = w;
+                explorer.H = h;
+                explorer.Draw(r, projectName);
+            }
+            else if (active == 1) DrawOutput(x, y, w, h);
+            else DrawProblems(x, y, w, h);
+        }
+
+        void DrawOutput(float x, float y, float w, float h)
+        {
+            float lh = r.Code.LineHeight;
+            float y0 = y + PanelHeaderHeight + 4;
+            int visible = (int)((h - PanelHeaderHeight - 10) / lh);
+            r.PushClip(x, y0, w, h - PanelHeaderHeight - 8);
+            List<string> lines = Text.Split(output.View(), "\n");
+            if (process != null && process.IsRunning) outputScroll = Math.Max(0, lines.Count - visible);
+            if (outputScroll > Math.Max(0, lines.Count - 1)) outputScroll = Math.Max(0, lines.Count - 1);
+            if (output.Length == 0) r.Text(r.Ui, x + 16, y0 + 4, L.T("Build or run the project to see its output here."), Theme.TextTertiary);
+            for (int i = 0; i < visible + 1; i++)
+            {
+                int li = outputScroll + i;
+                if (li >= lines.Count) break;
+                string line = lines[li];
+                Color c = line.Contains(": error:") ? Theme.Error
+                          : line.StartsWith(">") ? Theme.TextTertiary
+                          : line.StartsWith("[") || line.StartsWith("Compilado") ? Theme.TextSecondary : Theme.Text;
+                r.Text(r.Code, x + 16, y0 + i * lh + 2, line, c);
+            }
+            delete lines;
+            r.PopClip();
+        }
+
+        void DrawProblems(float x, float y, float w, float h)
+        {
+            float lh = r.Code.LineHeight;
+            float y0 = y + PanelHeaderHeight + 4;
+            int visible = (int)((h - PanelHeaderHeight - 10) / lh);
+            if (problemsScroll > Math.Max(0, problems.Count - 1)) problemsScroll = Math.Max(0, problems.Count - 1);
+            r.PushClip(x, y0, w, h - PanelHeaderHeight - 8);
+            if (problems.Count == 0) r.Text(r.Ui, x + 16, y0 + 4, L.T("No problems have been detected in the workspace."), Theme.TextTertiary);
+            for (int i = 0; i < visible + 1; i++)
+            {
+                int pi = problemsScroll + i;
+                if (pi >= problems.Count) break;
+                Problem p = problems[pi];
+                float ry = y0 + i * lh;
+                bool hover = mouseX >= x && mouseX < x + w && mouseY >= ry && mouseY < ry + lh;
+                if (hover) r.RoundRect(x + 6, ry, w - 12, lh, 6, Theme.Hover);
+                r.RoundRect(x + 16, ry + lh / 2 - 4, 8, 8, 4, p.Severity == 1 ? Theme.Error : Theme.Info);
+                float mx = r.Text(r.Ui, x + 34, ry + 3, p.Message, Theme.Text);
+                StringBuilder where = new StringBuilder();
+                where.Append(p.File).Append("  ").Append((long)(p.Line + 1)).Append(":").Append((long)(p.Col + 1));
+                r.Text(r.Ui, mx + 12, ry + 3, where.View(), Theme.TextTertiary);
+                delete where;
+            }
+            r.PopClip();
+        }
+
+        // Mientras se arrastra una pestaña: guías de los tres lados y vista previa del hueco.
+        void DrawDockGuides()
+        {
+            float W = r.Width, top = TitleHeight, bottom = r.Height - StatusHeight;
+            if (dockTarget >= 0)
+            {
+                float px = Gap, py = top, pw = leftWidth, ph = bottom - top;
+                if (dockTarget == 1) px = W - Gap - rightWidth;
+                if (dockTarget == 1) pw = rightWidth;
+                if (dockTarget == 2)
+                {
+                    px = editorsX;
+                    pw = editorsW;
+                    py = bottom - bottomHeight;
+                    ph = bottomHeight;
+                }
+                r.RoundRect(px, py, pw, ph, CardRadius, Color.Hex(0x4c8dff, 0.16f));
+                r.RoundBorder(px, py, pw, ph, CardRadius, 2, Color.Hex(0x4c8dff));
+            }
+            DockGuide(Gap + 40, (top + bottom) / 2, 0);
+            DockGuide(W - Gap - 40, (top + bottom) / 2, 1);
+            DockGuide(W / 2, bottom - 40, 2);
+            string name = L.T(ToolName(dockTool));
+            float w = r.TextWidth(r.Ui, name) + 24;
+            r.Shadow(mouseX + 12, mouseY + 8, w, 26, 8, 12, Theme.Shadow);
+            r.RoundRect(mouseX + 12, mouseY + 8, w, 26, 8, Theme.Elevated);
+            r.Text(r.Ui, mouseX + 24, mouseY + 12, name, Theme.White);
+        }
+
+        void DockGuide(float cx, float cy, int side)
+        {
+            bool on = dockTarget == side;
+            r.Shadow(cx - 22, cy - 22, 44, 44, 10, 14, Theme.Shadow);
+            r.RoundRect(cx - 22, cy - 22, 44, 44, 10, on ? Color.Hex(0x4c8dff) : Theme.Elevated);
+            r.RoundBorder(cx - 22, cy - 22, 44, 44, 10, 1, on ? Color.Hex(0x4c8dff) : Theme.BorderStrong);
+            r.RoundBorder(cx - 11, cy - 9, 22, 18, 3, 1.4f, Theme.White);
+            if (side == 0) r.Rect(cx - 11, cy - 9, 7, 18, Theme.White);
+            else if (side == 1) r.Rect(cx + 4, cy - 9, 7, 18, Theme.White);
+            else r.Rect(cx - 11, cy + 3, 22, 6, Theme.White);
         }
 
         void DrawStatus(float W, float H)
@@ -2793,7 +3116,9 @@ namespace FasetStudio.Ide
                 String.Free(pos);
                 String.Free(ln);
                 String.Free(col);
-                if (analyzer.LastDurationMs > 0) sb.Append("     IntelliSense ").Append(analyzer.LastDurationMs).Append(" ms");
+                if (!analyzer.Available) sb.Append("     ").Append(L.T("IntelliSense unavailable (faset not found)"));
+                else if (analyzer.LastFailed) sb.Append("     ").Append(L.T("IntelliSense failed"));
+                else if (analyzer.LastDurationMs > 0) sb.Append("     IntelliSense ").Append(analyzer.LastDurationMs).Append(" ms");
                 sb.Append("     ");
             }
             sb.Append(r.DeviceName);
@@ -2894,7 +3219,7 @@ namespace FasetStudio.Ide
             {
                 string l = lines[i];
                 bool err = l.StartsWith("error:");
-                bool note = l.StartsWith("nota:") || l.StartsWith("note:");
+                bool note = l.StartsWith("nota:") || l.StartsWith("note:") || l.StartsWith("warning:");
                 float ly = y + 8 + i * lh;
                 if (err || note) r.RoundRect(x + 12, ly + lh / 2 - 3, 6, 6, 3, err ? Theme.Error : Theme.Info);
                 r.Text(r.Code, x + (err || note ? 24 : 14), ly + 2, l, err ? Theme.Error : Theme.Text);
@@ -3384,7 +3709,7 @@ namespace FasetStudio.Ide
         {
             if (win == null) return;
             CursorKind kind = CursorKind.Arrow;
-            if (dragSplitter == 1 || dragSplitter == 3) kind = CursorKind.ResizeHorizontal;
+            if (dragSplitter == 1 || dragSplitter == 3 || dragSplitter == 4) kind = CursorKind.ResizeHorizontal;
             else if (dragSplitter == 2) kind = CursorKind.ResizeVertical;
             else if (menu != null)
             {
@@ -3410,7 +3735,7 @@ namespace FasetStudio.Ide
             else
             {
                 int split = SplitterAt(mouseX, mouseY);
-                if (split == 1 || split == 3) kind = CursorKind.ResizeHorizontal;
+                if (split == 1 || split == 3 || split == 4) kind = CursorKind.ResizeHorizontal;
                 else if (split == 2) kind = CursorKind.ResizeVertical;
                 else
                 {
@@ -3418,7 +3743,7 @@ namespace FasetStudio.Ide
                     for (int i = 0; i < hits.Count; i++)
                         if (hits[i].Contains(mouseX, mouseY)) overHit = true;
                     if (overHit || explorer.RowAt(mouseX, mouseY) >= 0) kind = CursorKind.Hand;
-                    else if (panelTab == 1 && mouseX >= panelX && mouseY >= panelY + PanelHeaderHeight && ProblemRowAt(mouseY) >= 0) kind = CursorKind.Hand;
+                    else if (InTool(2, mouseX, mouseY) && mouseY >= toolRect[9] + PanelHeaderHeight && ProblemRowAt(mouseY) >= 0) kind = CursorKind.Hand;
                     else
                     {
                         for (int k = 0; k < groups.Count; k++)
@@ -3438,20 +3763,21 @@ namespace FasetStudio.Ide
             win.SetCursor(kind);
         }
 
-        // 1: entre explorador y editores, 2: sobre el panel inferior, 3: entre los dos editores, 0: ninguno.
+        // 1: lado izquierdo, 2: lado inferior, 3: entre los dos editores, 4: lado derecho, 0: ninguno.
         int SplitterAt(float x, float y)
         {
             float top = TitleHeight, bottom = r.Height - StatusHeight;
-            if (y > top && y < bottom && Math.Abs(x - splitExplorerX) <= Gap / 2 + 2) return 1;
-            if (x > panelX && Math.Abs(y - splitPanelY) <= Gap / 2 + 2) return 2;
-            if (groups.Count == 2 && y > top && y < panelY && Math.Abs(x - splitGroupsX) <= Gap / 2 + 2) return 3;
+            if (y > top && y < bottom && sideActive[0] >= 0 && Math.Abs(x - splitLeftX) <= Gap / 2 + 2) return 1;
+            if (y > top && y < bottom && sideActive[1] >= 0 && Math.Abs(x - splitRightX) <= Gap / 2 + 2) return 4;
+            if (sideActive[2] >= 0 && x > bottomX && x < bottomX + bottomW && Math.Abs(y - splitBottomY) <= Gap / 2 + 2) return 2;
+            if (groups.Count == 2 && y > top && y < editorsBottom && Math.Abs(x - splitGroupsX) <= Gap / 2 + 2) return 3;
             return 0;
         }
 
         int ProblemRowAt(float y)
         {
             float lh = r.Code.LineHeight;
-            int row = panelScroll + (int)Math.Floor((y - panelY - PanelHeaderHeight - 4) / lh);
+            int row = problemsScroll + (int)Math.Floor((y - toolRect[9] - PanelHeaderHeight - 4) / lh);
             return row >= 0 && row < problems.Count ? row : -1;
         }
 
@@ -3491,6 +3817,7 @@ namespace FasetStudio.Ide
                 Event e = new Event();
                 e.Kind = EventKind.KeyDown;
                 string k = arg;
+                if (k.StartsWith("alt+")) { e.Alt = true; k = k.Substring(4); }
                 if (k.StartsWith("ctrl+")) { e.Ctrl = true; k = k.Substring(5); }
                 if (k.StartsWith("shift+")) { e.Shift = true; k = k.Substring(6); }
                 if (k == "enter") e.Key = Keys.Return;
@@ -3503,14 +3830,20 @@ namespace FasetStudio.Ide
                 else if (k == "end") e.Key = Keys.End;
                 else if (k == "home") e.Key = Keys.Home;
                 else if (k == "backspace") e.Key = Keys.BackSpace;
+                else if (k == "delete") e.Key = Keys.Delete;
                 else if (k == "f5") e.Key = Keys.F5;
                 else if (k == "f12") e.Key = Keys.F12;
-                else if (k == "space") e.Key = ' ';
+                else if (k == "space")
+                {
+                    e.Key = ' ';
+                    if (!e.Ctrl) e.Char = ' ';  // un espacio escrito (dispara los atributos en XML)
+                }
                 else e.Key = (uint)k[0];
                 HandleKey(e);
             }
             else if (verb == "hover")
             {
+                Draw();  // posiciones de los paneles (una pestaña recién abierta aún no las tiene)
                 List<string> p = Text.Split(arg, " ");
                 EditorView v = Editor;
                 if (v != null && p.Count >= 2)
@@ -3523,7 +3856,23 @@ namespace FasetStudio.Ide
                 }
                 delete p;
             }
-            else if (verb == "click" || verb == "dblclick" || verb == "drag" || verb == "rclick")
+            else if (verb == "wheel")
+            {
+                // wheel X Y líneas
+                List<string> p = Text.Split(arg, " ");
+                if (p.Count >= 3)
+                {
+                    Event e = new Event();
+                    e.Kind = EventKind.Scroll;
+                    e.X = p[0].ToInt();
+                    e.Y = p[1].ToInt();
+                    e.ScrollLines = p[2].ToInt();
+                    e.Ctrl = p.Count >= 4 && p[3] == "ctrl";
+                    HandleEvent(e);
+                }
+                delete p;
+            }
+            else if (verb == "click" || verb == "dblclick" || verb == "drag" || verb == "rclick" || verb == "mdrag")
             {
                 // Ratón simulado: click X Y | dblclick X Y | drag X1 Y1 X2 Y2 (pasos intermedios incluidos)
                 Draw();
@@ -3537,7 +3886,7 @@ namespace FasetStudio.Ide
                     e.Kind = EventKind.MouseMove;
                     e.Button = 0;
                     HandleEvent(e);
-                    e.Button = verb == "rclick" ? 3 : 1;
+                    e.Button = verb == "rclick" ? 3 : (verb == "mdrag" ? 2 : 1);
                     e.Kind = EventKind.MouseDown;
                     HandleEvent(e);
                     if (verb == "dblclick")
@@ -3548,7 +3897,7 @@ namespace FasetStudio.Ide
                         e.Kind = EventKind.MouseDown;
                         HandleEvent(e);
                     }
-                    if (verb == "drag" && p.Count >= 4)
+                    if ((verb == "drag" || verb == "mdrag") && p.Count >= 4)
                     {
                         int x2 = p[2].ToInt(), y2 = p[3].ToInt();
                         for (int s = 1; s <= 8; s++)
@@ -3568,7 +3917,14 @@ namespace FasetStudio.Ide
             }
             else if (verb == "analyze") RunAnalysis();
             else if (verb == "split") ToggleSplit();
-            else if (verb == "panel") panelTab = arg.ToInt();
+            else if (verb == "panel") ShowTool(arg.ToInt() + 1);
+            else if (verb == "dock")
+            {
+                // dock <panel 0..2> <lado 0..2>
+                List<string> p = Text.Split(arg, " ");
+                if (p.Count >= 2) DockTool(p[0].ToInt(), p[1].ToInt());
+                delete p;
+            }
             else if (verb == "quickopen")
             {
                 OpenOverlay(Overlay.QuickOpen);

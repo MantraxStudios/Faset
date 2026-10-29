@@ -1,0 +1,50 @@
+[c.tar.gz]
+[.gz]
+[c.tar]
+[/a/b]
+[/]
+[]
+[]
+[]
+[/]
+HasExtension: ok
+IsRooted: ok
+[/a/b.md]
+[/a/b.fst]
+[/a.d/b.c]
+[x]
+[a/b]
+[a/b]
+[/abs]
+[a/b/c.txt]
+[/a/b/d]
+[../../y]
+[/a]
+[.]
+[a/b]
+[../../d/e.txt]
+[.]
+[b/c]
+[/no/de/verdad]
+GetFullPath relativa: ok
+*.fst: ok
+?: ok
+*a*b: ok
+*.*: ok
+Mayúsculas: ok
+GetTempFileName: ok
+GetRandomFileName: ok
+4
+55357
+[ñ€😀]
+U+FFFD: ok
+Nativo: ok
+  creado: ok
+  modificado: ok
+  borrado: ok
+  limpieza: ok
+Sondeo: ok
+  creado: ok
+  modificado: ok
+  borrado: ok
+  limpieza: ok

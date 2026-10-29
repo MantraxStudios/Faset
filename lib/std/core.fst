@@ -470,7 +470,7 @@ namespace std
     }
 
     // ---------------------------------------------------------------- Environment
-    public memory_unsafe static class Environment
+    public memory_unsafe static partial class Environment
     {
         static extern void faset_exit(int code);
         static extern long faset_ticks_ms();
@@ -486,6 +486,166 @@ namespace std
         public static Platform CurrentPlatform() => (Platform)faset_platform();
 
         // Devuelve una copia (libérala con String.Free) o "" si no existe.
-        public static string GetVariable(string name) => faset_getenv(name);
+        public static string GetVariable(string name)
+        {
+            string value;
+            TryGetVariable(name, out value);
+            return value;
+        }
+
+        // Como GetVariable, pero distingue una variable vacía de una que no existe.
+        // 'value' es siempre una copia (libérala con String.Free).
+        public static bool TryGetVariable(string name, out string value)
+        {
+#if WINDOWS
+            ushort* w = Utf16.Encode(name);
+            uint n = GetEnvironmentVariableW(w, null, 0);
+            if (n == 0)
+            {
+                Memory.Free(w);
+                value = String.Copy("");
+                return GetLastError() != 203;  // ERROR_ENVVAR_NOT_FOUND
+            }
+            ushort* buf = Memory.New<ushort>(n + 1);
+            uint got = GetEnvironmentVariableW(w, buf, n + 1);
+            value = Utf16.Decode(buf, got < n ? (int)got : (int)n - 1);
+            Memory.Free(buf);
+            Memory.Free(w);
+            return true;
+#else
+            string v = faset_getenv(name);
+            if (v.Ptr == null)
+            {
+                value = String.Copy("");
+                return false;
+            }
+            value = v;
+            return true;
+#endif
+        }
+
+#if WINDOWS
+        static extern uint GetEnvironmentVariableW(ushort* name, ushort* buffer, uint size);
+        static extern uint GetLastError();
+#endif
+    }
+
+    // ---------------------------------------------------------------- Utf16
+    //  Conversión UTF-8 <-> UTF-16 (para las API W de Windows, JNI, etc.).
+    //  Las secuencias no válidas se sustituyen por U+FFFD.
+    public memory_unsafe static class Utf16
+    {
+        // Número de unidades UTF-16 que ocupa 's'.
+        public static int Length(string s)
+        {
+            int n = 0, i = 0;
+            while (i < s.Length)
+            {
+                char c = NextCodePoint(s, ref i);
+                n += c >= 0x10000 ? 2 : 1;
+            }
+            return n;
+        }
+
+        // Copia terminada en 0 (libérala con Memory.Free).
+        public static ushort* Encode(string s)
+        {
+            int length;
+            return Encode(s, out length);
+        }
+
+        // Igual, y devuelve en 'length' el número de unidades (sin el 0 final).
+        public static ushort* Encode(string s, out int length)
+        {
+            ushort* w = Memory.New<ushort>(Length(s) + 1);
+            int n = 0, i = 0;
+            while (i < s.Length)
+            {
+                char c = NextCodePoint(s, ref i);
+                if (c >= 0x10000)
+                {
+                    uint v = (uint)c - 0x10000;
+                    w[n++] = (ushort)(0xD800 + (v >> 10));
+                    w[n++] = (ushort)(0xDC00 + (v & 0x3FF));
+                }
+                else w[n++] = (ushort)c;
+            }
+            w[n] = 0;
+            length = n;
+            return w;
+        }
+
+        // Cadena UTF-8 nueva a partir de texto UTF-16 terminado en 0 (libérala con String.Free).
+        public static string Decode(ushort* w)
+        {
+            int n = 0;
+            if (w != null) while (w[n] != 0) n++;
+            return Decode(w, n);
+        }
+
+        // Cadena UTF-8 nueva a partir de 'count' unidades UTF-16 (libérala con String.Free).
+        public static string Decode(ushort* w, int count)
+        {
+            byte* p = (byte*)Memory.Alloc((long)count * 3 + 1);
+            int n = 0;
+            for (int i = 0; i < count; i++)
+            {
+                uint c = w[i];
+                if (c >= 0xD800 && c < 0xDC00 && i + 1 < count && w[i + 1] >= 0xDC00 && w[i + 1] < 0xE000)
+                {
+                    c = 0x10000 + ((c - 0xD800) << 10) + ((uint)w[i + 1] - 0xDC00);
+                    i++;
+                }
+                else if (c >= 0xD800 && c < 0xE000) c = 0xFFFD;
+                if (c < 0x80) p[n++] = (byte)c;
+                else if (c < 0x800)
+                {
+                    p[n++] = (byte)(0xC0 | (c >> 6));
+                    p[n++] = (byte)(0x80 | (c & 0x3F));
+                }
+                else if (c < 0x10000)
+                {
+                    p[n++] = (byte)(0xE0 | (c >> 12));
+                    p[n++] = (byte)(0x80 | ((c >> 6) & 0x3F));
+                    p[n++] = (byte)(0x80 | (c & 0x3F));
+                }
+                else
+                {
+                    p[n++] = (byte)(0xF0 | (c >> 18));
+                    p[n++] = (byte)(0x80 | ((c >> 12) & 0x3F));
+                    p[n++] = (byte)(0x80 | ((c >> 6) & 0x3F));
+                    p[n++] = (byte)(0x80 | (c & 0x3F));
+                }
+            }
+            p[n] = 0;
+            return String.FromBytes(p, n);
+        }
+
+        // Decodifica el punto de código UTF-8 que empieza en 'i' y avanza 'i'.
+        static char NextCodePoint(string s, ref int i)
+        {
+            uint b = s[i];
+            int extra = b < 0x80 ? 0 : (b & 0xE0) == 0xC0 ? 1 : (b & 0xF0) == 0xE0 ? 2 : (b & 0xF8) == 0xF0 ? 3 : -1;
+            if (extra < 0 || i + extra >= s.Length)
+            {
+                i++;
+                return (char)0xFFFD;
+            }
+            uint c = extra == 0 ? b : b & (uint)(0x3F >> extra);
+            for (int k = 1; k <= extra; k++)
+            {
+                uint t = s[i + k];
+                if ((t & 0xC0) != 0x80)
+                {
+                    i += k;
+                    return (char)0xFFFD;
+                }
+                c = (c << 6) | (t & 0x3F);
+            }
+            i += extra + 1;
+            if ((extra == 1 && c < 0x80) || (extra == 2 && c < 0x800) || (extra == 3 && (c < 0x10000 || c > 0x10FFFF)) ||
+                (c >= 0xD800 && c < 0xE000)) return (char)0xFFFD;
+            return (char)c;
+        }
     }
 }

@@ -89,6 +89,19 @@ namespace FasetStudio.Gfx
         ulong atlasMemory;
         ulong atlasView;
         bool atlasReady;
+        // Imagen RGBA de hasta ImageSize x ImageSize (pantalla del dispositivo Android).
+        public const int ImageSize = 1024;
+        ulong imageSampler;
+        ulong imageTex;
+        ulong imageMemory;
+        ulong imageView;
+        bool imageReady;
+        bool imageDirty;
+        ulong imageStaging;
+        ulong imageStagingMemory;
+        byte* imageMapped;
+        public int ImageWidth;
+        public int ImageHeight;
         ulong stagingBuffer;
         ulong stagingMemory;
         void* stagingMapped;
@@ -521,16 +534,21 @@ namespace FasetStudio.Gfx
 
         bool CreatePipeline()
         {
-            VkDescriptorSetLayoutBinding binding = new VkDescriptorSetLayoutBinding();
-            binding.binding = 0;
-            binding.descriptorType = 1;  // COMBINED_IMAGE_SAMPLER
-            binding.descriptorCount = 1;
-            binding.stageFlags = VK.SHADER_STAGE_FRAGMENT;
+            // binding 0: atlas (cobertura); binding 1: imagen RGBA
+            VkDescriptorSetLayoutBinding* bindings = new VkDescriptorSetLayoutBinding[2];
+            for (int i = 0; i < 2; i++)
+            {
+                bindings[i].binding = (uint)i;
+                bindings[i].descriptorType = 1;  // COMBINED_IMAGE_SAMPLER
+                bindings[i].descriptorCount = 1;
+                bindings[i].stageFlags = VK.SHADER_STAGE_FRAGMENT;
+            }
             VkDescriptorSetLayoutCreateInfo dl = new VkDescriptorSetLayoutCreateInfo();
             dl.sType = VK.ST_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            dl.bindingCount = 1;
-            dl.pBindings = &binding;
+            dl.bindingCount = 2;
+            dl.pBindings = bindings;
             vkCreateDescriptorSetLayout(device, &dl, null, &descriptorLayout);
+            Memory.Free(bindings);
 
             VkPushConstantRange push = new VkPushConstantRange();
             push.stageFlags = VK.SHADER_STAGE_VERTEX;
@@ -658,6 +676,13 @@ namespace FasetStudio.Gfx
             if (!CreateBuffer((ulong)MaxVertices * (ulong)sizeof(Vertex), VK.BUFFER_USAGE_VERTEX, out vertexBuffer, out vertexMemory, out vmapped))
                 return Fail("no se pudo crear el búfer de vértices");
             vertices = (Vertex*)vmapped;
+            if (!CreateImage(ImageSize, ImageSize, VK.FORMAT_R8G8B8A8_UNORM, VK.IMAGE_USAGE_SAMPLED | VK.IMAGE_USAGE_TRANSFER_DST, out imageTex, out imageMemory))
+                return Fail("no se pudo crear la textura de imagen");
+            imageView = CreateView(imageTex, VK.FORMAT_R8G8B8A8_UNORM);
+            void* imapped = null;
+            if (!CreateBuffer((ulong)ImageSize * (ulong)ImageSize * 4, VK.BUFFER_USAGE_TRANSFER_SRC, out imageStaging, out imageStagingMemory, out imapped))
+                return Fail("no se pudo crear el búfer de la imagen");
+            imageMapped = (byte*)imapped;
 
             VkSamplerCreateInfo si = new VkSamplerCreateInfo();
             si.sType = VK.ST_SAMPLER_CREATE_INFO;
@@ -668,10 +693,13 @@ namespace FasetStudio.Gfx
             si.addressModeW = 2;
             si.maxLod = 1;
             vkCreateSampler(device, &si, null, &sampler);
+            si.magFilter = 1;  // LINEAR: la imagen se escala suave
+            si.minFilter = 1;
+            vkCreateSampler(device, &si, null, &imageSampler);
 
             VkDescriptorPoolSize ps = new VkDescriptorPoolSize();
             ps.type = 1;
-            ps.descriptorCount = 1;
+            ps.descriptorCount = 2;
             VkDescriptorPoolCreateInfo dp = new VkDescriptorPoolCreateInfo();
             dp.sType = VK.ST_DESCRIPTOR_POOL_CREATE_INFO;
             dp.maxSets = 1;
@@ -695,6 +723,16 @@ namespace FasetStudio.Gfx
             w.descriptorType = 1;
             w.pImageInfo = &info;
             vkUpdateDescriptorSets(device, 1, &w, 0, null);
+            VkDescriptorImageInfo info2 = new VkDescriptorImageInfo();
+            info2.sampler = imageSampler;
+            info2.imageView = imageView;
+            info2.imageLayout = VK.LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            w.dstBinding = 1;
+            w.pImageInfo = &info2;
+            vkUpdateDescriptorSets(device, 1, &w, 0, null);
+            // La imagen empieza vacía (transparente) para que el descriptor sea válido.
+            Memory.Set(imageMapped, 0, (long)ImageSize * ImageSize * 4);
+            imageDirty = true;
 
             VkCommandPoolCreateInfo cp = new VkCommandPoolCreateInfo();
             cp.sType = VK.ST_COMMAND_POOL_CREATE_INFO;
@@ -886,6 +924,23 @@ namespace FasetStudio.Gfx
 
         public void RoundRect(float x, float y, float w, float h, float radius, Color c) { Shape(x, y, w, h, radius, 0, 0, c); }
 
+        // Rectángulo redondeado con degradado lineal (el color se interpola entre vértices).
+        public void GradientRoundRect(float x, float y, float w, float h, float radius, Color from, Color to, bool horizontal)
+        {
+            int before = vertexCount;
+            Shape(x, y, w, h, radius, 0, 0, from);
+            if (vertexCount == before) return;
+            Vertex* v = vertices + vertexCount - 6;
+            for (int i = 0; i < 6; i++)
+            {
+                float t = horizontal ? (v[i].X - x) / w : (v[i].Y - y) / h;
+                v[i].R = from.R + (to.R - from.R) * t;
+                v[i].G = from.G + (to.G - from.G) * t;
+                v[i].B = from.B + (to.B - from.B) * t;
+                v[i].A = from.A + (to.A - from.A) * t;
+            }
+        }
+
         public void RoundBorder(float x, float y, float w, float h, float radius, float thickness, Color c)
         {
             Shape(x, y, w, h, radius, thickness, 0, c);
@@ -921,10 +976,19 @@ namespace FasetStudio.Gfx
                 i++;
                 return (char)b;
             }
-            int extra = b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : 1);
+            int extra = b >= 0xF8 ? 0 : (b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : (b >= 0xC2 ? 1 : 0)));
+            // Secuencia inválida (p. ej. un archivo en Latin-1): el byte vale por sí mismo.
+            bool valid = extra > 0 && i + extra < s.Length;
+            for (int k = 1; valid && k <= extra; k++)
+                if ((s[i + k] & 0xC0) != 0x80) valid = false;
+            if (!valid)
+            {
+                i++;
+                return (char)b;
+            }
             uint cp = (uint)(b & (0x3F >> extra));
             i++;
-            for (int k = 0; k < extra && i < s.Length; k++)
+            for (int k = 0; k < extra; k++)
             {
                 cp = (cp << 6) | (uint)(s[i] & 0x3F);
                 i++;
@@ -1030,6 +1094,71 @@ namespace FasetStudio.Gfx
             atlasReady = true;
         }
 
+        void UploadImage()
+        {
+            VkImageMemoryBarrier b = new VkImageMemoryBarrier();
+            b.sType = VK.ST_IMAGE_MEMORY_BARRIER;
+            b.srcAccessMask = imageReady ? VK.ACCESS_SHADER_READ : 0u;
+            b.dstAccessMask = VK.ACCESS_TRANSFER_WRITE;
+            b.oldLayout = imageReady ? VK.LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK.LAYOUT_UNDEFINED;
+            b.newLayout = VK.LAYOUT_TRANSFER_DST_OPTIMAL;
+            b.srcQueueFamilyIndex = 4294967295u;
+            b.dstQueueFamilyIndex = 4294967295u;
+            b.image = imageTex;
+            b.aspectMask = VK.ASPECT_COLOR;
+            b.levelCount = 1;
+            b.layerCount = 1;
+            vkCmdPipelineBarrier(cmd, imageReady ? VK.STAGE_FRAGMENT_SHADER : VK.STAGE_TOP_OF_PIPE, VK.STAGE_TRANSFER, 0, 0, null, 0, null, 1, &b);
+            VkBufferImageCopy region = new VkBufferImageCopy();
+            region.aspectMask = VK.ASPECT_COLOR;
+            region.layerCount = 1;
+            region.width = (uint)ImageSize;
+            region.height = (uint)ImageSize;
+            region.depth = 1;
+            vkCmdCopyBufferToImage(cmd, imageStaging, imageTex, VK.LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+            b.srcAccessMask = VK.ACCESS_TRANSFER_WRITE;
+            b.dstAccessMask = VK.ACCESS_SHADER_READ;
+            b.oldLayout = VK.LAYOUT_TRANSFER_DST_OPTIMAL;
+            b.newLayout = VK.LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            vkCmdPipelineBarrier(cmd, VK.STAGE_TRANSFER, VK.STAGE_FRAGMENT_SHADER, 0, 0, null, 0, null, 1, &b);
+            imageDirty = false;
+            imageReady = true;
+        }
+
+        // Carga una imagen RGBA (4 bytes por píxel, 'stride' bytes por fila); si es mayor que
+        // ImageSize se reduce conservando la proporción. Se sube a la GPU en el siguiente fotograma.
+        public void SetImage(byte* rgba, int w, int h, int stride)
+        {
+            if (w <= 0 || h <= 0) return;
+            int tw = w, th = h;
+            if (tw > ImageSize || th > ImageSize)
+            {
+                double k = Math.Min((double)ImageSize / w, (double)ImageSize / h);
+                tw = Math.Max(1, (int)(w * k));
+                th = Math.Max(1, (int)(h * k));
+            }
+            for (int y = 0; y < th; y++)
+            {
+                byte* src = rgba + (long)(y * h / th) * stride;
+                uint* dst = (uint*)(imageMapped + (long)y * ImageSize * 4);
+                if (tw == w) Memory.Copy(dst, src, (long)w * 4);
+                else
+                    for (int x = 0; x < tw; x++) dst[x] = *(uint*)(src + (long)(x * w / tw) * 4);
+            }
+            ImageWidth = tw;
+            ImageHeight = th;
+            imageDirty = true;
+        }
+
+        // Dibuja la imagen cargada con SetImage en el rectángulo indicado.
+        public void Image(float x, float y, float w, float h, Color tint)
+        {
+            if (ImageWidth == 0 || vertexCount + 6 > MaxVertices) return;
+            Quad(x, y, x + w, y + h, 0, 0, ImageWidth / (float)ImageSize, ImageHeight / (float)ImageSize, tint);
+            Vertex* v = vertices + vertexCount - 6;
+            for (int i = 0; i < 6; i++) v[i].Radius = -2;
+        }
+
         // Envía el fotograma a la GPU y lo presenta. Devuelve false si no se pudo dibujar.
         public bool EndFrame()
         {
@@ -1053,6 +1182,7 @@ namespace FasetStudio.Gfx
             bi.flags = 1;
             vkBeginCommandBuffer(cmd, &bi);
             if (Atlas.Dirty) UploadAtlas();
+            if (imageDirty) UploadImage();
 
             VkRenderPassBeginInfo rb = new VkRenderPassBeginInfo();
             rb.sType = VK.ST_RENDER_PASS_BEGIN_INFO;

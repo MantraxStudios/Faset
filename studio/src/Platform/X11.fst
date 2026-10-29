@@ -152,9 +152,14 @@ namespace FasetStudio.Platform
 
         public void SetTitle(string title)
         {
-            string t = title.ToCString();
-            XStoreName(display, window, t.Ptr);
-            String.Free(t);
+            // Todas las propiedades del título en UTF-8: XStoreName las marca como Latin-1 y el
+            // "—" de "Proyecto — FasetStudio" se veía como letras raras en la barra de título.
+            ulong netName = XInternAtom(display, "_NET_WM_NAME".Ptr, 0);
+            ulong netIcon = XInternAtom(display, "_NET_WM_ICON_NAME".Ptr, 0);
+            XChangeProperty(display, window, netName, atomUtf8, 8, 0, title.Ptr, title.Length);
+            XChangeProperty(display, window, netIcon, atomUtf8, 8, 0, title.Ptr, title.Length);
+            XChangeProperty(display, window, 39, atomUtf8, 8, 0, title.Ptr, title.Length);   // WM_NAME
+            XChangeProperty(display, window, 37, atomUtf8, 8, 0, title.Ptr, title.Length);   // WM_ICON_NAME
             XFlush(display);
         }
 

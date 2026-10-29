@@ -85,6 +85,25 @@ struct Gen {
         return true;
     }
 
+    // "#RGB", "#RRGGBB" o "#RRGGBBAA" -> literal 0xAARRGGBB.
+    std::string colorValue(const XmlNode& n, const std::string& key, const std::string& v) {
+        std::string hex = v.size() > 1 && v[0] == '#' ? v.substr(1) : "";
+        bool good = hex.size() == 3 || hex.size() == 6 || hex.size() == 8;
+        for (char c : hex)
+            if (!std::isxdigit((unsigned char)c)) good = false;
+        if (!good) {
+            error(n.line, "el atributo '" + key + "' debe ser un color '#RRGGBB' o '#RRGGBBAA' (es '" + v + "')");
+            return "0";
+        }
+        if (hex.size() == 3) hex = std::string{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]};
+        std::string argb = hex.size() == 8 ? hex.substr(6, 2) + hex.substr(0, 6) : "ff" + hex;
+        return "0x" + lower(argb);
+    }
+
+    static bool isColorKey(const std::string& k) {
+        return k == "Background" || k == "Background2" || k == "Foreground" || k == "BorderColor" || k == "Accent";
+    }
+
     std::string boolValue(const XmlNode& n, const std::string& key, const std::string& v) {
         std::string l = lower(v);
         if (l == "true" || l == "false") return l;
@@ -109,9 +128,11 @@ struct Gen {
     }
 
     void widget(const XmlNode& n, const std::string& parent) {
-        static const std::vector<std::string> kinds = {"Panel", "Label", "Button", "TextBox", "CheckBox", "Slider", "ProgressBar"};
+        static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
+                                                       "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
         if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
-            error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar)");
+            error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
+                          "ProgressBar, RadioButton, ComboBox, ListBox)");
             return;
         }
         std::string name;
@@ -133,12 +154,15 @@ struct Gen {
         std::string code = name + " = " + parent + ".Add(Widget.Create(WidgetKind." + n.name + ", " + quote(name) + ", " + x +
                            ", " + y + ", " + w + ", " + h + "));";
         std::string events;
+        std::string post;  // SelectedIndex va después de Items, esté donde esté en el XML
         int clickId = 0, changedId = 0;
         for (const std::string& key : n.attrOrder) {
             const std::string& v = n.attrs.at(key);
             std::string num;
             if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") continue;
-            if (key == "Text" || key == "Placeholder") code += " " + name + "." + key + " = " + quote(v) + ";";
+            if (key == "Text" || key == "Placeholder" || key == "Group") code += " " + name + "." + key + " = " + quote(v) + ";";
+            else if (key == "Items") code += " " + name + ".SetItems(" + quote(v) + ");";
+            else if (key == "SelectedIndex") intAttr(n, key, num), post += " " + name + ".SelectedIndex = " + num + ";";
             else if (key == "FontSize") intAttr(n, key, num), code += " " + name + ".FontSize = " + num + ";";
             else if (key == "CornerRadius") intAttr(n, key, num), code += " " + name + ".CornerRadius = " + num + ";";
             else if (key == "Bold" || key == "Checked" || key == "Enabled" || key == "Visible")
@@ -146,6 +170,10 @@ struct Gen {
             else if (key == "Value" || key == "Min" || key == "Max") numAttr(n, key, num), code += " " + name + "." + key + " = " + num + ";";
             else if (key == "Style")
                 code += " " + name + ".Style = " + enumValue(n, key, v, "WidgetStyle", {"Default", "Primary", "Subtle", "Danger"}) + ";";
+            else if (isColorKey(key)) code += " " + name + "." + key + " = " + colorValue(n, key, v) + ";";
+            else if (key == "GradientDirection")
+                code += " " + name + ".GradientHorizontal = " +
+                        (enumValue(n, key, v, "TextAlign", {"Vertical", "Horizontal"}) == "TextAlign.Horizontal" ? "true" : "false") + ";";
             else if (key == "TextAlign")
                 code += " " + name + ".TextAlign = " + enumValue(n, key, v, "TextAlign", {"Left", "Center", "Right"}) + ";";
             else if (key == "Anchor") {
@@ -171,6 +199,7 @@ struct Gen {
                 error(n.line, "atributo desconocido '" + key + "' en <" + n.name + ">");
             }
         }
+        code += post;
         // El enlace de eventos pasa 'this' como void*: es código memory_unsafe generado (confiable).
         if (clickId || changedId)
             code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " +
@@ -217,6 +246,10 @@ std::string generateUiSource(const std::string& xml, int fileId) {
         if (key == "Theme") code += " Window.Theme = " + g.enumValue(root, key, v, "UiTheme", {"Dark", "Light"}) + ";";
         else if (key == "Resizable") code += " Window.Resizable = " + g.boolValue(root, key, v) + ";";
         else if (key == "MinWidth" || key == "MinHeight") g.intAttr(root, key, num), code += " Window." + key + " = " + num + ";";
+        else if (key == "Background" || key == "Background2") code += " Window." + key + " = " + g.colorValue(root, key, v) + ";";
+        else if (key == "GradientDirection")
+            code += " Window.GradientHorizontal = " +
+                    std::string(g.enumValue(root, key, v, "X", {"Vertical", "Horizontal"}) == "X.Horizontal" ? "true" : "false") + ";";
         else g.error(root.line, "atributo desconocido '" + key + "' en <Window>");
     }
     g.emit(root.line, " if (ev == 0) { " + code + " }");

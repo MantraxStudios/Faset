@@ -1,7 +1,9 @@
 #version 450
-// Texto: el atlas guarda la cobertura del glifo en el canal R.
+// Texto: el atlas guarda la cobertura del glifo en el canal R. Imágenes: radio -2.
 // Formas: rectángulo redondeado por función de distancia (bordes suaves, contornos y sombras).
 layout(set = 0, binding = 0) uniform sampler2D atlas;
+// Imagen RGBA (p. ej. la pantalla del dispositivo Android), con filtrado lineal.
+layout(set = 0, binding = 1) uniform sampler2D image;
 
 layout(location = 0) in vec2 inUV;
 layout(location = 1) in vec4 inColor;
@@ -15,6 +17,11 @@ float roundBox(vec2 p, vec2 halfSize, float r) {
 }
 
 void main() {
+    if (inParams.x < -1.5) {
+        vec4 t = texture(image, inUV);
+        outColor = vec4(t.rgb * inColor.rgb, t.a * inColor.a);
+        return;
+    }
     float alpha;
     if (inParams.x < 0.0) {
         alpha = texture(atlas, inUV).r;

@@ -13,8 +13,14 @@
 //      Application.Run(new MainWindow().Window);
 //
 //  Todo se dibuja por software (formas con antialiasing y texto con la fuente del
-//  sistema) y se copia a la ventana: X11 + FreeType en Linux, Win32 + GDI en Windows.
-//  Bibliotecas: el compilador enlaza X11 y freetype (Linux) o user32 y gdi32 (Windows).
+//  sistema) y se copia a la ventana: X11 + FreeType en Linux, Win32 + GDI en Windows,
+//  ANativeWindow + stb_truetype en Android (pantalla completa, toques = ratón).
+//  Bibliotecas: el compilador enlaza X11 y freetype (Linux), user32 y gdi32 (Windows)
+//  o android y log (Android).
+//
+//  Densidad: las coordenadas de los controles son lógicas; el lienzo multiplica por
+//  'Scale' (1 en escritorio, dpi/160 en Android) y las fuentes se rasterizan al tamaño
+//  real, así el texto se ve nítido en pantallas de alta densidad.
 // =============================================================================
 using std.collections;
 using std.text;
@@ -23,7 +29,7 @@ using std.os;
 
 namespace std.ui
 {
-    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar }
+    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox }
     public enum WidgetStyle { Default, Primary, Subtle, Danger }
     public enum TextAlign { Left, Center, Right }
     public enum UiTheme { Dark, Light }
@@ -37,6 +43,39 @@ namespace std.ui
     {
         public static uint Of(uint rgb) => 0xff000000 | rgb;
         public static uint Alpha(uint rgb, float a) => ((uint)(Math.Clamp((double)a, 0.0, 1.0) * 255) << 24) | (rgb & 0xffffff);
+
+        // Mezcla lineal de dos colores ARGB (t = 0..1).
+        public static uint Mix(uint a, uint b, float t)
+        {
+            if (t <= 0) return a;
+            if (t >= 1) return b;
+            uint r = 0;
+            for (int shift = 0; shift < 32; shift += 8)
+            {
+                float ca = (float)((a >> shift) & 0xff), cb = (float)((b >> shift) & 0xff);
+                r |= ((uint)(ca + (cb - ca) * t + 0.5f) & 0xff) << shift;
+            }
+            return r;
+        }
+
+        // "#RGB", "#RRGGBB" o "#RRGGBBAA" -> 0xAARRGGBB; 0 si no es válido.
+        public static uint Parse(string s)
+        {
+            if (s.Length == 0 || s[0] != '#') return 0;
+            uint v = 0;
+            int digits = s.Length - 1;
+            if (digits != 3 && digits != 6 && digits != 8) return 0;
+            for (int i = 1; i < s.Length; i++)
+            {
+                byte c = s[i];
+                uint d = c >= '0' && c <= '9' ? (uint)(c - '0') : (c >= 'a' && c <= 'f' ? (uint)(c - 'a' + 10) : (c >= 'A' && c <= 'F' ? (uint)(c - 'A' + 10) : 99));
+                if (d == 99) return 0;
+                v = (v << 4) | d;
+            }
+            if (digits == 3) return 0xff000000 | ((v >> 8) * 0x110000) | (((v >> 4) & 15) * 0x1100) | ((v & 15) * 0x11);
+            if (digits == 6) return 0xff000000 | v;
+            return (v >> 8) | ((v & 0xff) << 24);
+        }
     }
 
     public class Palette
@@ -109,8 +148,9 @@ namespace std.ui
     public memory_unsafe class Canvas
     {
         public uint* Pixels;
-        public int Width;
+        public int Width;         // en píxeles físicos
         public int Height;
+        public float Scale = 1;   // píxeles físicos por unidad lógica (las primitivas usan unidades lógicas)
         int clipX0;
         int clipY0;
         int clipX1;
@@ -141,6 +181,14 @@ namespace std.ui
         // Limita el dibujo a la intersección del recorte actual con el rectángulo.
         public void Clip(int x, int y, int w, int h)
         {
+            if (Scale != 1)
+            {
+                int x0 = (int)Math.Floor(x * Scale + 0.5f), y0 = (int)Math.Floor(y * Scale + 0.5f);
+                w = (int)Math.Floor((x + w) * Scale + 0.5f) - x0;
+                h = (int)Math.Floor((y + h) * Scale + 0.5f) - y0;
+                x = x0;
+                y = y0;
+            }
             clipX0 = Math.Max(clipX0, x);
             clipY0 = Math.Max(clipY0, y);
             clipX1 = Math.Min(clipX1, x + w);
@@ -189,6 +237,14 @@ namespace std.ui
 
         public void FillRect(int x, int y, int w, int h, uint color)
         {
+            if (Scale != 1)
+            {
+                int sx = (int)Math.Floor(x * Scale + 0.5f), sy = (int)Math.Floor(y * Scale + 0.5f);
+                w = (int)Math.Floor((x + w) * Scale + 0.5f) - sx;
+                h = (int)Math.Floor((y + h) * Scale + 0.5f) - sy;
+                x = sx;
+                y = sy;
+            }
             int x0 = Math.Max(x, clipX0), y0 = Math.Max(y, clipY0);
             int x1 = Math.Min(x + w, clipX1), y1 = Math.Min(y + h, clipY1);
             for (int py = y0; py < y1; py++)
@@ -197,17 +253,33 @@ namespace std.ui
 
         public void FillRoundRect(float x, float y, float w, float h, float r, uint color)
         {
-            StrokeOrFill(x, y, w, h, r, -1, color);
+            StrokeOrFill(x, y, w, h, r, -1, color, color, false);
+        }
+
+        // Degradado lineal de 'from' a 'to' (de arriba abajo, o de izquierda a derecha).
+        public void FillRoundRectGradient(float x, float y, float w, float h, float r, uint from, uint to, bool horizontal)
+        {
+            StrokeOrFill(x, y, w, h, r, -1, from, to, horizontal);
         }
 
         public void StrokeRoundRect(float x, float y, float w, float h, float r, float thickness, uint color)
         {
-            StrokeOrFill(x, y, w, h, r, thickness, color);
+            StrokeOrFill(x, y, w, h, r, thickness, color, color, false);
         }
 
-        void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color)
+        void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color, uint color2, bool horizontal)
         {
+            bool gradient = color2 != color;
             if (w <= 0 || h <= 0) return;
+            if (Scale != 1)
+            {
+                x *= Scale;
+                y *= Scale;
+                w *= Scale;
+                h *= Scale;
+                r *= Scale;
+                if (thickness > 0) thickness *= Scale;
+            }
             float maxR = (w < h ? w : h) / 2;
             if (r > maxR) r = maxR;
             if (r < 0) r = 0;
@@ -222,7 +294,9 @@ namespace std.ui
                     float d = RoundRectDistance(px + 0.5f, fy, cx, cy, hw, hh, r);
                     float c = Cov(d);
                     if (thickness > 0) c = c - Cov(d + thickness);
-                    if (c > 0) Blend(px, py, color, (int)(c * 255 + 0.5f));
+                    if (c <= 0) continue;
+                    uint col = gradient ? Rgb.Mix(color, color2, horizontal ? (px + 0.5f - x) / w : (fy - y) / h) : color;
+                    Blend(px, py, col, (int)(c * 255 + 0.5f));
                 }
             }
         }
@@ -235,6 +309,14 @@ namespace std.ui
         // Segmento con extremos redondeados.
         public void Line(float ax, float ay, float bx, float by, float thickness, uint color)
         {
+            if (Scale != 1)
+            {
+                ax *= Scale;
+                ay *= Scale;
+                bx *= Scale;
+                by *= Scale;
+                thickness *= Scale;
+            }
             float half = thickness / 2;
             int x0 = Math.Max((int)Math.Floor((ax < bx ? ax : bx) - half - 1), clipX0);
             int y0 = Math.Max((int)Math.Floor((ay < by ? ay : by) - half - 1), clipY0);
@@ -259,12 +341,12 @@ namespace std.ui
         public float Text(UiFont font, string s, float x, float baseline, uint color)
         {
             int i = 0;
-            int by = (int)Math.Floor(baseline + 0.5f);
+            int by = (int)Math.Floor(baseline * Scale + 0.5f);  // los glifos ya están a tamaño físico
             while (i < s.Length)
             {
                 char ch = UiFont.NextChar(s, ref i);
                 GlyphImage g = font.Get(ch);
-                int gx = (int)Math.Floor(x + 0.5f) + g.Left;
+                int gx = (int)Math.Floor(x * Scale + 0.5f) + g.Left;
                 int gy = by - g.Top;
                 for (int row = 0; row < g.Height; row++)
                 {
@@ -322,21 +404,27 @@ namespace std.ui
         static List<UiFont> cache = new List<UiFont>();
 
         Dictionary<char, GlyphImage> glyphs = new Dictionary<char, GlyphImage>();
-        void* handle;  // FT_Face (Linux) o HDC con la fuente seleccionada (Windows)
+        void* handle;  // FT_Face (Linux), HDC con la fuente seleccionada (Windows) o fuente de stb_truetype (Android)
+        float scale = 1;
         public int Size;
         public bool Bold;
         public float Ascent;
         public float Descent;
         public float LineHeight => Ascent + Descent;
 
+        // Densidad de la pantalla: los glifos se rasterizan a Size * Scale píxeles y las
+        // medidas (Advance, Ascent...) se dan en unidades lógicas. La fija la ventana.
+        public static float Scale = 1;
+
         public static UiFont Get(int size, bool bold)
         {
             if (size < 6) size = 6;
             for (int i = 0; i < cache.Count; i++)
-                if (cache[i].Size == size && cache[i].Bold == bold) return cache[i];
+                if (cache[i].Size == size && cache[i].Bold == bold && cache[i].scale == Scale) return cache[i];
             auto f = new UiFont();
             f.Size = size;
             f.Bold = bold;
+            f.scale = Scale;
             f.Open();
             cache.Add(f);
             return f;
@@ -373,10 +461,20 @@ namespace std.ui
                 i++;
                 return (char)b;
             }
-            int extra = b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : 1);
+            int extra = b >= 0xF8 ? 0 : (b >= 0xF0 ? 3 : (b >= 0xE0 ? 2 : (b >= 0xC2 ? 1 : 0)));
+            // Secuencia incompleta o inválida (p. ej. texto Latin-1): el byte vale por sí mismo,
+            // sin tragarse los siguientes (si no, "é" + dos letras se vería como un ideograma).
+            bool valid = extra > 0 && i + extra < s.Length;
+            for (int k = 1; valid && k <= extra; k++)
+                if ((s[i + k] & 0xC0) != 0x80) valid = false;
+            if (!valid)
+            {
+                i++;
+                return (char)b;
+            }
             uint cp = (uint)(b & (0x3F >> extra));
             i++;
-            for (int k = 0; k < extra && i < s.Length; k++)
+            for (int k = 0; k < extra; k++)
             {
                 cp = (cp << 6) | (uint)(s[i] & 0x3F);
                 i++;
@@ -437,6 +535,54 @@ namespace std.ui
             }
             Memory.Free(gm);
             Memory.Free(mat);
+            return g;
+        }
+#elif ANDROID
+        static string FindFile(string candidates)
+        {
+            auto parts = Text.Split(candidates, ";");
+            string found = "";
+            for (int i = 0; i < parts.Count; i++)
+                if (File.Exists(parts[i]))
+                {
+                    found = parts[i];
+                    break;
+                }
+            delete parts;
+            return found;
+        }
+
+        void Open()
+        {
+            // Roboto es variable desde Android 12: si no hay una negrita estática se engrosa la regular.
+            string bold = Bold ? FindFile("/system/fonts/Roboto-Bold.ttf;/system/fonts/RobotoStatic-Bold.ttf;/system/fonts/NotoSans-Bold.ttf;/system/fonts/DroidSans-Bold.ttf") : "";
+            string path = bold.Length > 0 ? bold
+                : FindFile("/system/fonts/Roboto-Regular.ttf;/system/fonts/RobotoStatic-Regular.ttf;/system/fonts/NotoSans-Regular.ttf;/system/fonts/DroidSans.ttf");
+            Ascent = Size * 0.8f;
+            Descent = Size * 0.25f;
+            if (path.Length == 0) return;
+            string p = path.ToCString();
+            float asc = 0, desc = 0;
+            handle = AndroidNative.faset_ttf_open(p.Ptr, Size * scale, Bold && bold.Length == 0 ? 1 : 0, &asc, &desc);
+            String.Free(p);
+            if (handle == null) return;
+            Ascent = asc / scale;
+            Descent = desc / scale;
+        }
+
+        GlyphImage Rasterize(char c)
+        {
+            GlyphImage g = new GlyphImage();
+            byte* cov = null;
+            int w = 0, h = 0, left = 0, top = 0;
+            float adv = 0;
+            AndroidNative.faset_ttf_glyph(handle, (uint)c, &cov, &w, &h, &left, &top, &adv);
+            g.Coverage = cov;
+            g.Width = w;
+            g.Height = h;
+            g.Left = left;
+            g.Top = top;
+            g.Advance = adv / scale;
             return g;
         }
 #else
@@ -523,6 +669,14 @@ namespace std.ui
         public int CornerRadius = -1;  // -1 = según el tipo
         public void* Tag;
 
+        // Colores 0xAARRGGBB; 0 = el del tema. Con Background2 el fondo es un degradado.
+        public uint Background;
+        public uint Background2;
+        public bool GradientHorizontal;
+        public uint Foreground;
+        public uint BorderColor;
+        public uint Accent;          // casilla marcada, deslizador y barra de progreso
+
         int x;
         int y;
         int width;
@@ -551,6 +705,12 @@ namespace std.ui
         int clickEvent;
         int changedEvent;
 
+        // Listas (ComboBox, ListBox) y grupo de los RadioButton.
+        List<string> items = new List<string>();
+        int selectedIndex = -1;
+        int firstVisible;   // ListBox: primer elemento visible
+        string group = String.Copy("");
+
         public static Widget Create(WidgetKind kind, string name, int x, int y, int w, int h)
         {
             auto wd = new Widget();
@@ -573,6 +733,9 @@ namespace std.ui
             String.Free(Name);
             String.Free(text);
             String.Free(placeholder);
+            for (int i = 0; i < items.Count; i++) String.Free(items[i]);
+            delete items;
+            String.Free(group);
         }
 
         public int X { get => x; set { x = value; Invalidate(); } }
@@ -627,6 +790,132 @@ namespace std.ui
         // Fracción 0..1 del valor entre Min y Max.
         public float Fraction => max > min ? (value - min) / (max - min) : 0;
 
+        // RadioButton: al marcar uno se desmarcan los del mismo contenedor con el mismo grupo.
+        public string Group
+        {
+            get => group;
+            set
+            {
+                string old = group;
+                group = String.Copy(value);
+                String.Free(old);
+            }
+        }
+
+        // ------------------------------------------------------------- listas (ComboBox, ListBox)
+
+        public int ItemCount => items.Count;
+
+        // Elemento i (vista) o "" si no existe.
+        public string Item(int i) => i >= 0 && i < items.Count ? items[i] : "";
+
+        // Elemento seleccionado (vista) o "".
+        public string SelectedItem => Item(selectedIndex);
+
+        public void AddItem(string s)
+        {
+            items.Add(String.Copy(s));
+            Invalidate();
+        }
+
+        public void RemoveItemAt(int i)
+        {
+            if (i < 0 || i >= items.Count) return;
+            String.Free(items[i]);
+            items.RemoveAt(i);
+            if (i == selectedIndex) selectedIndex = -1;
+            else if (i < selectedIndex) selectedIndex--;
+            ClampScroll();
+            Invalidate();
+        }
+
+        public void ClearItems()
+        {
+            for (int i = 0; i < items.Count; i++) String.Free(items[i]);
+            items.Clear();
+            selectedIndex = -1;
+            firstVisible = 0;
+            Invalidate();
+        }
+
+        // Reemplaza los elementos por los de una lista separada por ';' ("Rojo;Verde;Azul").
+        public void SetItems(string list)
+        {
+            ClearItems();
+            if (list.Length == 0) return;
+            auto parts = std.text.Text.Split(list, ";");
+            for (int i = 0; i < parts.Count; i++) items.Add(String.Copy(parts[i].Trim()));
+            delete parts;
+        }
+
+        // Índice del elemento seleccionado (-1 = ninguno). Asignarlo no lanza 'Changed'.
+        public int SelectedIndex
+        {
+            get => selectedIndex;
+            set
+            {
+                int v = value < -1 ? -1 : value;
+                if (v >= items.Count) v = items.Count - 1;
+                selectedIndex = v;
+                EnsureVisible();
+                Invalidate();
+            }
+        }
+
+        // Selecciona por interacción del usuario (lanza 'Changed' si cambia).
+        internal void Choose(int i)
+        {
+            if (i < 0 || i >= items.Count || i == selectedIndex) return;
+            selectedIndex = i;
+            EnsureVisible();
+            Invalidate();
+            RaiseChanged();
+        }
+
+        internal int RowHeight => (int)UiFont.Get(FontSize, Bold).LineHeight + 14;
+
+        internal int VisibleRows
+        {
+            get
+            {
+                int h = ActualHeight > 0 ? ActualHeight : height;
+                int n = (h - 8) / RowHeight;
+                return n < 1 ? 1 : n;
+            }
+        }
+
+        internal void ClampScroll()
+        {
+            int most = items.Count - VisibleRows;
+            if (firstVisible > most) firstVisible = most;
+            if (firstVisible < 0) firstVisible = 0;
+        }
+
+        internal void ScrollList(int rows)
+        {
+            firstVisible += rows;
+            ClampScroll();
+            Invalidate();
+        }
+
+        void EnsureVisible()
+        {
+            if (Kind != WidgetKind.ListBox || selectedIndex < 0) return;
+            if (selectedIndex < firstVisible) firstVisible = selectedIndex;
+            int rows = VisibleRows;
+            if (selectedIndex >= firstVisible + rows) firstVisible = selectedIndex - rows + 1;
+            ClampScroll();
+        }
+
+        // ListBox: fila bajo la coordenada y de la ventana, o -1.
+        internal int RowAt(int py)
+        {
+            int local = py - ScreenY - 4;
+            if (local < 0) return -1;
+            int i = firstVisible + local / RowHeight;
+            return i < items.Count ? i : -1;
+        }
+
         public Widget Add(Widget child)
         {
             child.Parent = this;
@@ -657,7 +946,9 @@ namespace std.ui
         }
 
         public bool Focusable => Visible && Enabled && (Kind == WidgetKind.TextBox || Kind == WidgetKind.Button ||
-                                                       Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider);
+                                                       Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider ||
+                                                       Kind == WidgetKind.RadioButton || Kind == WidgetKind.ComboBox ||
+                                                       Kind == WidgetKind.ListBox);
 
         internal void RaiseClick()
         {
@@ -717,22 +1008,24 @@ namespace std.ui
             bool pressed = w.Pressed == this && hot;
             bool focused = w.Focused == this;
             UiFont font = UiFont.Get(FontSize, Bold || (Kind == WidgetKind.Button && Style == WidgetStyle.Primary));
-            uint textColor = Enabled ? p.Text : p.TextMuted;
+            uint textColor = Foreground != 0 ? Foreground : (Enabled ? p.Text : p.TextMuted);
+            uint accent = Accent != 0 ? Accent : p.Primary;
             switch (Kind)
             {
                 case WidgetKind.Panel:
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : 10;
-                    if (Style != WidgetStyle.Subtle)
-                    {
-                        c.FillRoundRect(fx, fy, fw, fh, r, p.Surface);
-                        c.StrokeRoundRect(fx, fy, fw, fh, r, 1, p.Border);
-                    }
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+                    else if (Style != WidgetStyle.Subtle) c.FillRoundRect(fx, fy, fw, fh, r, p.Surface);
+                    if (BorderColor != 0 || (Style != WidgetStyle.Subtle && Background == 0))
+                        c.StrokeRoundRect(fx, fy, fw, fh, r, 1, BorderColor != 0 ? BorderColor : p.Border);
                     break;
                 }
                 case WidgetKind.Label:
                 {
-                    uint color = Style == WidgetStyle.Subtle ? p.TextMuted : (Style == WidgetStyle.Danger ? p.Danger : textColor);
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, CornerRadius >= 0 ? CornerRadius : 0, 0);
+                    if (BorderColor != 0) c.StrokeRoundRect(fx, fy, fw, fh, CornerRadius >= 0 ? CornerRadius : 0, 1, BorderColor);
+                    uint color = Foreground != 0 ? Foreground : Style == WidgetStyle.Subtle ? p.TextMuted : (Style == WidgetStyle.Danger ? p.Danger : textColor);
                     DrawLabelText(c, font, text, fx, fy, fw, fh, color);
                     break;
                 }
@@ -764,7 +1057,11 @@ namespace std.ui
                     }
                     if (pressed) bg = Style == WidgetStyle.Default || Style == WidgetStyle.Subtle ? p.SurfacePressed : Darken(bg);
                     if (!Enabled && Style != WidgetStyle.Default) bg = Rgb.Alpha(bg, 0.45f);
-                    if (bg != 0) c.FillRoundRect(fx, fy, fw, fh, r, bg);
+                    if (Foreground != 0) fg = Foreground;
+                    if (Background != 0 && Style == WidgetStyle.Default) border = 0;
+                    if (BorderColor != 0) border = BorderColor;
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, pressed ? -1 : (hot ? 1 : 0));
+                    else if (bg != 0) c.FillRoundRect(fx, fy, fw, fh, r, bg);
                     if (border != 0) c.StrokeRoundRect(fx, fy, fw, fh, r, 1, border);
                     if (focused && w.FocusVisible) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
                     float tw = font.Measure(text);
@@ -781,7 +1078,7 @@ namespace std.ui
                     float by = fy + (fh - box) / 2;
                     if (isChecked)
                     {
-                        c.FillRoundRect(fx, by, box, box, 5, Enabled ? p.Primary : p.TextMuted);
+                        c.FillRoundRect(fx, by, box, box, 5, Enabled ? accent : p.TextMuted);
                         c.Line(fx + 4.5f, by + 9.5f, fx + 7.8f, by + 12.8f, 2, p.PrimaryText);
                         c.Line(fx + 7.8f, by + 12.8f, fx + 13.5f, by + 5.8f, 2, p.PrimaryText);
                     }
@@ -800,23 +1097,80 @@ namespace std.ui
                     float thumb = 8;
                     float left = fx + thumb, right = fx + fw - thumb;
                     float pos = left + (right - left) * Fraction;
-                    c.FillRoundRect(fx, cy - 2, fw, 4, 2, p.Track);
-                    c.FillRoundRect(fx, cy - 2, pos - fx, 4, 2, Enabled ? p.Primary : p.TextMuted);
+                    c.FillRoundRect(fx, cy - 2, fw, 4, 2, Background != 0 ? Background : p.Track);
+                    c.FillRoundRect(fx, cy - 2, pos - fx, 4, 2, Enabled ? accent : p.TextMuted);
                     if (focused && w.FocusVisible) c.FillCircle(pos, cy, thumb + 4, p.Focus);
-                    c.FillCircle(pos, cy, thumb + (hot || pressed ? 1 : 0), Enabled ? p.Primary : p.TextMuted);
+                    c.FillCircle(pos, cy, thumb + (hot || pressed ? 1 : 0), Enabled ? accent : p.TextMuted);
                     c.FillCircle(pos, cy, 3, p.Background);
                     break;
                 }
+                case WidgetKind.RadioButton:
+                {
+                    float box = 18;
+                    float cx = fx + box / 2, cy = fy + fh / 2;
+                    if (isChecked)
+                    {
+                        c.FillCircle(cx, cy, box / 2, Enabled ? accent : p.TextMuted);
+                        c.FillCircle(cx, cy, 3.5f, p.PrimaryText);
+                    }
+                    else
+                    {
+                        c.FillCircle(cx, cy, box / 2, hot ? p.TextMuted : p.BorderStrong);
+                        c.FillCircle(cx, cy, box / 2 - 1.2f, p.Input);
+                    }
+                    if (focused && w.FocusVisible) c.StrokeRoundRect(fx - 3, cy - box / 2 - 3, box + 6, box + 6, box / 2 + 3, 2, p.Focus);
+                    DrawLabelText(c, font, text, fx + box + 10, fy, fw - box - 10, fh, textColor);
+                    break;
+                }
+                case WidgetKind.ComboBox:
+                {
+                    float r = CornerRadius >= 0 ? CornerRadius : 8;
+                    bool open = w.DropDown == this;
+                    if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, hot || open ? 1 : 0);
+                    else c.FillRoundRect(fx, fy, fw, fh, r, hot || open ? p.SurfaceHover : p.Surface);
+                    c.StrokeRoundRect(fx, fy, fw, fh, r, open ? 1.5f : 1, open ? p.Focus : (BorderColor != 0 ? BorderColor : (hot ? p.BorderStrong : p.Border)));
+                    if (focused && w.FocusVisible && !open) c.StrokeRoundRect(fx - 3, fy - 3, fw + 6, fh + 6, r + 3, 2, p.Focus);
+                    float baseline = fy + (fh - font.LineHeight) / 2 + font.Ascent;
+                    c.Clip(ScreenX + 1, ScreenY + 1, ActualWidth - 34, ActualHeight - 2);
+                    if (selectedIndex >= 0) c.Text(font, items[selectedIndex], fx + 12, baseline, textColor);
+                    else c.Text(font, placeholder, fx + 12, baseline, p.TextMuted);
+                    c.ResetClip();
+                    float ax = fx + fw - 18, ay = fy + fh / 2;
+                    c.Line(ax - 4.5f, ay - 2, ax, ay + 2.5f, 1.6f, p.TextMuted);
+                    c.Line(ax, ay + 2.5f, ax + 4.5f, ay - 2, 1.6f, p.TextMuted);
+                    break;
+                }
+                case WidgetKind.ListBox:
+                    DrawListBox(c, p, w, font, fx, fy, fw, fh, focused, textColor);
+                    break;
                 case WidgetKind.ProgressBar:
                 {
                     float r = CornerRadius >= 0 ? CornerRadius : fh / 2;
-                    c.FillRoundRect(fx, fy, fw, fh, r, p.Track);
+                    c.FillRoundRect(fx, fy, fw, fh, r, Background != 0 ? Background : p.Track);
                     float filled = fw * Fraction;
-                    if (filled > 0) c.FillRoundRect(fx, fy, filled < fh ? fh : filled, fh, r, p.Primary);
+                    if (filled > 0) c.FillRoundRect(fx, fy, filled < fh ? fh : filled, fh, r, accent);
                     break;
                 }
             }
             for (int i = 0; i < Children.Count; i++) Children[i].Draw(c, p, w);
+        }
+
+        // Fondo propio (sólido o degradado); shade: 1 más claro (encima), -1 más oscuro (pulsado).
+        void FillBackground(Canvas c, float x, float y, float w, float h, float r, int shade)
+        {
+            uint a = Background, b = Background2 != 0 ? Background2 : Background;
+            if (shade > 0)
+            {
+                a = Rgb.Mix(a, 0xffffffff, 0.08f) & 0xffffff | (a & 0xff000000);
+                b = Rgb.Mix(b, 0xffffffff, 0.08f) & 0xffffff | (b & 0xff000000);
+            }
+            else if (shade < 0)
+            {
+                a = Darken(a);
+                b = Darken(b);
+            }
+            if (a == b) c.FillRoundRect(x, y, w, h, r, a);
+            else c.FillRoundRectGradient(x, y, w, h, r, a, b, GradientHorizontal);
         }
 
         static uint Darken(uint c)
@@ -846,11 +1200,42 @@ namespace std.ui
             }
         }
 
+        void DrawListBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, uint textColor)
+        {
+            float r = CornerRadius >= 0 ? CornerRadius : 8;
+            if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+            else c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
+            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (BorderColor != 0 ? BorderColor : p.Border));
+            ClampScroll();
+            int rh = RowHeight, rows = VisibleRows;
+            bool bar = items.Count > rows;
+            float inner = fw - 8 - (bar ? 8 : 0);
+            int hotRow = w.Hot == this ? RowAt(w.MouseY) : -1;
+            c.Clip(ScreenX + 1, ScreenY + 1, ActualWidth - 2, ActualHeight - 2);
+            for (int i = firstVisible; i < items.Count && i <= firstVisible + rows; i++)
+            {
+                float ry = fy + 4 + (i - firstVisible) * rh;
+                if (i == selectedIndex) c.FillRoundRect(fx + 4, ry, inner, rh, 6, focused ? p.Selection : p.SurfacePressed);
+                else if (i == hotRow) c.FillRoundRect(fx + 4, ry, inner, rh, 6, p.SurfaceHover);
+                c.Text(font, items[i], fx + 14, ry + (rh - font.LineHeight) / 2 + font.Ascent, textColor);
+            }
+            if (bar)
+            {
+                float track = fh - 8;
+                float th = track * rows / items.Count;
+                if (th < 24) th = 24;
+                float ty = fy + 4 + (track - th) * firstVisible / (items.Count - rows);
+                c.FillRoundRect(fx + fw - 9, ty, 4, th, 2, p.BorderStrong);
+            }
+            c.ResetClip();
+        }
+
         void DrawTextBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, bool hot)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
-            c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
-            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (hot ? p.BorderStrong : p.Border));
+            if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
+            else c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
+            c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (BorderColor != 0 ? BorderColor : (hot ? p.BorderStrong : p.Border)));
             float pad = 10;
             float inner = fw - pad * 2;
             float caretX = font.MeasureBytes(text, caret);
@@ -868,7 +1253,7 @@ namespace std.ui
                 float ex = fx + pad - scroll + font.MeasureBytes(text, b);
                 c.FillRoundRect(sx, baseline - font.Ascent - 2, ex - sx, font.LineHeight + 4, 3, p.Selection);
             }
-            c.Text(font, text, fx + pad - scroll, baseline, Enabled ? p.Text : p.TextMuted);
+            c.Text(font, text, fx + pad - scroll, baseline, Foreground != 0 ? Foreground : (Enabled ? p.Text : p.TextMuted));
             if (focused && w.CaretOn)
                 c.FillRect((int)(fx + pad - scroll + caretX), (int)(baseline - font.Ascent - 1), 2 - 1 + 1, (int)(font.LineHeight + 2), p.Text);
             c.ResetClip();
@@ -1026,6 +1411,9 @@ namespace std.ui
         public bool Resizable = true;
         public int MinWidth = 200;
         public int MinHeight = 120;
+        public uint Background;          // 0 = el del tema
+        public uint Background2;         // con valor: degradado de Background a Background2
+        public bool GradientHorizontal;
 
         string title;
         int designWidth;
@@ -1045,6 +1433,14 @@ namespace std.ui
         public Widget Focused;
         public bool FocusVisible;
         public bool CaretOn = true;
+        public int MouseX = -1;
+        public int MouseY = -1;
+
+        // ComboBox con la lista abierta (se dibuja encima de todo).
+        public Widget DropDown;
+        int dropHot = -1;
+        int dropScroll;
+        const int DropMaxRows = 8;
 
         public Window(string title, int width, int height)
         {
@@ -1130,15 +1526,113 @@ namespace std.ui
         public void Render()
         {
             if (palette == null) palette = Palette.For(Theme);
-            canvas.Resize(width, height);
+            float scale = native != null ? native.Scale : 1;
+            canvas.Scale = scale;
+            UiFont.Scale = scale;
+            canvas.Resize((int)Math.Ceiling(width * scale), (int)Math.Ceiling(height * scale));
             canvas.ResetClip();
-            canvas.Clear(palette.Background);
+            canvas.Clear(Background != 0 ? Background : palette.Background);
+            if (Background != 0 && Background2 != 0)
+                canvas.FillRoundRectGradient(0, 0, width, height, 0, Background, Background2, GradientHorizontal);
             for (int i = 0; i < Children.Count; i++)
             {
                 Children[i].Layout(0, 0, width - designWidth, height - designHeight);
                 Children[i].Draw(canvas, palette, this);
             }
+            if (DropDown != null) DrawDropDown();
             dirty = false;
+        }
+
+        // ------------------------------------------------------------- lista desplegable
+
+        void OpenDropDown(Widget combo)
+        {
+            DropDown = combo;
+            dropHot = combo.SelectedIndex;
+            dropScroll = 0;
+            if (combo.SelectedIndex >= DropMaxRows) dropScroll = combo.SelectedIndex - DropMaxRows + 1;
+            dirty = true;
+        }
+
+        void CloseDropDown()
+        {
+            DropDown = null;
+            dropHot = -1;
+            dirty = true;
+        }
+
+        int DropRows => DropDown.ItemCount < DropMaxRows ? DropDown.ItemCount : DropMaxRows;
+
+        // Rectángulo de la lista: debajo del ComboBox, o encima si no cabe.
+        void DropRect(out int x, out int y, out int w, out int h)
+        {
+            Widget d = DropDown;
+            int rows = DropRows < 1 ? 1 : DropRows;
+            h = rows * d.RowHeight + 8;
+            w = d.ActualWidth;
+            x = d.ScreenX;
+            y = d.ScreenY + d.ActualHeight + 4;
+            if (y + h > height && d.ScreenY - h - 4 >= 0) y = d.ScreenY - h - 4;
+        }
+
+        bool InDropDown(int px, int py)
+        {
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            return px >= x && py >= y && px < x + w && py < y + h;
+        }
+
+        int DropIndexAt(int px, int py)
+        {
+            if (!InDropDown(px, py)) return -1;
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            int local = py - y - 4;
+            if (local < 0) return -1;
+            int i = dropScroll + local / DropDown.RowHeight;
+            return i < DropDown.ItemCount ? i : -1;
+        }
+
+        void ScrollDropDown(int rows)
+        {
+            int most = DropDown.ItemCount - DropRows;
+            dropScroll += rows;
+            if (dropScroll > most) dropScroll = most;
+            if (dropScroll < 0) dropScroll = 0;
+            dirty = true;
+        }
+
+        void DrawDropDown()
+        {
+            Widget d = DropDown;
+            int x = 0, y = 0, w = 0, h = 0;
+            DropRect(out x, out y, out w, out h);
+            UiFont font = UiFont.Get(d.FontSize, d.Bold);
+            int rh = d.RowHeight;
+            canvas.FillRoundRect(x - 2, y, w + 4, h + 6, 11, Rgb.Alpha(0x000000, 0.18f));
+            canvas.FillRoundRect(x, y, w, h, 8, palette.Surface);
+            canvas.StrokeRoundRect(x, y, w, h, 8, 1, palette.BorderStrong);
+            canvas.Clip(x + 1, y + 1, w - 2, h - 2);
+            for (int i = dropScroll; i < d.ItemCount && i < dropScroll + DropMaxRows; i++)
+            {
+                float ry = y + 4 + (i - dropScroll) * rh;
+                if (i == dropHot) canvas.FillRoundRect(x + 4, ry, w - 8, rh, 6, palette.SurfaceHover);
+                canvas.Text(font, d.Item(i), x + 14, ry + (rh - font.LineHeight) / 2 + font.Ascent, palette.Text);
+                if (i == d.SelectedIndex)
+                {
+                    float cx = x + w - 22, cy = ry + rh / 2.0f;
+                    canvas.Line(cx - 4, cy, cx - 1, cy + 3, 1.6f, palette.Text);
+                    canvas.Line(cx - 1, cy + 3, cx + 5, cy - 3.5f, 1.6f, palette.Text);
+                }
+            }
+            if (d.ItemCount > DropMaxRows)
+            {
+                float track = h - 8;
+                float th = track * DropMaxRows / d.ItemCount;
+                float ty = y + 4 + (track - th) * dropScroll / (d.ItemCount - DropMaxRows);
+                canvas.FillRoundRect(x + w - 9, ty, 4, th, 2, palette.BorderStrong);
+            }
+            canvas.ResetClip();
         }
 
         public Canvas Canvas => canvas;
@@ -1196,6 +1690,21 @@ namespace std.ui
                 w.Checked = !w.Checked;
                 w.RaiseChanged();
             }
+            else if (w.Kind == WidgetKind.RadioButton && !w.Checked)
+            {
+                List<Widget> siblings = w.Parent != null ? w.Parent.Children : Children;
+                for (int i = 0; i < siblings.Count; i++)
+                {
+                    Widget s = siblings[i];
+                    if (s != w && s.Kind == WidgetKind.RadioButton && s.Checked && s.Group == w.Group)
+                    {
+                        s.Checked = false;
+                        s.RaiseChanged();
+                    }
+                }
+                w.Checked = true;
+                w.RaiseChanged();
+            }
             w.RaiseClick();
         }
 
@@ -1216,6 +1725,17 @@ namespace std.ui
                     break;
                 case UiEventKind.MouseMove:
                 {
+                    MouseX = e.X;
+                    MouseY = e.Y;
+                    if (DropDown != null)
+                    {
+                        int over = DropIndexAt(e.X, e.Y);
+                        if (over >= 0 && over != dropHot)
+                        {
+                            dropHot = over;
+                            dirty = true;
+                        }
+                    }
                     if (Pressed != null)
                     {
                         if (Pressed.Kind == WidgetKind.Slider) SetSlider(Pressed, e.X);
@@ -1227,13 +1747,15 @@ namespace std.ui
                     }
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
-                    if (hit != Hot)
+                    if (hit != Hot || (hit != null && hit.Kind == WidgetKind.ListBox))
                     {
                         Hot = hit;
                         dirty = true;
                     }
                     if (native != null)
-                        native.SetCursor(hit == null ? CursorShape.Arrow : (hit.Kind == WidgetKind.TextBox ? CursorShape.Text : CursorShape.Hand));
+                        native.SetCursor(DropDown != null && InDropDown(e.X, e.Y) ? CursorShape.Hand
+                                         : hit == null || hit.Kind == WidgetKind.ListBox ? CursorShape.Arrow
+                                         : (hit.Kind == WidgetKind.TextBox ? CursorShape.Text : CursorShape.Hand));
                     break;
                 }
                 case UiEventKind.MouseLeave:
@@ -1246,13 +1768,31 @@ namespace std.ui
                 case UiEventKind.MouseDown:
                 {
                     if (e.Button != 1) break;
+                    MouseX = e.X;
+                    MouseY = e.Y;
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
+                    if (DropDown != null)
+                    {
+                        // Con la lista abierta, el clic elige un elemento o la cierra.
+                        Widget combo = DropDown;
+                        bool inside = InDropDown(e.X, e.Y);
+                        int idx = DropIndexAt(e.X, e.Y);
+                        CloseDropDown();
+                        if (inside)
+                        {
+                            if (idx >= 0) combo.Choose(idx);
+                            break;
+                        }
+                        if (hit == combo) break;
+                    }
                     Pressed = hit;
                     FocusVisible = false;
                     if (hit == null || hit.Focusable) Focus(hit);
                     if (hit != null && hit.Kind == WidgetKind.TextBox) hit.TextMouseDown(e.X, e.Shift);
                     if (hit != null && hit.Kind == WidgetKind.Slider) SetSlider(hit, e.X);
+                    if (hit != null && hit.Kind == WidgetKind.ComboBox) OpenDropDown(hit);
+                    if (hit != null && hit.Kind == WidgetKind.ListBox) hit.Choose(hit.RowAt(e.Y));
                     dirty = true;
                     break;
                 }
@@ -1262,7 +1802,24 @@ namespace std.ui
                     Widget p = Pressed;
                     Pressed = null;
                     dirty = true;
-                    if (p != null && p.Contains(e.X, e.Y) && (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox)) Activate(p);
+                    if (p != null && p.Contains(e.X, e.Y) &&
+                        (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox || p.Kind == WidgetKind.RadioButton)) Activate(p);
+                    break;
+                }
+                case UiEventKind.Scroll:
+                {
+                    if (DropDown != null)
+                    {
+                        if (InDropDown(MouseX, MouseY)) ScrollDropDown(e.Delta);
+                        else CloseDropDown();
+                        break;
+                    }
+                    Widget over = HitTest(MouseX, MouseY);
+                    if (over != null && over.Kind == WidgetKind.ListBox)
+                    {
+                        over.ScrollList(e.Delta);
+                        dirty = true;
+                    }
                     break;
                 }
                 case UiEventKind.KeyDown:
@@ -1281,6 +1838,7 @@ namespace std.ui
                     break;
                 case UiEventKind.FocusLost:
                     Pressed = null;
+                    if (DropDown != null) CloseDropDown();
                     dirty = true;
                     break;
             }
@@ -1289,6 +1847,28 @@ namespace std.ui
         void HandleKey(UiEvent e)
         {
             Widget f = Focused;
+            if (DropDown != null)
+            {
+                Widget d = DropDown;
+                dirty = true;
+                if (e.Key == KeyCode.Down || e.Key == KeyCode.Up)
+                {
+                    int next = dropHot + (e.Key == KeyCode.Down ? 1 : -1);
+                    if (next >= 0 && next < d.ItemCount) dropHot = next;
+                    if (dropHot < dropScroll) dropScroll = dropHot;
+                    if (dropHot >= dropScroll + DropMaxRows) dropScroll = dropHot - DropMaxRows + 1;
+                    return;
+                }
+                if (e.Key == KeyCode.Enter || e.Key == KeyCode.Space)
+                {
+                    int chosen = dropHot;
+                    CloseDropDown();
+                    d.Choose(chosen);
+                    return;
+                }
+                CloseDropDown();
+                if (e.Key == KeyCode.Escape) return;
+            }
             if (e.Key == KeyCode.Tab)
             {
                 MoveFocus(e.Shift);
@@ -1318,10 +1898,27 @@ namespace std.ui
                 else f.TextKey(e);
                 return;
             }
-            if ((e.Key == KeyCode.Enter || e.Key == KeyCode.Space) && (f.Kind == WidgetKind.Button || f.Kind == WidgetKind.CheckBox))
+            if ((e.Key == KeyCode.Enter || e.Key == KeyCode.Space) &&
+                (f.Kind == WidgetKind.Button || f.Kind == WidgetKind.CheckBox || f.Kind == WidgetKind.RadioButton))
             {
                 FocusVisible = true;
                 Activate(f);
+            }
+            else if (f.Kind == WidgetKind.ComboBox && (e.Key == KeyCode.Enter || e.Key == KeyCode.Space))
+            {
+                FocusVisible = true;
+                OpenDropDown(f);
+            }
+            else if ((f.Kind == WidgetKind.ComboBox || f.Kind == WidgetKind.ListBox) && (e.Key == KeyCode.Up || e.Key == KeyCode.Down))
+            {
+                FocusVisible = true;
+                int next = f.SelectedIndex + (e.Key == KeyCode.Down ? 1 : -1);
+                f.Choose(next < 0 ? 0 : next);
+            }
+            else if (f.Kind == WidgetKind.ListBox && (e.Key == KeyCode.Home || e.Key == KeyCode.End))
+            {
+                FocusVisible = true;
+                f.Choose(e.Key == KeyCode.Home ? 0 : f.ItemCount - 1);
             }
             else if (f.Kind == WidgetKind.Slider && (e.Key == KeyCode.Left || e.Key == KeyCode.Right || e.Key == KeyCode.Down || e.Key == KeyCode.Up))
             {
@@ -1335,7 +1932,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- pruebas
 
-        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | type texto | key tab | resize W H".
+        // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | move X Y | scroll N | type texto | key tab | resize W H".
         void RunScript(string script)
         {
             auto cmds = Text.Split(script, "|");
@@ -1379,7 +1976,21 @@ namespace std.ui
                     e.Kind = UiEventKind.KeyDown;
                     e.Key = k == "tab" ? KeyCode.Tab : k == "enter" ? KeyCode.Enter : k == "backspace" ? KeyCode.Backspace
                           : k == "left" ? KeyCode.Left : k == "right" ? KeyCode.Right : k == "home" ? KeyCode.Home
-                          : k == "end" ? KeyCode.End : k == "space" ? KeyCode.Space : k == "delete" ? KeyCode.Delete : KeyCode.Other;
+                          : k == "end" ? KeyCode.End : k == "space" ? KeyCode.Space : k == "delete" ? KeyCode.Delete
+                          : k == "up" ? KeyCode.Up : k == "down" ? KeyCode.Down : k == "escape" ? KeyCode.Escape : KeyCode.Other;
+                    HandleEvent(e);
+                }
+                else if (op == "move" && parts.Count >= 3)
+                {
+                    e.Kind = UiEventKind.MouseMove;
+                    e.X = Convert.ToInt32(parts[1]);
+                    e.Y = Convert.ToInt32(parts[2]);
+                    HandleEvent(e);
+                }
+                else if (op == "scroll" && parts.Count >= 2)
+                {
+                    e.Kind = UiEventKind.Scroll;
+                    e.Delta = Convert.ToInt32(parts[1]);
                     HandleEvent(e);
                 }
                 else if (op == "resize" && parts.Count >= 3)
@@ -1416,7 +2027,7 @@ namespace std.ui
             String.Free(shot);
 
             native = new NativeWindow();
-            if (!native.Create(title, width, height, Resizable, MinWidth, MinHeight, Palette.For(Theme).Background))
+            if (!native.Create(title, width, height, Resizable, MinWidth, MinHeight, Background != 0 ? Background : Palette.For(Theme).Background))
             {
                 Console.ErrorLine("std.ui: no se pudo abrir la ventana (¿hay un entorno gráfico?)");
                 return 1;
@@ -1429,6 +2040,7 @@ namespace std.ui
                 while (open && native.Poll(out e)) HandleEvent(e);
                 if (!open) break;
                 bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
+                native.SetTextInput(editing);  // teclado en pantalla (Android)
                 if (editing)
                 {
                     long now = Environment.TickCount64();
@@ -1556,6 +2168,7 @@ namespace std.ui
     {
         static NativeWindow current;
 
+        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
         void* hwnd;
         byte* msg;
         byte* bmi;
@@ -1626,6 +2239,8 @@ namespace std.ui
             Win32.SetWindowTextW(hwnd, t);
             Memory.Free(t);
         }
+
+        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
 
         public void SetCursor(CursorShape shape)
         {
@@ -1856,6 +2471,146 @@ namespace std.ui
             return r;
         }
     }
+#elif ANDROID
+    // ======================================================================= Android (NativeActivity)
+
+    // Capa nativa en lib/android/faset_android.c (se compila dentro del APK).
+    static class AndroidNative
+    {
+        public static extern int faset_android_wait_window();
+        public static extern float faset_android_density();
+        public static extern int faset_android_next(int* ev);
+        public static extern void faset_android_wait(int ms);
+        public static extern void faset_android_present(uint* pixels, int w, int h);
+        public static extern void faset_android_text_input(int on);
+        public static extern int faset_android_clipboard_set(byte* text, int len);
+        public static extern int faset_android_clipboard_get(byte** text);
+        public static extern void* faset_ttf_open(byte* path, float px, int fakeBold, float* ascent, float* descent);
+        public static extern int faset_ttf_glyph(void* font, uint cp, byte** coverage, int* w, int* h, int* left, int* top, float* advance);
+    }
+
+    // La "ventana" es la actividad a pantalla completa: los toques llegan como ratón
+    // (botón 1) y el tamaño lógico es el de la pantalla dividido por la densidad.
+    memory_unsafe class NativeWindow
+    {
+        public float Scale = 1;
+        int* ev;
+        bool textInput;
+        string clipboard = String.Copy("");
+
+        ~NativeWindow()
+        {
+            Memory.Free(ev);
+            String.Free(clipboard);
+        }
+
+        public bool Create(string title, int w, int h, bool resizable, int minW, int minH, uint background)
+        {
+            if (AndroidNative.faset_android_wait_window() == 0) return false;
+            Scale = AndroidNative.faset_android_density();
+            if (Scale <= 0) Scale = 1;
+            ev = (int*)Memory.AllocZeroed(32);
+            return true;
+        }
+
+        public void Destroy() { SetTextInput(false); }
+
+        public void SetTitle(string title) { }
+
+        public void SetCursor(CursorShape shape) { }
+
+        public void SetTextInput(bool on)
+        {
+            if (on == textInput) return;
+            textInput = on;
+            AndroidNative.faset_android_text_input(on ? 1 : 0);
+        }
+
+        public void Present(Canvas c) { AndroidNative.faset_android_present(c.Pixels, c.Width, c.Height); }
+
+        public void Wait(int ms)
+        {
+            if (ms < 0) ms = 0;
+            AndroidNative.faset_android_wait(ms);
+        }
+
+        int Logical(int px) => (int)(px / Scale);
+
+        // Códigos AKEYCODE_* de android/keycodes.h.
+        static KeyCode MapKey(int code)
+        {
+            switch (code)
+            {
+                case 67: return KeyCode.Backspace;   // DEL
+                case 112: return KeyCode.Delete;     // FORWARD_DEL
+                case 21: return KeyCode.Left;
+                case 22: return KeyCode.Right;
+                case 19: return KeyCode.Up;
+                case 20: return KeyCode.Down;
+                case 122: return KeyCode.Home;       // MOVE_HOME
+                case 123: return KeyCode.End;        // MOVE_END
+                case 66: return KeyCode.Enter;
+                case 160: return KeyCode.Enter;      // NUMPAD_ENTER
+                case 61: return KeyCode.Tab;
+                case 111: return KeyCode.Escape;
+                case 62: return KeyCode.Space;
+                case 29: return KeyCode.A;
+                case 31: return KeyCode.C;
+                case 50: return KeyCode.V;
+                case 52: return KeyCode.X;
+                default: return KeyCode.Other;
+            }
+        }
+
+        public bool Poll(out UiEvent e)
+        {
+            e = new UiEvent();
+            while (AndroidNative.faset_android_next(ev) != 0)
+            {
+                int kind = ev[0];
+                e.X = Logical(ev[1]);
+                e.Y = Logical(ev[2]);
+                int meta = ev[5];
+                e.Shift = (meta & 1) != 0;          // AMETA_SHIFT_ON
+                e.Ctrl = (meta & 0x1000) != 0;      // AMETA_CTRL_ON
+                switch (kind)
+                {
+                    case 1:
+                        e.Kind = UiEventKind.Resize;
+                        e.Width = Logical(ev[6]);
+                        e.Height = Logical(ev[7]);
+                        return true;
+                    case 2: e.Kind = UiEventKind.Expose; return true;
+                    case 3: e.Kind = UiEventKind.Close; return true;
+                    case 4: e.Kind = UiEventKind.MouseMove; return true;
+                    case 5: e.Kind = UiEventKind.MouseDown; e.Button = 1; return true;
+                    case 6: e.Kind = UiEventKind.MouseUp; e.Button = 1; return true;
+                    case 7: e.Kind = UiEventKind.MouseLeave; return true;
+                    case 8: e.Kind = UiEventKind.KeyDown; e.Key = MapKey(ev[3]); return true;
+                    case 9: e.Kind = UiEventKind.Char; e.Char = (char)ev[4]; return true;
+                    case 10: e.Kind = UiEventKind.FocusLost; return true;
+                }
+            }
+            return false;
+        }
+
+        public void SetClipboard(string text)
+        {
+            String.Free(clipboard);
+            clipboard = String.Copy(text);
+            AndroidNative.faset_android_clipboard_set(text.Ptr, text.Length);
+        }
+
+        public string GetClipboard()
+        {
+            byte* data = null;
+            int n = AndroidNative.faset_android_clipboard_get(&data);
+            if (n < 0) return String.Copy(clipboard);
+            string r = String.Copy(String.FromBytes(data, n));
+            Memory.Free(data);
+            return r;
+        }
+    }
 #else
     // ======================================================================= X11 + FreeType
 
@@ -1921,6 +2676,7 @@ namespace std.ui
 
     memory_unsafe class NativeWindow
     {
+        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
         void* display;
         ulong window;
         int screen;
@@ -1989,13 +2745,18 @@ namespace std.ui
 
         public void SetTitle(string title)
         {
-            string t = title.ToCString();
-            X11.XStoreName(display, window, t.Ptr);
+            // WM_NAME / WM_ICON_NAME (39 / 37) también en UTF-8: XStoreName los marca como Latin-1
+            // y algunas barras de tareas mostraban los acentos rotos.
             ulong netName = X11.XInternAtom(display, "_NET_WM_NAME".Ptr, 0);
+            ulong netIcon = X11.XInternAtom(display, "_NET_WM_ICON_NAME".Ptr, 0);
             X11.XChangeProperty(display, window, netName, atomUtf8, 8, 0, title.Ptr, title.Length);
-            String.Free(t);
+            X11.XChangeProperty(display, window, netIcon, atomUtf8, 8, 0, title.Ptr, title.Length);
+            X11.XChangeProperty(display, window, 39, atomUtf8, 8, 0, title.Ptr, title.Length);
+            X11.XChangeProperty(display, window, 37, atomUtf8, 8, 0, title.Ptr, title.Length);
             X11.XFlush(display);
         }
+
+        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
 
         public void SetCursor(CursorShape shape)
         {

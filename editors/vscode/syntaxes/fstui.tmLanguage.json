@@ -1,0 +1,5 @@
+{
+  "name": "Interfaz Faset",
+  "scopeName": "text.xml.fstui",
+  "patterns": [{ "include": "text.xml" }]
+}

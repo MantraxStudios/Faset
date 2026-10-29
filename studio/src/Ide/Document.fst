@@ -38,6 +38,7 @@ namespace FasetStudio.Ide
         public string Label;   // copia propia
         public string Detail;  // copia propia
         public int Kind;       // CompletionItemKind de LSP
+        public string Insert;  // texto a insertar ("" = Label); "$0" marca el cursor (copia propia)
     }
 
     public class Document
@@ -81,6 +82,9 @@ namespace FasetStudio.Ide
         }
 
         public bool Modified => Buffer.Modified;
+
+        // .fstproj y .fstui: el IntelliSense es el del esquema XML (elementos, atributos y valores).
+        public bool IsXml => FullPath.EndsWith(".fstproj") || FullPath.EndsWith(".fstui");
 
         public void ClearDiagnostics()
         {
@@ -129,6 +133,7 @@ namespace FasetStudio.Ide
         string resultPath;
         public bool Available;
         public long LastDurationMs;
+        public bool LastFailed;   // el último análisis no devolvió resultado (el compilador falló)
 
         public string Compiler => faset;
 
@@ -219,11 +224,13 @@ namespace FasetStudio.Ide
             String.Free(qreq);
             String.Free(qres);
             LastDurationMs = Time.TickMs() - start;
+            LastFailed = true;
             if (code != 0) return null;
             string text;
             if (!File.TryReadAllText(resultPath, out text)) return null;
             JsonValue result = Json.Parse(text);
             String.Free(text);
+            LastFailed = result == null;
             return result;
         }
 
@@ -286,6 +293,7 @@ namespace FasetStudio.Ide
                 item.Label = String.Copy(c.GetString("label"));
                 item.Detail = String.Copy(c.GetString("detail"));
                 item.Kind = c.GetInt("kind");
+                item.Insert = String.Copy(c.GetString("insert"));
                 items.Add(item);
             }
             return items;
@@ -297,6 +305,7 @@ namespace FasetStudio.Ide
             {
                 String.Free(items[i].Label);
                 String.Free(items[i].Detail);
+                String.Free(items[i].Insert);
             }
             delete items;
         }

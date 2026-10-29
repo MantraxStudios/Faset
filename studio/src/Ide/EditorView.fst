@@ -596,6 +596,111 @@ namespace FasetStudio.Ide
             SetCursor(new TextPos(Cursor.Line + 1, Cursor.Col), false);
         }
 
+        // Alt+↑/↓: sube o baja las líneas seleccionadas, intercambiándolas con la vecina.
+        public void MoveLines(int dir)
+        {
+            int first = 0, last = 0;
+            SelectedLines(out first, out last);
+            if ((dir < 0 && first == 0) || (dir > 0 && last + 1 >= Buf.LineCount)) return;
+            int other = dir < 0 ? first - 1 : last + 1;
+            int a = dir < 0 ? other : first, b = dir < 0 ? last : other;
+            string moving = Buf.GetText(new TextPos(first, 0), new TextPos(last, Buf.LineLength(last)));
+            string neighbour = String.Copy(Buf.LineText(other));
+            string joined = dir < 0 ? String.Concat(moving, "\n", neighbour) : String.Concat(neighbour, "\n", moving);
+            TextPos cursor = Cursor, anchor = Anchor;
+            Buf.NewGroup();
+            Buf.Delete(new TextPos(a, 0), new TextPos(b, Buf.LineLength(b)), Cursor);
+            Buf.Insert(new TextPos(a, 0), joined, Cursor);
+            Buf.NewGroup();
+            Anchor = Buf.Clamp(new TextPos(anchor.Line + dir, anchor.Col));
+            Cursor = Buf.Clamp(new TextPos(cursor.Line + dir, cursor.Col));
+            preferredCol = -1;
+            String.Free(moving);
+            String.Free(neighbour);
+            String.Free(joined);
+        }
+
+        // Alt+Shift+↑/↓: duplica las líneas seleccionadas encima o debajo.
+        public void DuplicateLines(int dir)
+        {
+            int first = 0, last = 0;
+            SelectedLines(out first, out last);
+            string text = Buf.GetText(new TextPos(first, 0), new TextPos(last, Buf.LineLength(last)));
+            string copy = String.Concat("\n", text);
+            Buf.NewGroup();
+            Buf.Insert(new TextPos(last, Buf.LineLength(last)), copy, Cursor);
+            Buf.NewGroup();
+            if (dir > 0)
+            {
+                int n = last - first + 1;
+                Anchor = new TextPos(Anchor.Line + n, Anchor.Col);
+                Cursor = new TextPos(Cursor.Line + n, Cursor.Col);
+            }
+            String.Free(text);
+            String.Free(copy);
+        }
+
+        bool IsBlankLine(int line) => Buf.LineText(line).Trim().Length == 0;
+
+        // Ctrl+↑/↓: salta al bloque anterior o siguiente (la próxima línea en blanco).
+        void ParagraphJump(int dir, bool extend)
+        {
+            int n = Buf.LineCount, l = Cursor.Line + dir;
+            while (l > 0 && l < n - 1 && IsBlankLine(l)) l += dir;
+            while (l > 0 && l < n - 1 && !IsBlankLine(l)) l += dir;
+            l = Math.Clamp(l, 0, n - 1);
+            SetCursor(new TextPos(l, dir > 0 && l == n - 1 ? Buf.LineLength(l) : 0), extend);
+        }
+
+        // Ctrl+Retroceso / Ctrl+Supr: borra la palabra anterior o siguiente.
+        void DeleteWord(int dir)
+        {
+            if (HasSelection)
+            {
+                Backspace();
+                return;
+            }
+            TextPos target = dir < 0 ? WordLeft(Cursor) : WordRight(Cursor);
+            if (target == Cursor) return;
+            Buf.NewGroup();
+            Buf.Delete(TextPos.Min(target, Cursor), TextPos.Max(target, Cursor), Cursor);
+            Buf.NewGroup();
+            SetCursor(TextPos.Min(target, Cursor), false);
+        }
+
+        // Ctrl+L: selecciona la línea; repetido, amplía la selección a la siguiente.
+        void SelectLine()
+        {
+            int line = Cursor.Line;
+            bool extending = HasSelection && Cursor.Col == 0 && Cursor.Line > Anchor.Line;
+            if (!extending) Anchor = new TextPos(line, 0);
+            else line = Cursor.Line;
+            Cursor = (extending ? line : line + 1) < Buf.LineCount ? new TextPos(extending ? line + 1 : line + 1, 0)
+                                                                    : new TextPos(Buf.LineCount - 1, Buf.LineLength(Buf.LineCount - 1));
+            if (Cursor.Line >= Buf.LineCount) Cursor = Buf.End;
+            preferredCol = -1;
+        }
+
+        // Ctrl+Intro: línea nueva debajo; Ctrl+Shift+Intro: encima (con la sangría de la actual).
+        void InsertLine(bool above)
+        {
+            int line = Cursor.Line;
+            if (!above)
+            {
+                SetCursor(new TextPos(line, Buf.LineLength(line)), false);
+                NewLine();
+                return;
+            }
+            string indent = String.Copy(LineIndent(line));
+            string text = String.Concat(indent, "\n");
+            Buf.NewGroup();
+            Buf.Insert(new TextPos(line, 0), text, Cursor);
+            Buf.NewGroup();
+            SetCursor(new TextPos(line, indent.Length), false);
+            String.Free(text);
+            String.Free(indent);
+        }
+
         public void DeleteLine()
         {
             Buf.NewGroup();
@@ -691,7 +796,19 @@ namespace FasetStudio.Ide
             bool shift = e.Shift;
             uint k = e.Key;
             CaretTime = Environment.TickCount64();
-            if (k == Keys.Left)
+            if (e.Alt && (k == Keys.Up || k == Keys.Down))
+            {
+                if (shift) DuplicateLines(k == Keys.Up ? -1 : 1);
+                else MoveLines(k == Keys.Up ? -1 : 1);
+                EnsureCursorVisible(r);
+                return true;
+            }
+            if (e.Ctrl && (k == Keys.Up || k == Keys.Down)) ParagraphJump(k == Keys.Up ? -1 : 1, shift);
+            else if (e.Ctrl && k == Keys.BackSpace) DeleteWord(-1);
+            else if (e.Ctrl && k == Keys.Delete) DeleteWord(1);
+            else if (e.Ctrl && (k == Keys.Return || k == Keys.KeypadEnter)) InsertLine(shift);
+            else if (e.Ctrl && k == 'l') SelectLine();
+            else if (k == Keys.Left)
             {
                 if (HasSelection && !shift) SetCursor(SelStart, false);
                 else if (e.Ctrl) SetCursor(WordLeft(Cursor), shift);
