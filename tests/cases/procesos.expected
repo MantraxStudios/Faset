@@ -1,0 +1,29 @@
+3
+a b|$(echo inyectado)|; rm -rf /||
+err
+Start cat: ok
+WriteInput: ok
+WaitForExit: ok
+Salida completa: ok
+Timeout: ok
+Kill: ok
+Tras Kill: ok
+No existe: ok
+WorkingDirectory: ok
+SetVariable: ok
+valor 1
+|x=y|home
+GetVariables: ok
+UnsetVariable: ok
+Ya no existe: ok
+Sistema: ok
+CPUs y pid: ok
+Linux
+4
+uno
+dos
+ChildProcess.Start: ok
+hijo
+0
+simple "con espacio" "comilla\"dentro" barra\final\ ""
+'it'\''s $HOME'

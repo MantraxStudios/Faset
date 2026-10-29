@@ -385,7 +385,8 @@ static int build(Options& o, std::string& outPath) {
     std::string stem = fs::path(outPath).stem().string();
     fs::path mainC = tmp / (stem + ".c");
     fs::path rtC = tmp / "faset_rt.c";
-    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, kRuntimeSource)) {
+    std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource;
+    if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, runtime)) {
         diag.fatal("no se pudo escribir en " + tmp.string());
         return 1;
     }

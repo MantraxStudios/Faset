@@ -533,10 +533,40 @@ typedef struct { int used; int fd; int exited; int code;
 } faset_proc;
 static faset_proc faset_procs[FASET_MAX_PROCS];
 
+/* La tabla se comparte entre hilos: un cerrojo de giro protege la reserva de huecos,
+   la espera (waitpid solo puede recoger al hijo una vez), kill y close. */
+static int faset_procs_lock;
+static void faset_procs_acquire(void) {
+    while (__atomic_exchange_n(&faset_procs_lock, 1, __ATOMIC_ACQUIRE)) {
+#if defined(_WIN32)
+        Sleep(0);
+#else
+        struct timespec ts = { 0, 1000 };
+        nanosleep(&ts, NULL);
+#endif
+    }
+}
+static void faset_procs_release(void) { __atomic_store_n(&faset_procs_lock, 0, __ATOMIC_RELEASE); }
+
+static int64_t faset_proc_start_in(int slot, faset_string cmd, faset_string cwd);
+
 int64_t faset_proc_start(faset_string cmd, faset_string cwd) {
     int slot = -1;
-    for (int i = 1; i < FASET_MAX_PROCS; i++) if (!faset_procs[i].used) { slot = i; break; }
+    faset_procs_acquire();
+    for (int i = 1; i < FASET_MAX_PROCS; i++)
+        if (!faset_procs[i].used) { slot = i; faset_procs[i].used = 2; /* reservado */ break; }
+    faset_procs_release();
     if (slot < 0) return -1;
+    int64_t r = faset_proc_start_in(slot, cmd, cwd);
+    if (r < 0) {
+        faset_procs_acquire();
+        memset(&faset_procs[slot], 0, sizeof faset_procs[slot]);
+        faset_procs_release();
+    }
+    return r;
+}
+
+static int64_t faset_proc_start_in(int slot, faset_string cmd, faset_string cwd) {
     char* c = faset_cstr(cmd);
     char* dir = cwd.len ? faset_cstr(cwd) : NULL;
 #if defined(_WIN32)
@@ -577,15 +607,17 @@ int64_t faset_proc_start(faset_string cmd, faset_string cwd) {
     faset_procs[slot].fd = fds[0];
     free(c); free(dir);
 #endif
+    faset_procs_acquire();
     faset_procs[slot].used = 1;
     faset_procs[slot].exited = 0;
     faset_procs[slot].code = -1;
+    faset_procs_release();
     return slot;
 }
 
 /* Bytes leídos (>0), 0 si no hay datos ahora, -1 si la salida terminó. */
 int32_t faset_proc_read(int64_t h, uint8_t* buf, int32_t cap) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return -1;
+    if (h <= 0 || h >= FASET_MAX_PROCS || __atomic_load_n(&faset_procs[h].used, __ATOMIC_ACQUIRE) != 1) return -1;
 #if defined(_WIN32)
     DWORD avail = 0;
     if (!PeekNamedPipe(faset_procs[h].pipe, NULL, 0, NULL, &avail, NULL)) return -1;
@@ -603,9 +635,11 @@ int32_t faset_proc_read(int64_t h, uint8_t* buf, int32_t cap) {
 
 /* -1 mientras sigue en ejecución; después, el código de salida. */
 int32_t faset_proc_status(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return -2;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return -2;
+    faset_procs_acquire();
     faset_proc* p = &faset_procs[h];
-    if (p->exited) return p->code;
+    if (p->used != 1) { faset_procs_release(); return -2; }
+    if (p->exited) { int32_t c = p->code; faset_procs_release(); return c; }
 #if defined(_WIN32)
     DWORD code;
     if (GetExitCodeProcess(p->process, &code) && code != STILL_ACTIVE) { p->exited = 1; p->code = (int)code; }
@@ -616,20 +650,28 @@ int32_t faset_proc_status(int64_t h) {
         p->code = WIFEXITED(status) ? WEXITSTATUS(status) : 128 + (WIFSIGNALED(status) ? WTERMSIG(status) : 0);
     }
 #endif
-    return p->exited ? p->code : -1;
+    int32_t r = p->exited ? p->code : -1;
+    faset_procs_release();
+    return r;
 }
 
 void faset_proc_kill(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return;
+    faset_procs_acquire();
+    if (faset_procs[h].used == 1 && !faset_procs[h].exited) {
 #if defined(_WIN32)
-    TerminateProcess(faset_procs[h].process, 1);
+        TerminateProcess(faset_procs[h].process, 1);
 #else
-    kill(-faset_procs[h].pid, SIGKILL);
+        kill(-faset_procs[h].pid, SIGKILL);
 #endif
+    }
+    faset_procs_release();
 }
 
 void faset_proc_close(int64_t h) {
-    if (h <= 0 || h >= FASET_MAX_PROCS || !faset_procs[h].used) return;
+    if (h <= 0 || h >= FASET_MAX_PROCS) return;
+    faset_procs_acquire();
+    if (faset_procs[h].used != 1) { faset_procs_release(); return; }
 #if defined(_WIN32)
     CloseHandle(faset_procs[h].pipe);
     CloseHandle(faset_procs[h].process);
@@ -638,6 +680,7 @@ void faset_proc_close(int64_t h) {
     if (!faset_procs[h].exited) waitpid(faset_procs[h].pid, NULL, WNOHANG);
 #endif
     memset(&faset_procs[h], 0, sizeof faset_procs[h]);
+    faset_procs_release();
 }
 
 /* Espera hasta 'ms' milisegundos a que haya datos en un descriptor (bucles de eventos). */
