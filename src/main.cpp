@@ -7,7 +7,7 @@
 //   faset emit-c [proyecto|archivos] [-o x.c]
 //   faset clean [proyecto]
 //   faset android <devices|avds|emulator|logcat|stop|uninstall>
-//   faset doctor | version | help
+//   faset doctor | setup | version | help
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -28,6 +28,7 @@
 #endif
 
 #include "Android.h"
+#include "Setup.h"
 #include "CodeGen.h"
 #include "Frontend.h"
 #include "Lsp.h"
@@ -40,7 +41,7 @@
 
 namespace fs = std::filesystem;
 
-static const char* const kVersion = "0.2.0";
+static const char* const kVersion = "0.3.0";
 
 #if defined(_WIN32)
 static const char* const kHostOS = "windows";
@@ -107,6 +108,8 @@ static void usage() {
         "  faset android <comando>               devices, avds, emulator, logcat, stop, uninstall\n"
         "                                        (faset android help)\n"
         "  faset doctor                          Muestra los compiladores y el SDK de Android detectados\n"
+        "  faset setup [linux|windows|android|multimedia|all] [--list] [--yes]\n"
+        "                                        Instala lo que necesita cada plataforma (sin módulo: la actual)\n"
         "  faset lsp                             Servidor de lenguaje (para VS Code y otros editores)\n"
         "  faset version | help\n\n"
         "Entrada: un .fstproj, una carpeta con un .fstproj, o archivos .fst sueltos.\n"
@@ -211,14 +214,17 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
     if (t == kHostOS && o.arch == kHostArch) {
         for (const char* c : {"cc", "gcc", "clang"})
             if (!findProgram(c).empty()) return c;
-        why = "no se encontró un compilador de C (instala gcc o clang)";
+        // Windows: el toolchain llvm-mingw de 'faset setup windows'.
+        if (t == "windows" && !managedMingwCompiler(o.arch).empty()) return managedMingwCompiler(o.arch);
+        why = std::string("no se encontró un compilador de C: ejecuta 'faset setup") + (t == "windows" ? " windows'" : "' (o instala gcc o clang)");
         return "";
     }
     if (t == "windows") {
         std::string triple = o.arch == "x86" ? "i686-w64-mingw32" : o.arch == "arm64" ? "aarch64-w64-mingw32" : "x86_64-w64-mingw32";
         for (const std::string& c : {triple + "-gcc", triple + "-clang"})
             if (!findProgram(c).empty()) return c;
-        why = "no se encontró " + triple + "-gcc (instala MinGW-w64, p. ej. 'sudo apt install mingw-w64')";
+        if (!managedMingwCompiler(o.arch).empty()) return managedMingwCompiler(o.arch);
+        why = "no se encontró " + triple + "-gcc: ejecuta 'faset setup windows' (descarga llvm-mingw) o 'sudo apt install mingw-w64'";
         return "";
     }
     if (t == "linux") {
@@ -898,8 +904,11 @@ static int cmdDoctor(const Options& o) {
     for (const char* c : {"cc", "gcc", "clang"})
         if (native.empty()) native = findProgram(c);
     show("Biblioteca std", findLibDir(o.argv0), "define FASET_LIB con la ruta de la carpeta lib/");
-    show("Nativo (" + std::string(kHostOS) + ")", native, "instala gcc o clang");
-    show("Windows x86_64 (MinGW)", findProgram("x86_64-w64-mingw32-gcc"), "sudo apt install mingw-w64");
+    if (native.empty() && std::string(kHostOS) == "windows") native = managedMingwCompiler(kHostArch);
+    show("Nativo (" + std::string(kHostOS) + ")", native, std::string("faset setup ") + kHostOS);
+    std::string mingw = findProgram("x86_64-w64-mingw32-gcc");
+    if (mingw.empty()) mingw = managedMingwCompiler("x86_64");
+    show("Windows x86_64 (MinGW)", mingw, "faset setup windows");
     std::printf("\n");
     androidDoctor();
     std::printf("\n");
@@ -907,6 +916,9 @@ static int cmdDoctor(const Options& o) {
 }
 
 int main(int argc, char** argv) {
+#if defined(_WIN32)
+    SetConsoleOutputCP(CP_UTF8);  // los mensajes son UTF-8 (tildes, ✓)
+#endif
     Options o;
     o.argv0 = argv[0];
     std::vector<std::string> args(argv + 1, argv + argc);
@@ -924,6 +936,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (o.command == "doctor") return cmdDoctor(o);
+    if (o.command == "setup") return cmdSetup(std::vector<std::string>(args.begin() + 1, args.end()));
     if (o.command == "lsp") return runLanguageServer(o.argv0);
     if (o.command == "__analyze") {
         if (args.size() < 3) return 2;

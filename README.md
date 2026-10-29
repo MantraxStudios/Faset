@@ -83,10 +83,40 @@ runtime (`faset_rt.c`) y el recolector de basura (`faset_gc.c`).
 
 ## Instalación
 
+**Linux x86_64** (instala en `~/.local`, con FasetStudio):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.sh | sh
+```
+
+**Windows x86_64** (PowerShell; instala en `%LOCALAPPDATA%\Faset`):
+
+```powershell
+irm https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.ps1 | iex
+```
+
+O descarga el paquete de [Releases](https://github.com/MantraxStudios/Faset/releases/latest)
+(`faset-linux-x86_64.tar.gz` / `faset-windows-x86_64.zip`) y ejecuta su `install.sh` / `install.ps1`.
+El instalador configura el **módulo de tu plataforma** con `faset setup` y ofrece el de Android:
+
+| Módulo | Qué instala |
+|---|---|
+| `faset setup linux` | compilador de C y bibliotecas de FasetStudio (apt, dnf, pacman, zypper o apk) |
+| `faset setup windows` | toolchain llvm-mingw (en Windows: programas nativos; en Linux: compilación cruzada) |
+| `faset setup android` | JDK, Android SDK (cmdline-tools, platform-tools, build-tools, plataforma), NDK y emulador |
+| `faset setup multimedia` | WebKitGTK, GStreamer y PulseAudio para WebView, VideoPlayer y std.audio |
+
+`faset setup --list` muestra qué hay instalado. La versión de Windows del compilador se genera por
+compilación cruzada y aún no se ha probado en un Windows real; FasetStudio todavía es solo para Linux.
+
+Desde el código fuente:
+
 ```bash
 make                    # genera ./faset (usa ./lib como biblioteca estándar)
+make studio             # FasetStudio
 make test               # ejecuta los tests
 sudo make install       # /usr/local/bin/faset + /usr/local/lib/faset
+scripts/dist.sh         # paquetes de distribución en dist/
 
 # Windows (o cualquier sistema) con CMake
 cmake -B build && cmake --build build
@@ -96,10 +126,10 @@ cmake -B build && cmake --build build
 
 | Objetivo            | Necesitas                                                     |
 |---------------------|---------------------------------------------------------------|
-| Linux               | `gcc` o `clang`                                               |
-| Windows             | MinGW-w64 o `clang` (MSYS2 / llvm-mingw)                      |
-| Windows desde Linux | `sudo apt install mingw-w64`                                  |
-| Android             | SDK + NDK + build-tools + Java (ver [Android](#android))       |
+| Linux               | `gcc` o `clang` (`faset setup linux`)                         |
+| Windows             | MinGW-w64 o `clang` (`faset setup windows`: llvm-mingw)       |
+| Windows desde Linux | MinGW-w64 o llvm-mingw (`faset setup windows`)                |
+| Android             | SDK + NDK + build-tools + Java (`faset setup android`)        |
 
 ## FasetStudio — el IDE de Faset, escrito en Faset
 

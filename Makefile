@@ -48,7 +48,11 @@ vscode-install: $(BIN)
 vscode-uninstall:
 	rm -f $(VSCODE_EXT_DIR)/faset.faset-0.2.0
 
+# Paquetes de distribución (dist/faset-linux-x86_64.tar.gz y, con toolchain de Windows, el .zip).
+dist: $(BIN)
+	scripts/dist.sh all
+
 clean:
 	rm -rf build $(BIN)
 
-.PHONY: all test install clean vscode-install vscode-uninstall studio studio-run
+.PHONY: all test install dist clean vscode-install vscode-uninstall studio studio-run

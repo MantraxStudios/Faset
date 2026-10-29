@@ -12,3 +12,4 @@ obj/
 node_modules/
 *.ppm
 .claude/worktrees/
+/dist/

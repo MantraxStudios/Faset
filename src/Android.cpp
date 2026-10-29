@@ -22,6 +22,7 @@
 #endif
 
 #include "Frontend.h"
+#include "Setup.h"
 
 namespace fs = std::filesystem;
 
@@ -225,6 +226,7 @@ void findJava(AndroidTools& t) {
         studio.push_back(fs::path(home) / "android-studio" / "jbr");
         studio.push_back(fs::path(home) / ".local" / "share" / "JetBrains" / "Toolbox" / "apps" / "android-studio" / "jbr");
     }
+    if (!managedJavaHome().empty()) studio.emplace_back(managedJavaHome());  // JDK de 'faset setup android'
     studio.emplace_back("/opt/android-studio/jbr");
     studio.emplace_back("/usr/local/android-studio/jbr");
     studio.emplace_back("/snap/android-studio/current/jbr");
