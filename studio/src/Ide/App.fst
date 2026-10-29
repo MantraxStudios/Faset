@@ -223,9 +223,14 @@ namespace FasetStudio.Ide
         }
 
         // Libera recursos externos (archivos temporales del análisis, proceso en marcha).
+        // Cuánto puede dormir el bucle principal esperando eventos: con la pantalla del
+        // dispositivo en directo hay que despertar a menudo para mostrar cada fotograma.
+        public int IdleWaitMs => android.Streaming ? 8 : 30;
+
         public void Shutdown()
         {
             if (process != null && process.IsRunning) process.Kill();
+            android.Shutdown();   // termina el flujo de la pantalla y el shell de adb
             delete analyzer;
             analyzer = null;
         }

@@ -885,6 +885,7 @@ static int androidUsage() {
         "  avds                            Emuladores (AVD) disponibles, uno por línea\n"
         "  emulator <avd> [--headless] [--no-wait] [-- opciones del emulador]\n"
         "                                  Arranca el emulador, espera a que inicie e imprime su serie\n"
+        "                                  (--headless: sin ventana y con la GPU del equipo, '-gpu host')\n"
         "  logcat [--device s] [--app] [--clear] [-- args]\n"
         "                                  Muestra el logcat (--app: solo la app del proyecto)\n"
         "  stop [--device s]               Detiene la app del proyecto\n"
@@ -958,7 +959,15 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
         }
         std::string serial = "emulator-" + std::to_string(port);
         std::vector<std::string> cmd = {t.emulator, "-avd", avd, "-port", std::to_string(port)};
-        if (headless) cmd.insert(cmd.end(), {"-no-window", "-no-audio", "-no-boot-anim"});
+        if (headless) {
+            cmd.insert(cmd.end(), {"-no-window", "-no-audio", "-no-boot-anim"});
+            // Sin ventana, '-gpu auto' elige un renderizador por software (lavapipe/swiftshader):
+            // la CPU dibuja cada fotograma y el emulador va a pocos fps. Se pide la GPU del
+            // equipo; '-- -gpu swiftshader_indirect' (u otro modo) lo cambia si no la hay.
+            bool gpuGiven = false;
+            for (const std::string& e : extra) gpuGiven |= e == "-gpu" || e.rfind("-gpu=", 0) == 0;
+            if (!gpuGiven) cmd.insert(cmd.end(), {"-gpu", "host"});
+        }
         cmd.insert(cmd.end(), extra.begin(), extra.end());
         std::string line = commandLine(cmd);
 #if defined(_WIN32)

@@ -189,7 +189,7 @@ namespace FasetStudio
                 while (window.Poll(out e)) app.HandleEvent(e);
                 if (app.QuitRequested) break;
                 if (app.Update()) app.Draw();
-                window.Wait(30);
+                window.Wait(app.IdleWaitMs);
             }
             app.Shutdown();
             renderer.Shutdown();

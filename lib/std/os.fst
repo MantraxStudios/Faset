@@ -484,6 +484,35 @@ namespace std.os
         // true cuando la salida estándar llegó al final (o no está redirigida).
         public bool OutputEnded => outPipe == -1;
 
+        // Espera hasta 'milliseconds' a que el hijo escriba algo (sin consumir su CPU) y lo
+        // acumula en Output / Error. true si hay salida pendiente de leer. Pensado para un
+        // hilo lector: vuelve en cuanto llegan datos, no al vencer el plazo.
+        public bool WaitForOutput(int milliseconds)
+        {
+            Pump();
+            if (outBuf.Length > 0 || errBuf.Length > 0) return true;
+            if (outPipe == -1 && errPipe == -1) return false;
+#if WINDOWS
+            // Una tubería anónima no se puede esperar: se sondea a intervalos cortos.
+            long start = Environment.TickCount64();
+            while (Environment.TickCount64() - start < milliseconds)
+            {
+                Kernel32.Sleep(1);
+                Pump();
+                if (outBuf.Length > 0 || errBuf.Length > 0 || (outPipe == -1 && errPipe == -1)) break;
+            }
+#else
+            Idle(milliseconds);
+            Pump();
+#endif
+            return outBuf.Length > 0 || errBuf.Length > 0;
+        }
+
+        // Descarta lo acumulado en Output / Error (p. ej. tras procesarlo con la vista Output,
+        // sin copiarlo con ReadOutput). No lee de las tuberías.
+        public void ClearOutput() { outBuf.Clear(); }
+        public void ClearError() { errBuf.Clear(); }
+
         bool Take(StringBuilder from, StringBuilder destination)
         {
             Pump();
