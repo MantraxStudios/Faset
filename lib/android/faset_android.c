@@ -727,3 +727,34 @@ void android_main(struct android_app* app) {
     /* Un proceso por ejecución: así 'faset run' sabe cuándo terminó y cada arranque empieza limpio. */
     _exit(g_exit_code);
 }
+
+/* ------------------------------------------------------------------ recursos del APK (assets/)
+   Los <Asset Include="..."/> del .fstproj se empaquetan sin comprimir en assets/ con su ruta
+   relativa. Cualquier módulo puede leerlos con AAssetManager (std.audio lo hace así). */
+#include <android/asset_manager.h>
+
+AAssetManager* faset_android_asset_manager(void) { return g_app ? g_app->activity->assetManager : NULL; }
+
+/* Lee un recurso entero en memoria nueva (malloc, terminada en 0; se libera con Memory.Free).
+   Devuelve 1 si existe. */
+int32_t faset_android_asset_read(const uint8_t* name, uint8_t** data, int64_t* len) {
+    *data = NULL;
+    *len = 0;
+    AAssetManager* m = faset_android_asset_manager();
+    if (!m || !name) return 0;
+    while (name[0] == '.' && name[1] == '/') name += 2;
+    AAsset* a = AAssetManager_open(m, (const char*)name, AASSET_MODE_BUFFER);
+    if (!a) return 0;
+    off_t n = AAsset_getLength(a);
+    uint8_t* buf = (uint8_t*)malloc((size_t)n + 1);
+    int ok = buf && AAsset_read(a, buf, (size_t)n) == n;
+    AAsset_close(a);
+    if (!ok) {
+        free(buf);
+        return 0;
+    }
+    buf[n] = 0;
+    *data = buf;
+    *len = (int64_t)n;
+    return 1;
+}

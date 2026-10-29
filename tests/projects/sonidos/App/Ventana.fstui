@@ -1,0 +1,5 @@
+<Window Class="Ventana" Title="Sonidos" Width="320" Height="200">
+  <Button Name="btnTocar" Text="Tocar" X="16" Y="16" Width="120" Height="32" Click="OnTocar" />
+  <Sound Name="sndClic" Source="sonidos/clic.wav" Volume="0.5" Pan="-0.25" Loop="false" />
+  <Music Name="musFondo" Source="sonidos/clic.wav" Loop="true" AutoPlay="true" />
+</Window>

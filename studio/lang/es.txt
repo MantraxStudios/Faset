@@ -281,3 +281,10 @@ Desktop = Escritorio
 Mobile = Móvil
 VideoPlayer = Reproductor de vídeo
 Video = Vídeo
+
+# std.audio: componentes no visuales del diseñador (bandeja bajo el lienzo)
+Sound = Sonido
+Music = Música
+Audio = Audio
+Add a sound (std.audio) = Añadir un sonido (std.audio)
+Add music (std.audio) = Añadir música (std.audio)

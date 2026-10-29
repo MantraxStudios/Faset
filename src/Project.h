@@ -15,6 +15,7 @@
 //     <Compile Remove="pruebas/**" />
 //     <NativeLibrary Include="user32" />
 //     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
+//     <Asset Include="sonidos/**" />          junto al ejecutable o en assets/ del APK
 //   </ItemGroup>
 // </Project>
 //
@@ -34,6 +35,7 @@ struct Project {
     std::vector<std::pair<std::string, std::string>> platformLibs;  // <NativeLibrary Include="x" Platform="windows" />
     std::vector<std::string> references;  // rutas a otros .fstproj
     std::vector<std::string> androidPermissions;  // <AndroidPermission Include="INTERNET" />
+    std::vector<std::string> assetInclude, assetRemove;  // <Asset Include="sonidos/**" />
 
     std::string prop(const std::string& name, const std::string& def = "") const;
     bool boolProp(const std::string& name, bool def) const;
@@ -44,6 +46,11 @@ bool loadProject(const std::string& path, Project& out, std::string& error);
 
 // Archivos .fst del proyecto (aplicando Include/Remove).
 std::vector<std::string> projectSources(const Project& p);
+
+// Recursos del proyecto (<Asset Include="..." Remove="..."/>, admite '*' y '**'; una carpeta
+// incluye todo lo que contiene): (ruta relativa al proyecto con '/', ruta absoluta). Se copian
+// junto al ejecutable (escritorio) o a assets/ dentro del APK (Android), con la misma ruta relativa.
+std::vector<std::pair<std::string, std::string>> projectAssets(const Project& p);
 
 // Busca el .fstproj más cercano subiendo desde la carpeta de 'file' ("" si no hay).
 std::string findProjectFor(const std::string& file);

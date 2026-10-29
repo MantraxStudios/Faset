@@ -275,6 +275,7 @@ termina (o Ctrl+C) y devuelve su código de salida. Muestra la salida del progra
   <AndroidPermission Include="INTERNET;CAMERA" />  <!-- android.permission.* (también de las bibliotecas referenciadas) -->
   <NativeLibrary Include="miotra" />               <!-- libmiotra.so se mete en el APK si está en LibraryPath -->
   <LibraryPath Include="libs/$(AndroidAbi)" />
+  <Asset Include="sonidos/**" />                   <!-- recursos: assets/ del APK (o junto al ejecutable) -->
 </ItemGroup>
 ```
 
@@ -540,6 +541,7 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 | `std.os`          | `Process` (`Start` con argv sin shell, stdin/stdout/stderr, `WaitForExit(ms)`, `ExitCode`, `Kill`, `Execute`, `Run`, `Capture`), `ProcessStartInfo`, `ChildProcess` (salida en vivo), `CommandLine` (comillas), `Environment` (`SetVariable`, `UnsetVariable`, `GetVariables`, `GetMachineName`, `GetUserName`, `GetHomeDirectory`, `ProcessorCount`, `ProcessId`), `OS` (`Name`, `Version`, `Architecture`) |
 | `std.json`        | `Json.Parse`, `JsonValue` (`Get`, `At`, `AsString`…), `Json.WriteString` |
 | `std.net`         | `IPAddress`, `IPEndPoint`, `Dns`, `Socket`, `TcpClient`, `TcpListener`, `UdpClient`, `Uri`, `HttpClient` (ver abajo) |
+| `std.audio`       | `Sound`, `Music`, `Voice`, `Audio` (WAV, OGG Vorbis y MP3; mezclador propio; ver abajo) |
 
 Toda la biblioteca está escrita en Faset: puedes leerla y ampliarla en `lib/std/`.
 Para añadir tu propio módulo, crea `lib/<raiz>/<modulo>.fst`; `using raiz.modulo;` lo cargará.
@@ -641,6 +643,31 @@ cadena original. `String.Free`, `File.FreeLines` y `Directory.FreeList` se conse
 compatibilidad, pero ya no hacen falta. Las clases que poseen un recurso del sistema (`FileStream`,
 sockets, `Process`, ventanas…) lo cierran en su destructor: con `delete`, en ese momento; si no,
 cuando el recolector recupera el objeto.
+
+### Audio (`std.audio`)
+
+```csharp
+using std.audio;
+
+Sound clic = Sound.Load("sonidos/clic.wav");   // WAV, OGG o MP3, decodificado en memoria
+Voice v = clic.Play();                         // muchas voces a la vez
+v.Pan = -0.5f;                                 // también Volume, Speed, Loop, Position, Pause/Resume/Stop
+Music tema = Music.Load("tema.ogg");           // se decodifica mientras suena
+tema.Loop = true;
+tema.Play();
+Audio.MasterVolume = 0.8f;
+```
+
+Un mezclador en C (`lib/audio/faset_audio.c`, con `stb_vorbis` y `minimp3`, de dominio público)
+corre en su propio hilo y remuestrea cada voz a la frecuencia del dispositivo. Salidas:
+PulseAudio o ALSA en Linux (cargadas con `dlopen`: no hacen falta paquetes `-dev`), `waveOut`
+en Windows (`winmm`, se enlaza solo) y AAudio u OpenSL ES en Android. Sin dispositivo se usa
+`null` (no suena, pero el tiempo avanza); `FASET_AUDIO_DRIVER` elige una salida y
+`Audio.Open("offline")` + `Audio.Render(n)` mezclan sin hilo (pruebas, o para procesar la mezcla).
+`Load` busca la ruta tal cual, junto al ejecutable y, en Android, en `assets/` del APK: añade los
+archivos con `<Asset Include="..."/>` en el `.fstproj`. En un `.fstui`,
+`<Sound Name="sndClic" Source="clic.wav" Volume="0.8" AutoPlay="false"/>` (o `<Music>`) genera un
+campo `Sound` (o `Music`); el diseñador los muestra en una bandeja bajo el lienzo.
 
 ### Hilos (`std.thread`)
 

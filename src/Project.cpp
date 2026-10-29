@@ -123,6 +123,9 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                     for (auto& d : inc) out.libPaths.push_back((fs::path(out.dir) / d).lexically_normal().string());
                 } else if (it.name == "AndroidPermission") {
                     out.androidPermissions.insert(out.androidPermissions.end(), inc.begin(), inc.end());
+                } else if (it.name == "Asset") {
+                    out.assetInclude.insert(out.assetInclude.end(), inc.begin(), inc.end());
+                    out.assetRemove.insert(out.assetRemove.end(), rem.begin(), rem.end());
                 } else if (it.name == "ProjectReference") {
                     for (auto& r : inc) out.references.push_back((fs::path(out.dir) / r).lexically_normal().string());
                 } else {
@@ -183,6 +186,46 @@ std::vector<std::string> projectSources(const Project& p) {
         for (const std::string& r : p.compileRemove) removed |= globMatch(r, rel);
         std::string full = (root / rel).lexically_normal().string();
         if (!removed && std::find(out.begin(), out.end(), full) == out.end()) out.push_back(full);
+    }
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+std::vector<std::pair<std::string, std::string>> projectAssets(const Project& p) {
+    std::vector<std::pair<std::string, std::string>> out;
+    std::error_code ec;
+    fs::path root(p.dir);
+    auto add = [&](const std::string& rel) {
+        for (const std::string& r : p.assetRemove)
+            if (globMatch(r, rel)) return;
+        for (const auto& a : out)
+            if (a.first == rel) return;
+        out.push_back({rel, (root / rel).lexically_normal().string()});
+    };
+    // Recorre la carpeta del proyecto sin entrar en bin/, obj/ ni carpetas ocultas.
+    auto walk = [&](const fs::path& dir, const std::function<void(const std::string&)>& fn) {
+        auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec);
+        for (; it != fs::recursive_directory_iterator(); it.increment(ec)) {
+            if (ec) break;
+            std::string name = it->path().filename().string();
+            if (it->is_directory(ec)) {
+                if (name == "bin" || name == "obj" || (!name.empty() && name[0] == '.')) it.disable_recursion_pending();
+                continue;
+            }
+            if (it->is_regular_file(ec)) fn(fs::relative(it->path(), root).generic_string());
+        }
+    };
+    for (const std::string& raw : p.assetInclude) {
+        std::string inc = norm(raw);
+        if (inc.find('*') != std::string::npos || inc.find('?') != std::string::npos) {
+            walk(root, [&](const std::string& rel) {
+                if (globMatch(inc, rel)) add(rel);
+            });
+        } else if (fs::is_directory(root / inc, ec)) {
+            walk(root / inc, [&](const std::string& rel) { add(rel); });
+        } else {
+            add(fs::path(inc).lexically_normal().generic_string());
+        }
     }
     std::sort(out.begin(), out.end());
     return out;

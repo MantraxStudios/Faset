@@ -81,6 +81,8 @@ const std::vector<ElemSpec>& projectItems() {
         {"LibraryPath", "Carpeta donde buscar bibliotecas nativas, relativa al proyecto.", {"Include"}, {}},
         {"ProjectReference", "Otro proyecto Faset (.fstproj) cuyo código se compila junto con este.", {"Include"}, {}},
         {"AndroidPermission", "Permiso de Android que pide la app (p. ej. INTERNET, CAMERA).", {"Include"}, {}},
+        {"Asset", "Recursos (sonidos, imágenes...): se copian junto al ejecutable o a assets/ del APK con la misma ruta "
+                  "relativa. Include admite '*', '**' y carpetas; Remove excluye.", {"Include", "Remove"}, {}},
     };
     return v;
 }
@@ -201,10 +203,41 @@ const T* findSpec(const std::vector<T>& v, const std::string& name) {
     return nullptr;
 }
 
-const AttrSpec* uiAttr(const std::string& n) { return findSpec(uiAttrs(), n); }
+// ---- componentes no visuales de std.audio (<Sound>, <Music>; ver UiGen.cpp)
+
+const std::vector<AttrSpec>& audioAttrs() {
+    static const std::vector<AttrSpec> v = {
+        {"Source", "Archivo de audio (WAV, OGG o MP3), relativo a la carpeta actual o al ejecutable; en Android, dentro "
+                   "de assets/ (añádelo con <Asset Include=\"...\"/> en el .fstproj).", {}},
+        {"Volume", "Volumen (1 = original, 0 = silencio).", {"0.25", "0.5", "0.8", "1"}},
+        {"Pan", "Panorama: -1 izquierda, 0 centro, 1 derecha.", {"-1", "0", "1"}},
+        {"Speed", "Velocidad de reproducción (también cambia el tono): 1 normal.", {"0.5", "1", "1.5", "2"}},
+        {"Loop", "Repetir al llegar al final.", kBool},
+        {"AutoPlay", "Empezar a sonar al crear la ventana (en InitializeComponent).", kBool},
+    };
+    return v;
+}
+
+#define FST_AUDIO "Name", "Source", "Volume", "Pan", "Speed", "Loop", "AutoPlay"
+
+const std::vector<ElemSpec>& audioComponents() {
+    static const std::vector<ElemSpec> v = {
+        {"Sound", "Sonido (std.audio) decodificado en memoria: genera un campo 'Sound'; tócalo con Nombre.Play().", {FST_AUDIO}, {}},
+        {"Music", "Música (std.audio) que se decodifica mientras suena: genera un campo 'Music' con Play, Pause y Stop.", {FST_AUDIO}, {}},
+    };
+    return v;
+}
+
+bool isAudioComponent(const std::string& n) { return n == "Sound" || n == "Music"; }
+
+const AttrSpec* uiAttr(const std::string& n) {
+    if (const AttrSpec* a = findSpec(uiAttrs(), n)) return a;
+    return findSpec(audioAttrs(), n);
+}
 
 const ElemSpec* uiElem(const std::string& n) {
     if (n == "Window") return &kUiWindow;
+    if (const ElemSpec* e = findSpec(audioComponents(), n)) return e;
     return findSpec(uiControls(), n);
 }
 
@@ -761,6 +794,8 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
                           (std::string(e.name) == "Panel" ? "></Panel>" : " />");
                 add(out, e.name, kElement, e.doc, ins);
             }
+            for (const ElemSpec& e : audioComponents())
+                add(out, e.name, kElement, e.doc, bare ? std::string(e.name) + " Name=\"$0\" Source=\"\" />" : "");
         }
         return;
     }
@@ -804,6 +839,27 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
         }
         if (a.name == "Class" && t.name == "Window") {
             add(out, fs::path(path).stem().string(), kValue, "clase de la ventana");
+            return;
+        }
+        if (a.name == "Source" && isAudioComponent(t.name)) {
+            // Archivos de audio de la carpeta del .fstui (y subcarpetas, sin bin/ ni obj/).
+            std::error_code ec;
+            fs::path dir = fs::path(path).parent_path();
+            auto it = fs::recursive_directory_iterator(dir, fs::directory_options::skip_permission_denied, ec);
+            int found = 0;
+            for (; it != fs::recursive_directory_iterator() && found < 200; it.increment(ec)) {
+                if (ec) break;
+                std::string name = it->path().filename().string();
+                if (it->is_directory(ec)) {
+                    if (name == "bin" || name == "obj" || (!name.empty() && name[0] == '.')) it.disable_recursion_pending();
+                    continue;
+                }
+                std::string ext = lower(it->path().extension().string());
+                if (ext == ".wav" || ext == ".ogg" || ext == ".mp3") {
+                    add(out, fs::relative(it->path(), dir).generic_string(), kFile, "archivo de audio");
+                    found++;
+                }
+            }
             return;
         }
         std::set<std::string> skip = as->flags ? otherFlags(a, c.valueOff) : std::set<std::string>();
@@ -886,7 +942,7 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
             if (as) ref(a.nameBeg, a.name.size(), attrHover(*as));
             if (!a.hasValue || a.value.empty()) continue;
             if (a.name == "Name" && t.name != "Window" && !cls.empty()) {
-                ref(a.valBeg, a.value.size(), "(campo) Widget " + cls + "." + a.value);
+                ref(a.valBeg, a.value.size(), "(campo) " + std::string(isAudioComponent(t.name) ? t.name : "Widget") + " " + cls + "." + a.value);
             } else if (as && as->handler && code) {
                 for (const XmlUiCodeInfo::Method& m : code->methods)
                     if (m.name == a.value) {

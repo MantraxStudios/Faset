@@ -110,6 +110,14 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     edit(ui.u, t);
     items = await complete(ui.u, t, '  <\n</Window>', 3, '<');
     assert.ok(['Button', 'Panel', 'TextBox', 'CheckBox'].every((c) => labels(items).includes(c)), 'controles tras <');
+    // std.audio: componentes no visuales <Sound> y <Music>
+    assert.ok(labels(items).includes('Sound') && labels(items).includes('Music'), 'componentes de audio tras <');
+    t = ui.t.replace('</Window>', '  <Sound Name="sndClic"  />\n</Window>');
+    edit(ui.u, t);
+    items = await complete(ui.u, t, 'Name="sndClic" ', 15, ' ');
+    assert.ok(['Source', 'Volume', 'Loop', 'AutoPlay'].every((a) => labels(items).includes(a)) && !labels(items).includes('Width'), 'atributos de <Sound>');
+    const sndHover = await request('textDocument/hover', pos(ui.u, t, 'sndClic', 2));
+    assert.match(sndHover.contents.value, /Sound Ventana\.sndClic/, 'campo Sound generado por el .fstui');
     t = ui.t.replace('Text="Aceptar"', 'Text="Aceptar" Anchor="Left,"');
     edit(ui.u, t);
     items = await complete(ui.u, t, 'Anchor="Left,', 13, ',');
