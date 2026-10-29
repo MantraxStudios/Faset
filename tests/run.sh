@@ -86,6 +86,22 @@ if ldconfig -p 2>/dev/null | grep -q "libvulkan.so.1" && [ -f /usr/lib/x86_64-li
     fi
 fi
 
+# VideoPlayer (si GStreamer decodifica H.264): reproduce tests/video/clip.mp4 sin pantalla con cada
+# guion de tests/video/cases ("guion=>salida esperada", líneas unidas con ';').
+if command -v gst-inspect-1.0 > /dev/null && gst-inspect-1.0 playbin > /dev/null 2>&1 && gst-inspect-1.0 avdec_h264 > /dev/null 2>&1; then
+    if ! $FASET build tests/video/MainWindow.fstui tests/video/Main.fst -o "$TMP/video" > /dev/null 2> "$TMP/video.err"; then
+        echo "FALLO  video (no compila)"; cat "$TMP/video.err"; fail=$((fail+1))
+    else
+        vbad=""
+        while IFS= read -r line; do
+            vscript="${line%%=>*}"; vwant="${line#*=>}"
+            vgot=$(cd tests/video && FASET_UI_SCREENSHOT="$TMP/video.bmp" FASET_UI_SCRIPT="$vscript" timeout 30 "$TMP/video" 2>&1 | tr '\n' ';')
+            [ "$vgot" = "$vwant" ] || vbad="$vbad\n  '$vscript': $vgot (se esperaba $vwant)"
+        done < tests/video/cases
+        if [ -z "$vbad" ]; then echo "ok     video"; pass=$((pass+1)); else echo -e "FALLO  video:$vbad"; fail=$((fail+1)); fi
+    fi
+fi
+
 echo
 echo "$pass correctos, $fail fallidos"
 [ "$fail" = 0 ]

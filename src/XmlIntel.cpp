@@ -140,13 +140,23 @@ const std::vector<AttrSpec>& uiAttrs() {
         {"Accent", "Color de acento: relleno de casillas, barras y deslizadores ('#RRGGBB').", {}},
         {"Click", "Método que se llama al hacer clic: void Nombre(Widget sender).", {}, false, true},
         {"Changed", "Método que se llama cuando cambia el valor: void Nombre(Widget sender).", {}, false, true},
-        {"Source", "Dirección que carga el WebView (https://..., file://...).", {}},
+        {"Source", "WebView: dirección que carga (https://..., file://...). VideoPlayer: vídeo que se reproduce, ruta (relativa a la carpeta actual o al ejecutable) o URI.", {}},
         {"Html", "Documento HTML que muestra el WebView (en vez de Source).", {}},
         {"Navigated", "Método que se llama al terminar de cargar una página: void Nombre(Widget sender).", {}, false, true},
         {"TitleChanged", "Método que se llama cuando cambia el título de la página: void Nombre(Widget sender).", {}, false, true},
         {"MessageReceived",
          "Método que se llama cuando la página llama a window.faset.postMessage(texto): void Nombre(Widget sender, string message).",
          {}, false, true},
+        // VideoPlayer
+        {"AutoPlay", "Empieza a reproducir en cuanto se carga el vídeo.", kBool},
+        {"Loop", "Vuelve a empezar al llegar al final.", kBool},
+        {"ShowControls", "Muestra la barra de controles (reproducir/pausa, posición y tiempo).", kBool},
+        {"Volume", "Volumen, de 0 a 1.", {"0", "0.5", "1"}},
+        {"Stretch", "Cómo se ajusta la imagen: Uniform (sin deformar), Fill (todo el control) o None (tamaño original).",
+         {"Uniform", "Fill", "None"}},
+        {"Opened", "Método que se llama cuando el vídeo está listo: void Nombre(Widget sender).", {}, false, true},
+        {"Ended", "Método que se llama al terminar el vídeo (sin Loop): void Nombre(Widget sender).", {}, false, true},
+        {"Failed", "Método que se llama si el vídeo no se puede abrir o reproducir: void Nombre(Widget sender).", {}, false, true},
     };
     return v;
 }
@@ -169,6 +179,10 @@ const std::vector<ElemSpec>& uiControls() {
         {"WebView", "Navegador web incrustado (WebKitGTK en Linux, android.webkit en Android). Desde JavaScript: window.faset.postMessage(texto).",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "CornerRadius", "Background", "Foreground", "BorderColor",
           "Source", "Html", "Navigated", "TitleChanged", "MessageReceived"},
+         {}},
+        {"VideoPlayer", "Reproductor de vídeo con sonido (el campo generado es un VideoPlayer: Play, Pause, Stop, Seek, Position...).",
+         {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "Background", "BorderColor", "Accent", "Source", "AutoPlay", "Loop",
+          "ShowControls", "Volume", "Stretch", "Opened", "Ended", "Failed"},
          {}},
     };
     return v;

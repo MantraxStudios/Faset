@@ -279,3 +279,5 @@ Console, library, desktop or Android app = Consola, biblioteca, escritorio o And
 Console = Consola
 Desktop = Escritorio
 Mobile = Móvil
+VideoPlayer = Reproductor de vídeo
+Video = Vídeo

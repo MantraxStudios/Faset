@@ -1,0 +1,6 @@
+<Window Class="MainWindow" Title="Prueba de vídeo" Width="320" Height="220">
+  <VideoPlayer Name="Video" X="10" Y="10" Width="300" Height="170" Source="clip.mp4" AutoPlay="false" Loop="false"
+               ShowControls="true" Stretch="Fill" Volume="0.5" Anchor="Left,Top,Right,Bottom"
+               Opened="OnOpened" Ended="OnEnded" Failed="OnFailed" />
+  <Label Name="lblEstado" X="10" Y="188" Width="300" Height="24" Text="..." Anchor="Left,Right,Bottom" />
+</Window>

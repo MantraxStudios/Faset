@@ -1,0 +1,6 @@
+=>abierto: True;tamaño: 64x36;reproduciendo: False;terminado: False;color: rojo;
+click 160 95 | wait 750=>abierto: True;tamaño: 64x36;reproduciendo: True;terminado: False;color: verde;
+click 160 95 | wait 2200=>abierto: True;tamaño: 64x36;reproduciendo: False;terminado: True;color: azul;
+click 200 165 | wait 300=>abierto: True;tamaño: 64x36;reproduciendo: False;terminado: False;color: azul;
+click 125 165 | wait 300=>abierto: True;tamaño: 64x36;reproduciendo: False;terminado: False;color: verde;
+click 160 95 | wait 200 | click 160 95 | wait 700=>abierto: True;tamaño: 64x36;reproduciendo: False;terminado: False;color: rojo;

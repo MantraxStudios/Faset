@@ -27,10 +27,11 @@ using std.text;
 using std.io;
 using std.os;
 using std.ui.webview;   // control WebView (lib/std/ui/webview.fst)
+using std.video;        // VideoPlayer (lib/std/video.fst)
 
 namespace std.ui
 {
-    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox, WebView }
+    public enum WidgetKind { Panel, Label, Button, TextBox, CheckBox, Slider, ProgressBar, RadioButton, ComboBox, ListBox, WebView, VideoPlayer }
     public enum WidgetStyle { Default, Primary, Subtle, Danger }
     public enum TextAlign { Left, Center, Right }
     public enum UiTheme { Dark, Light }
@@ -669,6 +670,7 @@ namespace std.ui
         public bool Visible = true;
         public int CornerRadius = -1;  // -1 = según el tipo
         public void* Tag;
+        public VideoPlayer Player;     // estado del reproductor (solo WidgetKind.VideoPlayer)
 
         // Colores 0xAARRGGBB; 0 = el del tema. Con Background2 el fondo es un degradado.
         public uint Background;
@@ -1146,6 +1148,10 @@ namespace std.ui
                     break;
                 case WidgetKind.WebView:
                     DrawWebView(c, p, font, fx, fy, fw, fh);
+                    break;
+                case WidgetKind.VideoPlayer:
+                    if (Player != null) Player.Draw(c, p, w);
+                    else VideoPlayer.DrawPlaceholder(c, p, this, "", "", fx, fy, fw, fh);
                     break;
                 case WidgetKind.ProgressBar:
                 {
@@ -1748,6 +1754,7 @@ namespace std.ui
                             Pressed.TextMouseDrag(e.X);
                             dirty = true;
                         }
+                        else if (Pressed.Kind == WidgetKind.VideoPlayer && Pressed.Player != null) Pressed.Player.MouseDrag(e.X);
                     }
                     Widget hit = HitTest(e.X, e.Y);
                     if (hit != null && !hit.Enabled) hit = null;
@@ -1797,6 +1804,7 @@ namespace std.ui
                     if (hit != null && hit.Kind == WidgetKind.Slider) SetSlider(hit, e.X);
                     if (hit != null && hit.Kind == WidgetKind.ComboBox) OpenDropDown(hit);
                     if (hit != null && hit.Kind == WidgetKind.ListBox) hit.Choose(hit.RowAt(e.Y));
+                    if (hit != null && hit.Kind == WidgetKind.VideoPlayer && hit.Player != null) hit.Player.MouseDown(e.X, e.Y);
                     dirty = true;
                     break;
                 }
@@ -1806,6 +1814,7 @@ namespace std.ui
                     Widget p = Pressed;
                     Pressed = null;
                     dirty = true;
+                    if (p != null && p.Kind == WidgetKind.VideoPlayer && p.Player != null) p.Player.MouseUp(e.X);
                     if (p != null && p.Contains(e.X, e.Y) &&
                         (p.Kind == WidgetKind.Button || p.Kind == WidgetKind.CheckBox || p.Kind == WidgetKind.RadioButton)) Activate(p);
                     break;
@@ -1997,6 +2006,7 @@ namespace std.ui
                     e.Delta = Convert.ToInt32(parts[1]);
                     HandleEvent(e);
                 }
+                else if (op == "wait" && parts.Count >= 2) VideoPlayer.WaitTicking(Convert.ToInt32(parts[1]));  // deja correr los vídeos
                 else if (op == "resize" && parts.Count >= 3)
                 {
                     e.Kind = UiEventKind.Resize;
@@ -2019,6 +2029,7 @@ namespace std.ui
             string shot = Environment.GetVariable("FASET_UI_SCREENSHOT");
             if (shot.Length > 0)
             {
+                VideoPlayer.PrerollAll(3000);  // primer fotograma de cada vídeo
                 Render();
                 string script = Environment.GetVariable("FASET_UI_SCRIPT");
                 RunScript(script);
@@ -2048,6 +2059,7 @@ namespace std.ui
                     HandleEvent(e);
                 }
                 if (!open) break;
+                int videoWait = VideoPlayer.Tick();  // fotogramas y eventos de los VideoPlayer
                 bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
                 native.SetTextInput(editing);  // teclado en pantalla (Android)
                 if (editing)
@@ -2066,9 +2078,12 @@ namespace std.ui
                     native.Present(canvas);
                 }
                 WebViewHost.Sync(this, native.Handle, native.Scale);
-                native.Wait(WebViewHost.WaitMs(editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000));
+                int waitMs = editing ? 530 - (int)(Environment.TickCount64() - caretTime) : 1000;
+                if (videoWait >= 0 && videoWait < waitMs) waitMs = videoWait;
+                native.Wait(WebViewHost.WaitMs(waitMs));
             }
             WebViewHost.CloseAll();
+            VideoPlayer.CloseAll(this);
             native.Destroy();
             return 0;
         }
