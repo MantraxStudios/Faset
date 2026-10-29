@@ -7,7 +7,7 @@
 // =============================================================================
 namespace std.mem
 {
-    public struct Span<T>
+    public memory_unsafe struct Span<T>
     {
         public T* Data;
         public int Length;
@@ -20,26 +20,26 @@ namespace std.mem
 
         public bool IsEmpty => Length == 0;
 
-        public T& operator[](int index)
+        [TrackCaller] public T& operator[](int index)
         {
             if (index < 0 || index >= Length) panic("Span: índice fuera de rango");
             return Data[index];
         }
 
-        public Span<T> Slice(int start, int length)
+        [TrackCaller] public Span<T> Slice(int start, int length)
         {
             if (start < 0 || length < 0 || start + length > Length) panic("Span.Slice: rango fuera de la vista");
             return new Span<T>(Data + start, length);
         }
 
-        public Span<T> Slice(int start) => Slice(start, Length - start);
+        [TrackCaller] public Span<T> Slice(int start) => Slice(start, Length - start);
 
         public void Fill(T value)
         {
             for (int i = 0; i < Length; i++) Data[i] = value;
         }
 
-        public void CopyTo(Span<T> destination)
+        [TrackCaller] public void CopyTo(Span<T> destination)
         {
             if (destination.Length < Length) panic("Span.CopyTo: destino demasiado pequeño");
             Memory.CopyItems<T>(destination.Data, Data, Length);
@@ -47,7 +47,7 @@ namespace std.mem
     }
 
     // Reserva memoria de bloques grandes; todo se libera junto con Reset() o delete.
-    public class Arena
+    public memory_unsafe class Arena
     {
         byte* block;
         long used;
@@ -104,7 +104,7 @@ namespace std.mem
     }
 
     // Propietario único de un valor en el heap: lo libera en Reset() o al hacer delete.
-    public class Box<T>
+    public memory_unsafe class Box<T>
     {
         T* value;
 

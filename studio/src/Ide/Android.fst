@@ -16,7 +16,7 @@ using FasetStudio.Platform;
 
 namespace FasetStudio.Ide
 {
-    public class AndroidTools
+    public memory_unsafe class AndroidTools
     {
         public const float ToolbarHeight = 44;
 

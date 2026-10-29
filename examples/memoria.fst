@@ -62,7 +62,9 @@ namespace Demo
 
     public static class Program
     {
-        static void Swap(int* a, int* b)
+        // Recibe punteros: el método entero es 'memory_unsafe' y solo se puede
+        // llamar desde un contexto memory_unsafe.
+        memory_unsafe static void Swap(int* a, int* b)
         {
             int t = *a;
             *a = *b;
@@ -81,31 +83,40 @@ namespace Demo
 
         public static int Main()
         {
-            // Punteros y dirección de variables
+            // Punteros y dirección de variables: solo dentro de 'memory_unsafe'.
             int x = 1, y = 2;
-            Swap(&x, &y);
+            memory_unsafe { Swap(&x, &y); }
             Console.Write("swap: "); Console.Write(x); Console.Write(" "); Console.WriteLine(y);
 
             // Arreglos en el heap con aritmética de punteros
             int n = 10;
-            long* nums = new long[n];
-            for (int i = 0; i < n; i++) nums[i] = (long)i * i;
-            long total = 0;
-            for (long* p = nums; p < nums + n; p++) total += *p;
-            Console.Write("suma de cuadrados: "); Console.WriteLine(total);
-            delete[] nums;
+            memory_unsafe
+            {
+                long* nums = new long[n];
+                for (int i = 0; i < n; i++) nums[i] = (long)i * i;
+                long total = 0;
+                for (long* p = nums; p < nums + n; p++) total += *p;
+                Console.Write("suma de cuadrados: "); Console.WriteLine(total);
+                delete[] nums;
+            }
 
             // Structs (valor) y punteros a structs
             Vec2 v = new Vec2(3, 4);
             Console.Write("|v| = "); Console.WriteLine(v.Length());
-            Vec2* pv = &v;
-            pv->Scale(2);
-            Console.Write("v escalado: "); Console.Write(v.X); Console.Write(", "); Console.WriteLine(pv->Y);
+            memory_unsafe
+            {
+                Vec2* pv = &v;
+                pv->Scale(2);
+                Console.Write("v escalado: "); Console.Write(v.X); Console.Write(", "); Console.WriteLine(pv->Y);
+            }
             Console.Write("suma temporal: "); Console.WriteLine(v.Add(new Vec2(1, 1)).Length());
-            Vec2* heapVec = (Vec2*)Memory.AllocZeroed(sizeof(Vec2));
-            heapVec->X = 1.5;
-            Console.Write("vec en heap: "); Console.WriteLine(heapVec->X);
-            Memory.Free(heapVec);
+            memory_unsafe
+            {
+                Vec2* heapVec = (Vec2*)Memory.AllocZeroed(sizeof(Vec2));
+                heapVec->X = 1.5;
+                Console.Write("vec en heap: "); Console.WriteLine(heapVec->X);
+                Memory.Free(heapVec);
+            }
 
             // Clases (referencias) con destructor
             IntList list = new IntList();

@@ -148,6 +148,7 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
             }
             auto* file = new FileScope();
             file->fileId = diag.addFile(shown, path);
+            file->unsafeCtx = opts.unsafeFiles.count(path) != 0;
             prog.files.push_back(file);
             if (fs::path(path).extension() == ".fstui") {
                 std::string gen = generateUiSource(src, file->fileId);

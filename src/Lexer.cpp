@@ -15,7 +15,7 @@ static const std::unordered_set<std::string> kKeywords = {
     "ref",       "out",      "params",  "is",       "as",       "virtual",   "override",
     "abstract",  "sealed",   "interface", "operator", "goto",   "throw",     "try",
     "catch",     "finally",  "typeof",  "stackalloc", "fixed",  "import",    "delegate",
-    "nullptr",
+    "nullptr",   "memory_unsafe",
 };
 
 bool isKeyword(const std::string& s) { return kKeywords.count(s) != 0; }

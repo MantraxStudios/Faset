@@ -71,7 +71,7 @@ namespace std.net
 
     // ======================================================================= constantes del sistema
 #if WINDOWS
-    static class K
+    memory_unsafe static class K
     {
         public const int AF_UNSPEC = 0;
         public const int AF_INET = 2;
@@ -129,7 +129,7 @@ namespace std.net
         public static int AiNext => 16 + 3 * sizeof(void*);
     }
 #else
-    static class K
+    memory_unsafe static class K
     {
         public const int AF_UNSPEC = 0;
         public const int AF_INET = 2;
@@ -195,7 +195,7 @@ namespace std.net
     // ======================================================================= llamadas al sistema
     //  Sys da la misma interfaz en todas las plataformas: el socket es un 'long' (-1 = inválido).
 #if WINDOWS
-    static class Sys
+    memory_unsafe static class Sys
     {
         static extern int WSAStartup(ushort version, byte* data);
         static extern int WSAGetLastError();
@@ -319,7 +319,7 @@ namespace std.net
         public static int HostName(byte* buf, int len) => gethostname(buf, len);
     }
 #else
-    static class Sys
+    memory_unsafe static class Sys
     {
         // size_t, ssize_t, nfds_t y unsigned long se declaran como void*: tienen el tamaño de
         // un puntero tanto en 32 como en 64 bits (ARMv7 y ARM64, x86 y x86-64).
@@ -525,7 +525,7 @@ namespace std.net
 
     // Dirección IPv4 o IPv6 (tipo valor). Los 16 bytes se guardan en orden de red en hi/lo;
     // una IPv4 ocupa los 4 primeros.
-    public struct IPAddress
+    public memory_unsafe struct IPAddress
     {
         private AddressFamily family;
         private ulong hi;
@@ -909,7 +909,7 @@ namespace std.net
     }
 
     // Conversión entre IPEndPoint y sockaddr_in / sockaddr_in6 (misma disposición en Linux y Windows).
-    static class SockAddr
+    memory_unsafe static class SockAddr
     {
         public const int Size = 128;   // sockaddr_storage
 
@@ -953,7 +953,7 @@ namespace std.net
 
     // ======================================================================= DNS
 
-    public static class Dns
+    public memory_unsafe static class Dns
     {
         static SocketError lastError;
         static int lastNative;
@@ -1064,7 +1064,7 @@ namespace std.net
     // Con ReceiveTimeout / SendTimeout (ms), las operaciones bloqueantes esperan como mucho ese
     // tiempo y fallan con SocketError.TimedOut. Con Blocking = false, las operaciones que no pueden
     // completarse fallan con SocketError.WouldBlock (o InProgress en Connect): usa Poll para esperar.
-    public class Socket
+    public memory_unsafe class Socket
     {
         long handle = -1;
         AddressFamily family;
@@ -1440,7 +1440,7 @@ namespace std.net
     // ======================================================================= TCP
 
     // Conexión TCP con lectura por líneas o hasta el final.
-    public class TcpClient
+    public memory_unsafe class TcpClient
     {
         Socket socket;
         int receiveTimeout = -1;
@@ -1812,7 +1812,7 @@ namespace std.net
 
     // ======================================================================= UDP
 
-    public class UdpClient
+    public memory_unsafe class UdpClient
     {
         Socket socket;
         SocketError error;
@@ -1879,7 +1879,7 @@ namespace std.net
 
     // URL analizada: esquema://usuario@equipo:puerto/ruta?consulta#fragmento.
     // Las propiedades son vistas de una copia interna (válidas mientras viva el objeto).
-    public class Uri
+    public memory_unsafe class Uri
     {
         string original;     // copia propia
         string scheme;       // copia propia, en minúsculas
@@ -2621,7 +2621,7 @@ namespace std.net
     }
 
     // Cliente HTTP/1.1 sencillo (solo http://; HTTPS no está soportado).
-    public class HttpClient
+    public memory_unsafe class HttpClient
     {
         HttpHeaders defaultHeaders = new HttpHeaders();
         string userAgent;      // copia propia

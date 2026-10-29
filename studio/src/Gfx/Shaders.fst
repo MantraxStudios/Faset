@@ -2,7 +2,7 @@
 // Para regenerarlo: python3 studio/shaders/compile.py (necesita glslc)
 namespace FasetStudio.Gfx
 {
-    public static class Shaders
+    public memory_unsafe static class Shaders
     {
         public const int VertexWords = 322;
 

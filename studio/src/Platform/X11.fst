@@ -77,7 +77,7 @@ namespace FasetStudio.Platform
         public int ScrollLines; // positivo = hacia abajo
     }
 
-    public class Window
+    public memory_unsafe class Window
     {
         void* display;
         ulong window;

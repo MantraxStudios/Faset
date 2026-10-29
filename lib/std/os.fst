@@ -30,7 +30,7 @@ namespace std.os
     //   si.AddArgument("status").AddArgument("--short");
     //   si.RedirectStandardOutput = true;
     //   Process p = Process.Start(si);
-    public class ProcessStartInfo
+    public memory_unsafe class ProcessStartInfo
     {
         string fileName;
         string workingDirectory;
@@ -150,7 +150,7 @@ namespace std.os
 
     // ======================================================================= CommandLine
 
-    public static class CommandLine
+    public memory_unsafe static class CommandLine
     {
         // Entrecomilla un argumento para la línea de órdenes de Windows (reglas de
         // CommandLineToArgvW / del CRT de MSVC). Copia.
@@ -227,14 +227,14 @@ namespace std.os
     // ======================================================================= capa nativa
 
 #if WINDOWS
-    struct WinSecurityAttributes
+    memory_unsafe struct WinSecurityAttributes
     {
         public uint nLength;
         public void* lpSecurityDescriptor;
         public int bInheritHandle;
     }
 
-    struct WinStartupInfo
+    memory_unsafe struct WinStartupInfo
     {
         public uint cb;
         public ushort* lpReserved;
@@ -249,7 +249,7 @@ namespace std.os
         public void* hStdError;
     }
 
-    struct WinProcessInformation
+    memory_unsafe struct WinProcessInformation
     {
         public void* hProcess;
         public void* hThread;
@@ -298,7 +298,7 @@ namespace std.os
     // Proceso hijo. Con salida redirigida, la salida se acumula en Output / Error mientras
     // se espera (WaitForExit) o al leerla (ReadOutput), así el hijo nunca se bloquea por
     // tener la tubería llena. delete cierra los manejadores pero no mata al proceso.
-    public class Process
+    public memory_unsafe class Process
     {
         long handle = -1;        // POSIX: pid; Windows: HANDLE del proceso
         long job = -1;           // Windows: Job para Kill del árbol
@@ -841,7 +841,7 @@ namespace std.os
         public void Kill() { if (proc != null) proc.Kill(); }
     }
 
-    public static class EventWait
+    public memory_unsafe static class EventWait
     {
         // Espera hasta 'milliseconds' a que el descriptor 'fd' tenga datos.
         public static bool WaitFd(int fd, int milliseconds) => faset_wait_fd(fd, milliseconds);
@@ -883,7 +883,7 @@ namespace std.os
 //  Amplía std.Environment (core.fst) cuando se importa std.os.
 namespace std
 {
-    public static partial class Environment
+    public memory_unsafe static partial class Environment
     {
 #if WINDOWS
         static extern int SetEnvironmentVariableW(ushort* name, ushort* value);

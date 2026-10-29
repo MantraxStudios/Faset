@@ -145,7 +145,7 @@ namespace std.ui
     // ======================================================================= lienzo
 
     // Mapa de píxeles 0x00RRGGBB con primitivas antialias (por distancia con signo).
-    public class Canvas
+    public memory_unsafe class Canvas
     {
         public uint* Pixels;
         public int Width;         // en píxeles físicos
@@ -388,7 +388,7 @@ namespace std.ui
 
     // ======================================================================= fuentes
 
-    public struct GlyphImage
+    public memory_unsafe struct GlyphImage
     {
         public byte* Coverage;  // Width x Height, 0..255
         public int Width;
@@ -399,7 +399,7 @@ namespace std.ui
     }
 
     // Fuente del sistema a un tamaño concreto; los glifos se rasterizan bajo demanda.
-    public class UiFont
+    public memory_unsafe class UiFont
     {
         static List<UiFont> cache = new List<UiFont>();
 
@@ -652,7 +652,7 @@ namespace std.ui
     // ======================================================================= controles
 
     // Un control de la interfaz. Todos los tipos comparten esta clase y se distinguen por 'Kind'.
-    public class Widget
+    public memory_unsafe class Widget
     {
         public WidgetKind Kind;
         public string Name = String.Copy("");
@@ -2070,7 +2070,7 @@ namespace std.ui
     }
 
     // UTF-8
-    public static class Utf8
+    public memory_unsafe static class Utf8
     {
         public static string Encode(char c)
         {
@@ -2108,7 +2108,7 @@ namespace std.ui
 #if WINDOWS
     // ======================================================================= Win32
 
-    static class Win32
+    memory_unsafe static class Win32
     {
         public static extern void* GetModuleHandleW(ushort* name);
         public static extern ushort RegisterClassExW(byte* wc);
@@ -2164,7 +2164,7 @@ namespace std.ui
         }
     }
 
-    class NativeWindow
+    memory_unsafe class NativeWindow
     {
         static NativeWindow current;
 
@@ -2491,7 +2491,7 @@ namespace std.ui
 
     // La "ventana" es la actividad a pantalla completa: los toques llegan como ratón
     // (botón 1) y el tamaño lógico es el de la pantalla dividido por la densidad.
-    class NativeWindow
+    memory_unsafe class NativeWindow
     {
         public float Scale = 1;
         int* ev;
@@ -2614,7 +2614,7 @@ namespace std.ui
 #else
     // ======================================================================= X11 + FreeType
 
-    static class FreeType
+    memory_unsafe static class FreeType
     {
         public static extern int FT_Init_FreeType(void** library);
         public static extern int FT_New_Face(void* library, byte* path, long faceIndex, void** face);
@@ -2637,7 +2637,7 @@ namespace std.ui
         public const int LoadTargetLight = 65536;
     }
 
-    static class X11
+    memory_unsafe static class X11
     {
         public static extern void* XOpenDisplay(byte* name);
         public static extern int XCloseDisplay(void* dpy);
@@ -2674,7 +2674,7 @@ namespace std.ui
         public static extern int XSendEvent(void* dpy, ulong w, int propagate, long mask, void* ev);
     }
 
-    class NativeWindow
+    memory_unsafe class NativeWindow
     {
         public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
         void* display;

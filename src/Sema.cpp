@@ -474,6 +474,8 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
         diag.error(tr->loc, "'void' solo es válido como tipo de retorno o como puntero (void*)");
         return tc_.error();
     }
+    if (tr->ptrDepth > 0 && !unsafeCtx())
+        unsafeError(tr->loc, "el tipo puntero '" + tr->str() + "'");
     for (int i = 0; i < tr->ptrDepth; i++) base = tc_.pointerTo(base);
     return base;
 }
@@ -524,7 +526,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
     for (FieldDecl* f : c->fields) {
         f->owner = c;
         ctx_.file = f->file ? f->file : c->file;
+        ctx_.field = f;
         f->type = resolveType(f->tref);
+        ctx_.field = nullptr;
         ctx_.file = c->file;
         if (ideMode && !c->templateOf && f->type) addRef(f->loc, (int)f->name.size(), describeField(f), &f->loc);
         if (f->tref->isRef) diag.error(f->loc, "los campos no pueden ser referencias (T&); usa un puntero");
@@ -603,7 +607,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
     }
     for (MethodDecl* m : c->methods)
         for (Attribute& a : m->attrs)
-            if (a.name != "Export") diag.error(a.loc, "atributo desconocido '" + a.name + "'");
+            if (a.name != "Export" && a.name != "TrackCaller") diag.error(a.loc, "atributo desconocido '" + a.name + "'");
 
     for (size_t i = 0; i < c->ctors.size(); i++) {
         MethodDecl* m = c->ctors[i];
@@ -614,6 +618,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         ctx_.file = c->file;
         ctx_.method = nullptr;
         m->cname = c->cname + "__ctor" + std::to_string(i);
+        if (m->trackCaller) diag.error(m->loc, "[TrackCaller] no se puede aplicar a constructores");
         if (c->isStaticClass() || m->isStatic())
             diag.error(m->loc, "los constructores estáticos y de clases estáticas no están soportados");
     }
@@ -677,6 +682,13 @@ ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, So
     c->file = tmpl->file;
     c->ns = tmpl->ns;
     c->nsSym = tmpl->nsSym;
+    if (tmpl->unsafeCtx && !c->unsafeCtx) {  // 'memory_unsafe namespace' alrededor de la plantilla
+        c->unsafeCtx = true;
+        for (FieldDecl* f : c->fields) f->unsafeCtx = true;
+        for (MethodDecl* m : c->methods) m->unsafeBody = true;
+        for (MethodDecl* m : c->ctors) m->unsafeBody = true;
+        if (c->dtor) c->dtor->unsafeBody = true;
+    }
     c->cname = tmpl->cname + "_" + std::to_string(++instCounter_);
     c->type = new Type(c->kind == ClassKind::Class ? TK::Class : TK::Struct);
     c->type->decl = c;
@@ -703,6 +715,8 @@ MethodDecl* Sema::instantiateMethod(MethodDecl* tmpl, const std::vector<Type*>& 
     if (!m) return nullptr;
     m->templateOf = tmpl;
     m->owner = tmpl->owner;
+    m->unsafeBody = m->unsafeBody || tmpl->unsafeBody;
+    m->unsafeApi = tmpl->unsafeApi;
     for (size_t i = 0; i < args.size(); i++) m->typeArgMap[tmpl->typeParams[i]] = args[i];
     m->cname = tmpl->cname + "_g" + std::to_string(++instCounter_);
     tmpl->instances[key] = m;
@@ -783,6 +797,7 @@ void Sema::processWork() {
             CtxSave save(*this);
             enter(c, nullptr);
             if (f->file) ctx_.file = f->file;
+            ctx_.field = f;
             checkValue(f->init);
             coerce(f->init, f->type);
             if (f->isStatic()) staticInits.push_back(f);
@@ -902,8 +917,11 @@ void Sema::checkStmt(Stmt* s) {
     switch (s->kind) {
         case SK::Empty: break;
         case SK::Block: {
+            auto* b = static_cast<BlockStmt*>(s);
             ctx_.scopes.emplace_back();
-            for (Stmt* c : static_cast<BlockStmt*>(s)->stmts) checkStmt(c);
+            if (b->memoryUnsafe) ctx_.unsafeDepth++;
+            for (Stmt* c : b->stmts) checkStmt(c);
+            if (b->memoryUnsafe) ctx_.unsafeDepth--;
             ctx_.scopes.pop_back();
             break;
         }
@@ -1366,7 +1384,79 @@ bool Sema::constEval(Expr* e, int64_t& out, int depth) {
 Type* Sema::check(Expr* e) {
     Type* t = checkInner(e);
     e->type = t ? t : tc_.error();
+    if (e->type->isPointer() && e->vk == ValKind::Value && !unsafeCtx()) pointerExprError(e);
     return e->type;
+}
+
+// ================================================================== seguridad de memoria
+//
+// Fuera de un contexto memory_unsafe no puede aparecer ningún puntero: ni en tipos
+// (variables, campos, parámetros, conversiones, argumentos genéricos) ni como valor de una
+// expresión. Así, las API que reciben o devuelven punteros solo se pueden usar desde código
+// memory_unsafe, sin necesidad de marcarlas una a una. Además, llamar a funciones 'extern' y a
+// métodos marcados 'memory_unsafe' también exige un contexto memory_unsafe.
+
+bool Sema::unsafeCtx() const {
+    if (ctx_.unsafeDepth > 0) return true;
+    if (ctx_.method && ctx_.method->unsafeBody) return true;
+    // La firma de una función 'extern' puede usar punteros: llamarla ya exige memory_unsafe.
+    if (ctx_.method && ctx_.method->mods.isExtern) return true;
+    if (ctx_.field && ctx_.field->unsafeCtx) return true;
+    if (!ctx_.method && !ctx_.field && ctx_.cls && ctx_.cls->unsafeCtx) return true;
+    if (ctx_.file && ctx_.file->unsafeCtx) return true;
+    // Una instancia genérica con argumentos puntero solo puede pedirla código memory_unsafe
+    // (escribir 'List<int*>' ya lo exige): hereda ese contexto.
+    if (ctx_.method && ctx_.method->templateOf)
+        for (auto& kv : ctx_.method->typeArgMap)
+            if (kv.second && kv.second->isPointer()) return true;
+    if (ctx_.cls && ctx_.cls->templateOf)
+        for (Type* t : ctx_.cls->typeArgs)
+            if (t && t->isPointer()) return true;
+    return false;
+}
+
+void Sema::unsafeError(SourceLoc loc, const std::string& what) {
+    if (!unsafeReported_.insert({loc.file, loc.line}).second) return;  // uno por línea
+    diag.error(loc, what + " requiere un contexto memory_unsafe (usa 'memory_unsafe { ... }' o marca "
+                           "el método o la clase con 'memory_unsafe')");
+}
+
+// Llamadas a funciones nativas (extern) o a métodos marcados 'memory_unsafe'.
+void Sema::requireSafeCall(MethodDecl* m, SourceLoc loc) {
+    if (!m || unsafeCtx()) return;
+    std::string name = m->owner && !m->owner->isNamespaceScope ? m->owner->displayName + "." + m->name : m->name;
+    if (m->kind == MethodKind::Ctor) name = "el constructor de '" + m->owner->displayName + "'";
+    else name = "'" + name + "'";
+    if (m->mods.isExtern) unsafeError(loc, "llamar a la función nativa " + name + " (extern)");
+    else if (m->unsafeApi) unsafeError(loc, "usar " + name + ", marcado como 'memory_unsafe',");
+}
+
+void Sema::pointerExprError(Expr* e) {
+    switch (e->kind) {
+        case EK::Name:
+            // Las variables locales y parámetros puntero ya dieron error en su declaración.
+            if (static_cast<NameExpr*>(e)->ref == NameExpr::Ref::Local) return;
+            break;
+        case EK::Cast:
+            if (static_cast<CastExpr*>(e)->implicit) return;
+            unsafeError(e->loc, "convertir a un tipo puntero ('" + e->type->str() + "')");
+            return;
+        case EK::Unary:
+            if (static_cast<UnaryExpr*>(e)->op == "&") {
+                unsafeError(e->loc, "tomar la dirección de una variable ('&')");
+                return;
+            }
+            break;
+        case EK::NewArray: unsafeError(e->loc, "reservar memoria sin procesar con 'new T[n]' (usa List<T>)"); return;
+        case EK::Member:
+            if (static_cast<MemberExpr*>(e)->ref == MemberExpr::Ref::StrPtr) {
+                unsafeError(e->loc, "obtener el puntero de una cadena ('.Ptr')");
+                return;
+            }
+            break;
+        default: break;
+    }
+    unsafeError(e->loc, "usar un valor de tipo puntero ('" + e->type->str() + "')");
 }
 
 Type* Sema::checkValue(Expr* e) {
@@ -1430,6 +1520,7 @@ Type* Sema::checkInner(Expr* e) {
                 diag.error(pe->loc, "el operador '" + pe->op + "' no se puede aplicar a '" + t->str() + "'");
                 return tc_.error();
             }
+            if (t->isPointer() && !unsafeCtx()) unsafeError(pe->loc, "la aritmética de punteros ('" + pe->op + "')");
             return t;
         }
         case EK::Binary: return checkBinary(static_cast<BinaryExpr*>(e));
@@ -1445,6 +1536,9 @@ Type* Sema::checkInner(Expr* e) {
                 diag.error(c->loc, "no se puede convertir el tipo '" + from->str() + "' en '" + to->str() + "'");
                 return tc_.error();
             }
+            auto refLike = [](Type* t) { return t->isPointer() || t->isClass() || t->isFuncPtr(); };
+            if (from != to && (refLike(from) || refLike(to)) && !canImplicit(c->operand, from, to) && !unsafeCtx())
+                unsafeError(c->loc, "reinterpretar '" + from->str() + "' como '" + to->str() + "'");
             return to;
         }
         case EK::New: return checkNew(static_cast<NewExpr*>(e));
@@ -1646,6 +1740,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             e->ref = NameExpr::Ref::Property;
             e->getter = m;
             e->setter = FindSetter(m);
+            requireSafeCall(m, e->loc);
             useMethod(m, &e->loc);
             return m->ret;
         }
@@ -1772,6 +1867,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 e->ref = MemberExpr::Ref::Property;
                 e->getter = m;
                 e->setter = FindSetter(m);
+                requireSafeCall(m, e->loc);
                 useMethod(m, &e->loc);
                 return m->ret;
             }
@@ -1793,6 +1889,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             diag.error(e->loc, "el operador '->' requiere un puntero (el tipo es '" + ot->str() + "'); usa '.'");
             return tc_.error();
         }
+        if (!unsafeCtx()) unsafeError(e->loc, "acceder a un miembro a través de un puntero ('->')");
         base = ot->elem;
     } else if (ot->isPointer()) {
         diag.error(e->loc, "usa '->' para acceder a miembros a través de un puntero ('" + ot->str() + "')");
@@ -1832,6 +1929,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             e->ref = MemberExpr::Ref::Property;
             e->getter = m;
             e->setter = FindSetter(m);
+            requireSafeCall(m, e->loc);
             useMethod(m, &e->loc);
             return m->ret;
         }
@@ -1969,6 +2067,7 @@ Type* Sema::checkCall(CallExpr* e) {
     if (!m) return tc_.error();
     e->target = m;
     checkAccess(m->mods.access, m->owner, m->name, e->loc);
+    requireSafeCall(m, e->loc);
     if (ideMode) {
         SourceLoc at = callee->kind == EK::Member ? static_cast<MemberExpr*>(callee)->nameLoc : callee->loc;
         addRef(at, (int)m->name.size(), methodSignature(m), &m->loc);
@@ -2024,6 +2123,7 @@ Type* Sema::checkIndex(IndexExpr* ix) {
         MethodDecl* m = resolveOverload(cands, args, ix->loc, "operator[]");
         if (!m) return tc_.error();
         checkAccess(m->mods.access, m->owner, m->name, ix->loc);
+        requireSafeCall(m, ix->loc);
         ix->opMethod = m;
         useMethod(m, &ix->loc);
         coerceArgs(m, args);
@@ -2035,7 +2135,10 @@ Type* Sema::checkIndex(IndexExpr* ix) {
         return tc_.error();
     }
     if (!it->is(TK::ULong)) coerce(ix->index, tc_.get(TK::Long));
-    if (ot->isPointer() && !ot->isVoidPointer()) return ot->elem;
+    if (ot->isPointer() && !ot->isVoidPointer()) {
+        if (!unsafeCtx()) unsafeError(ix->loc, "indexar un puntero ('p[i]', sin comprobación de límites)");
+        return ot->elem;
+    }
     if (ot->is(TK::String)) return tc_.get(TK::Byte);
     diag.error(ix->loc, "no se puede aplicar indexación a una expresión de tipo '" + ot->str() + "'");
     return tc_.error();
@@ -2062,16 +2165,18 @@ Type* Sema::checkUnary(UnaryExpr* e) {
                 }
                 bool refParam = false;
                 for (Param& p : c->params) refParam |= p.isRef();
-                if (c->isStatic() && !c->variadic && !c->retIsRef() && !refParam) viable.push_back(c);
+                if (c->isStatic() && !c->variadic && !c->retIsRef() && !refParam && !c->trackCaller) viable.push_back(c);
             }
             if (viable.size() != 1) {
                 diag.error(e->loc, viable.empty()
-                                       ? "solo se puede tomar la dirección de métodos estáticos sin parámetros por referencia"
+                                       ? "solo se puede tomar la dirección de métodos estáticos sin parámetros por "
+                                         "referencia (ni [TrackCaller])"
                                        : "la dirección del método es ambigua (está sobrecargado)");
                 return tc_.error();
             }
             MethodDecl* m = viable[0];
             e->funcRef = m;
+            requireSafeCall(m, e->loc);
             useMethod(m);
             std::vector<Type*> params;
             for (Param& p : m->params) params.push_back(p.type);
@@ -2094,6 +2199,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
         std::vector<Expr*> args = {e->operand};
         MethodDecl* m = resolveOverload(cands, args, e->loc, "operator" + op);
         if (!m) return tc_.error();
+        requireSafeCall(m, e->loc);
         e->opMethod = m;
         useMethod(m);
         coerceArgs(m, args);
@@ -2130,6 +2236,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
             return tc_.error();
         }
         if (!(t->isNumeric() || (t->isPointer() && !t->isVoidPointer()))) return bad();
+        if (t->isPointer() && !unsafeCtx()) unsafeError(e->loc, "la aritmética de punteros ('" + op + "')");
         return t;
     }
     if (op == "*") {
@@ -2141,6 +2248,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
             diag.error(e->loc, "no se puede desreferenciar 'void*'; conviértelo primero a un puntero tipado");
             return tc_.error();
         }
+        if (!unsafeCtx()) unsafeError(e->loc, "desreferenciar un puntero ('*')");
         return t->elem;
     }
     if (op == "&") {
@@ -2189,6 +2297,7 @@ Type* Sema::checkBinary(BinaryExpr* e) {
             MethodDecl* m = resolveOverload(cands, args, e->loc, "operator" + op);
             if (!m) return tc_.error();
             if (negate && !m->ret->is(TK::Bool)) return bad();
+            requireSafeCall(m, e->loc);
             e->opMethod = m;
             e->negate = negate;
             useMethod(m, &e->loc);
@@ -2214,6 +2323,8 @@ Type* Sema::checkBinary(BinaryExpr* e) {
     }
 
     if (L->isRefLike() || R->isRefLike()) {
+        if ((op == "+" || op == "-") && (L->isPointer() || R->isPointer()) && !unsafeCtx())
+            unsafeError(e->loc, "la aritmética de punteros ('" + op + "')");
         if ((op == "+" || op == "-") && L->isPointer() && R->isIntegral()) {
             if (L->isVoidPointer()) return bad();
             if (!R->is(TK::ULong)) coerce(e->rhs, tc_.get(TK::Long));
@@ -2295,6 +2406,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
             return tc_.error();
         }
         checkAccess(setter->mods.access, setter->owner, setter->name, e->loc);
+        requireSafeCall(setter, e->loc);
         coerce(e->rhs, L);
         e->setter = setter;
         useMethod(setter, &e->loc);
@@ -2323,6 +2435,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
         MethodDecl* m = resolveOverload(cands, args, e->loc, "operator" + op);
         if (!m) return tc_.error();
         if (m->ret != L) return bad();
+        requireSafeCall(m, e->loc);
         e->opMethod = m;
         useMethod(m);
         coerceArgs(m, args);
@@ -2331,6 +2444,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
     }
     if (L->isPointer() && (op == "+" || op == "-") && R->isIntegral()) {
         if (L->isVoidPointer()) return bad();
+        if (!unsafeCtx()) unsafeError(e->loc, "la aritmética de punteros ('" + e->op + "')");
         if (!R->is(TK::ULong)) coerce(e->rhs, tc_.get(TK::Long));
         return L;
     }
@@ -2401,6 +2515,7 @@ Type* Sema::checkNew(NewExpr* e) {
     MethodDecl* m = resolveOverload(c->ctors, e->args, e->loc, c->displayName);
     if (!m) return tc_.error();
     checkAccess(m->mods.access, c, c->name, e->loc);
+    requireSafeCall(m, e->loc);
     e->ctor = m;
     useMethod(m, &e->loc);
     coerceArgs(m, e->args);
@@ -2432,6 +2547,7 @@ std::string Sema::typeDescription(ClassDecl* c) {
 
 std::string Sema::methodSignature(MethodDecl* m) {
     std::string s;
+    if (m->unsafeApi) s += "memory_unsafe ";
     if (m->mods.isStatic && m->owner && !m->owner->isNamespaceScope) s += "static ";
     if (m->kind == MethodKind::Ctor) {
         s += "new " + (m->owner ? m->owner->displayName : m->name);
@@ -2526,7 +2642,7 @@ void Sema::completeScope() {
         "if", "else", "while", "do", "for", "break", "continue", "return", "switch", "case", "default",
         "new", "delete", "sizeof", "this", "null", "nullptr", "true", "false", "var", "auto", "const",
         "class", "struct", "enum", "namespace", "using", "import", "public", "private", "static", "extern",
-        "operator", "delegate", "ref", "out", "int", "long", "double", "float", "bool", "char", "byte", "string", "void"};
+        "operator", "delegate", "ref", "out", "memory_unsafe", "int", "long", "double", "float", "bool", "char", "byte", "string", "void"};
     for (const char* k : keywords) addCompletion(k, kKeyword, "");
 }
 

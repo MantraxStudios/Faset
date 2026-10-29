@@ -18,7 +18,7 @@ namespace FasetStudio
 {
     static extern long readlink(byte* path, byte* buf, ulong size);
 
-    public static class Program
+    public memory_unsafe static class Program
     {
         // Ruta real del ejecutable: argv[0] no sirve si se lanzó desde el PATH o con un enlace.
         static string ExecutablePath()

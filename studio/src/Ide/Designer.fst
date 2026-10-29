@@ -149,7 +149,7 @@ namespace FasetStudio.Ide
     }
 
     // Lectura y escritura del XML de los .fstui.
-    public static class UiXml
+    public memory_unsafe static class UiXml
     {
         static bool IsSpace(byte c) => c == ' ' || c == '\t' || c == '\n' || c == '\r';
         static bool IsNameChar(byte c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == ':' || c == '.';

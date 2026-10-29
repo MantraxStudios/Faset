@@ -13,7 +13,7 @@ using std.hash;
 namespace std.collections
 {
     // ---------------------------------------------------------------- List<T>
-    public class List<T>
+    public memory_unsafe class List<T>
     {
         T* items;
         int count;
@@ -29,7 +29,7 @@ namespace std.collections
         // Puntero a los elementos (válido hasta la próxima modificación).
         public T* Data => items;
 
-        public T& operator[](int index)
+        [TrackCaller] public T& operator[](int index)
         {
             if (index < 0 || index >= count) panic("List: índice fuera de rango");
             return items[index];
@@ -56,7 +56,7 @@ namespace std.collections
             count += other.Count;
         }
 
-        public void Insert(int index, T item)
+        [TrackCaller] public void Insert(int index, T item)
         {
             if (index < 0 || index > count) panic("List.Insert: índice fuera de rango");
             if (count == capacity) Reserve(capacity < 8 ? 8 : capacity * 2);
@@ -65,7 +65,7 @@ namespace std.collections
             count++;
         }
 
-        public void RemoveAt(int index)
+        [TrackCaller] public void RemoveAt(int index)
         {
             if (index < 0 || index >= count) panic("List.RemoveAt: índice fuera de rango");
             for (int i = index; i < count - 1; i++) items[i] = items[i + 1];
@@ -90,19 +90,19 @@ namespace std.collections
         public bool Contains(T item) => IndexOf(item) >= 0;
         public void Clear() { count = 0; }
 
-        public T First()
+        [TrackCaller] public T First()
         {
             if (count == 0) panic("List.First: la lista está vacía");
             return items[0];
         }
 
-        public T Last()
+        [TrackCaller] public T Last()
         {
             if (count == 0) panic("List.Last: la lista está vacía");
             return items[count - 1];
         }
 
-        public T Pop()
+        [TrackCaller] public T Pop()
         {
             if (count == 0) panic("List.Pop: la lista está vacía");
             count--;
@@ -190,13 +190,13 @@ namespace std.collections
         public int Count => items.Count;
         public bool IsEmpty => items.Count == 0;
         public void Push(T item) { items.Add(item); }
-        public T Pop() => items.Pop();
-        public T Peek() => items.Last();
+        [TrackCaller] public T Pop() => items.Pop();
+        [TrackCaller] public T Peek() => items.Last();
         public void Clear() { items.Clear(); }
     }
 
     // ---------------------------------------------------------------- Queue<T> (búfer circular)
-    public class Queue<T>
+    public memory_unsafe class Queue<T>
     {
         T* items;
         int head;
@@ -215,7 +215,7 @@ namespace std.collections
             count++;
         }
 
-        public T Dequeue()
+        [TrackCaller] public T Dequeue()
         {
             if (count == 0) panic("Queue.Dequeue: la cola está vacía");
             T item = items[head];
@@ -224,7 +224,7 @@ namespace std.collections
             return item;
         }
 
-        public T Peek()
+        [TrackCaller] public T Peek()
         {
             if (count == 0) panic("Queue.Peek: la cola está vacía");
             return items[head];
@@ -246,7 +246,7 @@ namespace std.collections
 
     // ---------------------------------------------------------------- Dictionary<K, V> (tabla hash)
     //  Las claves deben tener un Hash.Of(K) (enteros, char, string, punteros...).
-    public class Dictionary<K, V>
+    public memory_unsafe class Dictionary<K, V>
     {
         K* keys;
         V* values;
@@ -350,7 +350,7 @@ namespace std.collections
             return true;
         }
 
-        public V Get(K key)
+        [TrackCaller] public V Get(K key)
         {
             int i = Find(key);
             if (i < 0) panic("Dictionary.Get: la clave no existe");
@@ -416,7 +416,7 @@ namespace std.collections
     }
 
     // ---------------------------------------------------------------- algoritmos genéricos
-    public static class Algorithms
+    public memory_unsafe static class Algorithms
     {
         public static void Swap<T>(T& a, T& b)
         {

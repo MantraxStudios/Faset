@@ -8,7 +8,7 @@ using std.collections;
 
 namespace std.text
 {
-    public class StringBuilder
+    public memory_unsafe class StringBuilder
     {
         byte* buffer;
         int length;
@@ -116,7 +116,7 @@ namespace std.text
         public string View() => String.FromBytes(buffer, length);
     }
 
-    public static class Text
+    public memory_unsafe static class Text
     {
         // Divide 's' por 'separator'. Las partes son vistas de 's' (no copian).
         // Devuelve una lista nueva: libérala con delete.

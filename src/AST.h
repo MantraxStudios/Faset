@@ -55,6 +55,7 @@ struct Modifiers {
     Access access = Access::Private;
     bool hasAccess = false;
     bool isStatic = false, isExtern = false, isConst = false, isReadonly = false, isPartial = false;
+    bool isMemoryUnsafe = false;  // modificador 'memory_unsafe'
 };
 
 struct Attribute {
@@ -74,6 +75,9 @@ struct UsingDirective {
 // Contexto de un archivo fuente: sus 'using' (resueltos por Sema).
 struct FileScope {
     int fileId = 0;
+    // Todo el archivo es un contexto memory_unsafe: directiva 'memory_unsafe;' o
+    // proyecto con <AllowUnsafe>true</AllowUnsafe>.
+    bool unsafeCtx = false;
     std::vector<UsingDirective> usings;
     std::vector<NamespaceSym*> nsUsings;
     bool resolved = false;
@@ -265,6 +269,7 @@ struct Stmt {
 
 struct BlockStmt : Stmt {
     std::vector<Stmt*> stmts;
+    bool memoryUnsafe = false;  // memory_unsafe { ... }
     explicit BlockStmt(SourceLoc l) : Stmt(SK::Block, l) {}
 };
 
@@ -370,6 +375,7 @@ struct FieldDecl {
     ClassDecl* owner = nullptr;
     Type* type = nullptr;
     std::string cname;
+    bool unsafeCtx = false;  // su tipo e inicializador están en un contexto memory_unsafe
     bool isStatic() const { return mods.isStatic || mods.isConst; }
 };
 
@@ -389,6 +395,14 @@ struct MethodDecl {
     ClassDecl* owner = nullptr;
     Type* ret = nullptr;
     std::string cname;
+
+    // Seguridad de memoria:
+    //   unsafeBody: el cuerpo y la firma son un contexto memory_unsafe (método, clase,
+    //               namespace o archivo marcados).
+    //   unsafeApi:  el propio método está marcado 'memory_unsafe': solo se puede llamar
+    //               desde un contexto memory_unsafe (como 'unsafe fn' en Rust).
+    //   trackCaller: [TrackCaller]: recibe la ubicación de quien lo llama (para panic).
+    bool unsafeBody = false, unsafeApi = false, trackCaller = false;
 
     // Plantillas (genéricos): se vuelven a analizar desde los tokens por cada instancia.
     std::vector<std::string> typeParams;
@@ -436,6 +450,7 @@ struct ClassDecl {
     FileScope* file = nullptr;
     NamespaceSym* nsSym = nullptr;
     bool isNamespaceScope = false;  // contenedor oculto de funciones/variables globales
+    bool unsafeCtx = false;         // 'memory_unsafe class': implementación confiable
 
     // Plantillas (genéricos)
     std::vector<std::string> typeParams;

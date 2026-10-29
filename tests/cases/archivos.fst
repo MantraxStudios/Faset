@@ -35,17 +35,20 @@ int main()
     for (int i = 0; i < lines.Count; i++) println(lines[i]);
     File.FreeLines(lines);
 
-    byte* data;
-    long len;
-    Check("TryReadAllBytes", File.TryReadAllBytes(a, out data, out len) && len == 15 && data[0] == 'h');
-    Memory.Free(data);
     string b = Path.Combine(tmp, "b.bin");
-    byte* raw = (byte*)Memory.Alloc(256);
-    for (int i = 0; i < 256; i++) raw[i] = (byte)i;
-    Check("WriteAllBytes", File.WriteAllBytes(b, raw, 256));
-    Memory.Free(raw);
-    Check("ReadAllBytes", File.TryReadAllBytes(b, out data, out len) && len == 256 && data[255] == 255);
-    Memory.Free(data);
+    memory_unsafe  // las API de bytes usan punteros
+    {
+        byte* data;
+        long len;
+        Check("TryReadAllBytes", File.TryReadAllBytes(a, out data, out len) && len == 15 && data[0] == 'h');
+        Memory.Free(data);
+        byte* raw = (byte*)Memory.Alloc(256);
+        for (int i = 0; i < 256; i++) raw[i] = (byte)i;
+        Check("WriteAllBytes", File.WriteAllBytes(b, raw, 256));
+        Memory.Free(raw);
+        Check("ReadAllBytes", File.TryReadAllBytes(b, out data, out len) && len == 256 && data[255] == 255);
+        Memory.Free(data);
+    }
 
     // ---- copiar, mover, borrar
     string c = Path.Combine(tmp, "c.txt");

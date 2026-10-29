@@ -23,7 +23,7 @@ namespace std.time
     static extern void faset_sleep_ms(long ms);
     static extern int faset_tz_offset_sec(long unixSeconds);
 
-    public static class Time
+    public memory_unsafe static class Time
     {
         // Milisegundos desde un punto arbitrario (monótono: para medir intervalos).
         public static long TickMs() => faset_ticks_ms();
@@ -154,7 +154,7 @@ namespace std.time
     //   DateTime manana = d.AddDays(1);
     //   TimeSpan dif = manana - d;
     //   string s = d.ToString("yyyy-MM-dd HH:mm:ss");   // libérala con String.Free
-    public struct DateTime
+    public memory_unsafe struct DateTime
     {
         public const long MinTicks = 0;
         public const long MaxTicks = 3155378975999999999;     // 9999-12-31 23:59:59.9999999
@@ -462,7 +462,7 @@ namespace std.time
     }
 
     // ---------------------------------------------------------------- TimeZone
-    public static class TimeZone
+    public memory_unsafe static class TimeZone
     {
         // Desfase actual de la hora local respecto a UTC (positivo al este de Greenwich).
         public static TimeSpan LocalOffset => TimeSpan.FromTicks(faset_tz_offset_sec(faset_time_unix_ms() / 1000) * TimeSpan.TicksPerSecond);
@@ -887,7 +887,7 @@ namespace std.time
 
     // ---------------------------------------------------------------- Stopwatch
     // Cronómetro de alta resolución sobre un reloj monótono (nanosegundos).
-    public struct Stopwatch
+    public memory_unsafe struct Stopwatch
     {
         long startNs;
         long accumulated;  // ns

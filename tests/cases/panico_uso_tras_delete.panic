@@ -1,0 +1,1 @@
+Faset panic: uso de un objeto después de 'delete' at tests/cases/panico_uso_tras_delete.fst:14

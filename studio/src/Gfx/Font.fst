@@ -45,7 +45,7 @@ namespace FasetStudio.Gfx
     }
 
     // Textura de cobertura (un byte por píxel) con empaquetado por filas.
-    public class Atlas
+    public memory_unsafe class Atlas
     {
         public byte* Pixels;
         public int Size;
@@ -94,7 +94,7 @@ namespace FasetStudio.Gfx
         }
     }
 
-    public class Font
+    public memory_unsafe class Font
     {
         static void* library;
 

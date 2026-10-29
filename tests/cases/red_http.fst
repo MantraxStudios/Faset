@@ -58,7 +58,7 @@ static class Program
             String.Free(line);
             return false;
         }
-        Console.WriteLine(String.FromBytes(line.Ptr, line.Length));
+        Console.WriteLine(line);
         String.Free(line);
         int length = 0;
         while (c.ReadLine(out line))
@@ -82,7 +82,7 @@ static class Program
             if (line.StartsWith("Content-Length: ")) length = line.Substring(16).ToInt();
             String.Free(line);
         }
-        if (length > 0)
+        if (length > 0) memory_unsafe  // búfer crudo para Receive
         {
             byte* body = new byte[length];
             int got = 0;

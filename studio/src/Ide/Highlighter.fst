@@ -81,13 +81,13 @@ namespace FasetStudio.Ide
         public const byte Escape = 10;
     }
 
-    public class Highlighter
+    public memory_unsafe class Highlighter
     {
         Dictionary<string, byte> words = new Dictionary<string, byte>();
 
         public Highlighter()
         {
-            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly unsafe virtual override abstract sealed new delete sizeof typeof this null nullptr true false var auto delegate operator ref out in is as params default get set where typename inline", TokenKind.Keyword);
+            AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof this null nullptr true false var auto delegate operator ref out in is as params default get set where typename inline", TokenKind.Keyword);
             AddAll("if else while do for foreach break continue return switch case goto throw try catch finally", TokenKind.Control);
             AddAll("void bool char sbyte byte short ushort int uint long ulong float double string object", TokenKind.Type);
         }

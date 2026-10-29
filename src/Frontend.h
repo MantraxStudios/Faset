@@ -16,6 +16,9 @@ struct FrontendOptions {
     bool analyzeWithParseErrors = false;  // seguir con el análisis semántico aunque haya errores de sintaxis
     bool ideMode = false;                 // registrar referencias y autocompletado
     std::set<std::string> defines = {"FASET", "LINUX", "DEBUG"};  // compilación condicional
+    // Archivos (rutas normalizadas) que son por completo un contexto memory_unsafe:
+    // los de proyectos con <AllowUnsafe>true</AllowUnsafe> o compilados con --allow-unsafe.
+    std::set<std::string> unsafeFiles;
 };
 
 // Símbolos de compilación condicional para una plataforma y configuración.

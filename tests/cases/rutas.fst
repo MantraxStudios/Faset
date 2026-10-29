@@ -114,20 +114,23 @@ int main()
     String.Free(rnd);
 
     // ---- UTF-16
-    int n;
-    ushort* w = Utf16.Encode("ñ€😀", out n);
-    println(n);
-    println((long)w[2]);
-    string back = Utf16.Decode(w);
-    Show(back);
-    String.Free(back);
-    Memory.Free(w);
-    ushort* bad = Memory.New<ushort>(2);
-    bad[0] = 0xD800;   // sustituto suelto
-    string fixedText = Utf16.Decode(bad, 1);
-    Check("U+FFFD", fixedText == "�");
-    String.Free(fixedText);
-    Memory.Free(bad);
+    memory_unsafe  // Utf16 trabaja con búferes ushort*
+    {
+        int n;
+        ushort* w = Utf16.Encode("ñ€😀", out n);
+        println(n);
+        println((long)w[2]);
+        string back = Utf16.Decode(w);
+        Show(back);
+        String.Free(back);
+        Memory.Free(w);
+        ushort* bad = Memory.New<ushort>(2);
+        bad[0] = 0xD800;   // sustituto suelto
+        string fixedText = Utf16.Decode(bad, 1);
+        Check("U+FFFD", fixedText == "�");
+        String.Free(fixedText);
+        Memory.Free(bad);
+    }
 
     // ---- FileWatcher (inotify y sondeo)
     WatchTest(false);

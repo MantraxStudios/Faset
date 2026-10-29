@@ -1,5 +1,8 @@
 // Hilos: Mutex, RecursiveMutex, ConditionVariable, Semaphore, atómicos,
 // ThreadPool, Parallel.For y Channel<T>. La salida es determinista.
+// Los hilos reciben su argumento como void* y los atómicos trabajan sobre punteros:
+// todo el archivo es un contexto memory_unsafe.
+memory_unsafe;
 using std.thread;
 
 const int Hilos = 4;

@@ -21,7 +21,7 @@ namespace FasetStudio.Ide
         public static TextPos Max(TextPos a, TextPos b) => a < b ? b : a;
     }
 
-    public class Line
+    public memory_unsafe class Line
     {
         public byte* Data;
         public int Length;
@@ -73,7 +73,7 @@ namespace FasetStudio.Ide
         ~EditRecord() { String.Free(Text); }
     }
 
-    public class TextBuffer
+    public memory_unsafe class TextBuffer
     {
         public List<Line> Lines = new List<Line>();
         List<EditRecord> undo = new List<EditRecord>();

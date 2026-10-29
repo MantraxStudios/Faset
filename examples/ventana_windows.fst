@@ -14,6 +14,6 @@ static class Program
 {
     static void Main()
     {
-        User32.MessageBoxA(null, "Hola desde Faset!".Ptr, "Faset".Ptr, User32.MB_OK | User32.MB_ICONINFORMATION);
+        memory_unsafe { User32.MessageBoxA(null, "Hola desde Faset!".Ptr, "Faset".Ptr, User32.MB_OK | User32.MB_ICONINFORMATION); }
     }
 }

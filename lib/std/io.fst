@@ -42,7 +42,7 @@ namespace std.io
     public enum SeekOrigin { Begin, Current, End }
 
     // Metadatos de un archivo o carpeta (sigue los enlaces simbólicos, salvo IsSymlink).
-    public struct FileInfo
+    public memory_unsafe struct FileInfo
     {
         public bool Exists;
         public FileKind Kind;
@@ -72,7 +72,7 @@ namespace std.io
     //  ListDir: "<tipo><nombre>\0..." con f/d/o (archivo/carpeta/otro) y F/D/L (enlaces).
 
 #if WINDOWS
-    static class Native
+    memory_unsafe static class Native
     {
         static extern void* CreateFileW(ushort* name, uint access, uint share, void* security, uint disposition, uint flags, void* template);
         static extern int ReadFile(void* h, void* buffer, uint count, uint* done, void* overlapped);
@@ -380,7 +380,7 @@ namespace std.io
         }
     }
 #else
-    static class Native
+    memory_unsafe static class Native
     {
         static extern bool faset_px_stat(string path, long* data);
         static extern int faset_px_mkdir(string path, int mode);
@@ -474,7 +474,7 @@ namespace std.io
 
     // ======================================================================= File
 
-    public static class File
+    public memory_unsafe static class File
     {
         // ---------------------------------------------------------------- texto y bytes
 
@@ -674,7 +674,7 @@ namespace std.io
     //   string line;
     //   while (f.ReadLine(out line)) { ...; String.Free(line); }
     //   delete f;
-    public class FileStream
+    public memory_unsafe class FileStream
     {
         const int BufferSize = 65536;
         long handle = -1;
@@ -965,7 +965,7 @@ namespace std.io
 
     // ======================================================================= Directory
 
-    public static class Directory
+    public memory_unsafe static class Directory
     {
         public static bool Exists(string path)
         {
@@ -1152,7 +1152,7 @@ namespace std.io
 
     // Las funciones de Path que devuelven una parte de la ruta (GetFileName, GetExtension...)
     // devuelven vistas de la original; las demás, copias nuevas (libéralas con String.Free).
-    public static class Path
+    public memory_unsafe static class Path
     {
 #if WINDOWS
         public static char DirectorySeparatorChar => '\\';
@@ -1535,7 +1535,7 @@ namespace std.io
     //   FileWatcher.FreeChanges(changes);
     // En Linux usa inotify; en el resto (o si inotify falla) compara instantáneas de la carpeta
     // cada PollIntervalMs. Los renombrados aparecen como Deleted + Created.
-    public class FileWatcher
+    public memory_unsafe class FileWatcher
     {
         string root;
         bool recursive;

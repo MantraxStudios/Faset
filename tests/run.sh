@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Ejecuta los tests de Faset:
-#   tests/cases/*.fst      compara la salida con su .expected
-#   tests/errors/*.fst     deben producir errores de compilación
+#   tests/cases/*.fst      compara la salida con su .expected (y el código con .exitcode);
+#                          si hay un .panic, stderr debe contener ese texto (Faset panic: ...)
+#   tests/errors/*.fst     deben producir errores de compilación; si hay un .expected, cada
+#                          línea 'N|regex' debe aparecer como error en la línea N
 #   tests/projects/*/      compila el proyecto indicado en 'main' y compara con 'expected'
 #   tests/lsp/test.js      servidor de lenguaje (si hay Node)
 set -u
@@ -19,11 +21,14 @@ for src in tests/cases/*.fst; do
     if ! $FASET build "$src" -o "$TMP/$name" 2> "$TMP/$name.err"; then
         echo "FALLO  $name (no compila)"; cat "$TMP/$name.err"; fail=$((fail+1)); continue
     fi
-    "$TMP/$name" > "$TMP/$name.out"; code=$?
+    "$TMP/$name" > "$TMP/$name.out" 2> "$TMP/$name.rerr"; code=$?
+    panic="tests/cases/$name.panic"
     if [ "$code" != "$want_code" ]; then
-        echo "FALLO  $name (código de salida $code, se esperaba $want_code)"; fail=$((fail+1))
+        echo "FALLO  $name (código de salida $code, se esperaba $want_code)"; cat "$TMP/$name.rerr"; fail=$((fail+1))
     elif ! diff -u "$expected" "$TMP/$name.out" > "$TMP/$name.diff"; then
         echo "FALLO  $name (salida distinta)"; cat "$TMP/$name.diff"; fail=$((fail+1))
+    elif [ -f "$panic" ] && ! grep -qF "$(cat "$panic")" "$TMP/$name.rerr"; then
+        echo "FALLO  $name (stderr no contiene: $(cat "$panic"))"; cat "$TMP/$name.rerr"; fail=$((fail+1))
     else
         echo "ok     $name"; pass=$((pass+1))
     fi
@@ -31,8 +36,18 @@ done
 
 for src in tests/errors/*.fst; do
     name=$(basename "$src" .fst)
-    if $FASET check "$src" > /dev/null 2>&1; then
-        echo "FALLO  errors/$name (debería fallar al compilar)"; fail=$((fail+1))
+    if $FASET check "$src" > "$TMP/err_$name.log" 2>&1; then
+        echo "FALLO  errors/$name (debería fallar al compilar)"; fail=$((fail+1)); continue
+    fi
+    missing=""
+    if [ -f "tests/errors/$name.expected" ]; then
+        while IFS='|' read -r ln rx; do
+            [ -z "$ln" ] && continue
+            grep -qE ":$ln:[0-9]+: error: .*$rx" "$TMP/err_$name.log" || missing="$missing\n  línea $ln: $rx"
+        done < "tests/errors/$name.expected"
+    fi
+    if [ -n "$missing" ]; then
+        echo -e "FALLO  errors/$name (faltan errores):$missing"; fail=$((fail+1))
     else
         echo "ok     errors/$name"; pass=$((pass+1))
     fi

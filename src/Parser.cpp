@@ -23,6 +23,13 @@ void Parser::fail(const SourceLoc& loc, const std::string& msg) {
     throw ParseError{};
 }
 
+// 'unsafe' (de C#) no existe: el contexto inseguro se escribe 'memory_unsafe' para que se vea
+// claramente dónde vive el código que manipula memoria a mano.
+void Parser::unsafeKeywordError() {
+    if (!isK("unsafe")) return;
+    diag.error(cur().loc, "'unsafe' no existe en Faset; usa 'memory_unsafe' (sustituye 'unsafe' por 'memory_unsafe')");
+}
+
 void Parser::expectP(const char* s) {
     if (sawMarker_ && !isP(s) && (std::string(s) == ";" || std::string(s) == ")")) return;
     if (!acceptP(s)) fail(std::string("se esperaba '") + s + "' pero se encontró '" + cur().text + "'");
@@ -155,17 +162,35 @@ void Parser::parseNamespaceBody(const std::string& ns, bool braced) {
                 }
                 continue;
             }
+            // 'memory_unsafe;' : todo el archivo es un contexto memory_unsafe.
+            if (isUnsafeKw() && peekTok().kind == TokKind::Punct && peekTok().text == ";") {
+                unsafeKeywordError();
+                file_->unsafeCtx = true;
+                p_ += 2;
+                continue;
+            }
+            // 'memory_unsafe namespace X { ... }' : todo lo declarado dentro es confiable.
+            bool unsafeNs = false;
+            if (isUnsafeKw() && peekTok().kind == TokKind::Keyword && peekTok().text == "namespace") {
+                unsafeKeywordError();
+                p_++;
+                unsafeNs = true;
+            }
             if (acceptK("namespace")) {
                 std::vector<std::string> path = parseDottedPath();
                 std::string name;
                 for (const std::string& s : path) name += (name.empty() ? "" : ".") + s;
                 std::string full = ns.empty() ? name : ns + "." + name;
+                bool savedUnsafe = nsUnsafe_;
+                nsUnsafe_ = nsUnsafe_ || unsafeNs;
                 if (acceptP(";")) {  // namespace con alcance de archivo
                     parseNamespaceBody(full, false);
+                    nsUnsafe_ = savedUnsafe;
                     return;
                 }
                 expectP("{");
                 parseNamespaceBody(full, true);
+                nsUnsafe_ = savedUnsafe;
                 expectP("}");
                 continue;
             }
@@ -226,7 +251,11 @@ Modifiers Parser::parseModifiers() {
         else if (acceptK("extern")) m.isExtern = true;
         else if (acceptK("const")) m.isConst = true;
         else if (acceptK("readonly")) m.isReadonly = true;
-        else if (acceptK("unsafe")) {}
+        else if (isUnsafeKw()) {
+            unsafeKeywordError();
+            p_++;
+            m.isMemoryUnsafe = true;
+        }
         else if (cur().kind == TokKind::Ident && cur().text == "partial" && (peekTok().text == "class" || peekTok().text == "struct"))
             p_++, m.isPartial = true;
         else if (cur().kind == TokKind::Ident && (cur().text == "inline" || cur().text == "constexpr")) p_++;
@@ -271,6 +300,7 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
     else if (isK("interface")) fail("las interfaces aún no están soportadas");
     else fail("se esperaba 'class', 'struct' o 'enum' pero se encontró '" + cur().text + "'");
     c->name = c->displayName = expectIdent();
+    c->unsafeCtx = mods.isMemoryUnsafe || nsUnsafe_;
     if (isP("<")) {
         if (c->kind == ClassKind::Enum) fail("los enums no pueden ser genéricos");
         c->typeParams = parseTypeParams();
@@ -365,6 +395,15 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
     }
     if (c->isNamespaceScope) mods.isStatic = true;
     SourceLoc loc = cur().loc;
+    // Contexto memory_unsafe de los miembros: el suyo propio, el de su clase o el del namespace.
+    bool ctxUnsafe = mods.isMemoryUnsafe || (c->isNamespaceScope ? nsUnsafe_ : c->unsafeCtx);
+    auto stamp = [&](MethodDecl* m) {
+        m->unsafeBody = ctxUnsafe;
+        m->unsafeApi = mods.isMemoryUnsafe;
+        for (Attribute& a : attrs)
+            if (a.name == "TrackCaller") m->trackCaller = true;
+        return m;
+    };
 
     if (isK("class") || isK("struct") || isK("enum")) fail("los tipos anidados aún no están soportados");
 
@@ -402,6 +441,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->mods = mods;
         m->attrs = attrs;
         m->kind = MethodKind::Dtor;
+        stamp(m);
         std::string name = expectIdent();
         if (name != c->name) fail(loc, "el destructor debe llamarse '~" + c->name + "'");
         m->name = "~" + name;
@@ -422,6 +462,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->mods = mods;
         m->attrs = attrs;
         m->kind = MethodKind::Ctor;
+        stamp(m);
         m->name = c->name;
         parseParams(m);
         if (isP(":")) fail("los inicializadores de constructor (: this(...)) aún no están soportados");
@@ -439,6 +480,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->mods = mods;
         m->attrs = attrs;
         m->kind = MethodKind::Operator;
+        stamp(m);
         m->retRef = type;
         static const char* const ops[] = {"==", "!=", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%",
                                           "&",  "|",  "^",  "!",  "~",  "<",  ">"};
@@ -471,6 +513,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->attrs = attrs;
         m->retRef = type;
         m->name = name;
+        stamp(m);
         if (isP("<")) {
             m->typeParams = parseTypeParams();
             m->tokens = toks_;
@@ -492,6 +535,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->retRef = type;
         m->name = name;
         m->kind = MethodKind::Getter;
+        stamp(m);
         MethodDecl* setter = nullptr;
         FieldDecl* backing = nullptr;  // propiedad automática
         auto backingField = [&]() {
@@ -502,6 +546,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
             backing->mods.access = Access::Private;
             backing->tref = type;
             backing->name = name + "__valor";
+            backing->unsafeCtx = ctxUnsafe;
             c->fields.push_back(backing);
         };
         auto fieldRef = [&](SourceLoc l) {
@@ -540,6 +585,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                     if (accessorMods.hasAccess) setter->mods.access = accessorMods.access;
                     setter->attrs = attrs;
                     setter->kind = MethodKind::Setter;
+                    stamp(setter);
                     setter->name = name;
                     auto* voidRef = new TypeRef();
                     voidRef->loc = al;
@@ -591,6 +637,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         f->attrs = attrs;
         f->tref = type;
         f->name = name;
+        f->unsafeCtx = ctxUnsafe;
         if (acceptP("=")) f->init = parseExpr();
         c->fields.push_back(f);
         if (!acceptP(",")) break;
@@ -621,6 +668,7 @@ MethodDecl* Parser::reparseMethod(MethodDecl* tmpl, Program& prog) {
     tmp.kind = tmpl->owner->kind;
     tmp.name = tmpl->owner->templateOf ? tmpl->owner->templateOf->name : tmpl->owner->name;
     tmp.isNamespaceScope = tmpl->owner->isNamespaceScope;
+    tmp.unsafeCtx = tmpl->owner->unsafeCtx;
     try {
         std::vector<Attribute> attrs = p.parseAttributes();
         Modifiers mods = p.parseModifiers();
@@ -843,7 +891,14 @@ Stmt* Parser::parseStatement() {
     SourceLoc loc = cur().loc;
     if (isP("{")) return parseBlock();
     if (acceptP(";")) return new EmptyStmt(loc);
-    if (acceptK("unsafe")) return parseBlock();
+    if (isUnsafeKw()) {  // memory_unsafe { ... }
+        unsafeKeywordError();
+        p_++;
+        if (!isP("{")) fail("se esperaba '{' después de 'memory_unsafe' (bloque: memory_unsafe { ... })");
+        BlockStmt* b = parseBlock();
+        b->memoryUnsafe = true;
+        return b;
+    }
     if (acceptK("if")) {
         auto* s = new IfStmt(loc);
         expectP("(");

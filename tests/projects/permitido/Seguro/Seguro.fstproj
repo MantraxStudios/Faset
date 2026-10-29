@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Seguro</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Nativo/Nativo.fstproj" />
+  </ItemGroup>
+</Project>

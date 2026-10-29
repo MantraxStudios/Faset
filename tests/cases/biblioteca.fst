@@ -42,13 +42,16 @@ static class Program
         Console.WriteLine(a == rng2.Next(100) && b == rng2.Next(100));
         double d = rng.NextDouble();
         Console.WriteLine(d >= 0 && d < 1);
-        int* datos = new int[10];
-        for (int i = 0; i < 10; i++) datos[i] = i;
-        rng.Shuffle<int>(datos, 10);
-        Algorithms.Sort<int>(datos, 10);
-        Console.WriteLine(datos[9]);
-        Console.WriteLine(Algorithms.BinarySearch<int>(datos, 10, 7));
-        delete[] datos;
+        memory_unsafe
+        {
+            int* datos = new int[10];
+            for (int i = 0; i < 10; i++) datos[i] = i;
+            rng.Shuffle<int>(datos, 10);
+            Algorithms.Sort<int>(datos, 10);
+            Console.WriteLine(datos[9]);
+            Console.WriteLine(Algorithms.BinarySearch<int>(datos, 10, 7));
+            delete[] datos;
+        }
 
         // math
         Vec2 v = new Vec2(3, 4);
@@ -66,22 +69,28 @@ static class Program
 
         // mem
         Arena arena = new Arena(1024);
-        for (int i = 0; i < 1000; i++)
+        memory_unsafe
         {
-            long* p = arena.New<long>();
-            *p = i;
+            for (int i = 0; i < 1000; i++)
+            {
+                long* p = arena.New<long>();
+                *p = i;
+            }
         }
         Console.WriteLine(arena.BytesUsed >= 16000);
         delete arena;
-        int* buf = Memory.New<int>(5);
-        Span<int> span = new Span<int>(buf, 5);
-        span.Fill(7);
-        span[2] = 9;
-        Console.WriteLine(span.Slice(1, 3)[1]);
-        Memory.Free(buf);
+        memory_unsafe
+        {
+            int* buf = Memory.New<int>(5);
+            Span<int> span = new Span<int>(buf, 5);
+            span.Fill(7);
+            span[2] = 9;
+            Console.WriteLine(span.Slice(1, 3)[1]);
+            Memory.Free(buf);
+        }
         Box<Vec2> caja = new Box<Vec2>(new Vec2(1, 2));
         caja.Value().Y = 20;
-        Console.WriteLine(caja.Get()->Y);
+        memory_unsafe { Console.WriteLine(caja.Get()->Y); }
         delete caja;
 
         // os

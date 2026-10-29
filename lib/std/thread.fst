@@ -112,7 +112,7 @@ namespace std.thread
 #endif
 
     // ---------------------------------------------------------------- Thread
-    public class Thread
+    public memory_unsafe class Thread
     {
         delegate*<void*, void> start;
         void* arg;
@@ -266,7 +266,7 @@ namespace std.thread
     }
 
     // ---------------------------------------------------------------- Mutex
-    public class Mutex
+    public memory_unsafe class Mutex
     {
         void* handle;
 
@@ -306,7 +306,7 @@ namespace std.thread
 
     // ---------------------------------------------------------------- RecursiveMutex
     // El hilo que lo tiene puede volver a bloquearlo; hay que desbloquearlo las mismas veces.
-    public class RecursiveMutex
+    public memory_unsafe class RecursiveMutex
     {
         void* handle;
 
@@ -357,7 +357,7 @@ namespace std.thread
     //    m.Lock();
     //    while (!listo) cv.Wait(m);
     //    m.Unlock();
-    public class ConditionVariable
+    public memory_unsafe class ConditionVariable
     {
         void* handle;
 
@@ -414,7 +414,7 @@ namespace std.thread
     // ---------------------------------------------------------------- Semaphore
     // (Semaphore, ThreadPool y Channel avisan con el mutex tomado: así quien despierta
     //  puede borrar el objeto en cuanto vuelve, sin que el otro hilo lo siga usando.)
-    public class Semaphore
+    public memory_unsafe class Semaphore
     {
         Mutex mutex = new Mutex();
         ConditionVariable cv = new ConditionVariable();
@@ -494,7 +494,7 @@ namespace std.thread
     // Operaciones atómicas secuencialmente consistentes sobre memoria compartida:
     //    Atomic.Increment(&contador);
     //    if (Atomic.CompareExchange(&estado, 1, 0) == 0) { ... }   // devuelve el valor anterior
-    public static class Atomic
+    public memory_unsafe static class Atomic
     {
         // Devuelven el valor nuevo.
         public static int Increment(int* p) => faset_atomic_add_i32(p, 1);
@@ -526,7 +526,7 @@ namespace std.thread
     }
 
     // Contador atómico de 32 bits.
-    public class AtomicInt
+    public memory_unsafe class AtomicInt
     {
         int value;
 
@@ -544,7 +544,7 @@ namespace std.thread
     }
 
     // Contador atómico de 64 bits.
-    public class AtomicLong
+    public memory_unsafe class AtomicLong
     {
         long value;
 
@@ -567,13 +567,13 @@ namespace std.thread
     //    pool.Submit(&Trabajo, dato);
     //    pool.WaitIdle();     // espera a que no quede nada pendiente
     //    delete pool;         // termina lo pendiente y une los hilos
-    public struct WorkItem
+    public memory_unsafe struct WorkItem
     {
         public delegate*<void*, void> Fn;
         public void* Arg;
     }
 
-    public class ThreadPool
+    public memory_unsafe class ThreadPool
     {
         Mutex mutex = new Mutex();
         ConditionVariable hasWork = new ConditionVariable();
@@ -685,7 +685,7 @@ namespace std.thread
     }
 
     // ---------------------------------------------------------------- Parallel
-    public static class Parallel
+    public memory_unsafe static class Parallel
     {
         // Ejecuta body(i, arg) para cada i en [fromInclusive, toExclusive) repartiendo los
         // índices entre los procesadores; vuelve cuando han terminado todos. El orden no está definido.
@@ -722,7 +722,7 @@ namespace std.thread
         }
     }
 
-    class ParallelRange
+    memory_unsafe class ParallelRange
     {
         public long Next;
         public int End;
@@ -753,7 +753,7 @@ namespace std.thread
     //    ch.Send(42);                         // productor
     //    int v;
     //    while (ch.Receive(out v)) { ... }    // consumidor
-    public class Channel<T>
+    public memory_unsafe class Channel<T>
     {
         Mutex mutex = new Mutex();
         ConditionVariable notEmpty = new ConditionVariable();

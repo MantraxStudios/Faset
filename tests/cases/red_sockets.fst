@@ -3,7 +3,8 @@
 using std.net;
 using std.text;
 
-static class Program
+// Prueba las API de bytes (byte*): toda la clase es memory_unsafe.
+memory_unsafe static class Program
 {
     static void Say(string a, string b) { Console.Write(a); Console.WriteLine(b); }
     static void Say(string a, string b, string c) { Console.Write(a); Console.Write(b); Console.WriteLine(c); }

@@ -10,6 +10,8 @@ public:
     CodeGen(Program& prog, Sema& sema, TypeCtx& tc) : prog_(prog), sema_(sema), tc_(tc) {}
     // shared = biblioteca (.so/.dll): sin main(), con inicialización automática.
     std::string generate(bool shared);
+    // Comprobaciones en tiempo de ejecución (nulos, objetos liberados, índices, división por cero).
+    bool checks = false;
 
 private:
     Program& prog_;
@@ -35,6 +37,9 @@ private:
 
     std::string expr(Expr* e);
     std::string receiverPtr(Expr* recv, bool arrow);
-    std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args);
+    std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc loc);
     std::string memberAccess(Expr* obj, bool arrow, const std::string& field);
+    std::string loc(SourceLoc l);        // "fs__fN, línea"
+    std::string callerLoc(SourceLoc l);  // ubicación para un método [TrackCaller]
+    std::string chkObj(Expr* obj, const std::string& code);
 };

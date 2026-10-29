@@ -4,7 +4,7 @@
 // =============================================================================
 namespace std.hash
 {
-    public static class Hash
+    public memory_unsafe static class Hash
     {
         public const ulong FnvOffset = 14695981039346656037UL;
         public const ulong FnvPrime = 1099511628211UL;

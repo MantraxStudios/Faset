@@ -200,8 +200,10 @@ struct Gen {
             }
         }
         code += post;
+        // El enlace de eventos pasa 'this' como void*: es código memory_unsafe generado (confiable).
         if (clickId || changedId)
-            code += " " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " + std::to_string(changedId) + ");";
+            code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " +
+                    std::to_string(changedId) + "); }";
         emit(n.line, " if (ev == 0) { " + code + " }" + events);
         if (!n.children.empty() && n.name != "Panel") error(n.children[0].line, "solo <Panel> puede contener otros controles");
         for (const XmlNode& c : n.children) widget(c, name);
@@ -259,7 +261,8 @@ std::string generateUiSource(const std::string& xml, int fileId) {
     head += " public partial class " + cls + " { public Window Window;";
     for (const std::string& f : g.fields) head += " Widget " + f + ";";
     head += " void InitializeComponent() { __ui_build(0, null); }";
-    head += " static void __ui_event(void* self, Widget sender, int ev) { ((" + cls + ")self).__ui_build(ev, sender); }";
+    head += " memory_unsafe static void __ui_event(void* self, Widget sender, int ev) { ((" + cls +
+            ")self).__ui_build(ev, sender); }";
     head += " void __ui_build(int ev, Widget sender) {";
     std::string out = head;
     for (size_t i = 0; i < g.lines.size(); i++) {

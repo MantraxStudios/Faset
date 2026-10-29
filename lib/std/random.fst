@@ -6,7 +6,7 @@ using std.time;
 
 namespace std.random
 {
-    public struct Random
+    public memory_unsafe struct Random
     {
         ulong state;
 
