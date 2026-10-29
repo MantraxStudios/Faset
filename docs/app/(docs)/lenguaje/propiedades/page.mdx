@@ -55,11 +55,15 @@ int main()
     auto t = new Termostato();
     t.Grados = 2;            // llama al set: se limita a 5
     println(t.Grados);
-    t.Grados = t.Grados + 15;   // get y luego set ('+=' no se admite en propiedades)
+    t.Grados += 15;          // get, después set (el objeto se evalúa una sola vez)
     println(t.Fahrenheit);
     return 0;
 }
 ```
+
+Los operadores compuestos (`+=`, `-=`, `*=`...) llaman primero al `get`, evalúan el lado derecho y
+terminan con el `set`, como en C#. No se admiten sobre la propiedad de un struct temporal (por
+ejemplo `ObtenerPunto().X += 1`): guarda antes el struct en una variable.
 
 Cada accesor puede tener su propia accesibilidad, por ejemplo `public int Vida { get; private set; }`.
 

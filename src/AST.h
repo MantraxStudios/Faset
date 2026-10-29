@@ -115,6 +115,8 @@ struct VarInfo {
     int excDepth = 0;
     bool isVolatile = false;
     bool hoisted = false;  // temporal de Sugar.cpp: se declara al principio de la función en C
+    // Se tomó su dirección (&x, ref x, T& r = x): una llamada puede modificarla (EvalOrder.cpp).
+    bool addrTaken = false;
 };
 
 // ---------------------------------------------------------------- expresiones

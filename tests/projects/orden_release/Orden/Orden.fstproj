@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Orden</AssemblyName>
+    <!-- Release (-O2): con optimización es cuando el compilador de C cambia el orden de los operandos. -->
+    <Configuration>Release</Configuration>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- El mismo programa que tests/cases/orden_evaluacion.fst (y la misma salida). -->
+    <Compile Include="../../../cases/orden_evaluacion.fst" />
+  </ItemGroup>
+</Project>

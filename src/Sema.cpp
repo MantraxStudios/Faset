@@ -1007,6 +1007,7 @@ void Sema::checkStmt(Stmt* s) {
                 if (d->isConst && !dc.init) diag.error(dc.loc, "una constante local requiere un valor");
                 dc.var = declareLocal(dc.name, t, dc.loc, "l_");
                 dc.var->isRef = isRef;
+                if (isRef && dc.init) markAddressTaken(dc.init);
                 if (d->isConst) dc.var->isConst = true;
                 if (ideMode && t) addRef(dc.loc, (int)dc.name.size(), describeVar(dc.var), &dc.loc);
                 if (d->isConst) {
@@ -2144,6 +2145,7 @@ void Sema::coerceArgs(MethodDecl* m, std::vector<Expr*>& args) {
     for (size_t i = 0; i < args.size(); i++) {
         if (i < m->params.size()) {
             if (!m->params[i].isRef()) coerce(args[i], m->params[i].type);
+            else markAddressTaken(args[i]);  // ref/out: la llamada puede modificarla
             continue;
         }
         Type* t = args[i]->type;
@@ -2402,6 +2404,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
             diag.error(e->loc, "solo se puede tomar la dirección de una variable, campo o elemento");
             return tc_.error();
         }
+        markAddressTaken(e->operand);
         return tc_.pointerTo(t);
     }
     return bad();
@@ -2579,6 +2582,11 @@ Type* Sema::checkAssign(AssignExpr* e) {
     if (e->lhs->kind == EK::Tuple) return checkDeconstructAssign(e);         // (a, b) = (b, a)
     Type* L = checkValue(e->lhs);
     eventLhs_ = nullptr;
+    if (e->op != "=" && !L->isError()) {  // p += v sobre una propiedad: antes de comprobar 'v' (EvalOrder.cpp)
+        bool prop = (e->lhs->kind == EK::Name && static_cast<NameExpr*>(e->lhs)->getter) ||
+                    (e->lhs->kind == EK::Member && static_cast<MemberExpr*>(e->lhs)->getter);
+        if (prop) return checkPropertyCompound(e);
+    }
     Type* R = checkOperand(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
     if (isConstTarget(e->lhs)) {

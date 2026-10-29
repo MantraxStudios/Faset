@@ -62,6 +62,52 @@ Como en C#, la expresión se evalúa de izquierda a derecha: `1 + 2 + "x"` da `"
 da `"x12"`. Para unir muchas partes en un bucle, `StringBuilder` (en [`std.text`](/std/text/)) evita
 crear una cadena intermedia en cada paso.
 
+## Orden de evaluación
+
+Faset garantiza el orden de C#, aunque compila a C (donde el orden de los operandos no está
+especificado):
+
+- Los operandos de un operador y los argumentos de una llamada (a un método, un constructor o un
+  delegado) se evalúan **de izquierda a derecha**, y el receptor (`obj` en `obj.M(...)`) antes que
+  los argumentos.
+- En una asignación se evalúa primero el lado izquierdo (el objeto y el índice de `a[i] = ...`), y en
+  una asignación compuesta (`+=`, `-=`...) también su valor anterior, antes que el lado derecho. El
+  lado izquierdo se evalúa **una sola vez**, también con propiedades, eventos y cadenas.
+- Lo mismo vale para la concatenación con `+`, las cadenas interpoladas, las tuplas y `with`.
+
+```faset
+using std.collections;
+
+int paso = 0;
+
+int Siguiente(string quien)
+{
+    paso++;
+    println(quien + " " + paso);
+    return paso;
+}
+
+int main()
+{
+    int r = Siguiente("a") * 10 + Siguiente("b");   // a 1, b 2
+    println(r);                                      // 12
+
+    int i = 0;
+    var v = new List<int>();
+    v.Add(0);
+    v[i++] = i;                                      // v[0] = 1
+    int x = 5;
+    x = x++;                                         // como en C#: x sigue valiendo 5
+    println(v[0] + " " + x);                         // 1 5
+    return 0;
+}
+```
+
+No cuesta nada en el código normal: el compilador solo guarda un operando en un temporal cuando
+otro posterior puede cambiar lo que lee (una llamada, una asignación, `++`, `new`...). Las llamadas
+a métodos que no escriben nada (como `Math.Sqrt` o un `get` que solo devuelve un campo) no obligan
+a reordenar.
+
 ## Indexación con referencias
 
 ```faset

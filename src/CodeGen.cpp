@@ -12,8 +12,12 @@ bool hasExportAttr(MethodDecl* m) {
     return false;
 }
 
+bool isLValue(Expr* e) { return cgIsLValue(e); }
+
+}  // namespace
+
 // Versión local de "es un lvalue" para decidir si podemos tomar '&' del receptor.
-bool isLValue(Expr* e) {
+bool cgIsLValue(Expr* e) {
     switch (e->kind) {
         case EK::Name: {
             auto r = static_cast<NameExpr*>(e)->ref;
@@ -38,6 +42,8 @@ bool isLValue(Expr* e) {
         default: return false;
     }
 }
+
+namespace {
 
 // ¿El tipo no contiene punteros, referencias ni cadenas? (su memoria no hace falta recorrerla)
 bool pointerFree(Type* t, int depth = 0) {
@@ -528,12 +534,32 @@ std::string CodeGen::receiverPtr(Expr* recv, bool arrow) {
 }
 
 std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc at,
-                          bool nonVirtual) {
+                          bool nonVirtual, Expr* recv, bool recvArrow) {
+    // Receptor y argumentos en el orden de C# (EvalOrder.cpp).
+    std::vector<EvalOp> ops;
+    if (recv) ops.push_back(recvOp(recv, recvArrow));
+    for (size_t i = 0; i < args.size(); i++) {
+        EvalOp op;
+        op.e = args[i];
+        op.code = expr(args[i]);
+        op.ct = ctype(args[i]->type);
+        op.addr = i < m->params.size() && m->params[i].isRef();
+        ops.push_back(op);
+    }
+    std::string pre = sequence(ops);
+    std::string selfCode = recv ? recvCode(ops[0], recv, recvArrow) : self;
+    std::vector<std::string> codes;
+    for (size_t i = recv ? 1 : 0; i < ops.size(); i++) codes.push_back(ops[i].addr ? "(&" + ops[i].code + ")" : ops[i].code);
+    std::string s = callCode(m, selfCode, codes, at, nonVirtual);
+    return m->retIsRef() ? seqWrapLv(pre, s) : seqWrap(pre, s);
+}
+
+std::string CodeGen::callCode(MethodDecl* m, const std::string& self, const std::vector<std::string>& args, SourceLoc at,
+                              bool nonVirtual) {
     std::vector<std::string> parts;
     if (!m->isStatic()) parts.push_back(selfArg(m, self));
     for (size_t i = 0; i < args.size(); i++) {
-        bool byRef = i < m->params.size() && m->params[i].isRef();
-        parts.push_back(byRef ? "(&" + expr(args[i]) + ")" : expr(args[i]));
+        parts.push_back(args[i]);
         if (m->trackCaller && i + 1 == m->params.size()) parts.push_back(callerLoc(at));
     }
     if (m->trackCaller && m->params.empty()) parts.push_back(callerLoc(at));
@@ -625,26 +651,31 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Call: {
             auto* c = static_cast<CallExpr*>(e);
             if (!c->target && c->callee->type->isDelegate()) return delegateCall(c);
-            if (!c->target) {  // puntero a función
-                std::string fn = expr(c->callee);
-                fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + fn + ", " + callerLoc(c->loc) + "))";
+            if (!c->target) {  // puntero a función: primero el puntero, después los argumentos
+                std::vector<EvalOp> ops(1 + c->args.size());
+                ops[0] = {c->callee, expr(c->callee), ctype(c->callee->type)};
+                for (size_t i = 0; i < c->args.size(); i++) ops[i + 1] = {c->args[i], expr(c->args[i]), ctype(c->args[i]->type)};
+                std::string pre = sequence(ops);
+                std::string fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + ops[0].code + ", " + callerLoc(c->loc) + "))";
                 std::string s = "(" + fn + ")(";
-                for (size_t i = 0; i < c->args.size(); i++) s += (i ? ", " : "") + expr(c->args[i]);
-                return s + ")";
+                for (size_t i = 0; i < c->args.size(); i++) s += (i ? ", " : "") + ops[i + 1].code;
+                return seqWrap(pre, s + ")");
             }
             if (c->intrinsic == 1)  // ToString() de un enum: nombre del miembro
                 return c->receiver->type->decl->cname + "__name(" + expr(c->receiver) + ")";
-            std::string self;
-            if (!c->target->isStatic()) self = c->implicitThis ? "self" : receiverPtr(c->receiver, c->receiverArrow);
-            return call(c->target, self, c->args, c->loc, c->nonVirtual);
+            if (!c->target->isStatic() && !c->implicitThis)  // el receptor se evalúa antes que los argumentos
+                return call(c->target, "", c->args, c->loc, c->nonVirtual, c->receiver, c->receiverArrow);
+            return call(c->target, c->target->isStatic() ? "" : "self", c->args, c->loc, c->nonVirtual);
         }
         case EK::Index: {
             auto* ix = static_cast<IndexExpr*>(e);
-            if (ix->opMethod) return call(ix->opMethod, receiverPtr(ix->obj, false), {ix->index}, ix->loc);
-            if (ix->obj->type->is(TK::String)) {
-                return "faset_str_at(" + expr(ix->obj) + ", " + expr(ix->index) + ", " + callerLoc(ix->loc) + ")";
-            }
-            return "(" + expr(ix->obj) + ")[" + expr(ix->index) + "]";
+            if (ix->opMethod) return call(ix->opMethod, "", {ix->index}, ix->loc, false, ix->obj, false);
+            std::vector<EvalOp> ops = {{ix->obj, expr(ix->obj), ctype(ix->obj->type)},
+                                       {ix->index, expr(ix->index), ctype(ix->index->type)}};
+            std::string pre = sequence(ops);  // a[i]: primero 'a', después 'i' (EvalOrder.cpp)
+            if (ix->obj->type->is(TK::String))
+                return seqWrap(pre, "faset_str_at(" + ops[0].code + ", " + ops[1].code + ", " + callerLoc(ix->loc) + ")");
+            return seqWrapLv(pre, "(" + ops[0].code + ")[" + ops[1].code + "]");
         }
         case EK::Unary: {
             auto* u = static_cast<UnaryExpr*>(e);
@@ -666,31 +697,40 @@ std::string CodeGen::expr(Expr* e) {
                 std::string c = call(b->opMethod, "", {b->lhs, b->rhs}, b->loc);
                 return b->negate ? "(!" + c + ")" : c;
             }
-            if (b->op == "+" && e->type->is(TK::String))
-                return "faset_str_concat(" + toStr(b->lhs) + ", " + toStr(b->rhs) + ")";
-            if ((b->op == "==" || b->op == "!=") && b->lhs->type->isDelegate() && b->rhs->type->isDelegate()) {
-                std::string c = "faset_dlg_eq(" + expr(b->lhs) + ", " + expr(b->rhs) + ")";
-                return b->op == "==" ? c : "(!" + c + ")";
+            // Operandos de izquierda a derecha (EvalOrder.cpp); && y || ya están secuenciados en C.
+            bool seq = b->op != "&&" && b->op != "||";
+            if (b->op == "+" && e->type->is(TK::String)) {
+                std::vector<EvalOp> ops = {{b->lhs, toStr(b->lhs), "faset_string"}, {b->rhs, toStr(b->rhs), "faset_string"}};
+                ops[0].conv = ops[1].conv = true;
+                std::string pre = sequence(ops);
+                return seqWrap(pre, "faset_str_concat(" + ops[0].code + ", " + ops[1].code + ")");
             }
-            std::string l = expr(b->lhs), r = expr(b->rhs);
+            std::vector<EvalOp> ops = {{b->lhs, expr(b->lhs), ctype(b->lhs->type)}, {b->rhs, expr(b->rhs), ctype(b->rhs->type)}};
+            std::string pre = seq ? sequence(ops) : "";
+            std::string l = ops[0].code, r = ops[1].code;
+            auto wrap = [&](const std::string& c) { return seqWrap(pre, c); };
+            if ((b->op == "==" || b->op == "!=") && b->lhs->type->isDelegate() && b->rhs->type->isDelegate()) {
+                std::string c = "faset_dlg_eq(" + l + ", " + r + ")";
+                return wrap(b->op == "==" ? c : "(!" + c + ")");
+            }
             Type* lt = b->lhs->type;
             if (lt->is(TK::String) && b->rhs->type->is(TK::String)) {
                 if (b->op == "==" || b->op == "!=") {
                     std::string c = "faset_str_eq(" + l + ", " + r + ")";
-                    return b->op == "==" ? c : "(!" + c + ")";
+                    return wrap(b->op == "==" ? c : "(!" + c + ")");
                 }
-                return "(faset_str_cmp(" + l + ", " + r + ") " + b->op + " 0)";
+                return wrap("(faset_str_cmp(" + l + ", " + r + ") " + b->op + " 0)");
             }
-            if (b->op == "-" && lt->isPointer() && b->rhs->type->isPointer()) return "((int64_t)(" + l + " - " + r + "))";
+            if (b->op == "-" && lt->isPointer() && b->rhs->type->isPointer()) return wrap("((int64_t)(" + l + " - " + r + "))");
             if ((b->op == "<<" || b->op == ">>") && e->type->isIntegral()) {
                 // Como en C#: la cuenta se toma módulo el ancho y '<<' no tiene comportamiento indefinido.
                 bool wide = e->type->is(TK::Long) || e->type->is(TK::ULong);
                 std::string n = "((" + r + ") & " + (wide ? "63" : "31") + ")";
                 if (b->op == "<<") {
                     std::string ut = wide ? "uint64_t" : "uint32_t";
-                    return "((" + ctype(e->type) + ")((" + ut + ")(" + l + ") << " + n + "))";
+                    return wrap("((" + ctype(e->type) + ")((" + ut + ")(" + l + ") << " + n + "))");
                 }
-                return "(" + l + " >> " + n + ")";
+                return wrap("(" + l + " >> " + n + ")");
             }
             if ((b->op == "/" || b->op == "%") && e->type->isIntegral()) {
                 // División entera: el cero (y MIN / -1) terminaría el programa con SIGFPE.
@@ -699,56 +739,12 @@ std::string CodeGen::expr(Expr* e) {
                 const char* suffix = e->type->is(TK::Int) ? "i32" : e->type->is(TK::Long) ? "i64"
                                      : e->type->is(TK::UInt) ? "u32" : e->type->is(TK::ULong) ? "u64" : nullptr;
                 if (!safeConst && suffix)
-                    return std::string(b->op == "/" ? "faset_div_" : "faset_mod_") + suffix + "(" + l + ", " + r + ", " +
-                           callerLoc(b->loc) + ")";
+                    return wrap(std::string(b->op == "/" ? "faset_div_" : "faset_mod_") + suffix + "(" + l + ", " + r + ", " +
+                                callerLoc(b->loc) + ")");
             }
-            return "(" + l + " " + b->op + " " + r + ")";
+            return wrap("(" + l + " " + b->op + " " + r + ")");
         }
-        case EK::Assign: {
-            auto* a = static_cast<AssignExpr*>(e);
-            if (a->setter) {
-                std::string self;
-                bool nonVirtual = false;
-                if (!a->setter->isStatic()) {
-                    if (a->lhs->kind == EK::Member) {
-                        auto* m = static_cast<MemberExpr*>(a->lhs);
-                        self = receiverPtr(m->obj, m->arrow);
-                        nonVirtual = m->nonVirtual;
-                    } else {
-                        self = "self";
-                    }
-                }
-                return call(a->setter, self, {a->rhs}, a->loc, nonVirtual);
-            }
-            if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}, a->loc) + ")";
-            if ((a->op == "+=" || a->op == "-=") && a->lhs->type->isDelegate()) {  // evento += manejador
-                std::string lhs = expr(a->lhs);
-                return "(" + lhs + " = " + (a->op == "+=" ? "faset_dlg_combine(" : "faset_dlg_remove(") + lhs + ", " +
-                       expr(a->rhs) + "))";
-            }
-            if (a->op == "+=" && a->lhs->type->is(TK::String)) {
-                std::string lhs = expr(a->lhs);
-                return "(" + lhs + " = faset_str_concat(" + lhs + ", " + toStr(a->rhs) + "))";
-            }
-            if ((a->op == "<<=" || a->op == ">>=") && a->lhs->type->isIntegral()) {
-                bool wide = a->lhs->type->is(TK::Long) || a->lhs->type->is(TK::ULong);
-                std::string mask = wide ? "63" : "31";
-                if (a->op == ">>=") return "(" + expr(a->lhs) + " >>= ((" + expr(a->rhs) + ") & " + mask + "))";
-                std::string ut = wide ? "uint64_t" : "uint32_t";
-                std::string lhs = expr(a->lhs);
-                return "(" + lhs + " = (" + ctype(a->lhs->type) + ")((" + ut + ")(" + lhs + ") << ((" + expr(a->rhs) + ") & " +
-                       mask + ")))";
-            }
-            if ((a->op == "/=" || a->op == "%=") && a->lhs->type->isIntegral()) {
-                int64_t k = 0;
-                if (!(sema_.constEval(a->rhs, k) && k != 0)) {
-                    bool u64 = a->lhs->type->is(TK::ULong);
-                    return "(" + expr(a->lhs) + " " + a->op + " " + (u64 ? "faset_divisor_u64(" : "faset_divisor_i64(") +
-                           expr(a->rhs) + ", " + callerLoc(a->loc) + "))";
-                }
-            }
-            return "(" + expr(a->lhs) + " " + a->op + " " + expr(a->rhs) + ")";
-        }
+        case EK::Assign: return assignExpr(static_cast<AssignExpr*>(e));  // EvalOrder.cpp
         case EK::Cond: {
             auto* c = static_cast<CondExpr*>(e);
             return "(" + expr(c->cond) + " ? " + expr(c->a) + " : " + expr(c->b) + ")";
@@ -778,12 +774,16 @@ std::string CodeGen::expr(Expr* e) {
             if (!n->ctor) return fn + "d()";
             size_t idx = 0;
             while (c->ctors[idx] != n->ctor) idx++;
-            std::string s = fn + std::to_string(idx) + "(";
+            std::vector<EvalOp> ops;  // argumentos de izquierda a derecha (EvalOrder.cpp)
             for (size_t i = 0; i < n->args.size(); i++) {
-                bool byRef = n->ctor->params[i].isRef();
-                s += (i ? ", " : "") + (byRef ? "(&" + expr(n->args[i]) + ")" : expr(n->args[i]));
+                EvalOp op{n->args[i], expr(n->args[i]), ctype(n->args[i]->type)};
+                op.addr = n->ctor->params[i].isRef();
+                ops.push_back(op);
             }
-            return s + ")";
+            std::string pre = sequence(ops);
+            std::string s = fn + std::to_string(idx) + "(";
+            for (size_t i = 0; i < ops.size(); i++) s += (i ? ", " : "") + (ops[i].addr ? "(&" + ops[i].code + ")" : ops[i].code);
+            return seqWrap(pre, s + ")");
         }
         case EK::NewArray: {
             auto* na = static_cast<NewArrayExpr*>(e);

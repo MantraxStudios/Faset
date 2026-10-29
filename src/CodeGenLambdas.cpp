@@ -295,8 +295,13 @@ bool isEventRef(Expr* e) {
 std::string CodeGen::delegateCall(CallExpr* c) {
     Type* d = c->callee->type;
     // Un evento sin manejadores no hace nada; un delegado nulo es un 'panic'.
-    std::string s = "fs_dinv" + std::to_string(d->id) + "(" + expr(c->callee) + ", " +
+    // Primero el delegado y después los argumentos, de izquierda a derecha (EvalOrder.cpp).
+    std::vector<EvalOp> ops(1 + c->args.size());
+    ops[0] = {c->callee, expr(c->callee), ctype(d)};
+    for (size_t i = 0; i < c->args.size(); i++) ops[i + 1] = {c->args[i], expr(c->args[i]), ctype(c->args[i]->type)};
+    std::string pre = sequence(ops);
+    std::string s = "fs_dinv" + std::to_string(d->id) + "(" + ops[0].code + ", " +
                     (isEventRef(c->callee) ? std::string("0, 0") : callerLoc(c->loc));
-    for (Expr* a : c->args) s += ", " + expr(a);
-    return s + ")";
+    for (size_t i = 1; i < ops.size(); i++) s += ", " + ops[i].code;
+    return seqWrap(pre, s + ")");
 }

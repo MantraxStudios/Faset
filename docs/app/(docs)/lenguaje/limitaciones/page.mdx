@@ -21,7 +21,7 @@ export const metadata = {
 | Tipos anidados | Tipos en el mismo namespace |
 | `using static` | Nombre de la clase delante (`Math.Sqrt`) |
 | `goto`, `stackalloc`, `fixed` | — |
-| Operadores compuestos sobre propiedades (`p.X += 1`) | `p.X = p.X + 1` |
+| Operadores compuestos sobre la propiedad de un struct temporal (`F().X += 1`) | Guardar el struct en una variable |
 
 ## Otras notas
 
@@ -32,8 +32,10 @@ export const metadata = {
   `Hash.Of` (números, `char`, `bool`, `string`).
 
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
-- C no fija el orden de evaluación de los operandos: evita expresiones como `a[f()] = g()` cuando
-  `f` y `g` tienen efectos que dependen entre sí.
+- El [orden de evaluación](/lenguaje/operadores/#orden-de-evaluación) es el de C#, salvo en la
+  deconstrucción `(a[i], b) = (x, y)`: los destinos se calculan después del lado derecho. Una
+  referencia `T&` que apunta a un campo y ese mismo campo, usados en una misma expresión con
+  efectos, tampoco se ordenan.
 - Una carrera de datos sobre una misma variable `string` (dos hilos escribiéndola sin cerrojo) puede
   dejar una cadena a medio escribir, y el código `memory_unsafe` no se comprueba; consulta lo que
   [no cubre la seguridad de memoria](/lenguaje/seguridad-de-memoria/#lo-que-no-cubre).

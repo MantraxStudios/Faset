@@ -178,6 +178,10 @@ private:
     Type* checkUnary(UnaryExpr* e);
     Type* checkBinary(BinaryExpr* e);
     std::string localRefRoot(Expr* e);
+    // Orden de evaluación (EvalOrder.cpp): variables cuya dirección se toma y 'p op= v' sobre
+    // propiedades (el receptor se evalúa una vez, antes que 'get', el lado derecho y 'set').
+    void markAddressTaken(Expr* e);
+    Type* checkPropertyCompound(AssignExpr* e);
     Type* checkAssign(AssignExpr* e);
     Type* checkCond(CondExpr* e);
     Type* checkNew(NewExpr* e);

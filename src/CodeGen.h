@@ -4,8 +4,32 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 
 #include "Sema.h"
+
+// Efectos de una expresión para el orden de evaluación (EvalOrder.cpp). Lo que se lee o se
+// escribe directamente se anota por "clave": una variable local, un campo (todos los objetos a
+// la vez) o kEvalElems (elementos de arrays, '*p', referencias T&). "Memoria" es lo que una
+// llamada puede ver o cambiar (campos, elementos, variables capturadas); las variables locales
+// simples no. Una llamada lee (y si no es pura, escribe) memoria desconocida: 'Any'.
+struct EvalEffects {
+    bool readsMem = false, writesMem = false;
+    bool readsAny = false, writesAny = false;
+    std::vector<const void*> reads, writes;
+    void merge(const EvalEffects& o);
+    void read(const void* key, bool mem);
+    void write(const void* key, bool mem);
+    void call(int level);  // 2: solo lee memoria; 3: también la escribe (o hace E/S)
+    bool any() const { return readsMem || writesMem || !reads.empty() || !writes.empty(); }
+    bool hasWrites() const { return writesMem || !writes.empty(); }
+    // ¿Importa el orden entre esta expresión y 'later' (que en C# se evalúa después)?
+    bool conflictsWith(const EvalEffects& later) const;
+};
+extern const char kEvalElems[];
+
+// ¿Es un lvalue de C? (se puede tomar '&': receptores struct, ref, temporales de dirección)
+bool cgIsLValue(Expr* e);
 
 class CodeGen {
 public:
@@ -49,8 +73,13 @@ private:
     std::string expr(Expr* e);
     std::string toStr(Expr* e);
     std::string receiverPtr(Expr* recv, bool arrow);
+    // Llamada a un método. Con 'recv', el receptor es esa expresión (se evalúa antes que los
+    // argumentos, como en C#) y 'self' se ignora.
     std::string call(MethodDecl* m, const std::string& self, const std::vector<Expr*>& args, SourceLoc loc,
-                     bool nonVirtual = false);
+                     bool nonVirtual = false, Expr* recv = nullptr, bool recvArrow = false);
+    // Llamada con el receptor y los argumentos ya generados (los 'ref' ya llevan '&').
+    std::string callCode(MethodDecl* m, const std::string& self, const std::vector<std::string>& args, SourceLoc loc,
+                         bool nonVirtual);
     std::string memberAccess(Expr* obj, bool arrow, const std::string& field);
     std::string loc(SourceLoc l);        // "fs__fN, línea"
     std::string callerLoc(SourceLoc l);  // ubicación para un método [TrackCaller]
@@ -136,6 +165,46 @@ private:
     std::string strOf(Type* t, const std::string& v, int depth = 0);
     std::string eqOf(Type* t, const std::string& a, const std::string& b, int depth = 0);
     std::string hashOf(Type* t, const std::string& v, int depth = 0);
+    // ---- orden de evaluación de C# (EvalOrder.cpp)
+    // C no fija el orden de los operandos ni de los argumentos; C# los evalúa de izquierda a
+    // derecha. Cuando un operando posterior tiene efectos que un operando anterior vería (o al
+    // revés), los anteriores se guardan antes en temporales: (t1 = A, t2 = B, F(t1, t2, C)).
+    struct EvalOp {
+        Expr* e = nullptr;     // operando (para el análisis)
+        std::string code;      // su código C (se reemplaza por el temporal si hace falta)
+        std::string ct;        // tipo C del valor
+        bool addr = false;     // lvalue que se pasa por dirección (ref, receptor struct): se guarda '&code'
+        bool conv = false;     // incluye su conversión a texto (ToString del usuario)
+        bool hoisted = false;  // (salida) se evaluó antes en un temporal
+        std::string tmp;       // (salida) nombre del temporal
+        EvalOp() = default;
+        EvalOp(Expr* x, std::string c, std::string t) : e(x), code(std::move(c)), ct(std::move(t)) {}
+    };
+    std::unordered_map<Expr*, EvalEffects> effCache_;
+    std::map<MethodDecl*, int> methodEff_;  // 1 puro, 2 solo lee memoria, 3 escribe (punto fijo)
+    int effState_ = 0;                      // 0 sin calcular, 1 calculando la tabla, 2 lista
+    void computeMethodEffects();
+    EvalEffects effects(Expr* e);           // efectos de evaluar el valor
+    EvalEffects effectsImpl(Expr* e);
+    EvalEffects locEffects(Expr* e);        // efectos de calcular la dirección de un lvalue
+    EvalEffects storeEffects(Expr* e);      // escribir en el lvalue
+    EvalEffects convEffects(Expr* e);       // convertir el valor a texto (concatenación)
+    EvalEffects callEffects(MethodDecl* m, Expr* recv, bool arrow, bool nonVirtual, const std::vector<Expr*>& args);
+    int methodEffect(MethodDecl* m, bool nonVirtual);
+    int bodyEffect(MethodDecl* m);
+    int stmtEffect(Stmt* s, MethodDecl* ctor);
+    bool ctorPure(ClassDecl* c, MethodDecl* ctor);
+public:
+    // ¿Puede tener efectos visibles (llamadas, asignaciones, ++/--, new, await...)? Los nodos
+    // que este análisis no conoce (p. ej. 'await') cuentan como efectos.
+    bool hasSideEffects(Expr* e) { return effects(e).hasWrites(); }
+private:
+    std::string sequence(std::vector<EvalOp>& ops);  // prefijo "t1 = A, t2 = B, " (o "")
+    static std::string seqWrap(const std::string& pre, const std::string& code);    // (pre, code)
+    static std::string seqWrapLv(const std::string& pre, const std::string& code);  // lvalue: (*(pre, &code))
+    EvalOp recvOp(Expr* recv, bool arrow);
+    std::string recvCode(const EvalOp& op, Expr* recv, bool arrow);
+    std::string assignExpr(AssignExpr* a);
     // Directivas #line (CodeGenDebug.cpp)
     SourceLoc curLoc_{-1, 0, 0};          // sentencia de Faset que se está emitiendo (file < 0: ninguna)
     void setLoc(SourceLoc l);             // las líneas siguientes pertenecen a esta ubicación

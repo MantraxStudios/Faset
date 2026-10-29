@@ -607,11 +607,15 @@ std::string CodeGen::ooExpr(Expr* e) {
         }
         case EK::With: {
             auto* w = static_cast<WithExpr*>(e);
-            std::string s = "fs__with" + std::to_string(w->id) + "(" +
-                            (w->type->isClass() ? chkObj(w->operand, expr(w->operand)) : expr(w->operand));
+            // El registro original y después los valores nuevos, en orden (EvalOrder.cpp).
+            std::vector<EvalOp> ops = {{w->operand, expr(w->operand), ctype(w->operand->type)}};
             for (auto& in : w->inits)
-                if (in.field) s += ", " + expr(in.value);
-            return s + ")";
+                if (in.field) ops.push_back({in.value, expr(in.value), ctype(in.value->type)});
+            std::string pre = sequence(ops);
+            std::string s = "fs__with" + std::to_string(w->id) + "(" +
+                            (w->type->isClass() ? chkObj(w->operand, ops[0].code) : ops[0].code);
+            for (size_t i = 1; i < ops.size(); i++) s += ", " + ops[i].code;
+            return seqWrap(pre, s + ")");
         }
         default: return "0";
     }

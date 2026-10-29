@@ -71,6 +71,19 @@ for dir in tests/projects/*/; do
     fi
 done
 
+# Orden de evaluación con clang -O2 (si hay clang; FASET_TEST_CLANG elige otro): gcc y clang
+# ordenan de forma distinta los operandos de C, y el programa debe dar la salida de C# con los dos.
+CLANG=${FASET_TEST_CLANG:-$(command -v clang)}
+if [ -n "$CLANG" ]; then
+    if ! $FASET build tests/cases/orden_evaluacion.fst -c Release --cc "$CLANG" -o "$TMP/orden_clang" > /dev/null 2> "$TMP/orden_clang.err"; then
+        echo "FALLO  orden_evaluacion con clang (no compila)"; cat "$TMP/orden_clang.err"; fail=$((fail+1))
+    elif "$TMP/orden_clang" | diff -u tests/cases/orden_evaluacion.expected - > "$TMP/orden_clang.diff"; then
+        echo "ok     orden_evaluacion con clang -O2"; pass=$((pass+1))
+    else
+        echo "FALLO  orden_evaluacion con clang (salida distinta)"; cat "$TMP/orden_clang.diff"; fail=$((fail+1))
+    fi
+fi
+
 # Depurador: el C de Debug (o con -g) lleva '#line N "archivo.fst"', el de Release no, y gdb
 # pone un punto de interrupción en una línea de Faset, lee las variables y entra en una llamada.
 debug_check() {

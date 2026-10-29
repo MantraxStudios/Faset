@@ -1,0 +1,38 @@
+binario 7
+binario -> a;b;c;
+resta 4 4 1
+resta -> m;n;o;p;q;r;s;
+comparaciones False
+comparaciones -> l1;l2;l3;l4;
+campo 12 42
+estatico 3 6
+concatenacion t22 t23 | 23 33
+tostring uno y dos
+tostring -> ts-uno;ts-dos;
+argumentos 123 2445
+argumentos -> x;y;z;a;b;c;d;e;
+receptor e:12
+receptor -> recv-e;1;2;
+receptor struct 52
+constructor 12 3
+constructor -> p1;p2;k;
+delegado 12 34
+delegado -> d1;d2;delegado;d3;d4;
+interpolada i1-2-0-10-10
+interpolada -> i1;i2;
+indices 1 1 0 i=2
+indices -> idx;val;
+lectura 3 24
+lectura -> L;pos;sh;
+cadena += n!?
+cadena += -> k;k2;?;
+compuesta ab 12
+propiedad 105
+propiedad -> caja;get;rhs;set;get;
+evento -> fuente;manejador;
+evento 7
+variables 5 4 3 9
+tuplas (1, 2, t3) 20 10
+tuplas -> t1;t2;t3;u1;u2;
+with 8 7
+with -> orig;w1;w2;

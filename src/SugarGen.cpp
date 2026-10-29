@@ -123,6 +123,8 @@ std::string CodeGen::sugarExpr(Expr* e) {
         case EK::Interp: {
             auto* ie = static_cast<InterpExpr*>(e);
             std::vector<std::string> parts;
+            std::vector<EvalOp> ops;  // huecos con su conversión a texto, de izquierda a derecha
+            std::vector<int> hole;    // por cada parte: índice en 'ops' (-1 = texto literal)
             auto fmtCode = [&](Type* t, const std::string& v, const std::string& f) {
                 std::string fs = cstring(f);
                 if (t->isFloating()) return "faset_fmt_f64((double)(" + v + "), " + (t->is(TK::Float) ? "1" : "0") + ", " + fs + ")";
@@ -132,8 +134,10 @@ std::string CodeGen::sugarExpr(Expr* e) {
             };
             for (auto& part : ie->parts) {
                 if (!part.expr) {
-                    if (!part.text.empty())
+                    if (!part.text.empty()) {
                         parts.push_back("FASET_STR(" + cstring(part.text) + ", " + std::to_string(part.text.size()) + ")");
+                        hole.push_back(-1);
+                    }
                     continue;
                 }
                 Type* t = part.expr->type;
@@ -151,14 +155,21 @@ std::string CodeGen::sugarExpr(Expr* e) {
                     s = toStrCode(t, v);
                 }
                 if (part.hasAlign) s = "faset_str_align(" + s + ", " + std::to_string(part.align) + ")";
-                parts.push_back(s);
+                EvalOp op{part.expr, s, "faset_string"};
+                op.conv = true;
+                ops.push_back(op);
+                parts.push_back("");  // se rellena después de ordenar
+                hole.push_back((int)ops.size() - 1);
             }
+            std::string pre = sequence(ops);
+            for (size_t i = 0; i < parts.size(); i++)
+                if (hole[i] >= 0) parts[i] = ops[hole[i]].code;
             if (parts.empty()) return "FASET_STR(\"\", 0)";
-            if (parts.size() == 1) return parts[0];
-            if (parts.size() == 2) return "faset_str_concat(" + parts[0] + ", " + parts[1] + ")";
+            if (parts.size() == 1) return seqWrap(pre, parts[0]);
+            if (parts.size() == 2) return seqWrap(pre, "faset_str_concat(" + parts[0] + ", " + parts[1] + ")");
             std::string s = "faset_str_concatv(" + std::to_string(parts.size()) + ", (faset_string[]){";
             for (size_t i = 0; i < parts.size(); i++) s += (i ? ", " : "") + parts[i];
-            return s + "})";
+            return seqWrap(pre, s + "})");
         }
         case EK::CondAccess: {
             auto* ca = static_cast<CondAccessExpr*>(e);
@@ -178,9 +189,13 @@ std::string CodeGen::sugarExpr(Expr* e) {
         }
         case EK::Tuple: {
             auto* t = static_cast<TupleExpr*>(e);
+            // Los inicializadores de un literal compuesto de C no tienen orden: (EvalOrder.cpp).
+            std::vector<EvalOp> ops;
+            for (Expr* x : t->elems) ops.push_back({x, expr(x), ctype(x->type)});
+            std::string pre = sequence(ops);
             std::string s = "((" + ctype(e->type) + "){";
-            for (size_t i = 0; i < t->elems.size(); i++) s += (i ? ", " : "") + expr(t->elems[i]);
-            return s + "})";
+            for (size_t i = 0; i < ops.size(); i++) s += (i ? ", " : "") + ops[i].code;
+            return seqWrap(pre, s + "})");
         }
         case EK::Let: {
             auto* l = static_cast<LetExpr*>(e);
