@@ -13,7 +13,7 @@ export const metadata = {
 </p>
 
 <div className="split" style={{ gridTemplateColumns: "minmax(0, 2.2fr) minmax(0, 0.8fr)", alignItems: "start", gap: 24 }}>
-  <Screenshot src="/screenshots/studio-android.png" width={1680} height={980} alt="FasetStudio con el diseñador de una app de Android y el panel Device mostrando el emulador en vivo" caption="FasetStudio: diseñador, salida de faset run y el panel Device con el emulador emulator-5554 en vivo." />
+  <Screenshot src="/screenshots/studio-android.png" width={1680} height={980} alt="FasetStudio con el diseñador de una app de Android y el panel Dispositivo mostrando el emulador en vivo" caption="FasetStudio: diseñador, salida de faset run y el panel Dispositivo con el emulador emulator-5554 en vivo." />
   <div style={{ maxWidth: 260, margin: "0 auto" }}>
   <Screenshot src="/screenshots/android-phone.png" width={540} height={1200} alt="La app HolaAndroid ejecutándose en el emulador de Android" caption="La misma app en el emulador (adb exec-out screencap)." />
   </div>
@@ -152,19 +152,17 @@ El mismo `.fstui` funciona en el escritorio y en el móvil:
 
 FasetStudio compila, instala y muestra la app sin salir del IDE.
 
-- **Selector de destino** en la barra de título: *This computer* (el escritorio), los dispositivos conectados (por
+- **Selector de destino** en la barra de título: *Este equipo* (el escritorio), los dispositivos conectados (por
   modelo) y los emuladores instalados, que se pueden **arrancar** desde ahí. Al elegir un dispositivo,
   el proyecto se compila para Android.
-- **Panel *Device***: un panel acoplable que refleja la pantalla del dispositivo en vivo
+- **Panel *Dispositivo***: un panel acoplable que refleja la pantalla del dispositivo en vivo
   (`adb exec-out screencap`) y le reenvía la entrada: clic = toque, mantener pulsado = pulsación
   larga, arrastrar = deslizar, rueda = desplazamiento y el teclado (texto, <Kbd>Retroceso</Kbd>,
   <Kbd>Intro</Kbd>, flechas; <Kbd>Esc</Kbd> = atrás). Debajo tiene los botones **atrás**, **inicio**,
   **recientes** y **girar**. Todo corre en procesos hijos: el IDE no se bloquea.
-- Estos textos nuevos de la interfaz todavía no están traducidos en `lang/es.txt`, por eso aparecen en
-  inglés aunque el resto del IDE esté en español.
 - **Ejecutar / Detener** (<Kbd>F5</Kbd> / <Kbd>Shift+F5</Kbd>) en el dispositivo elegido, con la
   salida de `faset run` y el logcat de la app en el panel *Salida*.
-- **Nuevo proyecto → *Android app***: la tarjeta crea el mismo proyecto que
+- **Nuevo proyecto → *App Android***: la tarjeta crea el mismo proyecto que
   `faset new --android`, listo para el diseñador.
 
 La captura de arriba se generó así (modo sin ventana, con el emulador en marcha):
@@ -174,12 +172,6 @@ JAVA_HOME=~/android-studio/jbr ANDROID_HOME=~/Android/Sdk \
   ./studio/bin/Release/linux-x86_64/FasetStudio docs/samples/HolaAndroid --screenshot android.ppm \
   --script "open MainWindow.fstui | device emulator-5554 | start | wait 30000"
 ```
-
-<Callout type="aviso">
-En esa captura el contador del panel *Problemas* marca 5 errores: el IntelliSense de `.fstproj` aún no
-reconoce `AndroidPackage`, `AppName`, `VersionCode`, `VersionName` ni `AndroidAbis`, aunque el
-compilador sí los acepta y el proyecto compila sin errores.
-</Callout>
 
 ## Limitaciones
 

@@ -247,3 +247,24 @@ Zoom out (Ctrl+wheel) = Alejar (Ctrl+rueda)
 Zoom in (Ctrl+wheel) = Acercar (Ctrl+rueda)
 Reset zoom (Ctrl+0) = Zoom al 100 % (Ctrl+0)
 G: grid · Ctrl+wheel: zoom = G: cuadrícula · Ctrl+rueda: zoom
+
+# Android
+This computer = Este equipo
+Android app = App Android
+start emulator = iniciar emulador
+Device panel = Panel del dispositivo
+Device = Dispositivo
+APK for phones and the emulator, visual designer = APK para móviles y el emulador, diseñador visual
+Android SDK not found = No se encontró el SDK de Android
+Install it with Android Studio or set ANDROID_HOME = Instálalo con Android Studio o define ANDROID_HOME
+Choose a device or start an emulator in the target selector = Elige un dispositivo o inicia un emulador en el selector de destino
+No Android device = Sin dispositivo Android
+Starting the emulator… this can take a minute = Iniciando el emulador… puede tardar un minuto
+Waiting for the device screen… = Esperando la pantalla del dispositivo…
+Starting emulator… = Iniciando emulador…
+No Android devices or emulators = No hay dispositivos ni emuladores Android
+Looking for devices… = Buscando dispositivos…
+Refresh devices = Actualizar dispositivos
+Starting the Android emulator… = Iniciando el emulador de Android…
+Android emulator ready = Emulador de Android listo
+The Android emulator could not be started (see 'faset doctor') = No se pudo iniciar el emulador de Android (mira 'faset doctor')

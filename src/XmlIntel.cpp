@@ -53,6 +53,22 @@ const std::vector<ElemSpec>& projectProps() {
         {"Authors", "Autores del proyecto (informativo).", {}, {}},
         {"Optimize", "Fuerza la optimización (true o false).", {}, kBool, true},
         {"DebugSymbols", "Fuerza los símbolos de depuración (true o false).", {}, kBool, true},
+        {"RuntimeChecks", "Comprobaciones en ejecución (límites, nulos, delete doble...): por defecto en Debug sí y en Release no.", {}, kBool, true},
+        {"AllowUnsafe", "Permite código memory_unsafe en todo el proyecto sin marcarlo (true o false).", {}, kBool, true},
+        // Android (APK)
+        {"AndroidPackage", "Paquete de la app Android (p. ej. com.empresa.app; por defecto com.faset.<nombre>).", {}, {}},
+        {"AppName", "Nombre visible de la app en Android.", {}, {}},
+        {"VersionCode", "Número de versión interno de Android (entero que crece en cada publicación).", {}, {"1"}},
+        {"VersionName", "Versión visible de la app Android (p. ej. 1.0).", {}, {"1.0"}},
+        {"AndroidAbis", "ABIs del APK separadas por ';' (por defecto arm64-v8a;x86_64).", {},
+         {"arm64-v8a;x86_64", "arm64-v8a", "x86_64", "armeabi-v7a", "x86"}},
+        {"AndroidTargetSdk", "SDK objetivo de Android (por defecto, la plataforma más nueva instalada).", {}, {"34", "35", "36"}},
+        {"AndroidOrientation", "Orientación de la app Android.", {}, {"portrait", "landscape", "sensor", "unspecified"}},
+        {"AndroidIcon", "Icono de la app Android (PNG, relativo al proyecto).", {}, {"icon.png"}},
+        {"AndroidKeystore", "Almacén de claves para firmar el APK (por defecto ~/.android/debug.keystore).", {}, {}},
+        {"AndroidKeyAlias", "Alias de la clave de firma del APK.", {}, {}},
+        {"AndroidKeystorePassword", "Contraseña del almacén (mejor: variable FASET_ANDROID_KEYSTORE_PASSWORD).", {}, {}},
+        {"AndroidKeyPassword", "Contraseña de la clave (mejor: variable FASET_ANDROID_KEY_PASSWORD).", {}, {}},
     };
     return v;
 }
@@ -64,6 +80,7 @@ const std::vector<ElemSpec>& projectItems() {
          {"Include", "Platform"}, {}},
         {"LibraryPath", "Carpeta donde buscar bibliotecas nativas, relativa al proyecto.", {"Include"}, {}},
         {"ProjectReference", "Otro proyecto Faset (.fstproj) cuyo código se compila junto con este.", {"Include"}, {}},
+        {"AndroidPermission", "Permiso de Android que pide la app (p. ej. INTERNET, CAMERA).", {"Include"}, {}},
     };
     return v;
 }

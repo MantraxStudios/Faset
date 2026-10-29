@@ -40,14 +40,11 @@ sirve el mismo `faset __analyze`):
 - Se activa al escribir `<`, `="`, `,` o un espacio dentro de una etiqueta, e inserta fragmentos con el
   cursor ya colocado.
 
+La validación de `.fstproj` conoce todas las propiedades, también las de Android (`AndroidPackage`,
+`AppName`, `VersionCode`, `AndroidAbis`…), `RuntimeChecks`, `AllowUnsafe` y `<AndroidPermission>`.
+
 Mientras escribes un `.fstui` a medias, el IDE genera la clase a partir de la última versión guardada,
 así el código de la ventana no se llena de errores falsos.
-
-<Callout type="aviso">
-La validación de `.fstproj` aún no conoce las propiedades de Android (`AndroidPackage`, `AppName`,
-`VersionCode`, `VersionName`, `AndroidAbis`…) y las marca como desconocidas, aunque el compilador sí
-las acepta.
-</Callout>
 
 ## Cómo funciona
 
