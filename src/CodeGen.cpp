@@ -131,7 +131,10 @@ std::string CodeGen::ctorParams(MethodDecl* ctor, bool withTypes) {
     return s;
 }
 
-void CodeGen::line(const std::string& s) { out_ << std::string(indent_ * 4, ' ') << s << "\n"; }
+void CodeGen::line(const std::string& s) {
+    if (lineDirectives && curLoc_.file >= 0) lineDirective(curLoc_);  // depuración: línea de Faset
+    out_ << std::string(indent_ * 4, ' ') << s << "\n";
+}
 
 std::string CodeGen::loc(SourceLoc l) { return "fs__f" + std::to_string(l.file) + ", " + std::to_string(l.line); }
 
@@ -152,6 +155,7 @@ std::string CodeGen::chkObj(Expr* obj, const std::string& code) {
 std::string CodeGen::generate(bool shared) {
     out_ << "/* Generado por fasetc. No editar a mano. */\n";
     if (checks) out_ << "#ifndef FASET_CHECKS\n#define FASET_CHECKS 1\n#endif\n";
+    if (lineDirectives) out_ << "#define FASET_DEBUG_INFO 1\n";
     out_ << kRuntimeHeader << "\n";
     // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
     for (size_t i = 0; i < diag.files.size(); i++)
@@ -160,6 +164,7 @@ std::string CodeGen::generate(bool shared) {
 
     for (ClassDecl* c : sema_.structOrder) out_ << "typedef struct " << c->cname << " " << c->cname << ";\n";
     out_ << "\n";
+    emitDebugEnums();
     // Punteros a función (después de las declaraciones de structs).
     for (Type* f : tc_.funcPtrs()) {
         out_ << "typedef " << ctype(f->ret) << " (*" << ctype(f) << ")(";
@@ -173,7 +178,7 @@ std::string CodeGen::generate(bool shared) {
         int n = 0;
         for (FieldDecl* f : c->fields) {
             if (f->isStatic()) continue;
-            out_ << "    " << ctype(f->type) << " " << f->cname << ";\n";
+            out_ << "    " << localType(f->type) << " " << f->cname << ";\n";
             n++;
         }
         if (n == 0) out_ << "    char faset_vacio;\n";
@@ -220,6 +225,7 @@ std::string CodeGen::generate(bool shared) {
     out_ << "\n";
 
     // Cuerpos.
+    resetLoc();
     for (ClassDecl* c : prog_.types) {
         if (c->isTemplate() || c->kind == ClassKind::Enum) continue;
         if (c->hasLayout()) {
@@ -234,6 +240,7 @@ std::string CodeGen::generate(bool shared) {
         }
 
     // Inicialización estática, en orden.
+    resetLoc();
     out_ << "static void fs__static_init(void) {\n";
     indent_ = 1;
     for (FieldDecl* f : sema_.staticInits) {
@@ -260,7 +267,7 @@ std::string CodeGen::generate(bool shared) {
         }
         out_ << "}\n";
     }
-    return out_.str();
+    return finishLineDirectives(out_.str());
 }
 
 void CodeGen::emitConstructionHelpers(ClassDecl* c) {
@@ -301,11 +308,14 @@ void CodeGen::emitConstructionHelpers(ClassDecl* c) {
 
 void CodeGen::emitMethod(MethodDecl* m) {
     curMethod_ = m;
+    setLoc(m->loc);
+    lineDirective(m->loc);
     out_ << signature(m) << " {\n";
     indent_ = 1;
     if (!m->isStatic()) line("(void)self;");
     for (Stmt* s : m->body->stmts) emitStmt(s);
     indent_ = 0;
+    lineDirective(m->body->endLoc);  // epílogo en la '}' del método
     out_ << "}\n\n";
     curMethod_ = nullptr;
 }
@@ -325,6 +335,7 @@ void CodeGen::emitBody(Stmt* s) {
 }
 
 void CodeGen::emitStmt(Stmt* s) {
+    if (s->kind != SK::Block && s->kind != SK::Empty) setLoc(s->loc);
     switch (s->kind) {
         case SK::Empty: break;
         case SK::Block: {
@@ -340,7 +351,7 @@ void CodeGen::emitStmt(Stmt* s) {
             for (auto& dc : d->decls) {
                 Type* t = dc.var->type;
                 if (dc.var->isRef) line(ctype(t) + "* " + dc.var->cname + " = &" + expr(dc.init) + ";");
-                else line(ctype(t) + " " + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
+                else line(localType(t) + " " + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
             }
             break;
         }
@@ -365,6 +376,7 @@ void CodeGen::emitStmt(Stmt* s) {
             auto* ds = static_cast<DoWhileStmt*>(s);
             line("do");
             emitBody(ds->body);
+            setLoc(ds->cond->loc);
             line("while (" + expr(ds->cond) + ");");
             break;
         }
@@ -373,6 +385,7 @@ void CodeGen::emitStmt(Stmt* s) {
             line("{");
             indent_++;
             if (fs->initDecl) emitStmt(fs->initDecl);
+            setLoc(fs->loc);
             std::string init, iter;
             for (size_t i = 0; i < fs->initExprs.size(); i++) init += (i ? ", " : "") + expr(fs->initExprs[i]);
             for (size_t i = 0; i < fs->iter.size(); i++) iter += (i ? ", " : "") + expr(fs->iter[i]);

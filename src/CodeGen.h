@@ -12,6 +12,9 @@ public:
     std::string generate(bool shared);
     // Comprobaciones en tiempo de ejecución (nulos, objetos liberados, índices, división por cero).
     bool checks = false;
+    // Información de depuración: directivas '#line N "archivo.fst"' para que gdb/lldb asocien el
+    // código máquina con las líneas de Faset (CodeGenDebug.cpp). Solo en Debug o con -g.
+    bool lineDirectives = false;
 
 private:
     Program& prog_;
@@ -43,4 +46,13 @@ private:
     std::string loc(SourceLoc l);        // "fs__fN, línea"
     std::string callerLoc(SourceLoc l);  // ubicación para un método [TrackCaller]
     std::string chkObj(Expr* obj, const std::string& code);
+
+    // Directivas #line (CodeGenDebug.cpp)
+    SourceLoc curLoc_{-1, 0, 0};          // sentencia de Faset que se está emitiendo (file < 0: ninguna)
+    void setLoc(SourceLoc l);             // las líneas siguientes pertenecen a esta ubicación
+    void lineDirective(SourceLoc l);      // escribe '#line' ya (para código emitido con out_ <<)
+    void resetLoc();                      // vuelve al C generado (main, inicialización...)
+    std::string finishLineDirectives(const std::string& c);
+    void emitDebugEnums();                // tipos enum de C para que gdb muestre los nombres
+    std::string localType(Type* t);       // tipo de C de una variable local o campo (enum con nombre en Debug)
 };

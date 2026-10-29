@@ -234,6 +234,7 @@ namespace FasetStudio.Ide
                 string line = Buf.LineText(i);
                 bool current = i == Cursor.Line && Focused;
                 if (current && !HasSelection) r.Rect(X, ly, W, lh, Theme.CurrentLine);
+                DebugMarks.Background(r, Doc.FullPath, i, X, ly, W, lh);   // línea donde está detenido el depurador
 
                 // Selección (rectángulos redondeados por línea)
                 if (HasSelection && i >= s0.Line && i <= s1.Line)
@@ -250,6 +251,7 @@ namespace FasetStudio.Ide
                 float numW = r.TextWidth(r.Code, num);
                 r.Text(r.Code, X + gutter - numW - cw * 2, ly + textTop, num, i == Cursor.Line ? Theme.LineNumberActive : Theme.LineNumber);
                 String.Free(num);
+                DebugMarks.Gutter(r, Doc.FullPath, i, X, ly, lh);   // punto de interrupción y flecha de la línea actual
 
                 // Texto con resaltado
                 if (line.Length > kindsCapacity)

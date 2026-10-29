@@ -58,10 +58,10 @@ namespace FasetStudio.Ide
     {
         None, QuickOpen, Find, GoToLine, NewFile, NewFolder, Rename, ConfirmQuit, ConfirmCloseTab,
         ConfirmDelete, ConfirmCloseProject, ConfirmDeleteProject, NewProject, OpenFolder, ProjectProperties, About,
-        SolutionFolder, RenameSolution
+        SolutionFolder, RenameSolution, AddWatch, BreakCondition
     }
 
-    public class App
+    public partial class App
     {
         // Acciones de la barra de herramientas
         const int ActSave = 1;
@@ -101,10 +101,11 @@ namespace FasetStudio.Ide
         int activeGroup;
         List<HitBox> hits = new List<HitBox>();
 
-        // Paneles acoplables: Explorador (0), Salida (1), Problemas (2) y Dispositivo (3). Cada uno está en un lado
+        // Paneles acoplables: Explorador (0), Salida (1), Problemas (2), Dispositivo (3) y los del depurador:
+        // Variables (4), Pila de llamadas (5) e Inspección (6). Cada uno está en un lado
         // (0 izquierda, 1 derecha, 2 abajo); los del mismo lado se muestran como pestañas.
-        const int ActTool = 50;   // 50..53: pestañas de los paneles
-        const int ToolCount = 4;
+        const int ActTool = 50;   // 50..56: pestañas de los paneles
+        const int ToolCount = 7;
         const int ActTarget = 41; // selector de destino (este equipo / Android)
 
         // Android: dispositivos, emulador y vista del dispositivo (panel 3).
@@ -243,6 +244,7 @@ namespace FasetStudio.Ide
         public void Shutdown()
         {
             if (process != null && process.IsRunning) process.Kill();
+            dbg.Stop();
             android.Shutdown();   // termina el flujo de la pantalla y el shell de adb
             delete analyzer;
             analyzer = null;
@@ -521,6 +523,7 @@ namespace FasetStudio.Ide
 
         public EditorView OpenFile(string path)
         {
+            SyncBreakpoints();   // los del proyecto, antes de que se edite el archivo
             string full = Path.GetFullPath(path);
             Document doc = FindDoc(full);
             if (doc == null)
@@ -862,6 +865,9 @@ namespace FasetStudio.Ide
                     continue;
                 TextPos p = v.PosFromPoint(r, mouseX, mouseY);
                 StringBuilder sb = new StringBuilder();
+                // Depurando y detenido: el valor de la variable o expresión bajo el ratón.
+                string dv = DebugHover(v, p);
+                if (dv.Length > 0) sb.Append(dv);
                 for (int i = 0; i < v.Doc.Diagnostics.Count; i++)
                 {
                     Diagnostic d = v.Doc.Diagnostics[i];
@@ -872,7 +878,7 @@ namespace FasetStudio.Ide
                         sb.Append(d.Severity == 1 ? "error: " : d.Severity == 2 ? "warning: " : "note: ").Append(d.Message);
                     }
                 }
-                if (v.Doc.AnalyzedVersion == v.Doc.Buffer.Version)
+                if (v.Doc.AnalyzedVersion == v.Doc.Buffer.Version && dv.Length == 0)
                 {
                     int idx = v.Doc.RefAt(p.Line, p.Col);
                     if (idx >= 0)
@@ -938,7 +944,7 @@ namespace FasetStudio.Ide
                 cmd.Append(" ").Append(q);
                 String.Free(q);
             }
-            cmd.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget);
+            cmd.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget).Append(extraBuildArgs);
             if (buildTarget == "android" && android.Device.Length > 0)
             {
                 string qd = Analyzer.Quote(android.Device);
@@ -947,7 +953,9 @@ namespace FasetStudio.Ide
             }
             output.Append("> ").Append(run ? "faset run" : "faset build");
             if (input.Length > 0) output.Append(" ").Append(Path.GetFileName(input));
-            output.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget).Append("\n");
+            output.Append(" -c ").Append(configuration).Append(" --target ").Append(buildTarget);
+            if (extraBuildArgs.Length > 0) output.Append(" -g");
+            output.Append("\n");
             if (process == null) process = new ChildProcess();
             if (!process.Start(cmd.View(), cwd)) output.Append(L.T("Could not start the compiler.")).Append("\n");
             processIsRun = run;
@@ -1097,6 +1105,12 @@ namespace FasetStudio.Ide
                 String.Free(path);
             }
             else if (o == Overlay.Rename && input.Trim().Length > 0) RenamePath(targetPath, input.Trim());
+            else if (o == Overlay.AddWatch && input.Trim().Length > 0)
+            {
+                dbg.AddWatch(input);
+                ShowTool(6);
+            }
+            else if (o == Overlay.BreakCondition) dbg.SetCondition(contextBreakpoint, input);
             else if (o == Overlay.SolutionFolder && input.Trim().Length > 0)
             {
                 string name = contextFolder.Length > 0 ? String.Concat(contextFolder, "/", input.Trim()) : String.Copy(input.Trim());
@@ -1312,12 +1326,18 @@ namespace FasetStudio.Ide
                 return;
             }
             if (e.Ctrl && k == 'b') { StartProcess(false); return; }
+            // Depuración: F5 depurar / continuar, Ctrl+F5 ejecutar sin depurar, Shift+F5 detener,
+            // F9 punto de interrupción, F10 / F11 / Shift+F11 paso a paso.
             if (k == Keys.F5)
             {
-                if (e.Shift) StopProcess();
-                else StartProcess(true);
+                if (e.Shift) DebugAction(702);
+                else if (e.Ctrl) StartProcess(true);
+                else DebugAction(700);
                 return;
             }
+            if (k == Keys.F9) { DebugAction(707); return; }
+            if (k == Keys.F10) { DebugAction(703); return; }
+            if (k == Keys.F11) { DebugAction(e.Shift ? 705 : 704); return; }
             if (e.Ctrl && k == 'p') { OpenOverlay(Overlay.QuickOpen); return; }
             if (e.Ctrl && k == 'n') { OpenOverlay(Overlay.NewFile); return; }
             if (e.Ctrl && k == 'f') { OpenOverlay(Overlay.Find); return; }
@@ -1377,7 +1397,9 @@ namespace FasetStudio.Ide
                 string text = v.SelectedText();
                 if (win != null) win.SetClipboard(text);
                 String.Free(text);
+                int linesBefore = v.Doc.Buffer.LineCount, lineBefore = v.SelStart.Line;
                 if (k == 'x') v.Backspace();
+                if (v.Doc.Buffer.LineCount != linesBefore) dbg.ShiftBreakpoints(v.Doc.FullPath, lineBefore, v.Doc.Buffer.LineCount - linesBefore);
                 else v.SetCursor(v.Cursor, false);
                 MarkEdited();
                 return;
@@ -1388,7 +1410,9 @@ namespace FasetStudio.Ide
                 {
                     string text = win.GetClipboard();
                     v.Doc.Buffer.NewGroup();
+                    int linesBefore = v.Doc.Buffer.LineCount, lineBefore = v.SelStart.Line;
                     v.InsertText(text, false);
+                    if (v.Doc.Buffer.LineCount != linesBefore) dbg.ShiftBreakpoints(v.Doc.FullPath, lineBefore, v.Doc.Buffer.LineCount - linesBefore);
                     String.Free(text);
                     v.EnsureCursorVisible(r);
                     MarkEdited();
@@ -1402,8 +1426,11 @@ namespace FasetStudio.Ide
             }
 
             int version = v.Doc.Buffer.Version;
+            int linesBefore = v.Doc.Buffer.LineCount, lineBefore = v.SelStart.Line;
             if (!v.HandleKey(e, r)) return;
             if (v.Doc.Buffer.Version != version) MarkEdited();
+            // Los puntos de interrupción siguen a su línea al insertar o borrar líneas por encima.
+            if (v.Doc.Buffer.LineCount != linesBefore) dbg.ShiftBreakpoints(v.Doc.FullPath, lineBefore, v.Doc.Buffer.LineCount - linesBefore);
 
             // Disparar o actualizar el autocompletado
             if (e.Char != 0 && !e.Ctrl)
@@ -1514,7 +1541,8 @@ namespace FasetStudio.Ide
                 bool insidePalette = x >= overlayInputX - 12 && x < overlayInputX + overlayInputW + 12 && y >= TitleHeight && y < overlayInputY + 60;
                 if (insidePalette) return;
                 if (overlay == Overlay.QuickOpen || overlay == Overlay.Find || overlay == Overlay.GoToLine || overlay == Overlay.NewFile ||
-                    overlay == Overlay.SolutionFolder || overlay == Overlay.RenameSolution)
+                    overlay == Overlay.SolutionFolder || overlay == Overlay.RenameSolution || overlay == Overlay.AddWatch ||
+                    overlay == Overlay.BreakCondition)
                     overlay = Overlay.None;
                 return;
             }
@@ -1612,6 +1640,7 @@ namespace FasetStudio.Ide
                         AfterDesigner(v);
                         return;
                     }
+                    if (GutterMouse(v, e, x, y)) return;
                     if (e.Button == 3)
                     {
                         if (!v.HasSelection) v.SetCursor(v.PosFromPoint(r, x, y), false);
@@ -1623,6 +1652,8 @@ namespace FasetStudio.Ide
                     return;
                 }
             }
+            // Paneles del depurador
+            if (DebugPanelMouse(e, x, y)) return;
             // Paneles de salida y de problemas
             if (InTool(2, x, y) && y >= toolRect[9] + PanelHeaderHeight)
             {
@@ -1775,6 +1806,11 @@ namespace FasetStudio.Ide
 
         void DoAction(int id)
         {
+            if (id >= 700 && id < 800)
+            {
+                DebugAction(id);
+                return;
+            }
             if (id == ActTarget)
             {
                 for (int i = 0; i < hits.Count; i++)
@@ -1938,6 +1974,9 @@ namespace FasetStudio.Ide
             else if (InTool(1, x, y)) outputScroll = Math.Max(0, outputScroll + e.ScrollLines);
             else if (InTool(2, x, y)) problemsScroll = Math.Max(0, problemsScroll + e.ScrollLines);
             else if (InTool(3, x, y)) android.Scroll(x, y, e.ScrollLines);
+            else if (InTool(4, x, y)) dbg.VarsScroll = Math.Max(0, dbg.VarsScroll + e.ScrollLines);
+            else if (InTool(5, x, y)) dbg.StackScroll = Math.Max(0, dbg.StackScroll + e.ScrollLines);
+            else if (InTool(6, x, y)) dbg.WatchScroll = Math.Max(0, dbg.WatchScroll + e.ScrollLines);
             else
             {
                 for (int k = 0; k < groups.Count; k++)
@@ -1980,8 +2019,10 @@ namespace FasetStudio.Ide
                     explorer.Refresh();
                     analysisPending = true;
                     redraw = true;
+                    if (debugExe.Length > 0) LaunchDebugger(code == 0);
                 }
             }
+            if (UpdateDebugger()) redraw = true;
             if (android.Update(r, buildTarget == "android" && ToolVisible(3))) redraw = true;
             if (android.Status.Length > 0)
             {
@@ -2095,6 +2136,8 @@ namespace FasetStudio.Ide
         // Cierra todos los documentos y el proyecto (sin preguntar).
         void CloseWorkspaceNow()
         {
+            dbg.Stop();
+            debugExe = "";
             for (int k = 0; k < groups.Count; k++) delete groups[k];
             groups.Clear();
             groups.Add(new EditorGroup());
@@ -2479,6 +2522,9 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Output"), ToolVisible(1) ? "✓" : "", 123, ws);
                 m.Add(L.T("Problems"), ToolVisible(2) ? "✓" : "", 124, ws);
                 m.Add(L.T("Device"), ToolVisible(3) ? "✓" : "", 128, ws);
+                m.Add(L.T("Variables"), ToolVisible(4) ? "✓" : "", 720, ws);
+                m.Add(L.T("Call Stack"), ToolVisible(5) ? "✓" : "", 721, ws);
+                m.Add(L.T("Watch"), ToolVisible(6) ? "✓" : "", 722, ws);
                 m.Add(L.T("Reset layout"), "", 127, ws);
                 m.Separator();
                 m.Add(L.T("Change language"), "", 125, true);
@@ -2487,8 +2533,18 @@ namespace FasetStudio.Ide
             {
                 bool sln = solutionFile.Length > 0;
                 m.Add(sln ? L.T("Build solution") : L.T("Build"), "Ctrl+B", 130, ws && !running);
-                m.Add(L.T("Run"), "F5", 131, ws && !running);
+                m.Add(L.T("Run without debugging"), "Ctrl+F5", 131, ws && !running && !dbg.Active);
                 m.Add(L.T("Stop"), "Shift+F5", 132, running);
+                m.Separator();
+                m.Add(dbg.Stopped ? L.T("Continue") : L.T("Start debugging"), "F5", 700, ws && !running && (!dbg.Active || dbg.Stopped));
+                m.Add(L.T("Stop debugging"), "Shift+F5", 702, dbg.Active);
+                m.Add(L.T("Pause"), "", 706, dbg.Active && dbg.Running);
+                m.Add(L.T("Step over"), "F10", 703, dbg.Stopped);
+                m.Add(L.T("Step into"), "F11", 704, dbg.Stopped);
+                m.Add(L.T("Step out"), "Shift+F11", 705, dbg.Stopped);
+                m.Add(L.T("Toggle breakpoint"), "F9", 707, ed);
+                m.Add(L.T("Delete all breakpoints"), "", 708, dbg.Breakpoints.Count > 0);
+                m.Add(L.T("Just my code (skip the standard library)"), Settings.Get("debug.justmycode", "1") != "0" ? "✓" : "", 714, ws);
                 m.Add(sln ? L.T("Clean solution") : L.T("Clean"), "", 133, ws && !running && (projectFile.Length > 0 || sln));
                 m.Separator();
                 m.Add("Debug", configuration == "Debug" ? "✓" : "", 135, ws);
@@ -2543,7 +2599,7 @@ namespace FasetStudio.Ide
                 contextFolder = "";
                 SetTarget(solutionFile, false);
                 m.Add(L.T("Build solution"), "Ctrl+B", 130, !running);
-                m.Add(L.T("Run startup project"), "F5", 131, !running && projectFile.Length > 0);
+                m.Add(L.T("Run startup project"), "Ctrl+F5", 131, !running && projectFile.Length > 0);
                 m.Add(L.T("Clean solution"), "", 133, !running);
                 m.Separator();
                 m.Add(L.T("Add new project…"), "", 301, true);
@@ -2594,7 +2650,7 @@ namespace FasetStudio.Ide
             if (isRoot)
             {
                 m.Add(L.T("Build"), "Ctrl+B", 130, true);
-                m.Add(L.T("Run"), "F5", 131, true);
+                m.Add(L.T("Run"), "Ctrl+F5", 131, true);
                 m.Add(L.T("Clean"), "", 133, projectFile.Length > 0);
                 m.Separator();
                 m.Add(L.T("New file…"), "", 165, true);
@@ -2631,6 +2687,8 @@ namespace FasetStudio.Ide
         {
             Menu m = new Menu();
             m.Add(L.T("Go to definition"), "F12", 167, true);
+            m.Add(L.T("Add watch"), "", 713, true);
+            m.Add(L.T("Toggle breakpoint"), "F9", 707, true);
             m.Separator();
             m.Add(L.T("Cut"), "Ctrl+X", 112, true);
             m.Add(L.T("Copy"), "Ctrl+C", 113, true);
@@ -2723,7 +2781,7 @@ namespace FasetStudio.Ide
             {
                 // La pantalla de bienvenida muestra los atajos: cerrar las pestañas del grupo no es necesario,
                 // basta con indicarlo en la barra de estado.
-                SetStatus(L.T("Ctrl+P open · Ctrl+B build · F5 run · F12 definition · Ctrl+\\ split"));
+                SetStatus(L.T("Ctrl+P open · Ctrl+B build · F5 debug · Ctrl+F5 run · F9 breakpoint · F12 definition"));
             }
             else if (id == 151) OpenOverlay(Overlay.About);
             else if (id == 160) OpenFile(targetPath);
@@ -2785,6 +2843,7 @@ namespace FasetStudio.Ide
                     delete args;
                 }
             }
+            else if (id >= 700 && id < 800) DebugAction(id);
             else DoAction(id);
         }
 
@@ -3147,21 +3206,25 @@ namespace FasetStudio.Ide
                 sx = menuEnd + 16;
             }
             // Que no pise los controles de la derecha (ejecutar, compilar, destino, configuración, dividir).
-            string runL = L.T("Run"), buildL = L.T("Build");
+            string runL = L.T("Run"), buildL = L.T("Build"), debugL = L.T("Debug");
             string targetL = TargetLabel();
-            float rightW = PillWidth(runL, "▶") + PillWidth(buildL, "") + 8 + r.TextWidth(r.Ui, targetL) + 62 +
+            float rightW = PillWidth(runL, "▶") + PillWidth(buildL, "") + PillWidth(debugL, "●") + 16 + r.TextWidth(r.Ui, targetL) + 62 +
                            r.TextWidth(r.Ui, "Debug") + r.TextWidth(r.Ui, "Release") + 60 + 40 + 16;
             String.Free(targetL);
             float limit = W - Gap - 8 - rightW;
             if (sx + sw > limit) sw = (float)Math.Max(120.0, (double)(limit - sx));
-            bool searchHover = hoverButton == ActQuickOpen;
-            r.RoundRect(sx, 10, sw, 28, 14, searchHover ? Theme.Hover : Theme.Elevated);
-            r.RoundBorder(sx, 10, sw, 28, 14, 1, Theme.Border);
-            r.RoundBorder(sx + 14, 18, 10, 10, 5, 1.5f, Theme.TextTertiary);
-            r.RoundRect(sx + 23, 27, 4, 2, 1, Theme.TextTertiary);
-            r.Text(r.Ui, sx + 34, 15, L.T("Search files"), Theme.TextTertiary);
-            KeyChip(sx + sw - 62, 15, "Ctrl P");
-            AddHit(sx, 10, sw, 28, ActQuickOpen, -1, false);
+            if (dbg.Active) DrawDebugToolbar(sx, sw);
+            else
+            {
+                bool searchHover = hoverButton == ActQuickOpen;
+                r.RoundRect(sx, 10, sw, 28, 14, searchHover ? Theme.Hover : Theme.Elevated);
+                r.RoundBorder(sx, 10, sw, 28, 14, 1, Theme.Border);
+                r.RoundBorder(sx + 14, 18, 10, 10, 5, 1.5f, Theme.TextTertiary);
+                r.RoundRect(sx + 23, 27, 4, 2, 1, Theme.TextTertiary);
+                r.Text(r.Ui, sx + 34, 15, L.T("Search files"), Theme.TextTertiary);
+                KeyChip(sx + sw - 62, 15, "Ctrl P");
+                AddHit(sx, 10, sw, 28, ActQuickOpen, -1, false);
+            }
 
             // Acciones a la derecha
             bool running = process != null && process.IsRunning;
@@ -3169,6 +3232,10 @@ namespace FasetStudio.Ide
             string runIcon = running ? "■" : "▶";
             float rx = W - Gap - 8 - PillWidth(runLabel, runIcon);
             Pill(rx, 10, runLabel, runIcon, running ? ActStop : ActRun, 1);
+            // Depurar (F5): compila con -g y arranca gdb
+            string debugLabel = L.T("Debug");
+            rx -= PillWidth(debugLabel, "●") + 8;
+            Pill(rx, 10, debugLabel, "●", 700, 0);
             string buildLabel = L.T("Build");
             rx -= PillWidth(buildLabel, "") + 8;
             Pill(rx, 10, buildLabel, "", ActBuild, 0);
@@ -3305,7 +3372,7 @@ namespace FasetStudio.Ide
             DrawShortcut(lx, ry, colW, L.T("Open file"), "Ctrl P");
             DrawShortcut(lx, ry + 30, colW, L.T("New file"), "Ctrl N");
             DrawShortcut(lx, ry + 60, colW, L.T("Build project"), "Ctrl B");
-            DrawShortcut(lx, ry + 90, colW, L.T("Run"), "F5");
+            DrawShortcut(lx, ry + 90, colW, L.T("Start debugging"), "F5");
             DrawShortcut(lx, ry + 120, colW, L.T("Split view"), "Ctrl \\");
             DrawShortcut(lx, ry + 150, colW, L.T("Go to definition"), "F12");
         }
@@ -3397,8 +3464,8 @@ namespace FasetStudio.Ide
             toolRect.Clear();
             for (int t = 0; t < ToolCount; t++)
             {
-                toolSide.Add(t == 0 ? 0 : (t == 3 ? 1 : 2));
-                toolShown.Add(t != 3);   // el panel del dispositivo aparece al elegir Android
+                toolSide.Add(t == 0 ? 0 : (t == 3 || t == 4 || t == 6 ? 1 : 2));
+                toolShown.Add(t < 3);   // el del dispositivo aparece al elegir Android; los del depurador, al depurar
             }
             for (int s = 0; s < 3; s++) sideActive.Add(s == 0 ? 0 : (s == 2 ? 1 : -1));
             for (int i = 0; i < ToolCount * 4; i++) toolRect.Add(0);
@@ -3503,7 +3570,8 @@ namespace FasetStudio.Ide
             SaveLayout();
         }
 
-        static string ToolName(int t) => t == 0 ? "Explorer" : (t == 1 ? "Output" : (t == 2 ? "Problems" : "Device"));
+        static string ToolName(int t) => t == 0 ? "Explorer" : t == 1 ? "Output" : t == 2 ? "Problems" : t == 3 ? "Device"
+                                       : t == 4 ? "Variables" : t == 5 ? "Call Stack" : "Watch";
 
         bool InTool(int t, float x, float y)
         {
@@ -3567,6 +3635,9 @@ namespace FasetStudio.Ide
             }
             else if (active == 1) DrawOutput(x, y, w, h);
             else if (active == 2) DrawProblems(x, y, w, h);
+            else if (active == 4) dbg.DrawVariables(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
+            else if (active == 5) dbg.DrawStack(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
+            else if (active == 6) dbg.DrawWatch(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
             else android.Draw(r, x, y, w, h, mouseX, mouseY);
         }
 
@@ -3577,7 +3648,7 @@ namespace FasetStudio.Ide
             int visible = (int)((h - PanelHeaderHeight - 10) / lh);
             r.PushClip(x, y0, w, h - PanelHeaderHeight - 8);
             List<string> lines = Text.Split(output.View(), "\n");
-            if (process != null && process.IsRunning) outputScroll = Math.Max(0, lines.Count - visible);
+            if ((process != null && process.IsRunning) || dbg.Running) outputScroll = Math.Max(0, lines.Count - visible);
             if (outputScroll > Math.Max(0, lines.Count - 1)) outputScroll = Math.Max(0, lines.Count - 1);
             if (output.Length == 0) r.Text(r.Ui, x + 16, y0 + 4, L.T("Build or run the project to see its output here."), Theme.TextTertiary);
             for (int i = 0; i < visible + 1; i++)
@@ -3667,7 +3738,7 @@ namespace FasetStudio.Ide
             float y = H - StatusHeight;
             float cy = y + StatusHeight / 2;
             // Indicador de estado
-            Color dot = running ? Theme.Warning : Theme.TextSecondary;
+            Color dot = running || dbg.Active ? Theme.Warning : Theme.TextSecondary;
             r.RoundRect(Gap + 10, cy - 3, 7, 7, 3.5f, dot);
             float x = r.Text(r.Ui, Gap + 24, y + 5, status, Theme.TextSecondary) + 18;
             int errors = ErrorCount();
@@ -3878,6 +3949,8 @@ namespace FasetStudio.Ide
                            : overlay == Overlay.Rename ? L.T("New name")
                            : overlay == Overlay.SolutionFolder ? L.T("New solution folder name")
                            : overlay == Overlay.RenameSolution ? L.T("New solution name")
+                           : overlay == Overlay.AddWatch ? L.T("Expression to watch (e.g. player.Health)")
+                           : overlay == Overlay.BreakCondition ? L.T("Breakpoint condition (empty: always stop), e.g. i == 3")
                                                          : L.T("New file name (e.g. Player.fst or Models/Player.fst)");
             float w2 = (float)Math.Min(640.0, W - 40);
             float x2 = (W - w2) / 2, y2 = TitleHeight + 10;
@@ -4571,6 +4644,9 @@ namespace FasetStudio.Ide
                 else if (k == "backspace") e.Key = Keys.BackSpace;
                 else if (k == "delete") e.Key = Keys.Delete;
                 else if (k == "f5") e.Key = Keys.F5;
+                else if (k == "f9") e.Key = Keys.F9;
+                else if (k == "f10") e.Key = Keys.F10;
+                else if (k == "f11") e.Key = Keys.F11;
                 else if (k == "f12") e.Key = Keys.F12;
                 else if (k == "space")
                 {
@@ -4704,6 +4780,7 @@ namespace FasetStudio.Ide
             }
             else if (verb == "start") StartProcess(arg != "build");   // sin esperar (p. ej. 'faset run' en Android sigue el log)
             else if (verb == "stop") StopProcess();
+            else if (DebugCommand(verb, arg)) { }   // depuración (AppDebug.fst)
             else if (verb == "quit") RequestQuit();
             else if (verb == "hub") ShowHub();
             else if (verb == "menu") { Draw(); for (int i = 0; i < hits.Count; i++) if (hits[i].Group == -4 && hits[i].Id == arg.ToInt()) OpenBarMenu(hits[i].Id, hits[i].X, hits[i].Y + hits[i].H + 4); }

@@ -270,6 +270,7 @@ struct Stmt {
 struct BlockStmt : Stmt {
     std::vector<Stmt*> stmts;
     bool memoryUnsafe = false;  // memory_unsafe { ... }
+    SourceLoc endLoc{-1, 0, 0};  // la '}' de cierre (para la información de depuración)
     explicit BlockStmt(SourceLoc l) : Stmt(SK::Block, l) {}
 };
 

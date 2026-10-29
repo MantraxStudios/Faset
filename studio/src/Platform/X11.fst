@@ -58,6 +58,10 @@ namespace FasetStudio.Platform
         public const uint End = 0xff57;
         public const uint F1 = 0xffbe;
         public const uint F5 = 0xffc2;
+        public const uint F6 = 0xffc3;
+        public const uint F9 = 0xffc6;
+        public const uint F10 = 0xffc7;
+        public const uint F11 = 0xffc8;
         public const uint F12 = 0xffc9;
     }
 

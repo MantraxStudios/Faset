@@ -40,7 +40,11 @@ Se le puede pasar una carpeta, un `.fstproj`, una solución `.fstp` o un archivo
   - también en los `.fstproj` y en la vista de código de los `.fstui`: elementos tras `<`, atributos
     (con espacio), valores tras `="` (`OutputType`, `Anchor`, `Style`…), manejadores para `Click`/`Changed`,
     errores en la línea y el atributo exactos, y `F12` del manejador al código y del control al `.fstui`
-- **Compilar y ejecutar** con la salida en vivo (`Ctrl+B`, `F5`, `Shift+F5` para detener) y Debug/Release
+- **Depurador** con gdb: puntos de interrupción (`F9` o clic en el margen, con condición), `F5`
+  depurar/continuar, `F10`/`F11`/`Shift+F11` paso a paso, paneles *Variables*, *Pila de llamadas* e
+  *Inspección*, valores al pasar el ratón y parada en los `panic` y en los fallos (SIGSEGV). Ver
+  [Depurador](#depurador).
+- **Compilar y ejecutar** con la salida en vivo (`Ctrl+B`, `Ctrl+F5`, `Shift+F5` para detener) y Debug/Release
 - Paneles redimensionables (arrastra los separadores)
 - Edición: deshacer y rehacer, sangría automática, cierre de `()` `[]` `""`, `Tab`/`Shift+Tab`
   sobre bloques, `Ctrl+/` comentar, `Ctrl+D` duplicar línea, `Ctrl+Shift+K` borrar línea,
@@ -75,7 +79,7 @@ en el [README principal](../README.md#soluciones-fstp)).
 - **Menú contextual de un proyecto:** establecer como proyecto de inicio, compilar solo ese proyecto,
   agregar una referencia a otra biblioteca de la solución (escribe `<ProjectReference>` en su
   `.fstproj`), nuevo archivo o carpeta, propiedades y quitar de la solución (los archivos se conservan).
-- **Compilar y ejecutar** (`Ctrl+B`, `F5`): toda la solución en orden de dependencias y después se
+- **Compilar y ejecutar** (`Ctrl+B`, `Ctrl+F5`; `F5` depura el proyecto de inicio): toda la solución en orden de dependencias y después se
   ejecuta el proyecto de inicio; la salida muestra cada proyecto (`[1/3] Compilando Motor ...`).
 - **IntelliSense:** cada archivo se analiza con su propio proyecto (el analizador elige, entre los de
   la solución, el que lo compila), así que el autocompletado y `F12` llegan también a las bibliotecas
@@ -148,9 +152,41 @@ Pruebas sin pantalla: `FASET_UI_SCREENSHOT=captura.bmp FASET_UI_SCRIPT="click X 
 dblclick X Y | key ctrl+s | wait 500" ./App` (`wait` avanza el reloj de los Timer sin esperar).
 El ejemplo `examples/controles` usa todos estos controles.
 
+## Depurador
+
+`F5` compila el proyecto (en una solución, el de inicio) con información de depuración
+(`faset build -g -o obj/debug/<Nombre>`) y lo ejecuta bajo **gdb** (`gdb --interpreter=mi3`, por
+tuberías). El compilador emite `#line N "archivo.fst"` en el C de Debug, así que gdb trabaja con las
+líneas de Faset; `src/Ide/Debugger.fst` traduce los nombres del C (`l_x`, `p_x`, `self`, `f_Campo`,
+`Ns_Clase__m_Metodo`) a los de Faset.
+
+- **Puntos de interrupción:** `F9` o clic en el margen; botón derecho para ponerles una condición en
+  Faset (`i == 3`, `jugador.Vida < 10`). Se guardan por proyecto y siguen a su línea al editar.
+- **Controles:** `F5` continuar, `F10` saltar la llamada, `F11` entrar, `Shift+F11` salir,
+  `Shift+F5` detener; mientras se depura, la barra de búsqueda se convierte en la barra de depuración
+  (continuar, pausa, detener, reiniciar y los tres pasos). `Ctrl+F5` ejecuta sin depurar.
+- **Paneles** (acoplables): *Variables* (locales y parámetros del marco; objetos, `List<T>`,
+  `string` como texto y `enum` por nombre), *Pila de llamadas* (clic para cambiar de marco) e
+  *Inspección* (expresiones de Faset: `heroe.Vida * 2`, `lista[i]`). Pasar el ratón sobre una
+  variable muestra su valor.
+- **Panics y fallos:** un `panic` (`faset_panic_at`) o una señal (SIGSEGV...) detienen el programa
+  en la línea de Faset que los produjo, con el mensaje en *Variables* y en *Salida*.
+- **Solo mi código** (menú Compilar): el paso a paso no entra en la biblioteca estándar.
+- La salida del programa va al panel *Salida*; no hay entrada estándar (`< /dev/null`).
+- Solo Linux con gdb ≥ 9 (`sudo apt install gdb`); Android y la depuración remota no están
+  soportados. `FASET_DEBUG_MI=archivo` guarda el diálogo con gdb para diagnosticar.
+
+Verbos del modo sin ventana: `bp archivo línea [condición]`, `debug`, `next`, `step`, `stepout`,
+`continue`, `pause`, `restart`, `waitstop`, `stopdebug`, `frame N`, `expand ruta`, `watch expr`,
+`print ruta` y `debugstate` (los que avanzan esperan a que el programa se detenga):
+
+```bash
+FasetStudio Juego --screenshot dbg.ppm --script "open Program.fst | bp Program.fst 20 | debug | step | expand this | debugstate"
+```
+
 ## Paneles acoplables
 
-Explorador, Salida y Problemas se pueden colocar a la izquierda, a la derecha o abajo.
+Explorador, Salida, Problemas y los paneles del depurador se pueden colocar a la izquierda, a la derecha o abajo.
 - **Arrastra su pestaña** hacia un borde. Aparecen guías y una vista previa del hueco donde quedará.
 - **Botón derecho en la pestaña:** acoplar a un lado, ocultar o restablecer la disposición.
 - Los paneles que están en el mismo lado se muestran como pestañas.
@@ -170,6 +206,7 @@ ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `Se
 | `src/Gfx/Font.fst`     | FreeType → atlas de glifos bajo demanda                            |
 | `src/Gfx/Shaders.fst`  | SPIR-V generado desde `shaders/ui.vert` y `shaders/ui.frag`        |
 | `src/Platform/X11.fst` | ventana, teclado, ratón y portapapeles con Xlib                    |
+| `src/Ide/Debugger.fst` | depurador: gdb por MI, puntos de interrupción, variables, pila e inspección |
 | `src/Ide/*.fst`        | búfer de texto, resaltado, editor, explorador, IntelliSense y la aplicación |
 
 La GPU se elige automáticamente (prefiere la dedicada). `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
@@ -186,7 +223,8 @@ Para regenerar los shaders hace falta `npm install @webgpu/glslang@0.0.15` y lue
 ## Limitaciones
 
 - Solo Linux (X11/XWayland) por ahora. La versión de Windows necesita un backend Win32 para la ventana.
-- Los programas que se ejecutan con F5 no reciben entrada por teclado: la salida va al panel *Salida*.
-- No hay depurador ni refactorizaciones (renombrar, buscar referencias).
+- Los programas que se ejecutan con Ctrl+F5 (o se depuran con F5) no reciben entrada por teclado: la
+  salida va al panel *Salida*.
+- No hay refactorizaciones (renombrar, buscar referencias).
 - En una solución, los proyectos no se pueden arrastrar entre carpetas de solución desde el explorador
   (usa `faset sln move`), y quitar una referencia de proyecto se hace en Propiedades.
