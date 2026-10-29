@@ -20,7 +20,6 @@
 
 const char* const kDelegateRuntime = R"FASET(
 /* ---- delegados (Func<...>, Action<...>, lambdas y eventos) ---- */
-#include <string.h>
 typedef void (*faset_fnptr)(void);
 typedef struct faset_delegate {
     faset_fnptr fn;                  /* R fn(void* env, A...) */
@@ -37,7 +36,7 @@ static inline faset_delegate* faset_dlg_new(faset_fnptr fn, void* env) {
 }
 static inline void* faset_dlg_box(const void* src, int64_t size) {
     void* p = faset_gc_alloc(size);
-    memcpy(p, src, (size_t)size);
+    __builtin_memcpy(p, src, (size_t)size);  /* sin <string.h>: no choca con un 'extern strlen' del programa */
     return p;
 }
 static inline int32_t faset_dlg_len(faset_delegate* d) { return !d ? 0 : d->count > 0 ? d->count : 1; }
