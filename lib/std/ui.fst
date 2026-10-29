@@ -960,14 +960,22 @@ namespace std.ui
                                                        Kind == WidgetKind.RadioButton || Kind == WidgetKind.ComboBox ||
                                                        Kind == WidgetKind.ListBox || FocusableKind);
 
+        // Eventos para lambdas y delegados (además de los manejadores conectados desde el .fstui):
+        //    boton.Click += s => lblEstado.Text = "Pulsado";
+        public event Action<Widget> Click;
+        public event Action<Widget> Changed;
+        public event Action<Widget> Tick;  // Timer
+
         internal void RaiseClick()
         {
             if (clickEvent != 0 && eventFn != null) eventFn(eventTarget, this, clickEvent);
+            Click(this);
         }
 
         internal void RaiseChanged()
         {
             if (changedEvent != 0 && eventFn != null) eventFn(eventTarget, this, changedEvent);
+            Changed(this);
         }
 
         // ------------------------------------------------------------- disposición

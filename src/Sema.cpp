@@ -260,6 +260,7 @@ void Sema::buildNamespaces() {
             c->type->decl = c;
         }
     }
+    registerDelegates();
     // Conflictos entre funciones/variables globales y tipos del mismo namespace.
     std::function<void(NamespaceSym*)> checkNs = [&](NamespaceSym* ns) {
         for (auto& [name, fs] : ns->funcs) {
@@ -294,6 +295,12 @@ Sym Sema::lookupIn(NamespaceSym* ns, const std::string& name, bool includeChildr
     if (t != ns->types.end()) {
         s.kind = Sym::TypeK;
         s.decl = t->second;
+        return s;
+    }
+    auto dg = ns->delegates.find(name);
+    if (dg != ns->delegates.end()) {
+        s.kind = Sym::TypeK;
+        s.dlg = dg->second;
         return s;
     }
     auto f = ns->funcs.find(name);
@@ -337,7 +344,7 @@ Sym Sema::lookupUnqualified(const std::string& name, SourceLoc loc) {
             // Alias a un tipo por su ruta completa (también clases estáticas).
             Sym t = lookupIn(global_, u.path[0]);
             for (size_t i = 1; i < u.path.size() && t.kind == Sym::Ns; i++) t = lookupIn(t.ns, u.path[i]);
-            if (t.kind == Sym::TypeK && !t.decl->isTemplate()) return t;
+            if (t.kind == Sym::TypeK && t.decl && !t.decl->isTemplate()) return t;
         }
         res.kind = Sym::TypeK;
         res.type = resolveType(u.aliasType);
@@ -392,6 +399,7 @@ void Sema::enter(ClassDecl* c, MethodDecl* m) {
 // ================================================================== tipos y firmas
 
 Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
+    if (s.dlg) return delegateFromDecl(s.dlg, tr);
     if (s.type) {
         if (!tr->typeArgs.empty()) diag.error(tr->loc, "un alias de tipo no admite argumentos genéricos");
         return s.type;
@@ -455,6 +463,12 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
         Sym s = lookupUnqualified(tr->parts[0], tr->loc);
         for (size_t i = 1; i < tr->parts.size() && s.kind == Sym::Ns; i++) s = lookupIn(s.ns, tr->parts[i]);
         if (s.kind != Sym::TypeK) {
+            if (Type* d = builtinDelegateType(tr)) {  // Func<...> / Action<...>
+                if (d->isError()) return d;
+                for (int i = 0; i < tr->ptrDepth; i++) d = tc_.pointerTo(d);
+                if (tr->ptrDepth > 0 && !unsafeCtx()) unsafeError(tr->loc, "el tipo puntero '" + tr->str() + "'");
+                return d;
+            }
             diag.error(tr->loc, "no se encontró el tipo '" + tr->str() + "'");
             return tc_.error();
         }
@@ -532,6 +546,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         ctx_.file = c->file;
         if (ideMode && !c->templateOf && f->type) addRef(f->loc, (int)f->name.size(), describeField(f), &f->loc);
         if (f->tref->isRef) diag.error(f->loc, "los campos no pueden ser referencias (T&); usa un puntero");
+        if (f->isEvent) checkEventField(f);
         if (!fieldNames.insert(f->name).second)
             diag.error(f->loc, "'" + c->displayName + "' ya contiene una definición para '" + f->name + "'");
         if (f->mods.isConst && !f->init) diag.error(f->loc, "un campo 'const' requiere un valor");
@@ -730,7 +745,8 @@ MethodDecl* Sema::instantiateMethod(MethodDecl* tmpl, const std::vector<Type*>& 
 }
 
 bool Sema::unify(TypeRef* p, Type* a, MethodDecl* tmpl, std::map<std::string, Type*>& b) {
-    if (!a || a->isError() || a->is(TK::Null)) return true;
+    if (!a || a->isError() || a->is(TK::Null) || a->isPending()) return true;
+    if (a->isDelegate() && p->ptrDepth == 0 && !p->isFuncPtr) return unifyDelegate(p, a, tmpl, b);
     Type* t = a;
     for (int i = 0; i < p->ptrDepth; i++) {
         if (!t->isPointer()) return true;
@@ -770,6 +786,7 @@ bool Sema::inferTypeArgs(MethodDecl* tmpl, const std::vector<Expr*>& args, const
     size_t n = std::min(tmpl->params.size(), args.size());
     for (size_t i = 0; i < n; i++)
         if (!unify(tmpl->params[i].tref, args[i]->type, tmpl, b)) return false;
+    inferFromLambdas(tmpl, args, b);  // tipos de retorno de lambdas y grupos de métodos
     for (const std::string& name : tmpl->typeParams) {
         auto it = b.find(name);
         if (it == b.end()) return false;
@@ -798,7 +815,7 @@ void Sema::processWork() {
             enter(c, nullptr);
             if (f->file) ctx_.file = f->file;
             ctx_.field = f;
-            checkValue(f->init);
+            checkOperand(f->init);
             coerce(f->init, f->type);
             if (f->isStatic()) staticInits.push_back(f);
         }
@@ -887,6 +904,7 @@ VarInfo* Sema::declareLocal(const std::string& name, Type* t, SourceLoc loc, con
     v->cname = prefix + name;
     v->type = t;
     v->loc = loc;
+    v->fnDepth = (int)lambdaStack_.size();
     ctx_.scopes.back()[name] = v;
     return v;
 }
@@ -934,7 +952,8 @@ void Sema::checkStmt(Stmt* s) {
             for (auto& dc : d->decls) {
                 Type* t = declared;
                 if (dc.init) {
-                    Type* it = checkValue(dc.init);
+                    Type* it = checkOperand(dc.init);
+                    if (isVar && it->isPending()) it = naturalType(dc.init);  // var f = (int x) => x * 2;
                     if (isVar) {
                         if (it->is(TK::Null)) diag.error(dc.loc, "no se puede inferir el tipo de 'null'");
                         else if (it->isVoid()) diag.error(dc.loc, "no se puede asignar 'void' a una variable");
@@ -1022,6 +1041,7 @@ void Sema::checkStmt(Stmt* s) {
             break;
         case SK::Return: {
             auto* rs = static_cast<ReturnStmt*>(s);
+            if (lambdaReturn(rs)) break;  // 'return' dentro del cuerpo de una lambda
             MethodDecl* m = ctx_.method;
             Type* ret = m ? m->ret : tc_.get(TK::Void);
             if (ret->isVoid()) {
@@ -1042,7 +1062,7 @@ void Sema::checkStmt(Stmt* s) {
                                             "' (dejaría de existir al salir del método)");
                 }
             } else {
-                checkValue(rs->value);
+                checkOperand(rs->value);
                 coerce(rs->value, ret);
             }
             break;
@@ -1184,7 +1204,8 @@ bool Sema::implicitNumeric(Type* from, Type* to) {
 
 bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     if (from == to || from->isError() || to->isError()) return true;
-    if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr();
+    if (from->isPending()) return e && pendingCost(e, to) >= 0;
+    if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr() || to->isDelegate();
     if (to->isVoidPointer() && from->isPointer()) return true;
     if (from->isNumeric() && to->isNumeric() && implicitNumeric(from, to)) return true;
     int64_t v;
@@ -1207,6 +1228,7 @@ bool Sema::canExplicit(Type* from, Type* to) {
 int Sema::convCost(Expr* e, Type* to) {
     Type* from = e->type;
     if (from == to) return 0;
+    if (from->isPending()) return pendingCost(e, to);
     if (!canImplicit(e, from, to)) return -1;
     if (from->isNumeric() && to->isNumeric()) {
         // Una constante que se estrecha (p. ej. 42 -> byte) es peor que cualquier ensanchamiento.
@@ -1220,6 +1242,10 @@ int Sema::convCost(Expr* e, Type* to) {
 void Sema::coerce(Expr*& e, Type* to) {
     Type* from = e->type;
     if (!from || from == to || from->isError() || to->isError()) return;
+    if (from->isPending()) {  // lambda o grupo de métodos -> delegado
+        convertPending(e, to);
+        return;
+    }
     if (!canImplicit(e, from, to)) {
         std::string msg = "no se puede convertir implícitamente el tipo '" + from->str() + "' en '" + to->str() + "'";
         if (canExplicit(from, to)) msg += " (existe una conversión explícita; ¿falta un cast?)";
@@ -1460,6 +1486,10 @@ void Sema::pointerExprError(Expr* e) {
 
 Type* Sema::checkValue(Expr* e) {
     check(e);
+    return requireValue(e);
+}
+
+Type* Sema::requireValue(Expr* e) {
     if (e->vk != ValKind::Value) {
         std::string what = e->vk == ValKind::TypeName    ? "'" + e->typeValue->str() + "' es un tipo"
                            : e->vk == ValKind::Namespace ? "'" + e->nsValue->display() + "' es un namespace"
@@ -1501,6 +1531,7 @@ Type* Sema::checkInner(Expr* e) {
                 diag.error(e->loc, "'this' no es válido en un contexto estático");
                 return tc_.error();
             }
+            noteThisUse(e->loc);
             return ctx_.cls->type;
         case EK::Name: return checkName(static_cast<NameExpr*>(e));
         case EK::Member: return checkMember(static_cast<MemberExpr*>(e));
@@ -1529,8 +1560,12 @@ Type* Sema::checkInner(Expr* e) {
             auto* c = static_cast<CastExpr*>(e);
             if (c->implicit) return c->type;
             Type* to = resolveType(c->tref);
-            Type* from = checkValue(c->operand);
+            Type* from = checkOperand(c->operand);
             if (to->isError() || from->isError()) return tc_.error();
+            if (from->isPending()) {  // (Func<int, int>)(x => x + 1)
+                coerce(c->operand, to);
+                return to;
+            }
             if (!canExplicit(from, to)) {
                 diag.error(c->loc, "no se puede convertir el tipo '" + from->str() + "' en '" + to->str() + "'");
                 return tc_.error();
@@ -1559,6 +1594,7 @@ Type* Sema::checkInner(Expr* e) {
             return tc_.get(TK::Int);
         }
         case EK::Default: return resolveType(static_cast<DefaultExpr*>(e)->tref);
+        case EK::Lambda: case EK::DelegateConv: return checkLambdaExpr(e);
     }
     return tc_.error();
 }
@@ -1711,6 +1747,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
     if (VarInfo* v = lookupLocal(e->name)) {
         e->ref = NameExpr::Ref::Local;
         e->var = v;
+        noteLocalUse(v, e->loc);  // ¿variable capturada por una lambda?
         return v->type;
     }
     ClassDecl* cls = ctx_.cls;
@@ -1727,6 +1764,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
                     return tc_.error();
                 }
                 e->ref = NameExpr::Ref::Field;
+                noteThisUse(e->loc);
             }
             return f->type;
         }
@@ -1739,6 +1777,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             e->ref = NameExpr::Ref::Property;
             e->getter = m;
             e->setter = FindSetter(m);
+            if (!m->isStatic()) noteThisUse(e->loc);
             requireSafeCall(m, e->loc);
             useMethod(m, &e->loc);
             return m->ret;
@@ -1773,6 +1812,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
 }
 
 Type* Sema::checkMemberImpl(MemberExpr* e) {
+    bool isCallee = e == calleeExpr_;
     // Regla "Color Color" de C#: en 'Anchor.Left', si 'Anchor' es a la vez un campo de la clase y
     // el nombre de su tipo enum, se trata como el tipo.
     if (e->obj->kind == EK::Name && ctx_.cls) {
@@ -1852,6 +1892,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                     return tc_.error();
                 }
                 checkAccess(f->mods.access, c, f->name, e->loc);
+                if (f->isEvent && !eventAccessible(f, e)) return tc_.error();
                 e->ref = MemberExpr::Ref::StaticField;
                 e->field = f;
                 return f->type;
@@ -1894,6 +1935,10 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         diag.error(e->loc, "usa '->' para acceder a miembros a través de un puntero ('" + ot->str() + "')");
         return tc_.error();
     }
+    if (base->isDelegate() && e->name == "Invoke") {  // f.Invoke(x) equivale a f(x)
+        e->ref = MemberExpr::Ref::DelegateInvoke;
+        return base;
+    }
     if (base->is(TK::String)) {
         if (e->name == "Length") {
             e->ref = MemberExpr::Ref::StrLength;
@@ -1914,12 +1959,14 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 return tc_.error();
             }
             checkAccess(f->mods.access, c, f->name, e->loc);
+            if (f->isEvent && !eventAccessible(f, e)) return tc_.error();
             e->ref = MemberExpr::Ref::Field;
             e->field = f;
             return f->type;
         }
         for (MethodDecl* m : c->methods) {
             if (m->kind != MethodKind::Getter || m->name != e->name) continue;
+            if (isCallee && hasCallableNamed(c, e->name)) continue;  // l.Count(x => ...) frente a l.Count
             if (m->isStatic()) {
                 diag.error(e->loc, "la propiedad estática '" + m->name + "' debe usarse con el nombre del tipo");
                 return tc_.error();
@@ -2035,10 +2082,13 @@ std::vector<MethodDecl*> Sema::operatorsFor(Type* a, Type* b, const std::string&
 }
 
 Type* Sema::checkCall(CallExpr* e) {
+    calleeExpr_ = e->callee;
     check(e->callee);
-    for (Expr* a : e->args) checkValue(a);
+    calleeExpr_ = nullptr;
+    for (Expr* a : e->args) checkOperand(a);
     Expr* callee = e->callee;
     if (callee->type->isError()) return tc_.error();
+    if (callee->vk == ValKind::Value && callee->type->isDelegate()) return checkDelegateCall(e);
 
     if (callee->vk == ValKind::Value && callee->type->isFuncPtr()) {
         Type* ft = callee->type;
@@ -2063,7 +2113,10 @@ Type* Sema::checkCall(CallExpr* e) {
 
     std::string name = callee->group.front()->name;
     MethodDecl* m = resolveOverload(callee->group, e->args, e->loc, name, typeArgs ? *typeArgs : noArgs);
-    if (!m) return tc_.error();
+    if (!m) {
+        explainPendingArgs(callee->group, e->args);  // errores dentro de las lambdas pasadas como argumento
+        return tc_.error();
+    }
     e->target = m;
     checkAccess(m->mods.access, m->owner, m->name, e->loc);
     requireSafeCall(m, e->loc);
@@ -2081,6 +2134,7 @@ Type* Sema::checkCall(CallExpr* e) {
                     return tc_.error();
                 }
                 e->implicitThis = true;
+                noteThisUse(e->loc);
             }
         } else {
             auto* me = static_cast<MemberExpr*>(callee);
@@ -2425,8 +2479,10 @@ Type* Sema::checkBinary(BinaryExpr* e) {
 }
 
 Type* Sema::checkAssign(AssignExpr* e) {
+    eventLhs_ = e->op == "+=" || e->op == "-=" ? e->lhs : nullptr;  // evento += manejador
     Type* L = checkValue(e->lhs);
-    Type* R = checkValue(e->rhs);
+    eventLhs_ = nullptr;
+    Type* R = checkOperand(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
     if (isConstTarget(e->lhs)) {
         diag.error(e->lhs->loc, "no se puede asignar a una constante");
@@ -2459,6 +2515,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
         coerce(e->rhs, L);
         return L;
     }
+    if (L->isDelegate() && delegateAssign(e, L)) return L;  // d += f; d -= f (multicast)
     std::string op = e->op.substr(0, e->op.size() - 1);
     auto bad = [&]() {
         diag.error(e->loc, "el operador '" + e->op + "' no se puede aplicar a operandos de tipo '" + L->str() + "' y '" +
@@ -2507,8 +2564,8 @@ Type* Sema::checkAssign(AssignExpr* e) {
 
 Type* Sema::checkCond(CondExpr* e) {
     checkCondition(e->cond);
-    Type* A = checkValue(e->a);
-    Type* B = checkValue(e->b);
+    Type* A = checkOperand(e->a);
+    Type* B = checkOperand(e->b);
     if (A->isError() || B->isError()) return tc_.error();
     if (A == B) return A;
     if (A->isNumeric() && B->isNumeric()) {
@@ -2533,7 +2590,7 @@ Type* Sema::checkCond(CondExpr* e) {
 
 Type* Sema::checkNew(NewExpr* e) {
     Type* T = resolveType(e->tref);
-    for (Expr* a : e->args) checkValue(a);
+    for (Expr* a : e->args) checkOperand(a);
     if (T->isError()) return T;
     if (!T->isAggregate()) {
         diag.error(e->loc, "'new T(...)' solo es válido para clases y structs; para memoria de '" + T->str() +
@@ -2620,6 +2677,7 @@ std::string Sema::methodSignature(MethodDecl* m) {
 }
 
 void Sema::addRef(SourceLoc loc, int length, const std::string& hover, const SourceLoc* def) {
+    if (trialDepth_ > 0) return;  // copias de prueba de lambdas: solo cuenta la comprobación final
     if (!ideMode || length <= 0) return;
     SymbolRef r;
     r.loc = loc;

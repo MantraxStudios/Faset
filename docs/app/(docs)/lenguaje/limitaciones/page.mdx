@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, foreach, lambdas, interpolación de cadenas, excepciones…",
+  description: "Qué no admite todavía Faset 0.2: herencia, interfaces, foreach, interpolación de cadenas, excepciones…",
 };
 
 # Limitaciones actuales
@@ -12,9 +12,8 @@ export const metadata = {
 
 | No disponible | Alternativa |
 |---|---|
-| Herencia, `interface`, `virtual`/`override` | Composición y [punteros a función](/lenguaje/delegados/). Están en la hoja de ruta. |
+| Herencia, `interface`, `virtual`/`override` | Composición y [delegados](/lenguaje/delegados/). Están en la hoja de ruta. |
 | `foreach` | `for (int i = 0; i < lista.Count; i++)` |
-| Lambdas | Funciones con nombre y `&Funcion` |
 | Interpolación `$"..."` | Concatenación con `+` (`"x = " + x`) o `StringBuilder` |
 | Excepciones (`try`, `catch`, `throw`) | Devolver `bool`/códigos de error y `out` (no se añadirán) |
 | `is` / `as` | Un campo `Kind` (enum) en tus tipos |
@@ -28,6 +27,12 @@ export const metadata = {
 | Operadores compuestos sobre propiedades (`p.X += 1`) | `p.X = p.X + 1` |
 
 ## Otras notas
+
+- Lambdas y delegados: los delegados son estructurales (`Predicate<int>` y `Func<int, bool>` son el
+  mismo tipo); un `delegate` declarado dentro de una clase se usa por su nombre simple (no
+  `Clase.Delegado`) y no puede usar los parámetros de tipo de una clase genérica; LINQ evalúa de
+  forma inmediata (sin `IEnumerable<T>`) y `Distinct`/`GroupBy`/`ToDictionary` necesitan claves con
+  `Hash.Of` (números, `char`, `bool`, `string`).
 
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
 - C no fija el orden de evaluación de los operandos: evita expresiones como `a[f()] = g()` cuando

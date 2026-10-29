@@ -1,0 +1,218 @@
+export const metadata = {
+  title: "Lambdas y cierres",
+  description: "x => x * 2, (a, b) => a + b y () => { ... }: tipos inferidos del delegado, captura por referencia como en C#, this, bucles y lambdas anidadas.",
+};
+
+# Lambdas y cierres
+
+<p className="lead">
+  Una lambda es una función sin nombre que se escribe donde se usa. Igual que en C#, sus parámetros
+  toman el tipo del <a href="/lenguaje/delegados/">delegado</a> de destino y puede usar las variables
+  del método que la rodea: las <em>captura por referencia</em>.
+</p>
+
+```faset
+int main()
+{
+    Func<int, int> doble = x => x * 2;               // un parámetro
+    Func<int, int, int> suma = (a, b) => a + b;      // varios
+    Func<int> cuarenta = () => 40;                   // ninguno
+    Func<int, int> cuadrado = (int x) => x * x;      // con tipos explícitos
+    Func<int, string> signo = x => {                 // con cuerpo de bloque
+        if (x < 0) return "negativo";
+        return "positivo";
+    };
+    Action<string> saludar = nombre => println("hola " + nombre);
+
+    println(doble(21));            // 42
+    println(suma(2, 3));           // 5
+    println(cuarenta() + 2);       // 42
+    println(cuadrado(9));          // 81
+    println(signo(-4));            // negativo
+    saludar("Ana");                // hola Ana
+    return 0;
+}
+```
+
+Una lambda no tiene tipo propio: lo recibe del lugar donde se usa (una variable, un parámetro, un
+`return` o un campo de tipo delegado). Por eso `x => x * 2` necesita un destino; con `var` hay que
+escribir el tipo de los parámetros y el compilador deduce el de retorno:
+
+```faset
+int main()
+{
+    var mult = (int a, int b) => a * b;       // Func<int, int, int>
+    var mitad = (double d) => d / 2;          // Func<double, double>
+    println(mult(6, 7));                      // 42
+    println(mitad(5));                        // 2.5
+    return 0;
+}
+```
+
+## Inferencia en llamadas genéricas
+
+Al pasar una lambda a un método genérico, los tipos de sus parámetros salen de los demás argumentos
+(o del objeto, en un método de `List<T>`) y el tipo que devuelve completa los argumentos de tipo que
+falten. Así funcionan las operaciones de [LINQ](/lenguaje/linq/):
+
+```faset
+using std.collections;
+
+R Transformar<T, R>(T valor, Func<T, R> f) => f(valor);
+
+int main()
+{
+    println(Transformar("hola", s => s.Length));   // 4          (T = string, R = int)
+    println(Transformar(3, x => x * 1.5));         // 4.5        (R = double)
+
+    var l = new List<int>();
+    for (int i = 1; i <= 5; i++) l.Add(i);
+    var textos = l.Where(x => x > 2).Select(x => "n" + x);   // List<string>
+    println(textos[0]);                            // n3
+    return 0;
+}
+```
+
+## Captura de variables
+
+Una lambda usa las variables del método **por referencia**: si el método cambia la variable, la
+lambda ve el cambio, y al revés. Las variables capturadas siguen vivas mientras alguna lambda las
+alcance, aunque el método que las declaró ya haya terminado:
+
+```faset
+Func<int> NuevoContador()
+{
+    int n = 0;
+    return () => { n++; return n; };     // 'n' sobrevive a NuevoContador
+}
+
+int main()
+{
+    int total = 0;
+    Action<int> acumular = x => total += x;
+    acumular(5);
+    acumular(7);
+    println(total);          // 12 (la lambda modificó 'total')
+    total = 100;
+    acumular(1);
+    println(total);          // 101 (y ve lo que cambia el método)
+
+    var a = NuevoContador();
+    var b = NuevoContador();
+    a();
+    a();
+    println(a());            // 3
+    println(b());            // 1 (cada llamada crea su propia variable)
+    return 0;
+}
+```
+
+Dentro de un método de instancia, una lambda también puede usar `this`, los campos y los métodos del
+objeto. Las lambdas pueden anidarse y cada una captura lo que necesita:
+
+```faset
+class Cuenta
+{
+    public int Saldo;
+    public Action<int> Depositador() => x => Saldo += x;     // captura 'this'
+}
+
+int main()
+{
+    var c = new Cuenta();
+    var depositar = c.Depositador();
+    depositar(50);
+    depositar(25);
+    println(c.Saldo);                          // 75
+
+    Func<int, Func<int, int>> sumador = a => b => a + b;
+    var mas10 = sumador(10);
+    println(mas10(5));                         // 15
+    return 0;
+}
+```
+
+### Variables de bucle
+
+Se sigue la regla de C#: lo que se declara **dentro** del cuerpo de un bucle es una variable nueva en
+cada vuelta, mientras que la variable de un `for (int i = ...)` es una sola para todo el bucle.
+
+```faset
+using std.collections;
+
+int main()
+{
+    var porVuelta = new List<Func<int>>();
+    var compartida = new List<Func<int>>();
+    for (int i = 0; i < 3; i++)
+    {
+        int copia = i;
+        porVuelta.Add(() => copia);    // una 'copia' distinta en cada vuelta
+        compartida.Add(() => i);       // todas ven la misma 'i'
+    }
+    println(porVuelta[0]() + " " + porVuelta[2]());     // 0 2
+    println(compartida[0]() + " " + compartida[2]());   // 3 3 (el valor final de i)
+    return 0;
+}
+```
+
+Una lambda puede llamarse a sí misma a través de una variable capturada:
+
+```faset
+int main()
+{
+    Func<int, int> fact = null;
+    fact = n => n <= 1 ? 1 : n * fact(n - 1);
+    println(fact(10));       // 3628800
+    return 0;
+}
+```
+
+## Con hilos
+
+[`std.thread`](/std/thread/) acepta lambdas: `Thread.Run(Action)`, `ThreadPool.Submit(Action)`,
+`Parallel.For(desde, hasta, Action<int>)` y `Parallel.ForEach(lista, Action<T>)`. El cierre mantiene
+vivo lo que captura mientras el hilo lo use; si varios hilos modifican la misma variable, protégela
+(`AtomicInt`, `Mutex`…):
+
+```faset
+using std.thread;
+using std.collections;
+
+int main()
+{
+    var cuadrados = new List<long>();
+    for (int i = 0; i < 1000; i++) cuadrados.Add(0);
+    Parallel.For(0, 1000, i => cuadrados[i] = (long)i * i);   // posiciones distintas: sin cerrojo
+    println(cuadrados.Sum());                                   // 332833500
+
+    var contador = new AtomicInt();
+    var t = Thread.Run(() => { for (int k = 0; k < 100; k++) contador.Increment(); });
+    t.Join();
+    println(contador.Value);                                    // 100
+    return 0;
+}
+```
+
+## Cómo funciona y cuánto cuesta
+
+- Una lambda que no captura nada se compila a una función de C y un delegado **estático**: crearla y
+  llamarla no reserva memoria.
+- Cada variable capturada vive en una pequeña caja del [recolector](/lenguaje/memoria/) que se crea al
+  ejecutar su declaración; el método y todas sus lambdas usan esa misma caja (por eso los cambios se
+  ven en los dos sentidos). Las variables que ninguna lambda captura siguen siendo variables de C
+  normales, sin coste extra.
+- Evaluar una lambda que captura algo reserva el delegado y su entorno (dos bloques pequeños); llamarla
+  después no reserva nada.
+- Llamar a un delegado cuesta una comprobación de nulo y una llamada indirecta.
+
+## Errores habituales
+
+| Mensaje | Causa |
+|---|---|
+| `la lambda tiene 2 parámetro(s) pero el delegado 'Func<int, int>' espera 1` | Número de parámetros distinto del delegado. |
+| `no se puede inferir el tipo de la lambda` | `var f = x => ...`: indica el tipo de `x` o el del delegado. |
+| `no se puede convertir una expresión lambda en 'int'` | El destino no es un tipo delegado. |
+| `no se puede usar la referencia 'x' dentro de una lambda` | Los parámetros y variables `ref` no se pueden capturar. |
+| `una lambda no puede usar 'this' ... dentro de un struct` | Copia el campo a una variable local antes. |
+| `el cuerpo de una lambda sin valor de retorno debe ser una llamada...` | `Action<int> a = x => x * 2;` no hace nada con el resultado. |

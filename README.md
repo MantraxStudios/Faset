@@ -391,7 +391,8 @@ importarlos o al usarlos con su nombre completo. `std` se importa siempre.
 | `string`                | vista UTF-8 inmutable `{ptr, len}` (como `string_view`); se concatena con `+` |
 | `T*`                    | puntero, con aritmética como en C (solo en `memory_unsafe`) |
 | `T&`                    | referencia (parámetros, retornos y variables locales) |
-| `delegate*<A, B, R>`    | puntero a función                                  |
+| `Func<A, R>`, `Action<A>` | delegado: función, `obj.Metodo` o lambda con sus capturas |
+| `delegate*<A, B, R>`    | puntero a función de C                             |
 | `struct`                | tipo valor                                         |
 | `class`                 | referencia: `new` reserva en el heap; el recolector la recupera |
 | `enum`                  | enteros con nombre                                 |
@@ -410,7 +411,8 @@ infieren el tipo en tiempo de compilación.
 | métodos de extensión `static int F(this int x)`  | referencias `T&`, `ref`/`out` como alias       |
 | sobrecarga `static T operator+(T a, T b)`        | `T& operator[](int i)`                         |
 | genéricos `<T>`, `default(T)`, `where` (ignorado) | se instancian por tipo y con *duck typing*    |
-| `delegate*<...>`, `&Funcion`                     | `new`/`delete`/`delete[]`, destructores `~T()` |
+| lambdas `x => x * 2`, cierres, `event`, LINQ     | `new`/`delete`/`delete[]`, destructores `~T()` |
+| `delegate*<...>`, `&Funcion`                     |                                                |
 | `var`, `null`, `int.MaxValue`                    | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x` (en `memory_unsafe`) |
 | `public`/`private` por miembro                   | secciones `public:` / `private:`               |
 
@@ -549,7 +551,7 @@ Release**:
 | referencias nulas | `obj.Campo`, `obj.Metodo()`, propiedades e indexadores sobre una referencia `null` |
 | índices de cadenas | `s[i]` fuera de `0..s.Length-1` |
 | división entera | `/`, `%`, `/=` y `%=` por cero, y `int.MinValue / -1` |
-| punteros a función | llamada a través de un `delegate*` nulo |
+| punteros a función y delegados | llamada a través de un `delegate*` o un delegado nulo |
 
 Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… también se
 comprueban siempre. `<RuntimeChecks>true|false</RuntimeChecks>` y `--checks` / `--no-checks` solo
@@ -895,7 +897,8 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
-- Sin `foreach`, interpolación `$"..."` (usa `"x = " + x`) ni lambdas (usa `&Funcion`).
+- Sin `foreach` ni interpolación `$"..."` (usa `"x = " + x`). LINQ evalúa de forma inmediata
+  (cada operación devuelve una `List<T>` nueva).
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.

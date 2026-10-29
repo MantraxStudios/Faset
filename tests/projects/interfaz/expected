@@ -22,8 +22,10 @@ Click: Guardar
 Menú abierto: False
 Submenú: Sub
 Click: Guardar
+Lambda: Guardar
 Ctrl+S con el elemento deshabilitado: sin evento
 Menú contextual abierto: True
 Contextual: Borrar sobre arbol
 Ticks: 10
+Ticks (lambda): 10
 Ticks tras Stop: 10

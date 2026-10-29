@@ -1,0 +1,19 @@
+6|el tipo de un evento debe ser un delegado
+13|una lambda no puede usar 'this'.*struct
+20|no se puede usar la referencia 'x' dentro de una lambda
+25|la lambda tiene 2 parámetro\(s\) pero el delegado 'Func<int, int>' espera 1
+26|no se puede convertir implícitamente el tipo 'int' en 'string'
+27|el parámetro 's' de la lambda es de tipo 'string'
+29|el delegado 'Func<int, int>' espera 1 argumento\(s\), no 2
+30|no se puede convertir implícitamente el tipo 'string' en 'int'
+32|el evento 'Termostato.Cambiado' solo se puede invocar o asignar dentro de 'Termostato'
+33|el evento 'Termostato.Cambiado' solo se puede invocar o asignar
+34|no se puede inferir el tipo de la lambda
+35|ninguna sobrecarga de 'Texto' coincide con el delegado 'Func<int, int>'
+36|no se puede convertir una expresión lambda en 'int'
+37|no puede devolver un valor
+38|no todas las rutas de código de la lambda devuelven un valor
+39|'Func' no puede devolver 'void'
+41|ninguna sobrecarga de 'Where'
+41|'int' no contiene una definición para 'Length'
+42|el cuerpo de una lambda sin valor de retorno debe ser una llamada

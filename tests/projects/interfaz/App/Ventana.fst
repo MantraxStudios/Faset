@@ -64,6 +64,8 @@ namespace Interfaz
             w.Simulate("click 20 15 | click 40 48");
             println("Menú abierto: " + Convert.ToString(w.MenuOpen));
             w.Simulate("click 20 15 | key down | key down | key right | key enter");
+            // Eventos con lambdas, además del manejador del .fstui
+            mnuGuardar.Click += s => println("Lambda: " + s.Text);
             w.Simulate("key ctrl+s");
             mnuGuardar.Enabled = false;
             w.Simulate("key ctrl+s");
@@ -73,8 +75,11 @@ namespace Interfaz
             println("Menú contextual abierto: " + Convert.ToString(w.MenuOpen));
             w.Simulate("key down | key enter");
             // Temporizador: 1 segundo simulado con Interval = 100
+            int ticksLambda = 0;
+            reloj.Tick += s => ticksLambda++;
             w.Simulate("wait 1000");
             println("Ticks: " + Convert.ToString((long)Ticks));
+            println("Ticks (lambda): " + Convert.ToString((long)ticksLambda));
             reloj.Stop();
             w.Simulate("wait 500");
             println("Ticks tras Stop: " + Convert.ToString((long)Ticks));

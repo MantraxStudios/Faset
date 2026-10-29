@@ -56,6 +56,7 @@ struct Modifiers {
     bool hasAccess = false;
     bool isStatic = false, isExtern = false, isConst = false, isReadonly = false, isPartial = false;
     bool isMemoryUnsafe = false;  // modificador 'memory_unsafe'
+    bool isEvent = false;         // modificador contextual 'event' (campos de tipo delegado)
 };
 
 struct Attribute {
@@ -90,13 +91,19 @@ struct VarInfo {
     bool isRef = false;  // referencia (T&): se guarda como puntero en C
     Expr* constInit = nullptr;
     SourceLoc loc;
+    // Cierres (ver Lambdas.cpp): nivel de anidamiento de lambdas donde se declaró y si alguna
+    // lambda la captura. Una variable capturada vive en una caja del recolector compartida por
+    // el método y todas sus lambdas (captura por referencia, como en C#).
+    int fnDepth = 0;
+    bool captured = false;
 };
 
 // ---------------------------------------------------------------- expresiones
 
 enum class EK {
     IntLit, FloatLit, BoolLit, CharLit, StringLit, Null, Name, Member, Call, Index, Unary, Postfix,
-    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default
+    Binary, Assign, Cond, Cast, New, NewArray, SizeOf, This, Default,
+    Lambda, DelegateConv
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -160,7 +167,7 @@ struct MemberExpr : Expr {
     std::vector<TypeRef*> typeArgs;
     SourceLoc nameLoc;   // posición del nombre (tras '.', '::' o '->')
     bool arrow = false;  // obj->name
-    enum class Ref { None, Field, StaticField, EnumConst, ConstInt, StrLength, StrPtr, Property } ref = Ref::None;
+    enum class Ref { None, Field, StaticField, EnumConst, ConstInt, StrLength, StrPtr, Property, DelegateInvoke } ref = Ref::None;
     FieldDecl* field = nullptr;
     MethodDecl* getter = nullptr;    // Property
     MethodDecl* setter = nullptr;    // Property con 'set'
@@ -254,6 +261,53 @@ struct SizeOfExpr : Expr {
 struct DefaultExpr : Expr {  // default(T): valor cero del tipo
     TypeRef* tref = nullptr;
     explicit DefaultExpr(SourceLoc l) : Expr(EK::Default, l) {}
+};
+
+struct BlockStmt;
+struct ReturnStmt;
+
+// Expresión lambda: x => x * 2, (a, b) => a + b, (int x) => { ... }, () => 0.
+// No tiene tipo propio: lo recibe del delegado de destino (ver Lambdas.cpp).
+struct LambdaExpr : Expr {
+    struct LParam {
+        SourceLoc loc;
+        std::string name;
+        TypeRef* tref = nullptr;  // nulo si el tipo se infiere del delegado
+        VarInfo* var = nullptr;
+    };
+    std::vector<LParam> params;
+    Expr* exprBody = nullptr;        // x => expr
+    BlockStmt* blockBody = nullptr;  // x => { ... }
+    TokenList tokens;                // para volver a analizarla con otros tipos de parámetros
+    size_t tokBegin = 0;
+    FileScope* file = nullptr;
+
+    // Semántica
+    bool bound = false;
+    std::vector<Type*> paramTypes;
+    Type* ret = nullptr;              // nulo mientras se infiere el tipo de retorno
+    MethodDecl* fn = nullptr;         // función sintética (contexto: retorno, genéricos, memory_unsafe)
+    ClassDecl* ownerClass = nullptr;
+    int depth = 0;                    // nivel de anidamiento de su cuerpo (1 = lambda dentro de un método)
+    std::vector<VarInfo*> captures;   // variables externas que usa (también desde lambdas anidadas)
+    bool usesThis = false;
+    bool trial = false;               // copia de prueba (inferencia/sobrecargas): no se emite
+    int trialErrors = 0;
+    int retCost = 0;                  // coste de convertir lo que devuelve al retorno del delegado
+    std::vector<ReturnStmt*> returns;
+    std::map<std::string, LambdaExpr*> trials;  // copias de prueba por tipos de parámetros
+    int id = -1;                      // índice en Sema::lambdas (se emite como fs_lamN)
+    explicit LambdaExpr(SourceLoc l) : Expr(EK::Lambda, l) {}
+};
+
+// Conversión de un grupo de métodos a delegado: Func<int, int> f = Doble;  obj.Metodo
+struct DelegateConvExpr : Expr {
+    MethodDecl* target = nullptr;
+    Expr* receiver = nullptr;  // instancia explícita (nulo: método estático o 'this' implícito)
+    bool receiverArrow = false;
+    bool implicitThis = false;
+    int thunk = -1;            // índice en Sema::thunks
+    explicit DelegateConvExpr(SourceLoc l) : Expr(EK::DelegateConv, l) {}
 };
 
 // ---------------------------------------------------------------- sentencias
@@ -376,6 +430,7 @@ struct FieldDecl {
     Type* type = nullptr;
     std::string cname;
     bool unsafeCtx = false;  // su tipo e inicializador están en un contexto memory_unsafe
+    bool isEvent = false;    // 'event': fuera de su clase solo admite += y -=
     bool isStatic() const { return mods.isStatic || mods.isConst; }
 };
 
@@ -475,4 +530,7 @@ struct Program {
     std::set<std::string> requestedModules;
     // Archivos pedidos por import "ruta.fst" (rutas ya resueltas).
     std::vector<std::string> requestedFiles;
+    // Tipos delegado declarados: delegate int Comparador(string a, string b);
+    // (la firma se guarda como un MethodDecl; 'owner' da el namespace y el archivo)
+    std::vector<MethodDecl*> delegates;
 };
