@@ -26,16 +26,18 @@ class Jugador
 int main()
 {
     Punto p = new Punto(1, 2);       // struct: valor en la pila
-    Punto* pp = &p;
-    pp->X = 10;                      // punteros
-
     Jugador j = new Jugador("Ana");  // class: heap
     delete j;                        // llama a ~Jugador() y libera
 
-    int n = 100;
-    double* v = new double[n];       // arreglo en el heap (a cero)
-    v[n - 1] = 1.5;
-    delete[] v;
+    memory_unsafe                    // punteros y arreglos crudos
+    {
+        Punto* pp = &p;
+        pp->X = 10;
+        double* v = new double[100]; // arreglo en el heap (a cero)
+        v[99] = 1.5;
+        delete[] v;
+    }
+    println(p.X);                    // 10
     return 0;
 }
 ```
@@ -44,8 +46,8 @@ int main()
 |---|---|
 | `new Clase(...)` | reserva en el heap, pone los campos a cero, ejecuta los inicializadores y el constructor |
 | `delete obj` | ejecuta el destructor `~Clase()` y libera |
-| `new T[n]` | reserva `n` elementos a cero |
-| `delete[] p` | libera un arreglo |
+| `new T[n]` | reserva `n` elementos a cero (requiere `memory_unsafe`) |
+| `delete[] p` | libera un arreglo (requiere `memory_unsafe`) |
 | `new Struct(...)` | construye un valor; no reserva memoria |
 
 Las colecciones de la biblioteca (`List<T>`, `Dictionary<K, V>`…) liberan su memoria interna en su
@@ -90,8 +92,9 @@ vista.
 ## Memoria de bajo nivel
 
 `Memory` (en el núcleo) expone `Alloc`, `AllocZeroed`, `Realloc`, `Free`, `Copy`, `Set`,
-`Compare` y las versiones tipadas `New<T>(n)` y `Resize<T>(p, n)`. Para patrones más cómodos,
-[`std.mem`](/std/mem/) ofrece:
+`Compare` y las versiones tipadas `New<T>(n)` y `Resize<T>(p, n)`. Todo `Memory` está marcado
+`memory_unsafe`: se usa dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
+[`std.mem`](/std/mem/) ofrece patrones más cómodos:
 
 - `Span<T>`: vista con comprobación de límites sobre un puntero.
 - `Arena`: muchas reservas pequeñas y una sola liberación.
@@ -99,16 +102,16 @@ vista.
 
 ## Detectar errores de memoria
 
-Compila con `--sanitize` para activar AddressSanitizer y UndefinedBehaviorSanitizer del compilador de
-C: detectan accesos fuera de límites, usos después de liberar, dobles liberaciones y fugas al
-terminar.
+Faset tiene dos redes de seguridad:
+
+- **Comprobaciones en ejecución** (activas en Debug): referencias nulas, uso después de `delete`,
+  `delete` doble, índices de cadenas y divisiones por cero terminan con un `Faset panic` y la línea
+  de tu código. Consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion).
+- **Sanitizadores**: `--sanitize` activa AddressSanitizer y UndefinedBehaviorSanitizer del compilador
+  de C, que detectan además accesos fuera de límites dentro de código `memory_unsafe` y fugas al
+  terminar.
 
 ```bash
-faset run --sanitize programa.fst
+faset run programa.fst              # Debug: comprobaciones activas
+faset run --sanitize programa.fst   # ASan + UBSan
 ```
-
-<Callout type="dev" title="Seguridad de memoria (en desarrollo)">
-Se está implementando un modelo **seguro por defecto**: las operaciones con punteros requerirán un
-contexto `memory_unsafe` y las compilaciones Debug comprobarán límites, nulos y dobles liberaciones.
-Consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/).
-</Callout>

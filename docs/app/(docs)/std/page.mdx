@@ -34,6 +34,13 @@ int main()
 }
 ```
 
+## Seguridad
+
+Toda la biblioteca está escrita como **envoltorios seguros**: las clases que usan punteros o llaman al
+runtime en C están marcadas `memory_unsafe` (implementación confiable), pero su API pública no usa
+punteros, así que `List<T>`, `StringBuilder`, `File`, `HttpClient` o `Mutex` se usan desde código
+normal. La biblioteca no tiene privilegios especiales: cumple las mismas reglas que tu código.
+
 ## Propiedad de la memoria
 
 Faset no tiene recolector de basura, así que cada función documenta quién libera lo que devuelve:
@@ -52,6 +59,7 @@ Crea `lib/<raíz>/<módulo>.fst`; `using raíz.módulo;` lo cargará. Por ejempl
 
 <Callout type="nota">
 Las páginas de cada módulo se generan con `docs/scripts/extract-api.mjs`, que lee los miembros
-públicos y sus comentarios `//`. Los módulos nuevos (por ejemplo `net` o `thread`) aparecen aquí
-automáticamente en cuanto se añaden a `lib/std`.
+públicos y sus comentarios `//`. Cualquier módulo nuevo de `lib/std` aparece aquí automáticamente. Los
+miembros con la etiqueta `memory_unsafe` (punteros en la firma o marcados así) solo se usan dentro de
+un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 </Callout>

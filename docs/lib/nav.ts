@@ -42,7 +42,7 @@ export const nav: NavSection[] = [
       { title: "Compilación condicional", href: "/lenguaje/compilacion-condicional/" },
       { title: "Modelo de memoria", href: "/lenguaje/memoria/" },
       { title: "Punteros e interoperabilidad con C", href: "/lenguaje/interop/" },
-      { title: "Seguridad de memoria", href: "/lenguaje/seguridad-de-memoria/", status: "dev" },
+      { title: "Seguridad de memoria", href: "/lenguaje/seguridad-de-memoria/" },
       { title: "Limitaciones actuales", href: "/lenguaje/limitaciones/" },
     ],
   },
@@ -76,7 +76,7 @@ export const nav: NavSection[] = [
     title: "Referencia",
     items: [
       { title: "Línea de órdenes (CLI)", href: "/cli/" },
-      { title: "Android", href: "/android/", status: "dev" },
+      { title: "Android", href: "/android/" },
       { title: "Rendimiento", href: "/rendimiento/" },
     ],
   },

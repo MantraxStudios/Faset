@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Punteros e interoperabilidad con C",
-  description: "Punteros, aritmética de punteros, funciones extern de C/Win32/NDK y exportación de símbolos con [Export].",
+  description: "Punteros, aritmética de punteros, funciones extern de C/Win32/NDK y exportación de símbolos con [Export], dentro de contextos memory_unsafe.",
 };
 
 # Punteros e interoperabilidad con C
@@ -8,12 +8,20 @@ export const metadata = {
 <p className="lead">
   Faset compila a C, así que llamar a C no necesita envoltorios ni <em>marshalling</em>: cualquier función
   de C, de una DLL de Windows o del NDK de Android se declara con <code>extern</code> y se llama directamente.
+  Los punteros y las llamadas nativas viven dentro de contextos <code>memory_unsafe</code>.
 </p>
+
+<Callout type="nota">
+Faset es seguro por defecto: los tipos puntero, `&x`, `*p`, `p->x`, `p[i]`, la aritmética de
+punteros y las llamadas a funciones `extern` solo se permiten en un contexto `memory_unsafe` (un
+bloque, un método, una clase, un namespace o el archivo entero). Consulta
+[Seguridad de memoria](/lenguaje/seguridad-de-memoria/).
+</Callout>
 
 ## Punteros
 
 ```faset
-void Intercambiar(int* a, int* b)
+memory_unsafe void Intercambiar(int* a, int* b)
 {
     int t = *a;
     *a = *b;
@@ -23,15 +31,17 @@ void Intercambiar(int* a, int* b)
 int main()
 {
     int x = 1, y = 2;
-    Intercambiar(&x, &y);
+    memory_unsafe
+    {
+        Intercambiar(&x, &y);
+        long* nums = new long[10];
+        for (int i = 0; i < 10; i++) nums[i] = (long)i * i;
+        long total = 0;
+        for (long* p = nums; p < nums + 10; p++) total += *p;   // aritmética de punteros
+        println(total);                            // 285
+        delete[] nums;
+    }
     println(x);                                    // 2
-
-    long* nums = new long[10];
-    for (int i = 0; i < 10; i++) nums[i] = (long)i * i;
-    long total = 0;
-    for (long* p = nums; p < nums + 10; p++) total += *p;   // aritmética de punteros
-    println(total);                                // 285
-    delete[] nums;
     return 0;
 }
 ```
@@ -39,6 +49,9 @@ int main()
 `T*` admite `*p`, `p[i]`, `p->campo`, `p + n`, comparaciones y `(T*)` entre tipos de puntero.
 `void*` es el puntero genérico y `sizeof(T)` da el tamaño en bytes. Las variables de clase ya son
 referencias: un `Jugador` se convierte a `void*` con `(void*)j` y de vuelta con `(Jugador)p`.
+
+Un método marcado `memory_unsafe` (como `Intercambiar`) tiene un cuerpo inseguro **y** solo se
+puede llamar desde otro contexto `memory_unsafe`, como `unsafe fn` en Rust.
 
 ## Llamar a C
 
@@ -50,27 +63,51 @@ static class LibC
     public static extern void qsort(void* data, ulong count, ulong size, delegate*<void*, void*, int> compare);
 }
 
-int CompararInt(void* a, void* b) => *(int*)a - *(int*)b;
+memory_unsafe int CompararInt(void* a, void* b) => *(int*)a - *(int*)b;
 
 int main()
 {
-    LibC.printf("printf nativo: %d + %d = %d\n".Ptr, 2, 3, 2 + 3);
-    println(LibC.strlen("hola".Ptr));              // 4
+    memory_unsafe
+    {
+        LibC.printf("printf nativo: %d + %d = %d\n".Ptr, 2, 3, 2 + 3);
+        println(LibC.strlen("hola".Ptr));          // 4
 
-    int* v = new int[4];
-    v[0] = 4; v[1] = 1; v[2] = 3; v[3] = 2;
-    LibC.qsort((void*)v, 4, (ulong)sizeof(int), &CompararInt);   // callback de Faset
-    println(v[0]);                                 // 1
-    delete[] v;
+        int* v = new int[4];
+        v[0] = 4; v[1] = 1; v[2] = 3; v[3] = 2;
+        LibC.qsort((void*)v, 4, (ulong)sizeof(int), &CompararInt);   // callback de Faset
+        println(v[0]);                             // 1
+        delete[] v;
+    }
     return 0;
 }
 ```
 
-- `extern` declara una función que existe en C con ese mismo nombre; `...` permite funciones variádicas.
+- `extern` declara una función que existe en C con ese mismo nombre; `...` permite funciones
+  variádicas. Declararla no exige contexto (su firma puede usar punteros), pero llamarla sí.
 - `s.Ptr` da el `byte*` de una cadena. Los literales terminan en `'\0'`; para una cadena
   cualquiera usa `s.ToCString()` (copia terminada en `'\0'`, que liberas con `String.Free`).
 - `String.FromCString(p)` crea una vista de una cadena de C.
 - Las bibliotecas se enlazan con `-l` o con `<NativeLibrary Include="..."/>` en el `.fstproj`.
+
+## Envoltorios seguros
+
+Lo habitual es encerrar los detalles nativos en una clase `memory_unsafe` cuya API pública no use
+punteros. Quien la usa no necesita `memory_unsafe`; así está escrita la biblioteca estándar
+(`List<T>`, `StringBuilder`, `File`…):
+
+```faset
+public memory_unsafe static class Terminal
+{
+    static extern int isatty(int fd);
+    public static bool EsInteractiva() => isatty(1) != 0;   // firma sin punteros
+}
+
+int main()
+{
+    println(Terminal.EsInteractiva());   // código seguro: sin memory_unsafe
+    return 0;
+}
+```
 
 ## Windows (Win32)
 
@@ -86,7 +123,10 @@ static class Program
 {
     static void Main()
     {
-        User32.MessageBoxA(null, "Hola desde Faset!".Ptr, "Faset".Ptr, User32.MB_OK | User32.MB_ICONINFORMATION);
+        memory_unsafe
+        {
+            User32.MessageBoxA(null, "Hola desde Faset!".Ptr, "Faset".Ptr, User32.MB_OK | User32.MB_ICONINFORMATION);
+        }
     }
 }
 ```
@@ -104,9 +144,9 @@ punteros a ellos a APIs nativas. FasetStudio declara de esta forma todos los bin
 ## Exportar funciones
 
 `[Export("nombre")]` publica una función con un nombre de símbolo C concreto, por ejemplo para una
-biblioteca que cargará otro programa, o para `JNI_OnLoad` y `android_main` en Android:
+biblioteca que cargará otro programa, o para `JNI_OnLoad` en Android:
 
-```faset
+```fst
 static class Api
 {
     [Export("faset_sumar")]

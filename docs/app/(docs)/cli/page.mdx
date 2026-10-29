@@ -34,11 +34,12 @@ faset new MiApp              # consola
 faset new Utilidades --lib   # biblioteca
 faset new MiVentana --winexe # ventana de Windows
 faset new MiApp --ui         # AppUI con std.ui (.fstui + código)
+faset new MiMovil --android  # app de Android (std.ui + .fstui)
+faset new Hola --android --console   # Android sin interfaz: la consola va a logcat
 ```
 
-Crea `Nombre/Nombre.fstproj`, el código inicial y un `.gitignore`. `--ui` (también `ui`, `appui` o
-`--appui`) no aparece todavía en `faset help`, pero está disponible. Consulta
-[Tu primer proyecto](/empezar/primer-proyecto/).
+Crea `Nombre/Nombre.fstproj`, el código inicial y un `.gitignore`. Consulta
+[Tu primer proyecto](/empezar/primer-proyecto/) y [Android](/android/).
 
 ## faset build
 
@@ -49,21 +50,29 @@ faset build -c Release
 faset build --target windows --arch x86_64
 faset build programa.fst -o salida --static
 faset build --sanitize         # ASan + UBSan
+faset build -c Release --checks   # Release con las comprobaciones de seguridad
+faset build --allow-unsafe     # todo el proyecto como memory_unsafe
+faset build --target android   # APK firmado en bin/<Config>/android/
 faset build -v                 # muestra la orden del compilador de C
 ```
 
-`Debug` compila el C con `-O0 -g` y `Release` con `-O2`. Siempre se usa `-std=c11 -fwrapv
--fno-strict-aliasing`.
+`Debug` compila el C con `-O0 -g` y activa las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion);
+`Release` compila con `-O2` y sin ellas (`--checks` / `--no-checks` lo cambian). Siempre se usa
+`-std=c11 -fwrapv -fno-strict-aliasing`.
 
 ## faset run
 
-Compila y ejecuta. Lo que va después de `--` se pasa a tu programa. Solo ejecuta programas para la
-máquina actual.
+Compila y ejecuta. Lo que va después de `--` se pasa a tu programa. Con `--target android` (o un
+proyecto con `TargetPlatform` `android`) compila el APK, lo instala en el dispositivo
+(`--device <serie>`), lo abre y sigue su logcat hasta que termina; devuelve su código de salida.
 
 ```bash
 faset run
 faset run juego.fst -- --nivel 3
+faset run --target android --device emulator-5554
 ```
+
+Si el programa termina con un `Faset panic`, el código de salida es 101.
 
 ## faset check
 
@@ -84,10 +93,23 @@ faset emit-c hola.fst -o hola.c
 
 Borra `bin/` y `obj/` del proyecto.
 
+## faset android
+
+```bash
+faset android devices                 # serie<TAB>estado<TAB>modelo
+faset android avds                    # emuladores instalados
+faset android emulator <avd> --headless   # arranca, espera e imprime la serie
+faset android logcat --app            # logcat de la app del proyecto
+faset android stop | uninstall        # detiene / desinstala la app del proyecto
+```
+
+`faset android help` muestra todas las opciones. Consulta [Android](/android/#ordenes-faset-android).
+
 ## faset doctor
 
-Muestra la biblioteca estándar encontrada y los compiladores de C detectados para Linux, Windows
-(MinGW) y Android (NDK). Consulta [Instalación](/empezar/instalacion/#comprueba-la-instalacion).
+Muestra la biblioteca estándar encontrada, los compiladores de C detectados para Linux y Windows
+(MinGW) y, para Android, el SDK, el NDK, las build-tools, la plataforma, `adb`, el emulador, Java y los
+AVD. Consulta [Instalación](/empezar/instalacion/#comprueba-la-instalacion).
 
 ## faset lsp
 
@@ -101,6 +123,9 @@ otros editores. Consulta [Editores y LSP](/empezar/editores/).
 | `FASET_LIB` | Carpeta `lib/` con la biblioteca estándar, si `faset` no la encuentra solo. |
 | `FASET_CC` | Compilador de C a usar (igual que `--cc`). |
 | `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, `ANDROID_NDK`, `ANDROID_HOME`, `ANDROID_SDK_ROOT` | Dónde buscar el NDK. |
+| `JAVA_HOME` | Java para `apksigner`/`keytool` (si no, `java` del `PATH` o el JBR de Android Studio). |
+| `FASET_ANDROID_KEYSTORE_PASSWORD`, `FASET_ANDROID_KEY_PASSWORD` | Contraseñas del keystore de firma de Android. |
+| `FASET_PANIC_ABORT` | Con `1`, un `Faset panic` llama a `abort()` (para depurar con gdb). |
 | `FASET_UI_SCREENSHOT`, `FASET_UI_SCRIPT` | Aplicaciones `std.ui`: dibujar sin pantalla y guardar una captura `.bmp`. |
 | `FASET_STUDIO_LANG` | Idioma de FasetStudio (`es`, `en`…). |
 | `FASET_STUDIO_GPU` | `cpu` fuerza Vulkan por software (lavapipe) en FasetStudio. |

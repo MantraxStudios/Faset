@@ -14,8 +14,8 @@ export const metadata = {
 faset build                              # la máquina actual
 faset build --target windows             # .exe con MinGW-w64
 faset build --target windows --arch x86  # Windows de 32 bits
-faset build --target android --api 29    # ARM64 con el NDK (API 24 por defecto)
-faset build --target android --arch armv7 --api 29
+faset build --target android            # APK firmado (arm64-v8a + x86_64 por defecto)
+faset build --target android --arch arm64 --no-apk   # ELF suelto para adb push
 faset build --target linux --arch arm64  # Linux ARM64 (aarch64-linux-gnu-gcc)
 ```
 
@@ -38,9 +38,10 @@ reciente). Siempre puedes forzar uno con `--cc` o `FASET_CC`.
 |---|---|---|
 | Linux | `Nombre` | `libNombre.so` |
 | Windows | `Nombre.exe` | `Nombre.dll` |
-| Android | `Nombre` (ELF) | `libNombre.so` |
+| Android | `Nombre.apk` (o `Nombre` ELF con `--no-apk`) | `libNombre.so` |
 
-`faset run` solo ejecuta programas para la máquina actual; para otros objetivos usa `faset build`.
+`faset run` ejecuta programas para la máquina actual y, con `--target android`, instala y abre el
+APK en un dispositivo o emulador. Para Windows desde Linux usa `faset build`.
 
 ## Código específico de cada plataforma
 
@@ -73,6 +74,5 @@ faset build examples/ventana_windows.fst --target windows --gui -l user32
 
 ## Android
 
-`faset build --target android` produce hoy binarios ELF y bibliotecas `.so` para el NDK (con el NDK
-r30 hace falta `--api 29` o superior; consulta [Android](/android/)). El empaquetado de APK y la
-ejecución en un emulador están en desarrollo.
+`faset build --target android` genera un **APK firmado** con el NDK y las build-tools del SDK, sin
+Gradle; `faset run` lo instala, lo abre y muestra su logcat. Consulta [Android](/android/).

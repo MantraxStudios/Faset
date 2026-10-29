@@ -1,90 +1,263 @@
+import ChecksTable from "@/components/ChecksTable";
+
 export const metadata = {
   title: "Seguridad de memoria",
-  description: "Modelo seguro por defecto en desarrollo: contextos memory_unsafe para las operaciones con punteros y comprobaciones en Debug.",
+  description: "Faset es seguro por defecto: los punteros y las llamadas nativas requieren memory_unsafe, y las comprobaciones en ejecución detectan nulos, usos tras delete, índices y divisiones por cero.",
 };
 
-# Seguridad de memoria <DevBadge />
-
-<Callout type="dev">
-Esta página describe una función **que se está implementando ahora mismo** en una rama aparte. La
-sintaxis y los detalles pueden cambiar antes de que llegue a la rama principal; los ejemplos de esta
-página todavía no compilan con la versión actual de `faset`. Hasta entonces, usa
-[`--sanitize`](/lenguaje/memoria/#detectar-errores-de-memoria) para detectar errores de memoria.
-</Callout>
+# Seguridad de memoria
 
 <p className="lead">
-  Faset seguirá teniendo memoria manual y punteros, pero <strong>seguro por defecto</strong>: el código
-  normal no podrá hacer operaciones con punteros sin marcarlas, y las compilaciones Debug comprobarán
-  en tiempo de ejecución los errores más comunes.
+  Faset es <strong>seguro por defecto</strong>. El código normal al estilo C# (clases, <code>new</code>/<code>delete</code>,
+  <code>List&lt;T&gt;</code>, <code>string</code>, genéricos, propiedades, <code>ref</code>/<code>out</code>, <code>T&amp;</code>,
+  punteros a función) se escribe sin anotaciones. Lo que puede corromper la memoria solo se permite
+  dentro de un contexto <code>memory_unsafe</code>, así que siempre se ve dónde vive el código peligroso.
 </p>
 
-## La idea
+La seguridad tiene dos capas:
 
-La mayoría del código de una aplicación no necesita aritmética de punteros: usa clases, colecciones,
-`Span<T>` y referencias. Las operaciones peligrosas se concentran en unas pocas capas (bindings
-nativos, asignadores, estructuras de datos de bajo nivel). El nuevo modelo hace visibles esas capas:
+1. **Al compilar**: siete reglas impiden usar punteros y código nativo fuera de `memory_unsafe`.
+2. **Al ejecutar**: en Debug, el código generado comprueba referencias nulas, usos después de
+   `delete`, índices de cadenas, divisiones por cero y punteros a función nulos.
 
-- **Seguro por defecto.** Desreferenciar punteros, la aritmética de punteros, los *casts* entre
-  punteros y llamar a APIs marcadas como inseguras requerirán un contexto `memory_unsafe`.
-- **Contextos explícitos.** Un bloque, un método, una clase, un namespace o un archivo entero pueden
-  declararse `memory_unsafe`.
-- **Comprobaciones en Debug.** En `Debug` el código generado comprobará los límites de los accesos
-  indexados, los accesos a través de `null` y las dobles liberaciones con `delete`, y terminará con
-  un mensaje claro en lugar de corromper memoria. En `Release` esas comprobaciones desaparecen y el
-  rendimiento es el de siempre.
+## Las siete reglas
+
+Fuera de un contexto `memory_unsafe` es un **error de compilación**:
+
+| # | Regla | Ejemplos |
+|---|---|---|
+| 1 | Declarar o usar tipos puntero | `int*`, `void*`, `List<int*>` en variables, campos, parámetros, retornos, conversiones o argumentos genéricos |
+| 2 | Cualquier expresión cuyo valor sea un puntero | `&x`, `s.Ptr`, `lista.Data`, `new T[n]`, `Memory.Alloc(...)` |
+| 3 | Acceder a memoria a través de un puntero | `*p`, `p->x`, `p[i]` (sin comprobación de límites) |
+| 4 | La aritmética de punteros | `p + 1`, `p++`, `p += n` |
+| 5 | Reinterpretar referencias | `(Otra)objeto`, `(void*)obj`, conversiones entre punteros a función |
+| 6 | Llamar a funciones `extern` (C, Win32, NDK…) o tomar su dirección | `LibC.printf(...)` |
+| 7 | Llamar a métodos marcados `memory_unsafe` | todo `Memory.*`, tus propias API peligrosas |
+
+El mensaje indica la línea y cómo arreglarlo (se informa una vez por línea):
+
+```text
+programa.fst:12:13: error: desreferenciar un puntero ('*') requiere un contexto memory_unsafe
+(usa 'memory_unsafe { ... }' o marca el método o la clase con 'memory_unsafe')
+```
+
+La palabra `unsafe` de C# no existe en Faset; usarla da un error que propone la alternativa:
+
+```text
+programa.fst:1:14: error: 'unsafe' no existe en Faset; usa 'memory_unsafe' (sustituye 'unsafe' por 'memory_unsafe')
+```
 
 ## Formas de `memory_unsafe`
 
-```fst
-// Un bloque dentro de un método normal
-int Suma(int* datos, int n)
+De la más precisa a la más amplia:
+
+### Bloque
+
+```faset
+int main()
 {
-    int total = 0;
+    int x = 1;
     memory_unsafe
     {
-        for (int* p = datos; p < datos + n; p++) total += *p;
+        int* p = &x;
+        *p = 42;
     }
-    return total;
-}
-
-// Un método entero: quien lo llama también necesita un contexto memory_unsafe
-memory_unsafe void Copiar(byte* destino, byte* origen, int n)
-{
-    for (int i = 0; i < n; i++) destino[i] = origen[i];
-}
-
-// Una clase: todos sus miembros son contextos memory_unsafe
-memory_unsafe class Asignador
-{
-    byte* bloque;
-    public void* Reservar(int bytes) { ... }
-}
-
-// Un namespace completo (típico de los bindings nativos)
-memory_unsafe namespace Vulkan
-{
-    ...
+    println(x);                          // 42
+    return 0;
 }
 ```
 
-Para todo un archivo basta con escribir `memory_unsafe;` al principio.
+### Método
 
-<Callout type="aviso">
-`unsafe`, la palabra clave de C#, **no** se usará: el compilador pedirá escribir `memory_unsafe`, para
-que la intención quede explícita y se pueda buscar en el código.
-</Callout>
+El cuerpo es `memory_unsafe` **y** el método solo se puede llamar desde otro contexto
+`memory_unsafe` (como `unsafe fn` en Rust). Úsalo para API peligrosas:
 
-## Qué cambia para el código existente
+```faset
+memory_unsafe void Rellenar(int* p, int n, int valor)
+{
+    for (int i = 0; i < n; i++) p[i] = valor;
+}
 
-- El código que solo usa clases, structs, colecciones, cadenas y referencias `T&` no cambia.
-- Las funciones con punteros (bindings con `extern`, aritmética de punteros, `Memory.Alloc`…) tendrán
-  que marcarse con `memory_unsafe`. Los errores de compilación indicarán exactamente dónde.
-- La biblioteca estándar encapsula sus operaciones con punteros, de modo que `List<T>`, `Span<T>` o
-  `StringBuilder` seguirán usándose desde código seguro.
+int main()
+{
+    memory_unsafe
+    {
+        int* datos = new int[4];
+        Rellenar(datos, 4, 7);
+        println(datos[3]);               // 7
+        delete[] datos;
+    }
+    return 0;
+}
+```
 
-## Mientras tanto
+### Clase o struct: envoltorios seguros
 
-- `faset build --sanitize` activa AddressSanitizer + UndefinedBehaviorSanitizer.
-- `List<T>` y `Span<T>` ya comprueban los índices, y `List`, `Queue` y `Dictionary.Get` comprueban
-  los accesos a una colección vacía o a una clave inexistente: terminan con `panic` y un mensaje.
-- `Box<T>` y `Arena` (en [`std.mem`](/std/mem/)) reducen la cantidad de `delete` manuales.
+Una clase `memory_unsafe` tiene una **implementación confiable**: dentro puede usar punteros, pero
+sus miembros se siguen usando desde código seguro, salvo los que tienen punteros en la firma (y los
+marcados `memory_unsafe`). Así está escrita la biblioteca estándar: `List<T>`, `StringBuilder`,
+`File`… son clases `memory_unsafe` con una API pública segura.
+
+```faset
+public memory_unsafe class Buffer
+{
+    byte* datos;
+    int tam;
+
+    public Buffer(int n) { datos = new byte[n]; tam = n; }
+    ~Buffer() { delete[] datos; }
+
+    public int Length => tam;
+    public byte Get(int i) { if (i < 0 || i >= tam) panic("Buffer: índice fuera de rango"); return datos[i]; }
+    public void Set(int i, byte v) { if (i < 0 || i >= tam) panic("Buffer: índice fuera de rango"); datos[i] = v; }
+}
+
+int main()
+{
+    auto b = new Buffer(16);             // código seguro: sin memory_unsafe
+    b.Set(3, 200);
+    println(b.Get(3));
+    delete b;
+    return 0;
+}
+```
+
+### Namespace, archivo y proyecto
+
+```fst
+memory_unsafe namespace Bindings { ... }      // todo lo declarado dentro del namespace
+
+memory_unsafe;                                // directiva al principio: todo el archivo
+```
+
+```fstproj
+<PropertyGroup>
+  <AllowUnsafe>true</AllowUnsafe>             <!-- todo el proyecto (o faset build --allow-unsafe) -->
+</PropertyGroup>
+```
+
+`<AllowUnsafe>` y `--allow-unsafe` sirven para portar código antiguo de golpe; para código nuevo es
+mejor marcar solo lo necesario.
+
+### Funciones `extern`
+
+Declarar una función `extern` no requiere contexto (su firma puede usar punteros), pero llamarla
+sí. Consulta [interoperabilidad con C](/lenguaje/interop/).
+
+## Comprobaciones en ejecución
+
+Lo que no se puede demostrar al compilar se comprueba al ejecutar:
+
+| Comprobación | Qué detecta |
+|---|---|
+| Referencias nulas | `obj.Campo`, `obj.Metodo()`, propiedades e indexadores sobre una referencia `null` |
+| Uso después de `delete` | cada objeto lleva una cabecera que `delete` marca como liberada: usarlo después, o hacer `delete` dos veces, termina con un error en vez de corromper memoria |
+| Índices de cadenas | `s[i]` fuera de `0..s.Length-1` |
+| División entera | `/`, `%`, `/=` y `%=` por cero, y `int.MinValue / -1` |
+| Punteros a función | llamada a través de un `delegate*` nulo |
+
+### Cuándo están activas
+
+| Configuración | Por defecto | Cambiarlo |
+|---|---|---|
+| `Debug` | activas | `--no-checks` o `<RuntimeChecks>false</RuntimeChecks>` |
+| `Release` | desactivadas | `--checks` o `<RuntimeChecks>true</RuntimeChecks>` |
+
+Cuando están activas se define el símbolo `RUNTIME_CHECKS`, que puedes usar en
+[`#if`](/lenguaje/compilacion-condicional/). Sin comprobaciones no se emite ningún código de
+comprobación ni cabecera en los objetos.
+
+```bash
+faset build -c Release --checks     # Release con las comprobaciones de seguridad
+faset run --no-checks               # Debug sin comprobaciones
+```
+
+Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… se comprueban
+**siempre**, también en Release.
+
+### Qué pasa cuando una comprobación falla
+
+El programa escribe en la salida de error y termina con el **código 101**:
+
+```faset
+using std.collections;
+
+class Nodo { public int Valor; }
+
+int main()
+{
+    Nodo n = new Nodo();
+    delete n;
+    println(n.Valor);                    // Debug: termina aquí
+    return 0;
+}
+```
+
+```text
+$ faset run programa.fst
+Faset panic: uso de un objeto después de 'delete' at programa.fst:9
+$ echo $?
+101
+```
+
+Otros mensajes reales: `referencia nula (null): el objeto no existe`, `'delete' doble: el objeto ya
+se había liberado`, `división entera por cero`, `índice fuera de rango: 3 (longitud 3)` y
+`List: índice fuera de rango`.
+
+Con `FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb o
+generar un volcado de memoria.
+
+### `[TrackCaller]`: la línea de tu código
+
+La línea que se informa es la de **tu** código, no la de la biblioteca. Los métodos con
+`[TrackCaller]` (como `panic`, `assert` o `List.operator[]`) reciben la ubicación de quien los llama.
+Puedes usarlo en tus propias funciones de validación:
+
+```faset
+[TrackCaller]
+void Exigir(bool condicion, string mensaje)
+{
+    if (!condicion) panic(mensaje);
+}
+
+int main()
+{
+    Exigir(1 + 1 == 2, "la aritmética falla");
+    return 0;
+}
+```
+
+Si `Exigir` falla, el mensaje dice `at programa.fst:<línea de la llamada>`, no la línea del `panic`.
+
+### Cuarentena
+
+Para detectar usos después de `delete` aunque la memoria se reutilice, los objetos liberados pasan
+por una **cuarentena** (4096 objetos o 64 MB) antes de volver a `malloc`. Un uso después de `delete`
+deja de detectarse cuando el objeto ha salido de la cuarentena.
+
+### Bibliotecas compartidas
+
+Una biblioteca `--shared` y el programa que la usa deben compilarse con el mismo valor de
+`RuntimeChecks` si se pasan objetos entre ellos: la cabecera de los objetos solo existe con las
+comprobaciones activas.
+
+## Coste en rendimiento
+
+Medido aquí con `examples/benchmark_checks.fst` en las cuatro configuraciones:
+
+<ChecksTable />
+
+En Release (`-O2`) las comprobaciones cuestan muy poco, porque gcc elimina las que puede demostrar
+innecesarias; en Debug (`-O0`) no hay optimizador que las quite y el programa tarda bastante más.
+
+## Lo que no cubre
+
+Usa [`faset build --sanitize`](/lenguaje/memoria/#detectar-errores-de-memoria) (AddressSanitizer +
+UndefinedBehaviorSanitizer) para encontrar:
+
+- errores de propiedad de las cadenas, que sigue siendo manual (`String.Free` de una vista o de un
+  literal);
+- una referencia `T&` o un parámetro `ref` a un elemento de una `List<T>` que deja de ser válido si la
+  lista crece mientras se usa;
+- un uso después de `delete` cuando el objeto ya salió de la cuarentena;
+- cualquier error dentro de código `memory_unsafe`.

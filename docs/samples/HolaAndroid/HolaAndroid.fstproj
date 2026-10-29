@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>HolaAndroid</AssemblyName>
+    <RootNamespace>HolaAndroid</RootNamespace>
+    <TargetPlatform>android</TargetPlatform>
+    <Configuration>Debug</Configuration>
+    <AndroidPackage>com.faset.holaandroid</AndroidPackage>
+    <AppName>HolaAndroid</AppName>
+    <VersionCode>1</VersionCode>
+    <VersionName>1.0</VersionName>
+    <AndroidApi>24</AndroidApi>                     <!-- versión mínima de Android (7.0) -->
+    <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- móviles + emulador -->
+    <!-- <AndroidOrientation>portrait</AndroidOrientation> -->
+    <!-- <AndroidIcon>icon.png</AndroidIcon> -->
+  </PropertyGroup>
+
+  <!-- Todos los .fst de esta carpeta se compilan automáticamente.
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />
+    <NativeLibrary Include="user32" />
+    <ProjectReference Include="../OtraBiblioteca/OtraBiblioteca.fstproj" />
+  </ItemGroup>
+  -->
+</Project>

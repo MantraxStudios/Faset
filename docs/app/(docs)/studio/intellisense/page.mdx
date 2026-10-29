@@ -25,6 +25,30 @@ export const metadata = {
 La barra de estado muestra cuánto tardó el último análisis (en las capturas de esta documentación,
 unos 27 ms para un proyecto AppUI con `std.ui`).
 
+## `.fstproj` y `.fstui`
+
+Los archivos XML del proyecto también tienen IntelliSense (en FasetStudio y en VS Code, porque lo
+sirve el mismo `faset __analyze`):
+
+- **`.fstproj`**: autocompletado de elementos y propiedades, valores conocidos (`OutputType`,
+  `TargetPlatform`, `TargetArch`, `Configuration`, booleanos, `Platform`, rutas de
+  `ProjectReference`), validación con línea y columna, y documentación al pasar el ratón.
+- **`.fstui`**: controles tras `<`, los atributos válidos de cada control, los valores de los enums
+  dentro de las comillas (`Anchor` con varias banderas, `Style`, `TextAlign`, `Theme`,
+  `GradientDirection`, booleanos) y los nombres de los manejadores `Click`/`Changed` sacados de la
+  clase de la ventana. <Kbd>F12</Kbd> va del manejador al código y de `Window Class` a la clase.
+- Se activa al escribir `<`, `="`, `,` o un espacio dentro de una etiqueta, e inserta fragmentos con el
+  cursor ya colocado.
+
+Mientras escribes un `.fstui` a medias, el IDE genera la clase a partir de la última versión guardada,
+así el código de la ventana no se llena de errores falsos.
+
+<Callout type="aviso">
+La validación de `.fstproj` aún no conoce las propiedades de Android (`AndroidPackage`, `AppName`,
+`VersionCode`, `VersionName`, `AndroidAbis`…) y las marca como desconocidas, aunque el compilador sí
+las acepta.
+</Callout>
+
 ## Cómo funciona
 
 Cada análisis se ejecuta en un subproceso que analiza el proyecto completo (incluidos los `.fstui`

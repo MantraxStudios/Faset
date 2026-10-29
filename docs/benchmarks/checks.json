@@ -1,0 +1,56 @@
+{
+  "date": "2026-10-29",
+  "runs": 5,
+  "rows": [
+    "objetos",
+    "listas",
+    "cadenas",
+    "total"
+  ],
+  "configs": [
+    {
+      "title": "Release sin checks",
+      "configuration": "Release",
+      "flag": "--no-checks",
+      "ms": {
+        "objetos": 22,
+        "listas": 78,
+        "cadenas": 16,
+        "total": 115
+      }
+    },
+    {
+      "title": "Release con checks",
+      "configuration": "Release",
+      "flag": "--checks",
+      "ms": {
+        "objetos": 23,
+        "listas": 78,
+        "cadenas": 16,
+        "total": 117
+      }
+    },
+    {
+      "title": "Debug sin checks",
+      "configuration": "Debug",
+      "flag": "--no-checks",
+      "ms": {
+        "objetos": 53,
+        "listas": 149,
+        "cadenas": 22,
+        "total": 224
+      }
+    },
+    {
+      "title": "Debug con checks (por defecto)",
+      "configuration": "Debug",
+      "flag": "--checks",
+      "ms": {
+        "objetos": 82,
+        "listas": 321,
+        "cadenas": 40,
+        "total": 442
+      }
+    }
+  ]
+}

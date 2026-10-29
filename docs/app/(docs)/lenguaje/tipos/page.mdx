@@ -20,7 +20,7 @@ export const metadata = {
 | `sbyte` `byte` `short` `ushort` `int` `uint` `long` `ulong` | enteros de 8, 16, 32 y 64 bits |
 | `float` `double` | coma flotante de 32 y 64 bits |
 | `string` | vista UTF-8 inmutable `{ptr, len}` (como `string_view` de C++) |
-| `T*` | puntero, con aritmética como en C |
+| `T*` | puntero, con aritmética como en C (solo en contextos `memory_unsafe`) |
 | `T&` | referencia (parámetros, retornos y variables locales) |
 | `delegate*<A, B, R>` | puntero a función |
 | `struct` | tipo valor |
@@ -71,7 +71,7 @@ int main()
 }
 ```
 
-`s.Ptr` da el `byte*` de los datos (útil para llamar a C). Consulta el [modelo de memoria](/lenguaje/memoria/)
+`s.Ptr` da el `byte*` de los datos (útil para llamar a C, dentro de `memory_unsafe`). Consulta el [modelo de memoria](/lenguaje/memoria/)
 para saber qué funciones devuelven copias y cuáles vistas.
 
 ## Enums
@@ -92,17 +92,26 @@ int main()
 
 ## Arreglos
 
-No hay un tipo arreglo gestionado: se usan punteros con `new T[n]` (memoria a cero) y
-`delete[]`, o colecciones como `List<T>` y vistas `Span<T>` con comprobación de límites.
+No hay un tipo arreglo propio: en código seguro se usa `List<T>`, que comprueba los índices
+siempre. Los arreglos crudos `new T[n]` (memoria a cero, liberada con `delete[]`) son punteros y
+solo se permiten dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 
 ```faset
+using std.collections;
+
 int main()
 {
-    int n = 5;
-    double* v = new double[n];
-    for (int i = 0; i < n; i++) v[i] = i * 0.5;
-    println(v[4]);
-    delete[] v;
+    auto v = new List<double>(5);
+    for (int i = 0; i < 5; i++) v.Add(i * 0.5);
+    println(v[4]);                   // 2
+    delete v;
+
+    memory_unsafe
+    {
+        double* crudo = new double[5];   // sin comprobación de límites
+        crudo[4] = 2.0;
+        delete[] crudo;
+    }
     return 0;
 }
 ```

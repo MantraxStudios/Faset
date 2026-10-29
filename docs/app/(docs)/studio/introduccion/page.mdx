@@ -33,13 +33,22 @@ dedicada); `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
   duplicar, copiar ruta, eliminar con confirmación y arrastrar y soltar. Las pestañas abiertas siguen
   al archivo.
 - **Editor** con pestañas, vista dividida (`Ctrl+\`), resaltado de Faset, números de línea,
-  deshacer/rehacer, sangría automática, cierre de `()` `[]` `""` y portapapeles del sistema.
+  deshacer/rehacer, sangría automática, cierre de `()` `[]` `""` y portapapeles del sistema. Mover y
+  duplicar líneas (`Alt+↑/↓`, `Alt+Shift+↑/↓`), saltos entre bloques (`Ctrl+↑/↓`), borrar palabra
+  (`Ctrl+Retroceso`), seleccionar línea (`Ctrl+L`) e insertar línea (`Ctrl+Intro`): consulta los
+  [atajos](/studio/atajos/).
 - **[IntelliSense](/studio/intellisense/)** del compilador real: errores en vivo, autocompletado,
-  información al pasar el ratón e ir a la definición, también dentro de la biblioteca estándar.
+  información al pasar el ratón e ir a la definición, también dentro de la biblioteca estándar, y
+  también para los XML de los `.fstproj` y `.fstui`.
 - **Compilar y ejecutar** con salida en vivo (`Ctrl+B`, `F5`, `Shift+F5`) y selector Debug/Release.
-- **[Diseñador visual](/studio/disenador/)** de archivos `.fstui`.
-- **[Paneles acoplables](/studio/paneles/)**: explorador, salida y problemas a la izquierda, a la
-  derecha o abajo.
+- **[Diseñador visual](/studio/disenador/)** de archivos `.fstui`: zoom con <Kbd>Ctrl</Kbd>+rueda,
+  desplazamiento con el botón central, cuadrícula con <Kbd>G</Kbd>, colores y degradados con paleta,
+  esquema, barra de alineación y copiar/pegar controles.
+- **[Android](/android/#fasetstudio-y-android)**: selector de destino (este equipo, dispositivos o un
+  emulador que se arranca desde ahí), panel *Device* con la pantalla del móvil en vivo y entrada
+  táctil, y ejecutar/detener en el dispositivo con el logcat en *Salida*.
+- **[Paneles acoplables](/studio/paneles/)**: explorador, salida, problemas y *Device* a la izquierda,
+  a la derecha o abajo, arrastrando su pestaña.
 - **Propiedades del proyecto**: editor visual del `.fstproj` (nombre, tipo de salida, plataforma,
   arquitectura, configuración, enlazado estático, referencias y bibliotecas nativas).
 - **Interfaz traducible**: inglés por defecto e incluye español. Cada idioma es un archivo
@@ -55,11 +64,21 @@ dedicada); `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
 | `src/Gfx/Font.fst` | FreeType → atlas de glifos bajo demanda. |
 | `src/Gfx/Shaders.fst` | SPIR-V generado desde `shaders/ui.vert` y `shaders/ui.frag`. |
 | `src/Platform/X11.fst` | Ventana, teclado, ratón y portapapeles con Xlib. |
+| `src/Ide/Android.fst` | Dispositivos y emuladores (`faset android`), espejo de pantalla y entrada con `adb`. |
 | `src/Ide/*.fst` | Búfer de texto, resaltado, editor, explorador, IntelliSense, diseñador y la aplicación. |
 
 Las formas redondeadas y las sombras se dibujan en el *fragment shader*. Todo el IDE son unas
-12 000 líneas de Faset que se compilan en pocos segundos: consulta [Rendimiento](/rendimiento/) para
+13 000 líneas de Faset que se compilan en pocos segundos: consulta [Rendimiento](/rendimiento/) para
 las cifras medidas.
+
+## Android dentro del IDE
+
+<Screenshot src="/screenshots/studio-android.png" width={1680} height={980} alt="FasetStudio ejecutando una app en el emulador de Android, con el panel Device a la derecha" caption="Diseñador de HolaAndroid, salida de faset run y el panel Device con el emulador en vivo." />
+
+Elige un dispositivo en el selector de destino de la barra de título y pulsa <Kbd>F5</Kbd>: el IDE
+compila el APK, lo instala, lo abre y muestra el logcat. El panel *Device* refleja la pantalla y le
+reenvía toques, gestos, rueda y teclado; sus botones son atrás, inicio, recientes y girar. Detalles en
+[Android](/android/#fasetstudio-y-android).
 
 ## Modo sin ventana
 
@@ -73,7 +92,8 @@ FasetStudio carpeta --screenshot captura.ppm --size 1400x860 \
 
 Órdenes disponibles: `open`, `goto L C`, `type texto`, `key ctrl+s`, `hover L C`, `click X Y`,
 `dblclick`, `rclick`, `drag X1 Y1 X2 Y2`, `mdrag`, `wheel X Y N [ctrl]`, `split`, `panel N`,
-`dock P L`, `quickopen`, `find`, `build`, `run`, `menu`, `hub`, `properties`, `about` y `quit`.
+`dock P L`, `quickopen`, `find`, `build`, `run`, `start`, `stop`, `wait MS`, `target`,
+`device SERIE`, `menu`, `hub`, `properties`, `about` y `quit`.
 
 ## Limitaciones
 

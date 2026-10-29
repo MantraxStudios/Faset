@@ -1,50 +1,189 @@
 export const metadata = {
   title: "Android",
-  description: "Compilar Faset para Android con el NDK. El empaquetado de APK y la ejecución en emulador están en desarrollo.",
+  description: "APK firmados sin Java, Gradle ni Android Studio: faset new --android, faset run en el dispositivo o el emulador, std.ui táctil y FasetStudio con la pantalla del móvil en vivo.",
 };
 
-# Android <DevBadge />
+# Android
 
 <p className="lead">
-  Faset ya compila para Android con el NDK: binarios ELF y bibliotecas <code>.so</code> para ARM64,
-  ARMv7, x86 y x86-64. El empaquetado en APK y la ejecución directa en un dispositivo o emulador se
-  están implementando ahora.
+  <code>faset</code> genera <strong>APK firmados</strong> sin Java, Gradle ni Android Studio abierto: el
+  programa se compila con el NDK como <code>lib&lt;App&gt;.so</code>, se carga desde una
+  <code>NativeActivity</code> y se empaqueta con las herramientas del SDK (<code>aapt2</code>,
+  <code>zipalign</code>, <code>apksigner</code>). <code>faset run</code> lo instala, lo abre y muestra su logcat.
 </p>
 
-## Disponible hoy
+<div className="split" style={{ gridTemplateColumns: "minmax(0, 2.2fr) minmax(0, 0.8fr)", alignItems: "start", gap: 24 }}>
+  <Screenshot src="/screenshots/studio-android.png" width={1680} height={980} alt="FasetStudio con el diseñador de una app de Android y el panel Device mostrando el emulador en vivo" caption="FasetStudio: diseñador, salida de faset run y el panel Device con el emulador emulator-5554 en vivo." />
+  <div style={{ maxWidth: 260, margin: "0 auto" }}>
+  <Screenshot src="/screenshots/android-phone.png" width={540} height={1200} alt="La app HolaAndroid ejecutándose en el emulador de Android" caption="La misma app en el emulador (adb exec-out screencap)." />
+  </div>
+</div>
+
+## Preparación
+
+1. Instala el SDK de Android (Android Studio o las *cmdline-tools*). `faset` lo busca en
+   `ANDROID_HOME`, `ANDROID_SDK_ROOT`, `~/Android/Sdk`, `%LOCALAPPDATA%\Android\Sdk` o
+   `~/Library/Android/sdk`.
+2. Instala el NDK, las build-tools y una plataforma:
+
+   ```bash
+   sdkmanager --install "ndk;30.0.16248370" "build-tools;36.0.0" "platforms;android-36" platform-tools emulator
+   ```
+
+   El NDK más reciente de `<SDK>/ndk/<versión>` se detecta solo (o usa `ANDROID_NDK_HOME`).
+3. Java, solo para `apksigner` y `keytool`: `JAVA_HOME`, `java` en el `PATH` o el JBR de Android
+   Studio (`~/android-studio/jbr`…), que se usa automáticamente.
+4. Comprueba todo con `faset doctor`:
+
+```text
+$ faset doctor
+  Android SDK                /home/usuario/Android/Sdk
+  Android NDK                /home/usuario/Android/Sdk/ndk/30.0.16248370  (30.0.16248370)
+  Android build-tools        36.0.0  (aapt2, zipalign, apksigner)
+  Android plataforma         android-36.1  (targetSdk 36)
+  adb                        /home/usuario/Android/Sdk/platform-tools/adb
+  Emulador                   /home/usuario/Android/Sdk/emulator/emulator
+  Java (apksigner)           /home/usuario/android-studio/jbr/bin/java
+  AVDs                       Medium_Phone_API_37.0
+```
+
+La primera vez se crea la clave de depuración `~/.android/debug.keystore` (la misma que usa Android
+Studio) si no existe.
+
+## Crear, compilar y ejecutar
 
 ```bash
-faset doctor                                           # comprueba que encuentra el NDK
-faset build --target android --api 29                  # ELF ARM64
-faset build --target android --api 29 --arch x86_64    # para el emulador
-faset build --target android --api 29 --shared         # libNombre.so
+faset new MiApp --android            # interfaz táctil (std.ui + .fstui) con las propiedades de Android
+faset new Hola --android --console   # programa de consola: Console.WriteLine va a logcat
+cd MiApp
+faset android avds                   # emuladores disponibles
+faset android emulator Medium_Phone_API_37.0 --headless   # arranca, espera e imprime la serie
+faset run                            # compila el APK, lo instala, lo abre y muestra su logcat
+faset build                          # bin/Debug/android/MiApp.apk
+faset build -c Release               # APK sin depuración (firma con AndroidKeystore si existe)
+faset run --target native            # el mismo programa en el escritorio
+```
+
+La plantilla `--android` es una aplicación AppUI (`MainWindow.fstui` + `MainWindow.fst` +
+`Program.fst`) con `TargetPlatform` `android`, ABIs `arm64-v8a;x86_64` (móviles y emulador) y API
+mínima 24. Al compilarla aquí se generó un APK de 1,9 MB con las dos ABIs, en el nivel de API por
+defecto.
+
+- Cualquier proyecto se compila para Android con `--target android`; `--arch arm64` limita el APK a
+  una ABI.
+- `--no-apk` produce el ejecutable ELF suelto (para `adb push`). Una biblioteca (`OutputType` `Library`
+  o `--shared`) produce `lib<Nombre>.so`.
+- `faset run --target android [--device <serie>]` sigue el log del proceso de la app hasta que termina
+  (o <Kbd>Ctrl+C</Kbd>) y devuelve su código de salida. Muestra la salida del programa
+  (`I/MiApp: ...`) y los errores del proceso; con `-v`, todo su logcat. Al final imprime
+  `[faset] fin del programa (código N)` y, si hubo un fallo nativo, el búfer `crash` de logcat.
+
+## Órdenes `faset android`
+
+| Orden | Resultado |
+|---|---|
+| `faset android devices` | una línea por dispositivo: `serie<TAB>estado<TAB>modelo` (p. ej. `emulator-5554	device	sdk_gphone64_x86_64`) |
+| `faset android avds` | un AVD por línea |
+| `faset android emulator <avd> [--headless] [--no-wait] [-- opciones]` | arranca el emulador en segundo plano, espera a `sys.boot_completed` e imprime su serie (el progreso va a stderr) |
+| `faset android logcat [--device s] [--app] [--clear] [-- args]` | `adb logcat -v tag`; `--app` filtra por el proceso de la app del proyecto |
+| `faset android stop [--device s]` | detiene la app del proyecto |
+| `faset android uninstall [--device s]` | desinstala la app del proyecto |
+
+## Propiedades del `.fstproj`
+
+```fstproj
+<PropertyGroup>
+  <TargetPlatform>android</TargetPlatform>        <!-- 'faset run' apunta a Android -->
+  <AndroidPackage>com.miempresa.miapp</AndroidPackage>  <!-- por defecto com.faset.<nombre> -->
+  <AppName>Mi App</AppName>                       <!-- nombre visible (por defecto AssemblyName) -->
+  <VersionCode>1</VersionCode>
+  <VersionName>1.0</VersionName>                  <!-- por defecto <Version> o 1.0 -->
+  <AndroidApi>24</AndroidApi>                     <!-- minSdk (también --api) -->
+  <AndroidTargetSdk>36</AndroidTargetSdk>         <!-- por defecto la plataforma instalada más reciente -->
+  <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- arm64-v8a, armeabi-v7a, x86, x86_64 -->
+  <AndroidOrientation>portrait</AndroidOrientation>
+  <AndroidIcon>icono.png</AndroidIcon>
+  <AndroidKeystore>release.jks</AndroidKeystore>  <!-- firma propia; si no, la de depuración -->
+  <AndroidKeyAlias>miclave</AndroidKeyAlias>
+</PropertyGroup>
+<ItemGroup>
+  <AndroidPermission Include="INTERNET;CAMERA" />  <!-- android.permission.* -->
+  <NativeLibrary Include="miotra" />               <!-- libmiotra.so entra en el APK si está en LibraryPath -->
+  <LibraryPath Include="libs/$(AndroidAbi)" />
+</ItemGroup>
+```
+
+Los `AndroidPermission` de las bibliotecas referenciadas con `ProjectReference` se heredan.
+
+## Firma del APK
+
+- **Debug**: se firma con la clave de depuración `~/.android/debug.keystore` (se crea si no existe).
+  Si la app instalada tiene otra firma, `faset run` la desinstala antes de instalar la nueva.
+- **Release**: con `<AndroidKeystore>` y `<AndroidKeyAlias>` se usa tu clave. Las contraseñas se
+  leen de `FASET_ANDROID_KEYSTORE_PASSWORD` y `FASET_ANDROID_KEY_PASSWORD` (o de las propiedades
+  `AndroidKeystorePassword` / `AndroidKeyPassword`); sin keystore propio, también se usa la de
+  depuración.
+- Las `.so` van sin comprimir y alineadas a 16 KB (`zipalign -P 16`), como exige Android 15+.
+
+## Cómo funciona
+
+- `lib/android/faset_android.c` implementa `android_main` (con `android_native_app_glue` del NDK):
+  el programa corre en su propio hilo, así un `Main()` largo nunca bloquea la actividad; al terminar
+  `Main()` se cierran la actividad y el proceso.
+- `stdout` y `stderr` se redirigen a logcat con la etiqueta de la app. La carpeta de trabajo (y `HOME`)
+  es el almacenamiento interno de la app, así que `File.WriteAllText("datos.txt", ...)` funciona.
+- `#if ANDROID` selecciona código específico ([compilación condicional](/lenguaje/compilacion-condicional/)).
+  Las APIs del NDK se declaran con `extern` dentro de código `memory_unsafe`.
+
+## std.ui en Android
+
+El mismo `.fstui` funciona en el escritorio y en el móvil:
+
+- la ventana ocupa toda la pantalla y el lienzo se copia a `ANativeWindow`;
+- **toques**: llegan como ratón (botón 1), así que `Click`, deslizadores y listas funcionan igual;
+- **rotación** y cambios de tamaño se notifican como `Resize` (los `Anchor` recolocan los controles);
+- **teclado**: un `TextBox` con foco abre el teclado en pantalla y sus teclas llegan como caracteres;
+  el portapapeles es el del sistema;
+- **densidad**: las coordenadas son lógicas (dp) y todo se escala por `dpi / 160`; el texto se
+  rasteriza al tamaño real con `/system/fonts/Roboto-Regular.ttf` mediante stb_truetype (el NDK no
+  ofrece FreeType), así se ve nítido.
+
+## FasetStudio y Android
+
+FasetStudio compila, instala y muestra la app sin salir del IDE.
+
+- **Selector de destino** en la barra de título: *This computer* (el escritorio), los dispositivos conectados (por
+  modelo) y los emuladores instalados, que se pueden **arrancar** desde ahí. Al elegir un dispositivo,
+  el proyecto se compila para Android.
+- **Panel *Device***: un panel acoplable que refleja la pantalla del dispositivo en vivo
+  (`adb exec-out screencap`) y le reenvía la entrada: clic = toque, mantener pulsado = pulsación
+  larga, arrastrar = deslizar, rueda = desplazamiento y el teclado (texto, <Kbd>Retroceso</Kbd>,
+  <Kbd>Intro</Kbd>, flechas; <Kbd>Esc</Kbd> = atrás). Debajo tiene los botones **atrás**, **inicio**,
+  **recientes** y **girar**. Todo corre en procesos hijos: el IDE no se bloquea.
+- Estos textos nuevos de la interfaz todavía no están traducidos en `lang/es.txt`, por eso aparecen en
+  inglés aunque el resto del IDE esté en español.
+- **Ejecutar / Detener** (<Kbd>F5</Kbd> / <Kbd>Shift+F5</Kbd>) en el dispositivo elegido, con la
+  salida de `faset run` y el logcat de la app en el panel *Salida*.
+- **Nuevo proyecto → *Android app***: la tarjeta crea el mismo proyecto que
+  `faset new --android`, listo para el diseñador.
+
+La captura de arriba se generó así (modo sin ventana, con el emulador en marcha):
+
+```bash
+JAVA_HOME=~/android-studio/jbr ANDROID_HOME=~/Android/Sdk \
+  ./studio/bin/Release/linux-x86_64/FasetStudio docs/samples/HolaAndroid --screenshot android.ppm \
+  --script "open MainWindow.fstui | device emulator-5554 | start | wait 30000"
 ```
 
 <Callout type="aviso">
-Con el NDK r30 y el nivel de API por defecto (24), la compilación falla porque el runtime usa
-`timespec_get`, que Android solo ofrece desde la API 29. Mientras se corrige, indica `--api 29` (o
-`<AndroidApi>29</AndroidApi>` en el `.fstproj`). Comprobado el 29 de octubre de 2026: con `--api 29`
-se genera un ELF ARM64 válido para Android.
+En esa captura el contador del panel *Problemas* marca 5 errores: el IntelliSense de `.fstproj` aún no
+reconoce `AndroidPackage`, `AppName`, `VersionCode`, `VersionName` ni `AndroidAbis`, aunque el
+compilador sí los acepta y el proyecto compila sin errores.
 </Callout>
 
-- El compilador es el `clang` del NDK (`<triple><api>-clang`); el nivel de API se elige con `--api`
-  o `<AndroidApi>` en el `.fstproj`.
-- `#if ANDROID` selecciona código específico ([compilación condicional](/lenguaje/compilacion-condicional/)).
-- Las funciones del NDK se declaran con `extern`, y `[Export("android_main")]` o
-  `[Export("JNI_OnLoad")]` exportan los puntos de entrada que espera Android
-  ([interoperabilidad](/lenguaje/interop/#exportar-funciones)).
+## Limitaciones
 
-## En desarrollo
-
-<Callout type="dev">
-El flujo siguiente describe la **intención** del trabajo en curso en otra rama; las órdenes y opciones
-pueden cambiar antes de integrarse.
-</Callout>
-
-- **Empaquetado de APK**: `faset build --target android` generará un `.apk` firmado para depuración a
-  partir de la biblioteca nativa, sin necesidad de Gradle.
-- **Ejecutar en un dispositivo o emulador**: `faset run --target android` instalará el APK con `adb`,
-  lo lanzará y mostrará su salida.
-- **Emulador**: órdenes para listar, crear y arrancar un emulador del SDK de Android desde `faset`.
-
-Esta página se ampliará con la referencia completa en cuanto la rama se integre.
+- `std.ui` no conoce los recortes de la pantalla (la barra de navegación se dibuja encima) ni
+  redimensiona la ventana cuando aparece el teclado.
+- La entrada de texto usa eventos de tecla: sin autocorrección ni métodos de entrada complejos.
+- Más allá de `std.ui` no hay bindings de Android incluidos: las APIs del NDK se declaran con `extern`.

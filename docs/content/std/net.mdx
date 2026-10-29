@@ -1,0 +1,53 @@
+Redes con sockets BSD (Linux y Android) y Winsock2 (Windows): direcciones IPv4/IPv6, DNS, TCP,
+UDP, URL y un cliente HTTP/1.1. El compilador enlaza `ws2_32` automáticamente en Windows. No hay
+excepciones: las operaciones devuelven `bool`, un número de bytes (`-1` = error) o `null`, y el motivo
+queda en `Error`, `ErrorMessage` (en español) y `NativeError`.
+
+```faset
+using std.net;
+
+int main()
+{
+    // Servidor y cliente TCP en la misma máquina (puerto 0 = cualquiera libre).
+    auto server = new TcpListener(IPAddress.Loopback, 0);
+    if (!server.Start()) { println(server.ErrorMessage); return 1; }
+
+    auto client = new TcpClient();
+    client.Connect("127.0.0.1", server.LocalEndPoint.Port, 2000);   // tiempo de espera en ms
+    TcpClient peer = server.AcceptTcpClient(2000);
+
+    client.WriteLine("hola por TCP");
+    string line;
+    if (peer.ReadLine(out line))
+    {
+        println(line);                   // hola por TCP
+        String.Free(line);
+    }
+    delete peer; delete client; delete server;
+    return 0;
+}
+```
+
+```faset
+using std.net;
+
+int main()
+{
+    auto http = new HttpClient();
+    http.Timeout = 5000;
+    HttpResponse r = http.Get("http://example.com/");
+    if (r != null)
+    {
+        println(r.StatusCode);
+        println(r.Headers.Get("Content-Type"));
+    }
+    else println(http.ErrorMessage);
+    delete r;
+    delete http;
+    return 0;
+}
+```
+
+**Limitaciones:** sin HTTPS/TLS (una URL `https://` falla con `SocketError.Unsupported`), proxies,
+compresión ni keep-alive; el cuerpo de la respuesta se guarda entero en memoria. En Windows, solo
+x86-64.
