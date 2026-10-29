@@ -559,6 +559,7 @@ void faset_video_close(void* hv) {
 #elif defined(__ANDROID__)
 /* =========================================================================== Android (NDK) */
 #include <android/log.h>
+#include <android/asset_manager.h>
 
 /* Tipos opacos de <media/NdkMediaExtractor.h>, <media/NdkMediaCodec.h> y <aaudio/AAudio.h>. */
 /* AMediaCodecBufferInfo */
@@ -946,23 +947,43 @@ static void* fv_track_main(void* arg) {
     return 0;
 }
 
+/* Origen del extractor: URL, archivo del dispositivo o, si no existe, un recurso del APK
+   (<Asset Include="..."/> en el .fstproj, guardado sin comprimir en assets/). */
+AAssetManager* faset_android_asset_manager(void);
+static int fv_set_source(void* ex, const char* path) {
+    if (strstr(path, "://")) return fnd.ex_set_url(ex, path);
+    int fd = open(path, O_RDONLY);
+    if (fd >= 0) {
+        struct stat st;
+        fstat(fd, &st);
+        int r = fnd.ex_set_fd(ex, fd, 0, (int64_t)st.st_size);
+        close(fd);
+        return r;
+    }
+    AAssetManager* m = faset_android_asset_manager();
+    if (!m) return -1;
+    const char* name = path;
+    while (name[0] == '.' && name[1] == '/') name += 2;
+    AAsset* a = AAssetManager_open(m, name, AASSET_MODE_RANDOM);
+    if (!a) return -1;
+    off64_t start = 0, len = 0;
+    int afd = AAsset_openFileDescriptor64(a, &start, &len);
+    int r = -1;
+    if (afd >= 0) {
+        r = fnd.ex_set_fd(ex, afd, (int64_t)start, (int64_t)len);
+        close(afd);
+    }
+    AAsset_close(a);
+    return r;
+}
+
 static int fv_track_setup(faset_video* v, fv_track* t, faset_string src, const char* path, size_t index, void* fmt, const char* mime) {
     t->v = v;
     t->index = (int)index;
     t->isVideo = strncmp(mime, "video/", 6) == 0;
     t->ex = fnd.ex_new();
     if (!t->ex) return 0;
-    int r;
-    if (strstr(path, "://")) r = fnd.ex_set_url(t->ex, path);
-    else {
-        int fd = open(path, O_RDONLY);
-        if (fd < 0) return 0;
-        struct stat st;
-        fstat(fd, &st);
-        r = fnd.ex_set_fd(t->ex, fd, 0, (int64_t)st.st_size);
-        close(fd);
-    }
-    if (r != 0) return 0;
+    if (fv_set_source(t->ex, path) != 0) return 0;
     fnd.ex_select(t->ex, index);
     t->codec = fnd.codec_by_mime(mime);
     if (!t->codec) return 0;
@@ -1015,17 +1036,7 @@ void* faset_video_open(faset_string src, int32_t flags) {
     a->seekGen = 1;  /* los hilos empiezan "buscando" 0: decodifican el primer fotograma */
     /* Extractor de prueba para listar las pistas. */
     void* probe = fnd.ex_new();
-    int r = -1;
-    if (strstr(path, "://")) r = fnd.ex_set_url(probe, path);
-    else {
-        int fd = open(path, O_RDONLY);
-        if (fd >= 0) {
-            struct stat st;
-            fstat(fd, &st);
-            r = fnd.ex_set_fd(probe, fd, 0, (int64_t)st.st_size);
-            close(fd);
-        }
-    }
+    int r = fv_set_source(probe, path);
     if (r != 0) {
         char msg[400];
         snprintf(msg, sizeof msg, "VideoPlayer: no se pudo abrir '%s'", path);
