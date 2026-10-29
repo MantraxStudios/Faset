@@ -1,0 +1,49 @@
+export const metadata = {
+  title: "Editores y LSP",
+  description: "Extensión de VS Code y servidor de lenguaje faset lsp para Neovim, Helix, Zed, Sublime y otros editores.",
+};
+
+# Editores y LSP
+
+<p className="lead">
+  La inteligencia del editor la da el propio compilador: <code>faset lsp</code> es un servidor LSP
+  estándar. FasetStudio, VS Code y cualquier editor con soporte LSP comparten los mismos diagnósticos.
+</p>
+
+## FasetStudio
+
+El IDE oficial, escrito en Faset. Tiene IntelliSense, diseñador visual de interfaces y compilación con
+salida en vivo. Consulta [FasetStudio](/studio/introduccion/).
+
+## VS Code
+
+```bash
+make vscode-install      # enlaza editors/vscode en ~/.vscode/extensions
+```
+
+Después, en VS Code, ejecuta *Developer: Reload Window*. La extensión incluye:
+
+- resaltado de sintaxis de `.fst` y `.fstproj`, y snippets;
+- errores en vivo, autocompletado y *hover* con tipos y firmas;
+- ir a la definición (`F12`) y esquema del documento;
+- los comandos *Faset: Compilar* (`Ctrl+Shift+B`) y *Faset: Ejecutar* (`Ctrl+F5`).
+
+`make vscode-uninstall` la quita.
+
+## Otros editores
+
+Configura `faset lsp` como servidor para los archivos `.fst`. Cada análisis se ejecuta en un
+subproceso (`faset __analyze`) que tarda unos 10 ms y libera toda su memoria al terminar, así que el
+servidor no acumula memoria aunque esté abierto durante días.
+
+```text
+comando:   faset lsp
+idioma:    faset
+archivos:  *.fst
+```
+
+## Resaltado en la web
+
+Los bloques de código de esta documentación usan una gramática TextMate de Faset basada en la de
+`editors/vscode` (en `docs/grammars/faset.tmLanguage.json`), coloreada con Shiki durante la
+compilación del sitio.

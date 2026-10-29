@@ -1,0 +1,108 @@
+export const metadata = {
+  title: "Tipos y variables",
+  description: "Tipos primitivos, cadenas, punteros, referencias, enums, inferencia con var/auto y conversiones en Faset.",
+};
+
+# Tipos y variables
+
+<p className="lead">
+  El tipado es estricto, como en C#: solo hay conversiones implícitas sin pérdida
+  (<code>int</code> → <code>long</code>, <code>float</code> → <code>double</code>…). Para el resto hace falta
+  un <em>cast</em> explícito <code>(T)x</code>.
+</p>
+
+## Tipos integrados
+
+| Faset | Notas |
+|---|---|
+| `bool` | `true` / `false` |
+| `char` | punto de código Unicode (32 bits) |
+| `sbyte` `byte` `short` `ushort` `int` `uint` `long` `ulong` | enteros de 8, 16, 32 y 64 bits |
+| `float` `double` | coma flotante de 32 y 64 bits |
+| `string` | vista UTF-8 inmutable `{ptr, len}` (como `string_view` de C++) |
+| `T*` | puntero, con aritmética como en C |
+| `T&` | referencia (parámetros, retornos y variables locales) |
+| `delegate*<A, B, R>` | puntero a función |
+| `struct` | tipo valor |
+| `class` | tipo referencia: `new` reserva en el heap y `delete` libera |
+| `enum` | enteros con nombre |
+| `List<T>`, `Dictionary<K, V>`… | plantillas tuyas o de la biblioteca |
+
+Los enteros desbordan con aritmética modular (el C generado se compila con `-fwrapv`).
+
+## Variables e inferencia
+
+```faset
+int main()
+{
+    int a = 10;
+    long b = a;              // implícita: sin pérdida
+    int c = (int)b;          // explícita
+    var d = 2.5;             // double (estilo C#)
+    auto e = "texto";        // string (estilo C++)
+    const int Limite = 3;    // constante local
+    uint grande = 3000000000;
+    println(int.MaxValue);   // 2147483647
+    println(sizeof(long));   // 8
+    println(a + c + Limite);
+    return 0;
+}
+```
+
+`int.MaxValue` y `int.MinValue` existen para todos los enteros. `default(T)` da el valor por defecto
+de cualquier tipo (cero, `false`, `null`…).
+
+## Cadenas
+
+Un `string` es una **vista** de bytes UTF-8: puntero + longitud. Los literales viven en el ejecutable
+y no hay que liberarlos. Las cadenas se comparan por contenido con `==`, `<`, `>`…
+
+```faset
+int main()
+{
+    string s = "Faset";
+    println(s.Length);                 // 5 (bytes)
+    println(s[0]);                     // 70: s[i] es un byte
+    println(s == "Faset");             // contenido, no punteros
+    string t = String.Concat(s, " es nativo");   // copia nueva...
+    println(t);
+    String.Free(t);                    // ...que liberas tú
+    return 0;
+}
+```
+
+`s.Ptr` da el `byte*` de los datos (útil para llamar a C). Consulta el [modelo de memoria](/lenguaje/memoria/)
+para saber qué funciones devuelven copias y cuáles vistas.
+
+## Enums
+
+```faset
+enum Color { Rojo, Verde = 5, Azul }
+enum Permiso { Ninguno = 0, Leer = 1, Escribir = 2, Ejecutar = 4 }
+
+int main()
+{
+    Color c = Color.Azul;
+    println((int)c);                                  // 6
+    Permiso p = Permiso.Leer | Permiso.Escribir;      // banderas
+    println(((int)p & (int)Permiso.Escribir) != 0);
+    return 0;
+}
+```
+
+## Arreglos
+
+No hay un tipo arreglo gestionado: se usan punteros con `new T[n]` (memoria a cero) y
+`delete[]`, o colecciones como `List<T>` y vistas `Span<T>` con comprobación de límites.
+
+```faset
+int main()
+{
+    int n = 5;
+    double* v = new double[n];
+    for (int i = 0; i < n; i++) v[i] = i * 0.5;
+    println(v[4]);
+    delete[] v;
+    return 0;
+}
+```

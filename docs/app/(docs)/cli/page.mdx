@@ -1,0 +1,110 @@
+import { CliCommands, CliHelp, CliOptions } from "@/components/CliReference";
+
+export const metadata = {
+  title: "Línea de órdenes (CLI)",
+  description: "Referencia de faset: new, build, run, check, emit-c, clean, doctor, lsp y todas sus opciones.",
+};
+
+# Línea de órdenes (CLI)
+
+<p className="lead">
+  <code>faset</code> es compilador, gestor de proyectos y servidor de lenguaje en un solo ejecutable.
+  Las tablas de esta página se generan a partir de la salida de <code>faset help</code> en cada
+  compilación de la documentación.
+</p>
+
+## Órdenes
+
+<CliCommands />
+
+**Entrada**: un `.fstproj`, una carpeta con un `.fstproj`, o archivos `.fst` sueltos. Sin entrada se
+usa el `.fstproj` de la carpeta actual. También vale `faset archivo.fst` como atajo de
+`faset build archivo.fst`.
+
+## Opciones
+
+<CliOptions />
+
+Las opciones de la línea de órdenes tienen prioridad sobre las del `.fstproj`.
+
+## faset new
+
+```bash
+faset new MiApp              # consola
+faset new Utilidades --lib   # biblioteca
+faset new MiVentana --winexe # ventana de Windows
+faset new MiApp --ui         # AppUI con std.ui (.fstui + código)
+```
+
+Crea `Nombre/Nombre.fstproj`, el código inicial y un `.gitignore`. `--ui` (también `ui`, `appui` o
+`--appui`) no aparece todavía en `faset help`, pero está disponible. Consulta
+[Tu primer proyecto](/empezar/primer-proyecto/).
+
+## faset build
+
+Compila a un ejecutable nativo en `bin/<Configuración>/<plataforma>-<arquitectura>/`.
+
+```bash
+faset build -c Release
+faset build --target windows --arch x86_64
+faset build programa.fst -o salida --static
+faset build --sanitize         # ASan + UBSan
+faset build -v                 # muestra la orden del compilador de C
+```
+
+`Debug` compila el C con `-O0 -g` y `Release` con `-O2`. Siempre se usa `-std=c11 -fwrapv
+-fno-strict-aliasing`.
+
+## faset run
+
+Compila y ejecuta. Lo que va después de `--` se pasa a tu programa. Solo ejecuta programas para la
+máquina actual.
+
+```bash
+faset run
+faset run juego.fst -- --nivel 3
+```
+
+## faset check
+
+Comprueba errores sin generar el ejecutable: tipos, sobrecargas, plantillas usadas, accesibilidad,
+rutas de retorno… Es rápido y útil en integración continua.
+
+## faset emit-c
+
+Escribe el C11 intermedio en la salida estándar o en un archivo:
+
+```bash
+faset emit-c hola.fst -o hola.c
+```
+
+`faset build --keep-c` conserva el C junto al ejecutable.
+
+## faset clean
+
+Borra `bin/` y `obj/` del proyecto.
+
+## faset doctor
+
+Muestra la biblioteca estándar encontrada y los compiladores de C detectados para Linux, Windows
+(MinGW) y Android (NDK). Consulta [Instalación](/empezar/instalacion/#comprueba-la-instalacion).
+
+## faset lsp
+
+Servidor de lenguaje por la entrada y salida estándar, para VS Code, Neovim, Helix, Zed, Sublime y
+otros editores. Consulta [Editores y LSP](/empezar/editores/).
+
+## Variables de entorno
+
+| Variable | Uso |
+|---|---|
+| `FASET_LIB` | Carpeta `lib/` con la biblioteca estándar, si `faset` no la encuentra solo. |
+| `FASET_CC` | Compilador de C a usar (igual que `--cc`). |
+| `ANDROID_NDK_HOME`, `ANDROID_NDK_ROOT`, `ANDROID_NDK`, `ANDROID_HOME`, `ANDROID_SDK_ROOT` | Dónde buscar el NDK. |
+| `FASET_UI_SCREENSHOT`, `FASET_UI_SCRIPT` | Aplicaciones `std.ui`: dibujar sin pantalla y guardar una captura `.bmp`. |
+| `FASET_STUDIO_LANG` | Idioma de FasetStudio (`es`, `en`…). |
+| `FASET_STUDIO_GPU` | `cpu` fuerza Vulkan por software (lavapipe) en FasetStudio. |
+
+## Ayuda completa
+
+<CliHelp />

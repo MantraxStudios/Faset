@@ -1,0 +1,86 @@
+export const metadata = {
+  title: "Colores y degradados",
+  description: "Background, Background2, GradientDirection, Foreground, BorderColor y Accent en .fstui y std.ui.",
+};
+
+# Colores y degradados
+
+<p className="lead">
+  Cada control usa los colores de su tema (<code>Dark</code> o <code>Light</code>) salvo que indiques los
+  tuyos. Dos colores de fondo crean un degradado, dibujado por el renderizador de <code>std.ui</code>.
+</p>
+
+<Screenshot src="/screenshots/galeria.png" width={720} height={460} alt="Panel con degradado horizontal de azul a violeta, botón con degradado azul y controles con color de acento verde y azul" caption="Degradado horizontal en un Panel, vertical en la ventana y en el botón «Compilar», y acentos personalizados." />
+
+## Atributos
+
+| Atributo | Se aplica a | Efecto |
+|---|---|---|
+| `Background` | ventana y controles | Color de fondo. |
+| `Background2` | ventana y controles | Segundo color: el fondo pasa a ser un degradado de `Background` a `Background2`. |
+| `GradientDirection` | ventana y controles | `Vertical` (por defecto, de arriba abajo) u `Horizontal` (de izquierda a derecha). |
+| `Foreground` | controles | Color del texto. |
+| `BorderColor` | controles | Color del borde (usa un alfa `00` para quitarlo). |
+| `Accent` | `CheckBox`, `RadioButton`, `Slider`, `ProgressBar` | Color de la casilla marcada, del deslizador y de la barra. |
+
+## Formato de los colores
+
+| Escrito | Significado |
+|---|---|
+| `#RGB` | forma corta: `#f80` = `#ff8800` |
+| `#RRGGBB` | color opaco |
+| `#RRGGBBAA` | con transparencia (`AA` = `00` transparente, `ff` opaco) |
+
+Internamente se guardan como `uint` en formato `0xAARRGGBB`; un valor `0` significa «el del tema».
+
+## El ejemplo de la captura
+
+```fstui
+<Window Class="MainWindow" Namespace="Galeria" Title="Galería std.ui" Width="720" Height="460" Theme="Dark"
+        Background="#101014" Background2="#1c1c24" GradientDirection="Vertical">
+
+  <Panel Name="hero" X="32" Y="100" Width="656" Height="96"
+         Background="#2b2f77" Background2="#7a2e8c" GradientDirection="Horizontal"
+         BorderColor="#00000000" Anchor="Left,Top,Right">
+    <Label X="20" Y="16" Width="400" Height="30" Text="Degradados nativos" FontSize="20" Bold="true" Foreground="#ffffff" />
+  </Panel>
+
+  <CheckBox Name="chkRelease" X="18" Y="86" Width="200" Height="24" Text="Compilar en Release" Checked="true" Accent="#4f8cff" />
+  <Slider Name="sldLevel" X="18" Y="40" Width="284" Height="24" Value="70" Accent="#3ecf8e" />
+
+  <Button Name="btnBuild" X="576" Y="402" Width="112" Height="38" Text="Compilar" Style="Primary"
+          Background="#4f8cff" Background2="#3a63d8" Foreground="#ffffff" Anchor="Right,Bottom" />
+</Window>
+```
+
+El proyecto completo está en `docs/samples/Galeria`.
+
+## Desde el código
+
+Los mismos colores son propiedades de `Widget` y `Window`. `Rgb.Of(0xRRGGBB)` crea un color opaco y
+`Rgb.Parse("#RRGGBB")` interpreta el mismo formato que el `.fstui`:
+
+```faset
+using std.ui;
+
+int main()
+{
+    auto w = new Window("Colores", 400, 200);
+    w.Background = Rgb.Of(0x101014);
+    w.Background2 = Rgb.Of(0x24243a);              // degradado vertical
+
+    Widget b = w.Add(Widget.Create(WidgetKind.Button, "ok", 24, 24, 160, 40));
+    b.Text = "Aceptar";
+    b.Background = Rgb.Parse("#4f8cff");
+    b.Background2 = Rgb.Parse("#7a2e8c");
+    b.GradientHorizontal = true;
+    b.Foreground = Rgb.Of(0xffffff);
+
+    int code = Application.Run(w);
+    delete w;
+    return code;
+}
+```
+
+En el [diseñador de FasetStudio](/studio/disenador/), la sección *Colores* del panel de propiedades
+tiene muestra de color, campo `#RRGGBB` y una paleta.

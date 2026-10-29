@@ -1,0 +1,30 @@
+<Window Class="MainWindow" Namespace="Galeria" Title="Galería std.ui" Width="720" Height="460" Theme="Dark"
+        Background="#101014" Background2="#1c1c24" GradientDirection="Vertical">
+  <Label Name="lblTitle" X="32" Y="26" Width="656" Height="34" Text="Panel de control" FontSize="24" Bold="true" Anchor="Left,Top,Right" />
+  <Label Name="lblSubtitle" X="32" Y="60" Width="656" Height="22" Text="Interfaz descrita en MainWindow.fstui y dibujada por std.ui" Style="Subtle" Anchor="Left,Top,Right" />
+
+  <Panel Name="hero" X="32" Y="100" Width="656" Height="96" Background="#2b2f77" Background2="#7a2e8c" GradientDirection="Horizontal" BorderColor="#00000000" Anchor="Left,Top,Right">
+    <Label X="20" Y="16" Width="400" Height="30" Text="Degradados nativos" FontSize="20" Bold="true" Foreground="#ffffff" />
+    <Label X="20" Y="50" Width="520" Height="22" Text="Background + Background2 + GradientDirection" Foreground="#e8e2ff" />
+  </Panel>
+
+  <Panel Name="card" X="32" Y="214" Width="320" Height="170">
+    <Label X="18" Y="14" Width="200" Height="20" Text="Nombre del proyecto" FontSize="13" Style="Subtle" />
+    <TextBox Name="txtName" X="18" Y="38" Width="284" Height="34" Text="MiJuego" Changed="OnNameChanged" />
+    <CheckBox Name="chkRelease" X="18" Y="86" Width="200" Height="24" Text="Compilar en Release" Checked="true" Accent="#4f8cff" />
+    <RadioButton Name="rbLinux" X="18" Y="124" Width="90" Height="24" Text="Linux" Group="os" Checked="true" Accent="#4f8cff" />
+    <RadioButton Name="rbWindows" X="108" Y="124" Width="100" Height="24" Text="Windows" Group="os" Accent="#4f8cff" />
+    <RadioButton Name="rbAndroid" X="208" Y="124" Width="100" Height="24" Text="Android" Group="os" Accent="#4f8cff" />
+  </Panel>
+
+  <Panel Name="stats" X="368" Y="214" Width="320" Height="170" Anchor="Left,Top,Right">
+    <Label X="18" Y="14" Width="200" Height="20" Text="Optimización" FontSize="13" Style="Subtle" />
+    <Slider Name="sldLevel" X="18" Y="40" Width="284" Height="24" Value="70" Accent="#3ecf8e" Changed="OnLevelChanged" />
+    <ProgressBar Name="prgLevel" X="18" Y="78" Width="284" Height="8" Value="70" Accent="#3ecf8e" />
+    <Label X="18" Y="100" Width="200" Height="20" Text="Arquitectura" FontSize="13" Style="Subtle" />
+    <ComboBox Name="cmbArch" X="18" Y="124" Width="284" Height="32" Items="x86_64;arm64;armv7;x86" SelectedIndex="0" />
+  </Panel>
+
+  <Button Name="btnCancel" X="452" Y="402" Width="112" Height="38" Text="Cancelar" Anchor="Right,Bottom" Click="OnCancel" />
+  <Button Name="btnBuild" X="576" Y="402" Width="112" Height="38" Text="Compilar" Style="Primary" Background="#4f8cff" Background2="#3a63d8" Foreground="#ffffff" Anchor="Right,Bottom" Click="OnBuild" />
+</Window>

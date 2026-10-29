@@ -1,0 +1,92 @@
+export const metadata = {
+  title: "Proyectos .fstproj",
+  description: "Referencia del formato .fstproj: propiedades, archivos, referencias a proyectos y bibliotecas nativas.",
+};
+
+# Proyectos `.fstproj`
+
+<p className="lead">
+  Un <code>.fstproj</code> es un XML al estilo de los <code>.csproj</code> de .NET SDK. Todos los
+  <code>.fst</code> y <code>.fstui</code> de su carpeta (y subcarpetas) se compilan automáticamente.
+</p>
+
+```fstproj
+<Project>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>             <!-- Exe | WinExe | Library -->
+    <AssemblyName>MiApp</AssemblyName>
+    <TargetPlatform>native</TargetPlatform>  <!-- native | linux | windows | android -->
+    <TargetArch>x86_64</TargetArch>          <!-- x86_64 | x86 | arm64 | armv7 -->
+    <Configuration>Debug</Configuration>     <!-- Debug | Release -->
+    <StaticLink>false</StaticLink>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />                         <!-- excluir archivos -->
+    <Compile Include="../compartido/*.fst" />                    <!-- añadir archivos -->
+    <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
+    <NativeLibrary Include="user32" Platform="windows" />        <!-- -luser32 solo en Windows -->
+    <LibraryPath Include="libs" />                               <!-- -Llibs -->
+  </ItemGroup>
+</Project>
+```
+
+## Propiedades (`PropertyGroup`)
+
+| Propiedad | Valores | Efecto |
+|---|---|---|
+| `OutputType` | `Exe` (por defecto), `WinExe`, `Library` | `WinExe` = aplicación de ventana sin consola en Windows (`--gui`); `Library` = biblioteca compartida (`--shared`). |
+| `AssemblyName` | nombre | Nombre del ejecutable. Por defecto, el del `.fstproj`. |
+| `TargetPlatform` | `native`, `linux`, `windows`, `android` | Plataforma de destino; `native` es la de la máquina. Se puede cambiar con `--target`. |
+| `TargetArch` | `x86_64`, `x86`, `arm64`, `armv7` | Arquitectura. Por defecto, la de la máquina (o `arm64` en Android). |
+| `AndroidApi` | número | Nivel de API de Android (por defecto 24). |
+| `Configuration` | `Debug`, `Release` | `Debug` compila con `-O0 -g`; `Release` con `-O2`. Se cambia con `-c`. |
+| `OutputPath` | ruta | Carpeta raíz de la salida (por defecto `bin`). |
+| `StaticLink` | `true` / `false` | Enlazado estático (`-static`). |
+| `EnableDefaultCompileItems` | `true` / `false` | Con `false` solo se compilan los archivos indicados con `Compile Include`. |
+| `RootNamespace`, `Version`, `Description`, `Authors`, `Optimize`, `DebugSymbols` | texto | Se aceptan como metadatos; el compilador todavía no los usa. |
+
+<Callout type="aviso">
+Las propiedades y elementos desconocidos **dan error**: así una errata (`<Configuraton>`) no pasa
+desapercibida.
+</Callout>
+
+## Elementos (`ItemGroup`)
+
+| Elemento | Atributos | Efecto |
+|---|---|---|
+| `Compile` | `Include`, `Remove` | Añade o excluye archivos. Admite comodines (`*`, `**`) y listas separadas por `;`. |
+| `ProjectReference` | `Include` | Referencia a otro proyecto, que debe ser `Library`. Sus archivos se compilan junto con el tuyo. |
+| `NativeLibrary` | `Include`, `Platform` (opcional) | Biblioteca nativa a enlazar (`-l`). Con `Platform` solo se usa para ese objetivo. |
+| `LibraryPath` | `Include` | Carpeta de bibliotecas nativas (`-L`), relativa al proyecto. |
+
+## Qué archivos se compilan
+
+- Todos los `.fst` y `.fstui` bajo la carpeta del proyecto.
+- Se ignoran `bin/`, `obj/`, las carpetas ocultas y las subcarpetas que tienen su propio `.fstproj`.
+- Las referencias circulares entre proyectos se detectan y dan error.
+
+## Referencias entre proyectos
+
+```text
+examples/proyecto/
+├── MiJuego/
+│   ├── MiJuego.fstproj      ← Exe, referencia a ../Utilidades
+│   ├── Program.fst
+│   └── Motor/Entidad.fst
+└── Utilidades/
+    ├── Utilidades.fstproj   ← Library
+    └── Biblioteca.fst
+```
+
+```bash
+faset run examples/proyecto/MiJuego
+```
+
+Una biblioteca referenciada no se enlaza como `.so` aparte: su código se compila dentro del
+ejecutable final (como un proyecto de código compartido). Para producir una biblioteca dinámica
+independiente, compila el proyecto `Library` por sí solo (genera `libNombre.so` o `Nombre.dll`).
+
+## Bibliotecas que enlaza el compilador por ti
+
+Si un programa usa `std.ui`, `faset` añade automáticamente `X11` y `freetype` (Linux) o `user32` y
+`gdi32` (Windows). Siempre se enlaza `libm`.

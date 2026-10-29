@@ -1,0 +1,79 @@
+export const metadata = {
+  title: "Instalación",
+  description: "Compila Faset desde el código fuente con make o CMake y comprueba los compiladores de C detectados.",
+};
+
+# Instalación
+
+<p className="lead">
+  Faset se compila desde el código fuente. Solo necesitas un compilador de C++17 para construir
+  <code>faset</code> y un compilador de C para que <code>faset</code> genere tus ejecutables.
+</p>
+
+## Con make (Linux)
+
+```bash
+git clone https://github.com/MantraxStudios/Faset.git
+cd Faset
+make                    # genera ./faset (usa ./lib como biblioteca estándar)
+make test               # ejecuta los tests
+sudo make install       # /usr/local/bin/faset + /usr/local/lib/faset
+```
+
+`make install` copia el compilador en `$(PREFIX)/bin` y la biblioteca estándar en
+`$(PREFIX)/lib/faset` (por defecto `PREFIX=/usr/local`). Si prefieres no instalar nada, usa
+`./faset` directamente desde la carpeta del repositorio.
+
+## Con CMake (Windows o cualquier sistema)
+
+```bash
+cmake -B build && cmake --build build
+```
+
+## Requisitos por plataforma de destino
+
+| Objetivo            | Necesitas                                                        |
+|---------------------|------------------------------------------------------------------|
+| Linux               | `gcc` o `clang`                                                  |
+| Windows             | MinGW-w64 o `clang` (MSYS2 / llvm-mingw)                         |
+| Windows desde Linux | `sudo apt install mingw-w64`                                     |
+| Android             | Android NDK (`ANDROID_NDK_HOME` o `~/Android/Sdk/ndk/<versión>`) |
+
+Para compilar **FasetStudio** hacen falta además las bibliotecas de desarrollo de X11 y FreeType y
+el cargador de Vulkan (`libvulkan.so.1`). Consulta [FasetStudio](/studio/introduccion/).
+
+## Comprueba la instalación
+
+`faset doctor` muestra dónde encontró la biblioteca estándar y qué compiladores de C detecta:
+
+```bash
+$ faset doctor
+Faset 0.2.0  (host: linux-x86_64)
+
+  Biblioteca std             /home/usuario/Faset/lib
+  Nativo (linux)             /usr/bin/cc
+  Windows x86_64 (MinGW)     no encontrado  -> sudo apt install mingw-w64
+  Android NDK                /home/usuario/Android/Sdk/ndk/30.0.16248370
+```
+
+<Callout type="consejo">
+Si `faset` no encuentra la biblioteca estándar (por ejemplo, porque moviste el ejecutable), define
+la variable `FASET_LIB` con la ruta de la carpeta `lib/`. Para elegir otro compilador de C usa
+`--cc` o la variable `FASET_CC`.
+</Callout>
+
+## Hola, mundo
+
+```faset
+// hola.fst
+int main()
+{
+    println("¡Hola, Faset!");
+    return 0;
+}
+```
+
+```bash
+faset run hola.fst            # compila y ejecuta
+faset build hola.fst -c Release   # ./hola, optimizado (-O2)
+```

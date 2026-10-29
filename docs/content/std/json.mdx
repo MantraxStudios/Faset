@@ -1,0 +1,17 @@
+Lectura y escritura de JSON. `Json.Parse` devuelve un árbol de `JsonValue` (o `null` si el texto
+no es válido); al borrar la raíz se libera todo el árbol.
+
+```faset
+using std.json;
+
+int main()
+{
+    JsonValue raiz = Json.Parse("{\"nombre\": \"Faset\", \"version\": 2, \"tags\": [\"nativo\", \"c#\"]}");
+    if (raiz == null) return 1;
+    println(raiz.GetString("nombre"));
+    println(raiz.GetInt("version"));
+    println(raiz.Get("tags").At(0).AsString());
+    delete raiz;
+    return 0;
+}
+```

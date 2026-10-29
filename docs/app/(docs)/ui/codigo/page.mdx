@@ -1,0 +1,105 @@
+export const metadata = {
+  title: "Código de la ventana",
+  description: "Qué genera el compilador a partir de un .fstui, cómo se conectan los eventos y la API de Widget y Window.",
+};
+
+# Código de la ventana
+
+<p className="lead">
+  El <code>.fstui</code> y su <code>.fst</code> forman una sola clase parcial. El compilador escribe una
+  mitad a partir del XML; tú escribes la otra.
+</p>
+
+## Lo que genera el compilador
+
+Para `<Window Class="MainWindow" Namespace="MiApp">` con un botón `btnGreet`, la mitad generada
+equivale, en esencia, a esto:
+
+```fst
+using std; using std.ui;
+namespace MiApp
+{
+    public partial class MainWindow
+    {
+        public Window Window;          // la ventana
+        Widget lblTitle;               // un campo por control con Name
+        Widget btnGreet;
+
+        void InitializeComponent() { /* crea la ventana y los controles, asigna atributos y eventos */ }
+        static void __ui_event(void* self, Widget sender, int ev) { /* llama a OnGreetClick(sender)... */ }
+    }
+}
+```
+
+Los eventos se conectan con un [puntero a función](/lenguaje/delegados/) y un puntero a la instancia:
+no hay reflexión ni asignaciones extra. El código generado mantiene las líneas del XML, así que los
+errores de un manejador mal escrito apuntan a la línea correcta del `.fstui`.
+
+## Tu mitad
+
+```faset
+using std.ui;
+
+namespace MiApp
+{
+    public partial class MainWindow
+    {
+        int saludos;
+
+        public MainWindow() { InitializeComponent(); }
+
+        ~MainWindow() { delete Window; }               // la ventana libera sus controles
+
+        void OnNameChanged(Widget sender)
+        {
+            string nombre = txtName.Text.Length > 0 ? txtName.Text : "Faset";
+            string titulo = String.Concat("Hola, ", nombre, chkExcited.Checked ? "!" : "");
+            lblTitle.Text = titulo;                    // el control guarda su propia copia
+            String.Free(titulo);
+        }
+
+        void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }
+
+        void OnGreetClick(Widget sender)
+        {
+            saludos++;
+            btnGreet.Enabled = saludos < 3;
+        }
+
+        void OnCloseClick(Widget sender) { Window.Close(); }
+    }
+}
+```
+
+## API más usada de `Widget`
+
+| Miembro | Descripción |
+|---|---|
+| `Text` | Texto (get/set). Al asignarlo, el control hace su propia copia. |
+| `Placeholder` | Texto de ayuda de un `TextBox` vacío. |
+| `Checked` | Estado de `CheckBox` y `RadioButton`. |
+| `Value`, `Min`, `Max`, `Fraction` | Valor de `Slider` y `ProgressBar`. |
+| `SelectedIndex`, `SelectedItem` | Selección de `ComboBox` y `ListBox`. |
+| `SetItems("a;b;c")`, `AddItem`, `RemoveItemAt`, `ClearItems`, `Item(i)`, `ItemCount` | Elementos de las listas. |
+| `Enabled`, `Visible` | Estado. |
+| `X`, `Y`, `Width`, `Height`, `Anchor` | Disposición. |
+| `Background`, `Background2`, `GradientHorizontal`, `Foreground`, `BorderColor`, `Accent` | Colores (ver [Colores y degradados](/ui/colores/)). |
+| `Tag` | `void*` libre para tus datos. |
+
+## API más usada de `Window`
+
+| Miembro | Descripción |
+|---|---|
+| `Title` | Título (get/set, UTF-8). |
+| `Theme` | `UiTheme.Dark` o `UiTheme.Light`. |
+| `Find("nombre")` | Busca un control por nombre. |
+| `Focus(widget)` | Mueve el foco del teclado. |
+| `Close()` | Cierra la ventana; `Application.Run` devuelve. |
+| `Add(widget)` | Añade un control creado a mano con `Widget.Create`. |
+
+La referencia completa, extraída del código fuente, está en [`std.ui`](/std/ui/).
+
+## Varias ventanas
+
+Cada `.fstui` define su propia clase, así que una aplicación puede tener varias (`MainWindow.fstui`,
+`Ajustes.fstui`…). Crea la instancia y ejecútala con `Application.Run(ventana.Window)`.

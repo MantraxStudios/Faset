@@ -1,0 +1,17 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>HolaUI</AssemblyName>
+    <RootNamespace>HolaUI</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+
+  <!-- Todos los .fst de esta carpeta se compilan automáticamente.
+  <ItemGroup>
+    <Compile Remove="experimentos/**" />
+    <NativeLibrary Include="user32" />
+    <ProjectReference Include="../OtraBiblioteca/OtraBiblioteca.fstproj" />
+  </ItemGroup>
+  -->
+</Project>

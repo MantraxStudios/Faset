@@ -1,0 +1,50 @@
+export const metadata = {
+  title: "Android",
+  description: "Compilar Faset para Android con el NDK. El empaquetado de APK y la ejecución en emulador están en desarrollo.",
+};
+
+# Android <DevBadge />
+
+<p className="lead">
+  Faset ya compila para Android con el NDK: binarios ELF y bibliotecas <code>.so</code> para ARM64,
+  ARMv7, x86 y x86-64. El empaquetado en APK y la ejecución directa en un dispositivo o emulador se
+  están implementando ahora.
+</p>
+
+## Disponible hoy
+
+```bash
+faset doctor                                           # comprueba que encuentra el NDK
+faset build --target android --api 29                  # ELF ARM64
+faset build --target android --api 29 --arch x86_64    # para el emulador
+faset build --target android --api 29 --shared         # libNombre.so
+```
+
+<Callout type="aviso">
+Con el NDK r30 y el nivel de API por defecto (24), la compilación falla porque el runtime usa
+`timespec_get`, que Android solo ofrece desde la API 29. Mientras se corrige, indica `--api 29` (o
+`<AndroidApi>29</AndroidApi>` en el `.fstproj`). Comprobado el 29 de octubre de 2026: con `--api 29`
+se genera un ELF ARM64 válido para Android.
+</Callout>
+
+- El compilador es el `clang` del NDK (`<triple><api>-clang`); el nivel de API se elige con `--api`
+  o `<AndroidApi>` en el `.fstproj`.
+- `#if ANDROID` selecciona código específico ([compilación condicional](/lenguaje/compilacion-condicional/)).
+- Las funciones del NDK se declaran con `extern`, y `[Export("android_main")]` o
+  `[Export("JNI_OnLoad")]` exportan los puntos de entrada que espera Android
+  ([interoperabilidad](/lenguaje/interop/#exportar-funciones)).
+
+## En desarrollo
+
+<Callout type="dev">
+El flujo siguiente describe la **intención** del trabajo en curso en otra rama; las órdenes y opciones
+pueden cambiar antes de integrarse.
+</Callout>
+
+- **Empaquetado de APK**: `faset build --target android` generará un `.apk` firmado para depuración a
+  partir de la biblioteca nativa, sin necesidad de Gradle.
+- **Ejecutar en un dispositivo o emulador**: `faset run --target android` instalará el APK con `adb`,
+  lo lanzará y mostrará su salida.
+- **Emulador**: órdenes para listar, crear y arrancar un emulador del SDK de Android desde `faset`.
+
+Esta página se ampliará con la referencia completa en cuanto la rama se integre.

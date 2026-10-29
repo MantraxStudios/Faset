@@ -1,0 +1,90 @@
+export const metadata = {
+  title: "Seguridad de memoria",
+  description: "Modelo seguro por defecto en desarrollo: contextos memory_unsafe para las operaciones con punteros y comprobaciones en Debug.",
+};
+
+# Seguridad de memoria <DevBadge />
+
+<Callout type="dev">
+Esta página describe una función **que se está implementando ahora mismo** en una rama aparte. La
+sintaxis y los detalles pueden cambiar antes de que llegue a la rama principal; los ejemplos de esta
+página todavía no compilan con la versión actual de `faset`. Hasta entonces, usa
+[`--sanitize`](/lenguaje/memoria/#detectar-errores-de-memoria) para detectar errores de memoria.
+</Callout>
+
+<p className="lead">
+  Faset seguirá teniendo memoria manual y punteros, pero <strong>seguro por defecto</strong>: el código
+  normal no podrá hacer operaciones con punteros sin marcarlas, y las compilaciones Debug comprobarán
+  en tiempo de ejecución los errores más comunes.
+</p>
+
+## La idea
+
+La mayoría del código de una aplicación no necesita aritmética de punteros: usa clases, colecciones,
+`Span<T>` y referencias. Las operaciones peligrosas se concentran en unas pocas capas (bindings
+nativos, asignadores, estructuras de datos de bajo nivel). El nuevo modelo hace visibles esas capas:
+
+- **Seguro por defecto.** Desreferenciar punteros, la aritmética de punteros, los *casts* entre
+  punteros y llamar a APIs marcadas como inseguras requerirán un contexto `memory_unsafe`.
+- **Contextos explícitos.** Un bloque, un método, una clase, un namespace o un archivo entero pueden
+  declararse `memory_unsafe`.
+- **Comprobaciones en Debug.** En `Debug` el código generado comprobará los límites de los accesos
+  indexados, los accesos a través de `null` y las dobles liberaciones con `delete`, y terminará con
+  un mensaje claro en lugar de corromper memoria. En `Release` esas comprobaciones desaparecen y el
+  rendimiento es el de siempre.
+
+## Formas de `memory_unsafe`
+
+```fst
+// Un bloque dentro de un método normal
+int Suma(int* datos, int n)
+{
+    int total = 0;
+    memory_unsafe
+    {
+        for (int* p = datos; p < datos + n; p++) total += *p;
+    }
+    return total;
+}
+
+// Un método entero: quien lo llama también necesita un contexto memory_unsafe
+memory_unsafe void Copiar(byte* destino, byte* origen, int n)
+{
+    for (int i = 0; i < n; i++) destino[i] = origen[i];
+}
+
+// Una clase: todos sus miembros son contextos memory_unsafe
+memory_unsafe class Asignador
+{
+    byte* bloque;
+    public void* Reservar(int bytes) { ... }
+}
+
+// Un namespace completo (típico de los bindings nativos)
+memory_unsafe namespace Vulkan
+{
+    ...
+}
+```
+
+Para todo un archivo basta con escribir `memory_unsafe;` al principio.
+
+<Callout type="aviso">
+`unsafe`, la palabra clave de C#, **no** se usará: el compilador pedirá escribir `memory_unsafe`, para
+que la intención quede explícita y se pueda buscar en el código.
+</Callout>
+
+## Qué cambia para el código existente
+
+- El código que solo usa clases, structs, colecciones, cadenas y referencias `T&` no cambia.
+- Las funciones con punteros (bindings con `extern`, aritmética de punteros, `Memory.Alloc`…) tendrán
+  que marcarse con `memory_unsafe`. Los errores de compilación indicarán exactamente dónde.
+- La biblioteca estándar encapsula sus operaciones con punteros, de modo que `List<T>`, `Span<T>` o
+  `StringBuilder` seguirán usándose desde código seguro.
+
+## Mientras tanto
+
+- `faset build --sanitize` activa AddressSanitizer + UndefinedBehaviorSanitizer.
+- `List<T>` y `Span<T>` ya comprueban los índices, y `List`, `Queue` y `Dictionary.Get` comprueban
+  los accesos a una colección vacía o a una clave inexistente: terminan con `panic` y un mensaje.
+- `Box<T>` y `Arena` (en [`std.mem`](/std/mem/)) reducen la cantidad de `delete` manuales.

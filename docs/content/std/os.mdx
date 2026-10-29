@@ -1,0 +1,30 @@
+Procesos y sistema operativo. `Process` ejecuta y espera; `ChildProcess` lanza un proceso y lee su
+salida (stdout + stderr) sin bloquear. FasetStudio lo usa para mostrar en vivo la salida de
+`faset build`.
+
+```faset
+using std.os;
+using std.text;
+
+int main()
+{
+    println(OS.Name());
+
+    string salida;
+    int codigo = Process.Capture("echo hola", out salida);
+    print(salida);
+    String.Free(salida);
+
+    auto p = new ChildProcess();
+    auto sb = new StringBuilder();
+    if (p.Start("ls", ""))
+    {
+        while (!p.HasExited) p.ReadAvailable(sb);
+        p.ReadAvailable(sb);
+    }
+    print(sb.View());
+    delete sb;
+    delete p;
+    return codigo;
+}
+```

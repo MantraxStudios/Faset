@@ -1,0 +1,64 @@
+export const metadata = {
+  title: "Clases parciales",
+  description: "partial class: una clase repartida en varios archivos, la base del código generado por los .fstui.",
+};
+
+# Clases parciales
+
+<p className="lead">
+  Con <code>partial</code> una clase o un struct se reparte en varias declaraciones, en el mismo
+  archivo o en varios. El compilador las une en un solo tipo.
+</p>
+
+```faset
+public partial class Jugador
+{
+    int vida = 100;
+    public int Vida => vida;
+}
+
+public partial class Jugador
+{
+    public void Golpear(int dano) { vida -= dano; }
+}
+
+int main()
+{
+    auto j = new Jugador();
+    j.Golpear(30);
+    println(j.Vida);       // 70
+    delete j;
+    return 0;
+}
+```
+
+## Para qué sirve
+
+Es la pieza que une las interfaces con su código. Cada `.fstui` se convierte, al compilar, en una
+mitad de una clase parcial con los controles como campos y un método `InitializeComponent()`; tú
+escribes la otra mitad con los manejadores de eventos:
+
+```faset
+// MainWindow.fst — la otra mitad la genera MainWindow.fstui
+using std.ui;
+
+namespace MiApp
+{
+    public partial class MainWindow
+    {
+        public MainWindow() { InitializeComponent(); }   // definido en la parte generada
+        ~MainWindow() { delete Window; }
+
+        void OnGreetClick(Widget sender) { lblTitle.Text = "¡Hola!"; }
+    }
+}
+```
+
+Consulta [Código de la ventana](/ui/codigo/) para ver qué genera exactamente el compilador.
+
+## Reglas
+
+- Funciona con `partial class` y con `partial struct`.
+- Las partes se declaran con el mismo nombre y en el mismo namespace, y pueden estar en archivos distintos
+  del proyecto.
+- Los miembros de todas las partes forman un solo tipo: un campo declarado en una parte se usa en las demás.

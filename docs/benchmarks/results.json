@@ -1,0 +1,134 @@
+{
+  "date": "2026-10-29",
+  "machine": {
+    "cpu": "AMD Ryzen 7 5700X 8-Core Processor",
+    "cores": 16,
+    "memoryGB": 15,
+    "os": "Ubuntu 26.04.1 LTS",
+    "kernel": "7.0.0-38-generic",
+    "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "python": "Python 3.14.4",
+    "node": "v24.22.1",
+    "faset": "faset 0.2.0"
+  },
+  "cpu": [
+    {
+      "id": "fib",
+      "title": "Fibonacci recursivo (fib 37)",
+      "results": [
+        {
+          "lang": "Faset",
+          "seconds": 0.0316,
+          "runs": 10
+        },
+        {
+          "lang": "C (gcc -O2)",
+          "seconds": 0.0339,
+          "runs": 10
+        },
+        {
+          "lang": "Node.js",
+          "seconds": 0.234,
+          "runs": 3
+        },
+        {
+          "lang": "Python",
+          "seconds": 1.9613,
+          "runs": 3
+        }
+      ],
+      "output": "24157817"
+    },
+    {
+      "id": "sieve",
+      "title": "Criba de Eratóstenes (20 M)",
+      "results": [
+        {
+          "lang": "Faset",
+          "seconds": 0.0399,
+          "runs": 10
+        },
+        {
+          "lang": "C (gcc -O2)",
+          "seconds": 0.039,
+          "runs": 10
+        },
+        {
+          "lang": "Node.js",
+          "seconds": 0.0978,
+          "runs": 3
+        },
+        {
+          "lang": "Python",
+          "seconds": 2.4746,
+          "runs": 3
+        }
+      ],
+      "output": "1270607"
+    },
+    {
+      "id": "nbody",
+      "title": "N-body, 2 M pasos",
+      "results": [
+        {
+          "lang": "Faset",
+          "seconds": 0.0965,
+          "runs": 10
+        },
+        {
+          "lang": "C (gcc -O2)",
+          "seconds": 0.1002,
+          "runs": 10
+        },
+        {
+          "lang": "Node.js",
+          "seconds": 0.1656,
+          "runs": 3
+        },
+        {
+          "lang": "Python",
+          "seconds": 7.698,
+          "runs": 3
+        }
+      ],
+      "output": "-0.169075164 -0.169026286"
+    }
+  ],
+  "build": [
+    {
+      "title": "Consola (faset new)",
+      "seconds": 0.378,
+      "runs": 5,
+      "bytes": 59024,
+      "lines": 17
+    },
+    {
+      "title": "AppUI con std.ui (faset new --ui)",
+      "seconds": 1.345,
+      "runs": 5,
+      "bytes": 154704,
+      "lines": 65
+    },
+    {
+      "title": "FasetStudio (el IDE completo)",
+      "seconds": 5.669,
+      "runs": 3,
+      "bytes": 546208,
+      "lines": 11865
+    }
+  ],
+  "startup": [
+    {
+      "lang": "Faset",
+      "ms": 0.587,
+      "runs": 200,
+      "bytes": 53808
+    },
+    {
+      "lang": "C (gcc -O2)",
+      "ms": 0.498,
+      "runs": 200,
+      "bytes": 15952
+    }
+  ]
+}

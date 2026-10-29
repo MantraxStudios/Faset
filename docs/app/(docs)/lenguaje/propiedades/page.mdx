@@ -1,0 +1,107 @@
+export const metadata = {
+  title: "Propiedades",
+  description: "Propiedades calculadas, con get/set, automáticas y con valor inicial.",
+};
+
+# Propiedades
+
+<p className="lead">
+  Las propiedades se escriben como en C#: se leen y se asignan como campos, pero ejecutan código.
+  El compilador las convierte en funciones de C, sin coste adicional.
+</p>
+
+## Propiedades calculadas
+
+La forma más corta es `=> expresión`: una propiedad de solo lectura.
+
+```faset
+struct Rect
+{
+    public double Ancho, Alto;
+    public Rect(double w, double h) { Ancho = w; Alto = h; }
+    public double Area => Ancho * Alto;
+    public bool EsCuadrado => Ancho == Alto;
+}
+
+int main()
+{
+    Rect r = new Rect(3, 4);
+    println(r.Area);       // 12
+    return 0;
+}
+```
+
+## get y set
+
+```faset
+class Termostato
+{
+    double grados;
+
+    public double Grados
+    {
+        get => grados;
+        set { grados = value < 5 ? 5 : value; }      // 'value' es el valor asignado
+    }
+
+    public double Fahrenheit
+    {
+        get { return grados * 9 / 5 + 32; }
+    }
+}
+
+int main()
+{
+    auto t = new Termostato();
+    t.Grados = 2;            // llama al set: se limita a 5
+    println(t.Grados);
+    t.Grados = t.Grados + 15;   // get y luego set ('+=' no se admite en propiedades)
+    println(t.Fahrenheit);
+    delete t;
+    return 0;
+}
+```
+
+Cada accesor puede tener su propia accesibilidad, por ejemplo `public int Vida { get; private set; }`.
+
+## Propiedades automáticas
+
+`{ get; set; }` crea el campo oculto por ti. Solo las propiedades automáticas pueden tener valor
+inicial:
+
+```faset
+class Ajustes
+{
+    public string Nombre { get; set; } = "Anónimo";
+    public int Volumen { get; set; } = 80;
+}
+
+int main()
+{
+    auto a = new Ajustes();
+    a.Nombre = "Ana";
+    println(a.Nombre);
+    println(a.Volumen);
+    delete a;
+    return 0;
+}
+```
+
+## Propiedades estáticas
+
+```faset
+struct Vec
+{
+    public double X, Y;
+    public Vec(double x, double y) { X = x; Y = y; }
+    public static Vec Cero => new Vec(0, 0);
+}
+
+int main()
+{
+    println(Vec.Cero.X);
+    return 0;
+}
+```
+
+Una propiedad estática se usa con el nombre del tipo (`Vec.Cero`), nunca a través de una instancia.

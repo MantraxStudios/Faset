@@ -1,0 +1,52 @@
+export const metadata = {
+  title: "Compilación condicional",
+  description: "#if, #elif, #else y #endif con los símbolos LINUX, WINDOWS, ANDROID, DEBUG, RELEASE y FASET.",
+};
+
+# Compilación condicional
+
+<p className="lead">
+  Las directivas <code>#if</code>, <code>#elif</code>, <code>#else</code> y <code>#endif</code> eligen qué
+  código se compila según la plataforma de destino y la configuración.
+</p>
+
+```faset
+int main()
+{
+#if WINDOWS
+    println("Windows");
+#elif ANDROID
+    println("Android");
+#else
+    println("Linux u otro");
+#endif
+
+#if DEBUG && !ANDROID
+    println("compilación de depuración");
+#endif
+    return 0;
+}
+```
+
+## Símbolos definidos
+
+| Símbolo | Cuándo está definido |
+|---|---|
+| `FASET` | siempre |
+| `LINUX` | objetivo `linux` (también el nativo en Linux) |
+| `WINDOWS` | objetivo `windows` |
+| `ANDROID` | objetivo `android` |
+| `MACOS` | objetivo `macos` |
+| `DEBUG` | configuración `Debug` |
+| `RELEASE` | configuración `Release` |
+
+## Expresiones
+
+Una condición combina símbolos con `!`, `&&` y `||` (sin paréntesis). `true` y `false` también
+valen. `#region`, `#endregion` y `#pragma` se aceptan y se ignoran.
+
+<Callout type="consejo">
+La biblioteca estándar usa estas directivas para elegir entre Win32 y X11 en `std.ui`, o entre las
+llamadas al sistema de cada plataforma en `std.os`. El servidor de lenguaje analiza el código como
+si el objetivo fuera la plataforma en la que se ejecuta, en configuración `Debug`.
+</Callout>
