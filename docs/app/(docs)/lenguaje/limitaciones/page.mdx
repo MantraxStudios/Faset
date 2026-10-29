@@ -15,7 +15,7 @@ export const metadata = {
 | Herencia, `interface`, `virtual`/`override` | Composición y [punteros a función](/lenguaje/delegados/). Están en la hoja de ruta. |
 | `foreach` | `for (int i = 0; i < lista.Count; i++)` |
 | Lambdas | Funciones con nombre y `&Funcion` |
-| Interpolación `$"..."` | `StringBuilder` o `String.Concat` |
+| Interpolación `$"..."` | Concatenación con `+` (`"x = " + x`) o `StringBuilder` |
 | Excepciones (`try`, `catch`, `throw`) | Devolver `bool`/códigos de error y `out` (no se añadirán) |
 | `is` / `as` | Un campo `Kind` (enum) en tus tipos |
 | Operador `??` | `x != null ? x : y` |
@@ -32,8 +32,11 @@ export const metadata = {
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
 - C no fija el orden de evaluación de los operandos: evita expresiones como `a[f()] = g()` cuando
   `f` y `g` tienen efectos que dependen entre sí.
-- La propiedad de las cadenas es manual y las comprobaciones en ejecución no la cubren; consulta lo
-  que [no cubre la seguridad de memoria](/lenguaje/seguridad-de-memoria/#lo-que-no-cubre).
+- Una carrera de datos sobre una misma variable `string` (dos hilos escribiéndola sin cerrojo) puede
+  dejar una cadena a medio escribir, y el código `memory_unsafe` no se comprueba; consulta lo que
+  [no cubre la seguridad de memoria](/lenguaje/seguridad-de-memoria/#lo-que-no-cubre).
+- El recolector de basura es conservador y no mueve los objetos: un valor entero que por casualidad
+  parezca una dirección del heap puede mantener vivo un bloque que ya no se usa.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se declaran con
   `extern` dentro de código `memory_unsafe`.
 - `std.thread` y `std.net` en Windows suponen x86-64/ARM64 (los `extern` no declaran `__stdcall`).

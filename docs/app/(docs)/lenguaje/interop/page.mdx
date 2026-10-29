@@ -39,7 +39,6 @@ int main()
         long total = 0;
         for (long* p = nums; p < nums + 10; p++) total += *p;   // aritmética de punteros
         println(total);                            // 285
-        delete[] nums;
     }
     println(x);                                    // 2
     return 0;
@@ -76,7 +75,6 @@ int main()
         v[0] = 4; v[1] = 1; v[2] = 3; v[3] = 2;
         LibC.qsort((void*)v, 4, (ulong)sizeof(int), &CompararInt);   // callback de Faset
         println(v[0]);                             // 1
-        delete[] v;
     }
     return 0;
 }
@@ -85,8 +83,13 @@ int main()
 - `extern` declara una función que existe en C con ese mismo nombre; `...` permite funciones
   variádicas. Declararla no exige contexto (su firma puede usar punteros), pero llamarla sí.
 - `s.Ptr` da el `byte*` de una cadena. Los literales terminan en `'\0'`; para una cadena
-  cualquiera usa `s.ToCString()` (copia terminada en `'\0'`, que liberas con `String.Free`).
+  cualquiera usa `s.ToCString()` (copia terminada en `'\0'`, que recupera el recolector).
 - `String.FromCString(p)` crea una vista de una cadena de C.
+- El [recolector de basura](/lenguaje/memoria/) no ve la memoria de C: si una biblioteca de C se
+  **guarda** un puntero a memoria de Faset (un búfer, un objeto pasado como `void*`) para usarlo
+  más tarde, mantén también una referencia en Faset (un campo, una lista) mientras C lo use. Los
+  punteros que C solo usa durante la llamada no necesitan nada. La memoria que devuelve C (`malloc`)
+  se libera con `Memory.Free`.
 - Las bibliotecas se enlazan con `-l` o con `<NativeLibrary Include="..."/>` en el `.fstproj`.
 
 ## Envoltorios seguros

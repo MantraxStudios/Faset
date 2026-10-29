@@ -40,9 +40,7 @@ namespace MiApp
         public static int Main()
         {
             auto window = new MainWindow();
-            int code = Application.Run(window.Window);
-            delete window;
-            return code;
+            return Application.Run(window.Window);
         }
     }
 }

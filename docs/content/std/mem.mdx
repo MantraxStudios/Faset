@@ -1,5 +1,6 @@
 Herramientas de memoria al estilo C++: `Span<T>` (puntero + longitud con comprobación de límites),
-`Arena` (muchas reservas, una sola liberación) y `Box<T>` (propietario único, como `unique_ptr`).
+`Arena` (muchas reservas pequeñas en bloques grandes) y `Box<T>` (un valor en el heap, como `unique_ptr`).
+La memoria la sigue recuperando el [recolector de basura](/lenguaje/memoria/).
 Como trabajan con punteros, sus miembros con punteros en la firma solo se usan desde un contexto
 [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 
@@ -16,13 +17,11 @@ int main()
         Span<int> mitad = s.Slice(4);
         mitad[0] = 1;                        // fuera de rango: panic con mensaje
         println(datos[4]);                   // 1
-        delete[] datos;
 
         auto arena = new Arena();
         double* v = arena.NewArray<double>(1000);
         v[999] = 3.5;
         println(arena.BytesUsed > 0);
-        delete arena;                        // libera todos los bloques a la vez
     }
     return 0;
 }

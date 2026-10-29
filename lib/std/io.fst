@@ -11,8 +11,8 @@
 //  Las rutas son UTF-8. En Windows se usan las API W de Win32 (UTF-16) y se aceptan
 //  tanto '/' como '\'. Las fechas son milisegundos Unix (UTC).
 //
-//  Memoria: lo que devuelve una cadena o lista nueva lo indica en su comentario
-//  ("copia".Free; listas: File.FreeLines / Directory.FreeList).
+//  Memoria: las cadenas y listas nuevas las recupera el recolector de basura; las
+//  funciones Free* se conservan por compatibilidad.
 // =============================================================================
 using std.collections;
 using std.text;
@@ -1051,7 +1051,6 @@ namespace std.io
         // ---------------------------------------------------------------- enumeración
 
         // Contenido de una carpeta: primero subcarpetas y luego archivos, por nombre.
-        // Libera el resultado con Directory.FreeEntries.
         public static List<DirEntry> GetEntries(string path)
         {
             List<DirEntry> dirs = new List<DirEntry>();
@@ -1090,7 +1089,7 @@ namespace std.io
 
         // Rutas (Path.Combine(path, nombre)) de los archivos de la carpeta, ordenadas por nombre.
         // 'pattern' admite '*' y '?' ("*.fst"); con recursive = true recorre las subcarpetas
-        // (sin entrar en enlaces simbólicos). Libera la lista con Directory.FreeList.
+        // (sin entrar en enlaces simbólicos).
         public static List<string> GetFiles(string path) => Enumerate(path, "*", false, true, false);
         public static List<string> GetFiles(string path, string pattern) => Enumerate(path, pattern, false, true, false);
         public static List<string> GetFiles(string path, string pattern, bool recursive) => Enumerate(path, pattern, recursive, true, false);

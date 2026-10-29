@@ -18,13 +18,11 @@ int main()
 
     FileStream r = File.OpenRead(log);
     string line;
-    while (r.ReadLine(out line)) { println(line); String.Free(line); }
-    delete r;
+    while (r.ReadLine(out line)) println(line);
+    delete r;                                         // cierra ya (si no, al recogerlo el recolector)
 
     println(File.GetSize(log));                       // 13
     Directory.Delete(tmp);                            // recursivo; no sigue enlaces
-    String.Free(log);
-    String.Free(tmp);
     return 0;
 }
 ```
@@ -46,13 +44,9 @@ int main()
     auto cambios = new List<FileChange>();
     watcher.WaitForChanges(cambios, 1000);             // espera hasta 1 s
     for (int i = 0; i < cambios.Count; i++) println(Path.GetFileName(cambios[i].Path));
-    FileWatcher.FreeChanges(cambios);
 
-    delete cambios;
-    delete watcher;
+    delete watcher;                                    // deja de vigilar
     Directory.Delete(dir);
-    String.Free(nuevo);
-    String.Free(dir);
     return 0;
 }
 ```
@@ -60,4 +54,5 @@ int main()
 - `File.Copy`/`File.Move`/`Directory.Move` fallan si el destino existe (como en C#), salvo con
   `overwrite = true`. `Directory.Create` crea las carpetas intermedias.
 - `File.ReadAllLines`, `Directory.GetFiles(dir, "*.fst", true)` y similares devuelven listas de
-  copias: libéralas con `File.FreeLines` / `Directory.FreeList`.
+  copias; `File.FreeLines`, `Directory.FreeList` y `FileWatcher.FreeChanges` ya no hacen falta (la
+  memoria la recupera el recolector).

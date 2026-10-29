@@ -16,7 +16,6 @@ int main()
     Random azar = Random.FromTime();
     for (int i = 51; i > 0; i--)             // Fisher-Yates sobre una List<T>
         Algorithms.Swap<int>(cartas[i], cartas[azar.Next(i + 1)]);
-    delete cartas;
     return 0;
 }
 ```

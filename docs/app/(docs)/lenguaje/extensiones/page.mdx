@@ -15,7 +15,7 @@ static class Extensiones
 {
     public static int Doble(this int x) => x * 2;
     public static bool EsPar(this int x) => x % 2 == 0;
-    public static string Saludo(this string nombre) => String.Concat("Hola, ", nombre);
+    public static string Saludo(this string nombre) => "Hola, " + nombre;
 }
 
 int main()
@@ -24,7 +24,6 @@ int main()
     println(10.EsPar());             // true
     string s = "Ana".Saludo();       // copia nueva
     println(s);
-    String.Free(s);
     return 0;
 }
 ```

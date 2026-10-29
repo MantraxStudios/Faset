@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Sobrecarga de operadores",
-  description: "Operadores aritméticos, de comparación y de indexación (operator[] devuelve T&) para tus tipos.",
+  description: "Concatenación de cadenas con +, y operadores aritméticos, de comparación y de indexación (operator[] devuelve T&) para tus tipos.",
 };
 
 # Sobrecarga de operadores
@@ -35,6 +35,33 @@ int main()
 }
 ```
 
+## Concatenar cadenas con `+`
+
+Como en C#, `+` une cadenas, y `+=` añade al final. Basta con que uno de los dos operandos sea un
+`string`; el otro puede ser una cadena, cualquier número, un `char`, un `bool` o un `enum` (que se escribe con su valor numérico), y se
+convierte a texto. La cadena resultante se reserva en el heap del [recolector](/lenguaje/memoria/):
+no hay que liberarla.
+
+```faset
+enum Estado { Listo, Ocupado }
+
+int main()
+{
+    string t = "a" + 1 + 'b' + 2.5 + true + 3u;
+    println(t);                         // a1b2.5True3
+    t += "!";
+    t += 7;
+    println(t);                         // a1b2.5True3!7
+    Estado e = Estado.Ocupado;
+    println("estado: " + e);            // estado: 1
+    return 0;
+}
+```
+
+Como en C#, la expresión se evalúa de izquierda a derecha: `1 + 2 + "x"` da `"3x"` y `"x" + 1 + 2`
+da `"x12"`. Para unir muchas partes en un bucle, `StringBuilder` (en [`std.text`](/std/text/)) evita
+crear una cadena intermedia en cada paso.
+
 ## Indexación con referencias
 
 ```faset
@@ -46,7 +73,6 @@ memory_unsafe class Rejilla
     int* celdas;
 
     public Rejilla(int w, int h) { ancho = w; celdas = new int[w * h]; }
-    ~Rejilla() { delete[] celdas; }
 
     public int& operator[](int i) => celdas[i];
 }
@@ -57,7 +83,6 @@ int main()
     r[5] = 42;              // asigna a través de la referencia
     r[5] += 1;
     println(r[5]);          // 43
-    delete r;
     return 0;
 }
 ```

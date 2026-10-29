@@ -24,11 +24,14 @@ export const metadata = {
 | `T&` | referencia (parámetros, retornos y variables locales) |
 | `delegate*<A, B, R>` | puntero a función |
 | `struct` | tipo valor |
-| `class` | tipo referencia: `new` reserva en el heap y `delete` libera |
+| `class` | tipo referencia: `new` reserva en el heap; el recolector lo recupera |
 | `enum` | enteros con nombre |
 | `List<T>`, `Dictionary<K, V>`… | plantillas tuyas o de la biblioteca |
 
-Los enteros desbordan con aritmética modular (el C generado se compila con `-fwrapv`).
+Los enteros desbordan con aritmética modular (el C generado se compila con `-fwrapv`). Los
+desplazamientos enmascaran el contador como en C# (`x << n` usa `n & 31`, o `n & 63` en `long`) y
+las conversiones de real a entero se saturan (`(int)1e20` es `int.MaxValue`, `(int)NaN` es `0`):
+no hay [comportamiento indefinido](/lenguaje/seguridad-de-memoria/#sin-comportamiento-indefinido).
 
 ## Variables e inferencia
 
@@ -54,8 +57,9 @@ de cualquier tipo (cero, `false`, `null`…).
 
 ## Cadenas
 
-Un `string` es una **vista** de bytes UTF-8: puntero + longitud. Los literales viven en el ejecutable
-y no hay que liberarlos. Las cadenas se comparan por contenido con `==`, `<`, `>`…
+Un `string` es una **vista** de bytes UTF-8: puntero + longitud. Los literales viven en el ejecutable;
+las cadenas nuevas las recupera el [recolector](/lenguaje/memoria/). Las cadenas se comparan por
+contenido con `==`, `<`, `>`… y se concatenan con `+` (con números, `char` y `bool` también).
 
 ```faset
 int main()
@@ -64,9 +68,9 @@ int main()
     println(s.Length);                 // 5 (bytes)
     println(s[0]);                     // 70: s[i] es un byte
     println(s == "Faset");             // contenido, no punteros
-    string t = String.Concat(s, " es nativo");   // copia nueva...
+    string t = s + " es nativo";       // copia nueva (sin liberar nada)
     println(t);
-    String.Free(t);                    // ...que liberas tú
+    println("versión " + 2 + '.' + 0); // versión 2.0
     return 0;
 }
 ```
@@ -93,7 +97,7 @@ int main()
 ## Arreglos
 
 No hay un tipo arreglo propio: en código seguro se usa `List<T>`, que comprueba los índices
-siempre. Los arreglos crudos `new T[n]` (memoria a cero, liberada con `delete[]`) son punteros y
+siempre. Los arreglos crudos `new T[n]` (memoria a cero, del recolector) son punteros y
 solo se permiten dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 
 ```faset
@@ -104,13 +108,11 @@ int main()
     auto v = new List<double>(5);
     for (int i = 0; i < 5; i++) v.Add(i * 0.5);
     println(v[4]);                   // 2
-    delete v;
 
     memory_unsafe
     {
         double* crudo = new double[5];   // sin comprobación de límites
         crudo[4] = 2.0;
-        delete[] crudo;
     }
     return 0;
 }

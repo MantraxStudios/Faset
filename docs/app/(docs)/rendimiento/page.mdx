@@ -49,14 +49,16 @@ líneas de biblioteca con el renderizador por software.
 <StartupTable />
 
 Media de 200 ejecuciones de un «Hola, mundo» (lanzar el proceso, imprimir y salir), con la salida
-descartada. El ejecutable de Faset incluye su pequeño runtime (`faset_rt.c`) y la parte usada de la
-biblioteca estándar.
+descartada. El ejecutable de Faset incluye su pequeño runtime (`faset_rt.c`), el recolector de basura
+(`faset_gc.c`) y la parte usada de la biblioteca estándar.
 
 ## Coste de la seguridad
 
-Las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion) están
-desactivadas en Release, que es lo que miden las pruebas anteriores. Su coste, medido con
-`examples/benchmark_checks.fst`:
+Las pruebas anteriores se compilan en Release, con el [recolector de basura](/lenguaje/memoria/) y
+las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion) que
+están siempre activas (nulos, índices de cadenas, divisiones por cero). La tabla siguiente mide,
+con `examples/benchmark_checks.fst`, lo que añaden los diagnósticos de `delete` de `--checks`, que
+en Debug están activos por defecto:
 
 <ChecksTable />
 

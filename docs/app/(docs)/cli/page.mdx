@@ -50,14 +50,16 @@ faset build -c Release
 faset build --target windows --arch x86_64
 faset build programa.fst -o salida --static
 faset build --sanitize         # ASan + UBSan
-faset build -c Release --checks   # Release con las comprobaciones de seguridad
+faset build -c Release --checks   # Release con los diagnósticos de 'delete' de Debug
 faset build --allow-unsafe     # todo el proyecto como memory_unsafe
 faset build --target android   # APK firmado en bin/<Config>/android/
 faset build -v                 # muestra la orden del compilador de C
 ```
 
-`Debug` compila el C con `-O0 -g` y activa las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion);
-`Release` compila con `-O2` y sin ellas (`--checks` / `--no-checks` lo cambian). Siempre se usa
+`Debug` compila el C con `-O0 -g` y `Release` con `-O2`. Las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion)
+(nulos, índices de cadenas, divisiones por cero) están activas en las dos; `Debug` añade los
+[diagnósticos](/lenguaje/seguridad-de-memoria/#diagnosticos-de-debug) de uso después de `delete` y
+`delete` doble (`--checks` / `--no-checks` lo cambian). Siempre se usa
 `-std=c11 -fwrapv -fno-strict-aliasing`.
 
 ## faset run

@@ -1,5 +1,6 @@
-Colecciones genéricas escritas en Faset. Son clases: se crean con `new` y se liberan con `delete`
-(su destructor libera la memoria interna). Como en C++, las plantillas se comprueban al usarse:
+Colecciones genéricas escritas en Faset. Son clases: se crean con `new` y el
+[recolector de basura](/lenguaje/memoria/) las recupera, junto con su memoria interna, cuando dejan
+de usarse. Como en C++, las plantillas se comprueban al usarse:
 `List<T>.Sort()` solo exige `operator<` si la llamas.
 
 ```faset
@@ -22,8 +23,6 @@ int main()
     edades["Ana"] = 31;                      // inserta o modifica, como en C++
     edades["Luis"] += 1;                     // una clave nueva empieza en default(V)
     println(edades.GetOrDefault("Eva", -1));
-
-    delete lista; delete pares; delete cuadrados; delete edades;
     return 0;
 }
 ```

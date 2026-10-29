@@ -7,8 +7,9 @@ export const metadata = {
 
 <p className="lead">
   Faset es un lenguaje de programación <strong>nativo</strong>, con <strong>tipado estático estricto</strong> y
-  <strong> memoria manual</strong>. Se escribe como C# y se comporta como C++: no hay máquina virtual ni
-  recolector de basura, y el resultado es un ejecutable equivalente a uno escrito en C.
+  <strong> seguro por defecto</strong>. Se escribe como C#, con la potencia de C++ cuando la necesitas: la
+  memoria es automática gracias a un recolector de basura, no hay máquina virtual ni JIT, y el resultado
+  es un ejecutable equivalente a uno escrito en C.
 </p>
 
 ```faset
@@ -31,7 +32,7 @@ void Incrementar(int& x) { x++; }                     // referencia (C++)
 
 int main()                                            // punto de entrada al estilo C++
 {
-    auto lista = new List<int>();                     // sin recolector de basura
+    auto lista = new List<int>();                     // memoria automática: sin delete
     for (int i = 0; i < 10; i++) lista.Add(i * i);
     lista[0] = 100;                                   // operator[] devuelve T&
     lista.Sort();
@@ -43,8 +44,7 @@ int main()                                            // punto de entrada al est
 
     auto p = new Juego::Modelo::Punto(1, 2) + new Juego.Modelo.Punto(3, 4);
     println(p.Manhattan);
-
-    delete lista;                                     // tú decides cuándo liberar
+    println("total: " + lista.Count);                 // concatenación con + (C#)
     return 0;
 }
 ```
@@ -70,11 +70,20 @@ momento con [`faset emit-c`](/cli/#faset-emit-c).
 | clases parciales `partial class`                  | referencias `T&`; `ref`/`out` como alias          |
 | métodos de extensión `static int F(this int x)`   | `T& operator[](int i)`                            |
 | sobrecarga `static T operator+(T a, T b)`         | plantillas instanciadas por tipo (*duck typing*)  |
-| genéricos `<T>`, `default(T)`, `where` (ignorado) | `new`/`delete`/`delete[]`, destructores `~T()`    |
+| genéricos `<T>`, `default(T)`, `where` (ignorado) | `delete` (como `Dispose`), destructores `~T()`    |
 | `delegate*<...>`, `&Funcion`                      | `auto`, `nullptr`, `sizeof`, `*p`, `&x`, `p->x`   |
 | `var`, `null`, `int.MaxValue`                     | secciones `public:` / `private:`                  |
 
 Por defecto, los miembros de una `class` son privados y los de un `struct`, públicos (como en C++).
+
+## Memoria automática y segura
+
+Como en C#, no liberas memoria a mano: un [recolector de basura](/lenguaje/memoria/) nativo recupera
+los objetos y las cadenas que ya nadie usa, ciclos incluidos, con pausas de pocos milisegundos.
+`delete` solo ejecuta el destructor, para cerrar archivos o sockets en un momento concreto, y nunca
+deja una referencia colgando. Las referencias nulas, los índices fuera de rango y las divisiones por
+cero terminan con un error claro también en Release, y los punteros solo existen dentro de bloques
+[`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 
 ## Qué incluye el repositorio
 

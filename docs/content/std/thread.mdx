@@ -1,9 +1,10 @@
 Hilos del sistema (pthreads en Linux y Android, Win32 en Windows), exclusión mutua, variables de
 condición, semáforos, atómicos, un pool de hilos, `Parallel.For` y canales productor/consumidor. En
-Linux se enlaza `-lpthread` automáticamente. La función de un hilo es un `delegate*` que recibe un
-`void*`, así que crear hilos y convertir ese puntero ocurre en código
-[`memory_unsafe`](/lenguaje/seguridad-de-memoria/); `Mutex`, `Channel<T>` o `AtomicLong` se usan
-desde código seguro.
+Linux se enlaza `-lpthread` automáticamente. Desde código seguro se crean hilos con
+`Thread.Run(&Funcion, datos)`, `ThreadPool.Submit` y `Parallel.For`, y se usan `Mutex`, `Channel<T>`
+o `AtomicLong`; solo la forma de bajo nivel con `void*` requiere
+[`memory_unsafe`](/lenguaje/seguridad-de-memoria/). Todos los hilos quedan registrados en el
+recolector de basura.
 
 ```faset
 using std.thread;
@@ -45,15 +46,15 @@ int main()
         long total = 0;
         while (canal.Receive(out v)) total += v;
         t.Join();
-        delete t;
         println(total);                       // 55
     }
     println(d.Suma);                          // 500500
-    delete canal;
-    delete d;
     return 0;
 }
 ```
 
-Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el objeto que
-pasas como `arg` debe seguir vivo mientras el hilo lo use.
+Todas las operaciones atómicas son secuencialmente consistentes. Los hilos se registran solos en el
+[recolector de basura](/lenguaje/memoria/#hilos), que recorre sus pilas: el objeto que pasas como `arg`
+sigue vivo mientras el hilo lo use. Protege con un `Mutex` el estado que varios hilos modifican: una
+[carrera de datos](/lenguaje/seguridad-de-memoria/#carreras-de-datos) sobre una misma variable
+`string` puede leer una cadena a medio escribir.

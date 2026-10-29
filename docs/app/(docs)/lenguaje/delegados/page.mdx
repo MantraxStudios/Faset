@@ -52,7 +52,6 @@ int main()
     pares.Sort(&Descendente);
     pares.ForEach(&Mostrar);          // 6 4 2
     println(l.Any(&EsPar));
-    delete l; delete pares;
     return 0;
 }
 ```
@@ -81,7 +80,6 @@ int main()
     Disparar(&Contador.AlPulsar, (void*)c);
     Disparar(&Contador.AlPulsar, (void*)c);
     println(c.Clics);                 // 2
-    delete c;
     return 0;
 }
 ```

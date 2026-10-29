@@ -23,7 +23,7 @@ T Mayor<T>(T a, T b) => a < b ? b : a;      // plantilla
 
 int main()
 {
-    auto lista = new List<int>();    // sin GC
+    auto lista = new List<int>();    // memoria automática
     for (int i = 0; i < 10; i++) lista.Add(i * i);
     lista[0] = 100;                   // operator[] → T&
     lista.Sort();
@@ -31,8 +31,24 @@ int main()
 
     Punto p = new Punto(1, 2) + new Punto(3, 4);
     println(Mayor(p.Manhattan, 7));   // 10
+    return 0;
+}`;
 
-    delete lista;                     // tú liberas
+const SEGURO = `class Nodo { public Nodo Otro; public int Valor; }
+
+int main()
+{
+    for (int i = 0; i < 1000000; i++)
+    {
+        Nodo a = new Nodo();
+        a.Otro = new Nodo();
+        a.Otro.Otro = a;         // ciclo: el recolector lo recupera
+    }
+    string s = "n = " + 42;      // + como en C#, sin liberar nada
+    println(s);
+
+    Nodo n = null;
+    println(n.Valor);            // panic, también en Release
     return 0;
 }`;
 
@@ -70,7 +86,7 @@ const I = {
 const features: Feature[] = [
   {
     title: "Ejecutables nativos, sin VM",
-    text: "Compila a C11 y luego a código máquina con gcc, clang o el NDK. Sin máquina virtual, sin recolector de basura, sin JIT.",
+    text: "Compila a C11 y luego a código máquina con gcc, clang o el NDK. Sin máquina virtual ni JIT, con un recolector de basura nativo y seguridad de memoria por defecto.",
     href: "/empezar/introduccion/",
     icon: I.bolt,
   },
@@ -78,8 +94,8 @@ const features: Feature[] = [
     title: "Sintaxis de C#, control de C++",
     text: (
       <>
-        <code>class</code>, propiedades y <code>using</code> de C#, junto a <code>T&amp;</code>, <code>::</code>, punteros,
-        <code> delete</code> y funciones globales de C++.
+        <code>class</code>, propiedades, <code>using</code> y <code>"a" + 1</code> de C#, junto a <code>T&amp;</code>,
+        <code> ::</code>, plantillas, destructores y funciones globales de C++.
       </>
     ),
     href: "/lenguaje/tipos/",
@@ -114,7 +130,7 @@ const features: Feature[] = [
   },
   {
     title: "Seguro por defecto",
-    text: "Los punteros y el código nativo van en bloques memory_unsafe. En Debug se detectan nulos, usos tras delete, índices y divisiones por cero, con la línea de tu código.",
+    text: "Recolector de basura, nulos, índices y divisiones comprobados también en Release, y sin comportamiento indefinido de C. Los punteros van en bloques memory_unsafe.",
     href: "/lenguaje/seguridad-de-memoria/",
     icon: I.shield,
   },
@@ -185,7 +201,7 @@ export default function Home() {
               </h1>
               <p className="sub">
                 Faset compila a C11 y produce ejecutables nativos para Linux, Windows y Android. Tipado estricto, plantillas,
-                operadores y memoria bajo tu control, con un IDE y un diseñador visual escritos en el propio lenguaje.
+                operadores y memoria automática y segura, con un IDE y un diseñador visual escritos en el propio lenguaje.
               </p>
               <div className="cta">
                 <Link className="btn primary" href="/empezar/instalacion/">
@@ -274,6 +290,56 @@ export default function Home() {
                   <p>{f.text}</p>
                 </Link>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="section" id="seguridad">
+          <div className="wrap split">
+            <div>
+              <div className="section-kicker">Seguridad de memoria</div>
+              <h2>Memoria automática, sin renunciar a la velocidad de C</h2>
+              <p className="section-sub">
+                Un recolector de basura nativo recupera lo que ya nadie usa, ciclos incluidos. El código seguro no puede dejar
+                punteros colgando, liberar dos veces ni leer fuera de límites.
+              </p>
+              <ul className="check-list">
+                <li>
+                  <b>Sin delete obligatorio</b>: <code>delete</code> solo cierra recursos, como <code>Dispose</code>; nunca deja
+                  una referencia colgando.
+                </li>
+                <li>
+                  <b>Comprobaciones siempre activas</b>: nulos, índices de cadenas y divisiones por cero terminan con un{" "}
+                  <code>Faset panic</code> y la línea de tu código, también en Release.
+                </li>
+                <li>
+                  <b>Sin comportamiento indefinido</b>: desplazamientos y conversiones con resultado fijo, como en C#.
+                </li>
+                <li>
+                  <b>Pausas de milisegundos</b>: de 1 a 5 ms en FasetStudio, con unos 10 MB vivos.
+                </li>
+                <li>
+                  <b>Lo peligroso, a la vista</b>: punteros y llamadas a C solo dentro de <code>memory_unsafe</code>.
+                </li>
+              </ul>
+              <div className="cta">
+                <Link className="btn" href="/lenguaje/seguridad-de-memoria/">
+                  Seguridad de memoria
+                </Link>
+                <Link className="btn" href="/lenguaje/memoria/">
+                  El recolector
+                </Link>
+              </div>
+            </div>
+            <div className="hero-code">
+              <CodeBlock code={SEGURO} lang="faset" title="seguro.fst" />
+              <div className="hero-run mono">
+                <span className="ok">$</span> faset run -c Release seguro.fst
+                <br />
+                n = 42
+                <br />
+                <span style={{ color: "var(--warn)" }}>Faset panic: referencia nula (null): el objeto no existe at seguro.fst:15</span>
+              </div>
             </div>
           </div>
         </section>

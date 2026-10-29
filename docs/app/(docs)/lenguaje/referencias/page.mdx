@@ -29,6 +29,12 @@ int main()
 Las referencias sirven en parámetros, en valores de retorno (`T& operator[](int i)`) y en variables
 locales.
 
+Una referencia devuelta debe apuntar a algo que siga vivo al salir del método: un campo `static`,
+un campo de un objeto de clase o un parámetro `ref`. Devolver una referencia a una variable local, a
+un campo de un struct local o a un parámetro por valor es un error de compilación
+(`no se puede devolver una referencia a la variable local 'x'`); consulta
+[Seguridad de memoria](/lenguaje/seguridad-de-memoria/#referencias-a-variables-locales).
+
 ## `ref` y `out` al estilo C#
 
 ```faset

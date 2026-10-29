@@ -1,14 +1,15 @@
 export const metadata = {
   title: "Modelo de memoria",
-  description: "Memoria manual sin recolector de basura: new/delete, destructores, arreglos, cadenas y propiedad de la memoria.",
+  description: "Memoria automática con un recolector de basura nativo: new, delete como Dispose, destructores como finalizadores, la clase GC, variables de entorno, hilos y pausas.",
 };
 
 # Modelo de memoria
 
 <p className="lead">
-  Faset no tiene recolector de basura. Tú decides cuándo se reserva y cuándo se libera, igual que en
-  C++. A cambio, no hay pausas, el consumo de memoria es predecible y el ejecutable no arrastra ningún
-  entorno de ejecución.
+  Faset gestiona la memoria solo, como C#: el runtime incluye un <strong>recolector de basura</strong>
+  que recupera los objetos que ya nadie usa. No hace falta <code>delete</code> ni <code>String.Free</code>,
+  y ninguna referencia puede quedar colgando. Sigue sin haber máquina virtual: el recolector es un
+  archivo de C (<code>faset_gc.c</code>) que se enlaza con tu programa.
 </p>
 
 ## Pila y heap
@@ -20,50 +21,114 @@ class Jugador
 {
     public string Nombre;
     public Jugador(string n) { Nombre = n; }
-    ~Jugador() { println("Jugador liberado"); }
 }
 
 int main()
 {
     Punto p = new Punto(1, 2);       // struct: valor en la pila
-    Jugador j = new Jugador("Ana");  // class: heap
-    delete j;                        // llama a ~Jugador() y libera
+    Jugador j = new Jugador("Ana");  // class: heap del recolector
+    j = new Jugador("Luis");         // "Ana" ya no se usa: se recupera sola
 
-    memory_unsafe                    // punteros y arreglos crudos
-    {
-        Punto* pp = &p;
-        pp->X = 10;
-        double* v = new double[100]; // arreglo en el heap (a cero)
-        v[99] = 1.5;
-        delete[] v;
-    }
-    println(p.X);                    // 10
+    for (int i = 0; i < 100000; i++)
+        new Jugador("temporal");     // basura: el recolector la recupera
+
+    println(j.Nombre);               // Luis
+    println(p.X);                    // 1
     return 0;
 }
 ```
 
 | Operación | Efecto |
 |---|---|
-| `new Clase(...)` | reserva en el heap, pone los campos a cero, ejecuta los inicializadores y el constructor |
-| `delete obj` | ejecuta el destructor `~Clase()` y libera |
-| `new T[n]` | reserva `n` elementos a cero (requiere `memory_unsafe`) |
-| `delete[] p` | libera un arreglo (requiere `memory_unsafe`) |
+| `new Clase(...)` | reserva en el heap del recolector, pone los campos a cero, ejecuta los inicializadores y el constructor |
+| `delete obj` | ejecuta el destructor `~Clase()` una sola vez; **no** libera la memoria |
+| `new T[n]` | reserva `n` elementos a cero en el heap del recolector (requiere `memory_unsafe`) |
+| `delete[] p` | se acepta por compatibilidad; la memoria la recupera el recolector |
 | `new Struct(...)` | construye un valor; no reserva memoria |
 
-Las colecciones de la biblioteca (`List<T>`, `Dictionary<K, V>`…) liberan su memoria interna en su
-destructor, pero no los objetos a los que apunten sus elementos: si guardas clases en una lista,
-bórralas antes de borrar la lista.
+Un objeto se recupera cuando ya no se puede alcanzar desde ninguna variable, campo o elemento vivo,
+**incluidos los ciclos** (A → B → A): no hace falta romperlos a mano como con un contador de
+referencias. Las colecciones (`List<T>`, `Dictionary<K, V>`…) y los objetos que guardan se recuperan
+igual, en cuanto deja de usarse la colección.
+
+## `delete`: liberar recursos, no memoria
+
+`delete` sigue existiendo, pero ahora es la forma **determinista** de cerrar un recurso (un archivo,
+un socket, una ventana), como `Dispose` en C#: ejecuta el destructor en ese momento y solo una vez.
+La memoria del objeto no se libera, así que las demás referencias siguen apuntando a memoria válida.
+
+```faset
+class Conexion
+{
+    public string Nombre;
+    public Conexion(string n) { Nombre = n; println("abierta " + Nombre); }
+    ~Conexion() { println("cerrada " + Nombre); }
+}
+
+int main()
+{
+    auto c = new Conexion("db");
+    // ... usar la conexión ...
+    delete c;                        // ~Conexion() se ejecuta aquí, no "algún día"
+    println("fin");
+    return 0;
+}
+```
+
+```text
+abierta db
+cerrada db
+fin
+```
+
+Usar un objeto después de `delete`, o hacer `delete` dos veces, es casi siempre un error del
+programa. Por eso:
+
+- En **Debug** (con las [comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion)
+  activas) termina con `Faset panic: uso de un objeto después de 'delete'` o `'delete' doble`, con la
+  línea de tu código.
+- En **Release** no se comprueba: el uso posterior lee memoria válida (los campos tal como los dejó
+  el destructor). Nunca corrompe memoria.
+
+## Destructores como finalizadores
+
+Si un objeto con destructor deja de usarse **sin** `delete`, el recolector ejecuta su destructor
+después de una recolección, como un finalizador de C#. Su memoria se recupera en la recolección
+siguiente. Los destructores se ejecutan en el hilo que provocó la recolección, así que no supongas
+un hilo concreto ni un orden entre objetos.
+
+```faset
+class Temporal
+{
+    public static int Destruidos = 0;
+    ~Temporal() { Destruidos++; }
+}
+
+void Crear() { for (int i = 0; i < 1000; i++) new Temporal(); }   // nadie guarda las referencias
+
+int main()
+{
+    Crear();
+    GC.Collect();                    // fuerza la recolección y ejecuta los destructores pendientes
+    println(Temporal.Destruidos > 900);   // true
+    return 0;
+}
+```
+
+El recolector es conservador (ve en la pila valores que pueden parecer referencias), así que no
+garantiza que un objeto concreto se recupere en una recolección concreta: no dependas de **cuándo**
+se ejecuta un finalizador.
+
+Para recursos que deben cerrarse en un momento concreto (vaciar un archivo, soltar un socket), usa
+`delete`; el finalizador es una red de seguridad.
 
 ## Cadenas
 
-Un `string` es una **vista** (puntero + longitud), no un objeto propietario. La regla es sencilla:
-
-- Los **literales** viven en el ejecutable: nunca se liberan.
-- Las funciones que **crean** texto devuelven una copia nueva que liberas con `String.Free`:
-  `String.Concat`, `String.Copy`, `ToUpper`, `ToLower`, `Convert.ToString`, `Text.Join`,
-  `Text.Replace`, `StringBuilder.ToString`, `File.ReadAllText`, `Console.ReadLine`…
-- Las funciones que **recortan** devuelven vistas de la cadena original y no reservan nada:
-  `Substring`, `Trim`, `Text.Split` (cada parte), `StringBuilder.View`, `Path.GetFileName`…
+Un `string` es una **vista** (puntero + longitud). Los literales viven en el ejecutable; las cadenas
+nuevas (`+`, `String.Concat`, `ToUpper`, `Convert.ToString`, `Text.Join`, `File.ReadAllText`,
+`Console.ReadLine`…) se reservan en el heap del recolector y se recuperan solas. Las funciones que
+**recortan** (`Substring`, `Trim`, `Text.Split`, `StringBuilder.View`, `Path.GetFileName`…) devuelven
+vistas de la original sin copiar nada, y la vista mantiene viva la cadena original.
 
 ```faset
 using std.text;
@@ -71,47 +136,110 @@ using std.text;
 int main()
 {
     string base = "  Hola, Faset  ";
-    string recorte = base.Trim();                 // vista: no se libera
-    string grande = recorte.ToUpper();            // copia: se libera
+    string recorte = base.Trim();                 // vista: no copia
+    string grande = recorte.ToUpper();            // copia nueva
     println(grande);
-    String.Free(grande);
 
     auto sb = new StringBuilder();
     sb.Append("n = ").Append(42);
-    string copia = sb.ToString();                 // copia: sobrevive al builder
-    delete sb;
-    println(copia);
-    String.Free(copia);
+    string copia = sb.ToString();
+    println(copia + "!");                         // concatenación con +
     return 0;
 }
 ```
 
-La documentación de cada función de la [biblioteca estándar](/std/) dice si devuelve una copia o una
-vista.
+`String.Free` ya no hace nada: se conserva para que el código antiguo siga compilando.
+
+## La clase `GC`
+
+La clase `GC` (en el núcleo, sin `using`) controla y observa el recolector:
+
+| Miembro | Descripción |
+|---|---|
+| `GC.Collect()` | fuerza una recolección completa y ejecuta los destructores pendientes |
+| `GC.HeapBytes` | bytes que ocupa el heap ahora |
+| `GC.TotalMemory` | bytes en uso (los vivos tras la última recolección más lo reservado desde entonces) |
+| `GC.Collections` | recolecciones hechas desde que empezó el programa |
+
+```faset
+class Nodo { public Nodo Otro; }
+
+int main()
+{
+    for (int i = 0; i < 1000000; i++)
+    {
+        Nodo a = new Nodo();
+        Nodo b = new Nodo();
+        a.Otro = b;
+        b.Otro = a;                  // ciclo: también se recupera
+    }
+    GC.Collect();
+    println(GC.Collections > 0);     // true
+    println(GC.TotalMemory < 1048576); // true: los ciclos no se acumulan
+    return 0;
+}
+```
+
+## Cómo funciona
+
+El recolector es de **marcado y barrido** (*mark-and-sweep*) y **conservador**: recorre la pila de
+cada hilo, los registros, las variables globales y los objetos alcanzables, y trata como referencia
+cualquier valor que apunte a un bloque del heap. Los bloques no marcados se recuperan.
+
+- **Cuándo recolecta**: cuando los bytes reservados desde la última recolección superan
+  `max(16 MB, bytes vivos)`. Un programa que no reserva no paga nada.
+- **Bloques sin punteros**: las cadenas, los arreglos `new T[n]` de tipos sin referencias (números,
+  structs de números) y los bloques de `Memory.AllocBytes(n)` no se recorren, lo que abarata el
+  marcado con búferes grandes.
+- **Pausas**: unos pocos milisegundos con un heap de 10–25 MB. En una prueba de estrés con 3 millones
+  de objetos, entre 3 y 23 ms por recolección; en FasetStudio, con unos 10 MB vivos, de 1 a 5 ms.
+- **Rendimiento**: las [pruebas de CPU](/rendimiento/) siguen al nivel de C.
+
+### Variables de entorno
+
+| Variable | Efecto |
+|---|---|
+| `FASET_GC_STATS=1` | escribe en la salida de error una línea por recolección |
+| `FASET_GC=off` | no recolecta nunca (para medir o descartar el recolector al depurar) |
+| `FASET_GC_MIN_MB=N` | umbral inicial en MB (por defecto 16) |
+
+```text
+$ FASET_GC_STATS=1 ./programa
+[gc] #5  4.70 ms  vivos 10.8 MB  liberados 2.1 MB  montón 14.2 MB  destructores 0
+```
+
+### Hilos
+
+Los hilos creados con [`std.thread`](/std/thread/) (`Thread`, `ThreadPool`, `Parallel.For`) se
+registran solos en el recolector. Durante una recolección todos los hilos se detienen un momento
+(con señales en Linux y Android, con `SuspendThread` en Windows) y sus pilas se recorren como
+raíces. Los hilos creados por código nativo de C se registran solos la primera vez que reservan
+memoria de Faset.
 
 ## Memoria de bajo nivel
 
-`Memory` (en el núcleo) expone `Alloc`, `AllocZeroed`, `Realloc`, `Free`, `Copy`, `Set`,
-`Compare` y las versiones tipadas `New<T>(n)` y `Resize<T>(p, n)`. Todo `Memory` está marcado
-`memory_unsafe`: se usa dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
-[`std.mem`](/std/mem/) ofrece patrones más cómodos:
+`Memory` (en el núcleo) expone `Alloc`, `AllocZeroed`, `AllocBytes`, `Realloc`, `Free`, `Copy`,
+`Set`, `Compare` y las versiones tipadas `New<T>(n)` y `Resize<T>(p, n)`. Todo `Memory` está
+marcado `memory_unsafe`: se usa dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
 
-- `Span<T>`: vista con comprobación de límites sobre un puntero.
-- `Arena`: muchas reservas pequeñas y una sola liberación.
-- `Box<T>`: propietario único de un valor en el heap (como `unique_ptr`).
+- `Memory.Alloc`, `AllocZeroed` y `New<T>` reservan del recolector.
+- `Memory.AllocBytes(n)` reserva un bloque de bytes que el recolector **no recorre**: más rápido para
+  búferes grandes, pero no guardes referencias dentro.
+- `Memory.Free` **no** libera memoria del recolector (así no puede quedar un puntero colgando); solo
+  devuelve a C la memoria que venga de bibliotecas de C (`malloc`).
 
-## Detectar errores de memoria
+[`std.mem`](/std/mem/) ofrece `Span<T>` (vista con comprobación de límites sobre un puntero),
+`Arena` y `Box<T>`.
 
-Faset tiene dos redes de seguridad:
+## Detectar errores
 
-- **Comprobaciones en ejecución** (activas en Debug): referencias nulas, uso después de `delete`,
-  `delete` doble, índices de cadenas y divisiones por cero terminan con un `Faset panic` y la línea
-  de tu código. Consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion).
-- **Sanitizadores**: `--sanitize` activa AddressSanitizer y UndefinedBehaviorSanitizer del compilador
-  de C, que detectan además accesos fuera de límites dentro de código `memory_unsafe` y fugas al
-  terminar.
+- **Comprobaciones en ejecución**: referencias nulas, índices de cadenas, divisiones por cero y
+  punteros a función nulos se comprueban **siempre**, también en Release; en Debug, además, el uso
+  después de `delete` y el `delete` doble. Consulta [Seguridad de memoria](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion).
+- **Sanitizadores**: `--sanitize` activa AddressSanitizer y UndefinedBehaviorSanitizer del
+  compilador de C, útiles para encontrar accesos fuera de límites dentro de código `memory_unsafe`.
 
 ```bash
-faset run programa.fst              # Debug: comprobaciones activas
+faset run programa.fst              # Debug: comprobaciones y diagnósticos de 'delete'
 faset run --sanitize programa.fst   # ASan + UBSan
 ```

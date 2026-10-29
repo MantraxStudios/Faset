@@ -2,23 +2,31 @@ import ChecksTable from "@/components/ChecksTable";
 
 export const metadata = {
   title: "Seguridad de memoria",
-  description: "Faset es seguro por defecto: los punteros y las llamadas nativas requieren memory_unsafe, y las comprobaciones en ejecución detectan nulos, usos tras delete, índices y divisiones por cero.",
+  description: "Faset es seguro por defecto: recolector de basura, punteros y llamadas nativas solo en memory_unsafe, comprobaciones de nulos, índices y divisiones siempre activas y sin comportamiento indefinido heredado de C.",
 };
 
 # Seguridad de memoria
 
 <p className="lead">
-  Faset es <strong>seguro por defecto</strong>. El código normal al estilo C# (clases, <code>new</code>/<code>delete</code>,
+  Faset es <strong>seguro por defecto</strong>. El código normal al estilo C# (clases, <code>new</code>,
   <code>List&lt;T&gt;</code>, <code>string</code>, genéricos, propiedades, <code>ref</code>/<code>out</code>, <code>T&amp;</code>,
   punteros a función) se escribe sin anotaciones. Lo que puede corromper la memoria solo se permite
   dentro de un contexto <code>memory_unsafe</code>, así que siempre se ve dónde vive el código peligroso.
 </p>
 
-La seguridad tiene dos capas:
+La seguridad tiene tres capas:
 
-1. **Al compilar**: siete reglas impiden usar punteros y código nativo fuera de `memory_unsafe`.
-2. **Al ejecutar**: en Debug, el código generado comprueba referencias nulas, usos después de
-   `delete`, índices de cadenas, divisiones por cero y punteros a función nulos.
+1. **La memoria es automática**: un [recolector de basura](/lenguaje/memoria/) recupera los objetos
+   que nadie usa y `delete` nunca libera memoria, así que no puede haber referencias colgando,
+   liberaciones dobles ni usos después de liberar.
+2. **Al compilar**: siete reglas impiden usar punteros y código nativo fuera de `memory_unsafe`, y
+   no se puede devolver una referencia `T&` a una variable local.
+3. **Al ejecutar**: el código generado comprueba **siempre**, también en Release, referencias nulas,
+   índices de cadenas, divisiones enteras por cero y punteros a función nulos. Las operaciones que
+   en C son comportamiento indefinido tienen en Faset un resultado definido.
+
+En el código seguro (sin `memory_unsafe`) quedan descartados los punteros colgantes, la doble
+liberación, el uso después de liberar, los accesos fuera de límites y la memoria sin inicializar.
 
 ## Las siete reglas
 
@@ -104,8 +112,7 @@ public memory_unsafe class Buffer
     byte* datos;
     int tam;
 
-    public Buffer(int n) { datos = new byte[n]; tam = n; }
-    ~Buffer() { delete[] datos; }
+    public Buffer(int n) { datos = new byte[n]; tam = n; }   // a cero; sin punteros: el recolector no lo recorre
 
     public int Length => tam;
     public byte Get(int i) { if (i < 0 || i >= tam) panic("Buffer: índice fuera de rango"); return datos[i]; }
@@ -117,7 +124,6 @@ int main()
     auto b = new Buffer(16);             // código seguro: sin memory_unsafe
     b.Set(3, 200);
     println(b.Get(3));
-    delete b;
     return 0;
 }
 ```
@@ -144,36 +150,117 @@ mejor marcar solo lo necesario.
 Declarar una función `extern` no requiere contexto (su firma puede usar punteros), pero llamarla
 sí. Consulta [interoperabilidad con C](/lenguaje/interop/).
 
+## Referencias a variables locales
+
+Una referencia `T&` devuelta por un método debe apuntar a algo que siga existiendo después de la
+llamada. Devolver una referencia a memoria local es un **error de compilación**:
+
+```fst
+struct Punto { public int X, Y; }
+
+int& MalCampo() { Punto p = new Punto(); return p.X; }   // campo de un struct local
+int& MalParametro(int v) { return v; }                     // parámetro por valor
+int& Primero(ref int a) { return a; }
+int& MalLlamada() { int x = 1; return Primero(ref x); }   // 'ref' a una local a través de una llamada
+```
+
+```text
+programa.fst:3:42: error: no se puede devolver una referencia a la variable local 'p' (dejaría de existir al salir del método)
+programa.fst:4:28: error: no se puede devolver una referencia a la variable local 'v' (dejaría de existir al salir del método)
+programa.fst:6:32: error: no se puede devolver una referencia a la variable local 'x' (dejaría de existir al salir del método)
+```
+
+Sí se pueden devolver referencias a campos `static`, a campos de objetos de clase (viven en el heap
+del recolector) y a parámetros `ref`:
+
+```faset
+class Contador { public int Valor; }
+
+static class Global { public static int Total; }
+
+int& Campo(Contador c) => c.Valor;
+int& Estatico() => Global.Total;
+int& Mismo(ref int x) => x;
+
+int main()
+{
+    auto c = new Contador();
+    Campo(c) = 5;
+    Estatico() = 7;
+    int n = 1;
+    Mismo(ref n) = 9;
+    println(c.Valor + Global.Total + n);   // 21
+    return 0;
+}
+```
+
+## Sin comportamiento indefinido
+
+Faset genera C, pero no hereda su comportamiento indefinido: las operaciones que en C pueden hacer
+cualquier cosa tienen en Faset un resultado fijo, igual en Debug y en Release.
+
+| Operación | En Faset |
+|---|---|
+| Desbordamiento de enteros con signo | aritmética modular (`int.MaxValue + 1 == int.MinValue`) |
+| Desplazamientos `x << n`, `x >> n` | el contador se enmascara como en C#: `n & 31` (o `n & 63` en `long`/`ulong`); `<<` sobre negativos está definido |
+| Conversión de real a entero | se satura: `(int)1e20 == 2147483647`, `(int)NaN == 0`, `(byte)300.7 == 255` |
+| División entera por cero, `int.MinValue / -1` | `Faset panic` (siempre) |
+
+```faset
+int main()
+{
+    double grande = 1e20;
+    double nan = 0.0 / 0.0;
+    double d = 300.7;
+    int uno = 1;
+    println((int)grande);            // 2147483647
+    println((int)nan);               // 0
+    println((byte)d);                // 255
+    println(uno << 33);              // 2: 33 & 31 == 1
+    println(int.MaxValue + uno);     // -2147483648
+    return 0;
+}
+```
+
 ## Comprobaciones en ejecución
 
-Lo que no se puede demostrar al compilar se comprueba al ejecutar:
+Lo que no se puede demostrar al compilar se comprueba al ejecutar. Estas comprobaciones están
+**siempre activas**, también en Release:
 
 | Comprobación | Qué detecta |
 |---|---|
 | Referencias nulas | `obj.Campo`, `obj.Metodo()`, propiedades e indexadores sobre una referencia `null` |
-| Uso después de `delete` | cada objeto lleva una cabecera que `delete` marca como liberada: usarlo después, o hacer `delete` dos veces, termina con un error en vez de corromper memoria |
 | Índices de cadenas | `s[i]` fuera de `0..s.Length-1` |
 | División entera | `/`, `%`, `/=` y `%=` por cero, y `int.MinValue / -1` |
 | Punteros a función | llamada a través de un `delegate*` nulo |
 
-### Cuándo están activas
+Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… también se
+comprueban siempre.
+
+### Diagnósticos de Debug
+
+Con el recolector, `delete` solo ejecuta el destructor y nunca libera memoria, así que usar un objeto
+después de `delete` no puede corromper nada. Aun así suele ser un error del programa, y en Debug se
+detecta:
+
+| Diagnóstico | Qué detecta |
+|---|---|
+| Uso después de `delete` | acceder a un campo o método de un objeto al que ya se le hizo `delete` |
+| `delete` doble | hacer `delete` dos veces del mismo objeto |
 
 | Configuración | Por defecto | Cambiarlo |
 |---|---|---|
-| `Debug` | activas | `--no-checks` o `<RuntimeChecks>false</RuntimeChecks>` |
-| `Release` | desactivadas | `--checks` o `<RuntimeChecks>true</RuntimeChecks>` |
+| `Debug` | activos | `--no-checks` o `<RuntimeChecks>false</RuntimeChecks>` |
+| `Release` | desactivados | `--checks` o `<RuntimeChecks>true</RuntimeChecks>` |
 
-Cuando están activas se define el símbolo `RUNTIME_CHECKS`, que puedes usar en
-[`#if`](/lenguaje/compilacion-condicional/). Sin comprobaciones no se emite ningún código de
-comprobación ni cabecera en los objetos.
+`<RuntimeChecks>`, `--checks` y `--no-checks` solo controlan estos diagnósticos: las comprobaciones
+de la tabla anterior no se pueden desactivar. Cuando los diagnósticos están activos se define el
+símbolo `RUNTIME_CHECKS`, que puedes usar en [`#if`](/lenguaje/compilacion-condicional/).
 
 ```bash
-faset build -c Release --checks     # Release con las comprobaciones de seguridad
-faset run --no-checks               # Debug sin comprobaciones
+faset build -c Release --checks     # Release con los diagnósticos de 'delete'
+faset run --no-checks               # Debug sin ellos
 ```
-
-Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… se comprueban
-**siempre**, también en Release.
 
 ### Qué pasa cuando una comprobación falla
 
@@ -186,23 +273,22 @@ class Nodo { public int Valor; }
 
 int main()
 {
-    Nodo n = new Nodo();
-    delete n;
-    println(n.Valor);                    // Debug: termina aquí
+    Nodo n = null;
+    println(n.Valor);                    // termina aquí (también en Release)
     return 0;
 }
 ```
 
 ```text
 $ faset run programa.fst
-Faset panic: uso de un objeto después de 'delete' at programa.fst:9
+Faset panic: referencia nula (null): el objeto no existe at programa.fst:8
 $ echo $?
 101
 ```
 
-Otros mensajes reales: `referencia nula (null): el objeto no existe`, `'delete' doble: el objeto ya
-se había liberado`, `división entera por cero`, `índice fuera de rango: 3 (longitud 3)` y
-`List: índice fuera de rango`.
+Otros mensajes reales: `división entera por cero`, `índice fuera de rango: 3 (longitud 3)`,
+`List: índice fuera de rango` y, en Debug, `uso de un objeto después de 'delete'` y `'delete' doble:
+el objeto ya se había liberado`.
 
 Con `FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb o
 generar un volcado de memoria.
@@ -229,21 +315,10 @@ int main()
 
 Si `Exigir` falla, el mensaje dice `at programa.fst:<línea de la llamada>`, no la línea del `panic`.
 
-### Cuarentena
-
-Para detectar usos después de `delete` aunque la memoria se reutilice, los objetos liberados pasan
-por una **cuarentena** (4096 objetos o 64 MB) antes de volver a `malloc`. Un uso después de `delete`
-deja de detectarse cuando el objeto ha salido de la cuarentena.
-
-### Bibliotecas compartidas
-
-Una biblioteca `--shared` y el programa que la usa deben compilarse con el mismo valor de
-`RuntimeChecks` si se pasan objetos entre ellos: la cabecera de los objetos solo existe con las
-comprobaciones activas.
-
 ## Coste en rendimiento
 
-Medido aquí con `examples/benchmark_checks.fst` en las cuatro configuraciones:
+Medido aquí con `examples/benchmark_checks.fst` en las cuatro configuraciones. Las comprobaciones
+siempre activas están en todas las columnas; «con checks» añade los diagnósticos de `delete`:
 
 <ChecksTable />
 
@@ -252,12 +327,24 @@ innecesarias; en Debug (`-O0`) no hay optimizador que las quite y el programa ta
 
 ## Lo que no cubre
 
-Usa [`faset build --sanitize`](/lenguaje/memoria/#detectar-errores-de-memoria) (AddressSanitizer +
-UndefinedBehaviorSanitizer) para encontrar:
+### Carreras de datos
 
-- errores de propiedad de las cadenas, que sigue siendo manual (`String.Free` de una vista o de un
-  literal);
-- una referencia `T&` o un parámetro `ref` a un elemento de una `List<T>` que deja de ser válido si la
-  lista crece mientras se usa;
-- un uso después de `delete` cuando el objeto ya salió de la cuarentena;
-- cualquier error dentro de código `memory_unsafe`.
+La garantía de Faset con varios hilos es como la de Go. Un `string` es un par (puntero, longitud):
+si dos hilos escriben la **misma variable** `string` a la vez sin un cerrojo, otro hilo puede leer
+el puntero de una y la longitud de la otra. Protege el estado mutable compartido con `Mutex` y las
+demás primitivas de [`std.thread`](/std/thread/). Una carrera sobre un número o una referencia da un
+valor u otro, pero nunca deja una referencia colgando.
+
+### Referencias a elementos de una `List<T>`
+
+Una referencia `T&` (o un parámetro `ref`) a un elemento de una `List<T>` apunta al búfer interno
+de la lista. Si la lista crece mientras la usas, la lista pasa a otro búfer y la referencia sigue
+apuntando al anterior: es memoria válida (el recolector la mantiene viva), pero lo que escribas ahí
+ya no se ve en la lista. Toma la referencia después de añadir elementos.
+
+### Código `memory_unsafe`
+
+Dentro de `memory_unsafe` (punteros crudos, funciones `extern` de C) la responsabilidad es tuya: un
+`p[i]` fuera de límites o un puntero a memoria de C ya liberada no se comprueban. Para encontrar esos
+errores usa [`faset build --sanitize`](/lenguaje/memoria/#detectar-errores) (AddressSanitizer +
+UndefinedBehaviorSanitizer).

@@ -42,7 +42,7 @@ export const metadata = {
 | `Configuration` | `Debug`, `Release` | `Debug` compila con `-O0 -g`; `Release` con `-O2`. Se cambia con `-c`. |
 | `OutputPath` | ruta | Carpeta raíz de la salida (por defecto `bin`). |
 | `StaticLink` | `true` / `false` | Enlazado estático (`-static`). |
-| `RuntimeChecks` | `true` / `false` | [Comprobaciones en ejecución](/lenguaje/seguridad-de-memoria/#comprobaciones-en-ejecucion); por defecto, solo en `Debug`. |
+| `RuntimeChecks` | `true` / `false` | [Diagnósticos de Debug](/lenguaje/seguridad-de-memoria/#diagnosticos-de-debug) (uso después de `delete`, `delete` doble); por defecto, solo en `Debug`. Las comprobaciones de nulos, índices y divisiones están siempre activas. |
 | `AllowUnsafe` | `true` / `false` | Todo el proyecto es un contexto `memory_unsafe` (como `--allow-unsafe`). |
 | `AndroidPackage`, `AppName`, `VersionCode`, `VersionName`, `AndroidTargetSdk`, `AndroidAbis`, `AndroidOrientation`, `AndroidIcon`, `AndroidKeystore`, `AndroidKeyAlias` | texto | Empaquetado del APK: consulta [Android](/android/#propiedades-del-fstproj). |
 | `EnableDefaultCompileItems` | `true` / `false` | Con `false` solo se compilan los archivos indicados con `Compile Include`. |

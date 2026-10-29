@@ -26,10 +26,10 @@ export default function ChecksTable() {
               <th>Prueba</th>
               {pairs.map(([conf]) => [
                 <th key={conf + "a"} style={{ textAlign: "right" }}>
-                  {conf} sin checks
+                  {conf} --no-checks
                 </th>,
                 <th key={conf + "b"} style={{ textAlign: "right" }}>
-                  {conf} con checks
+                  {conf} --checks
                 </th>,
                 <th key={conf + "c"} style={{ textAlign: "right" }}>
                   Coste
@@ -65,7 +65,8 @@ export default function ChecksTable() {
       <p style={{ fontSize: 13, color: "var(--text-3)" }}>
         Mediana de {checks.runs} ejecuciones por configuración, medido el {d}/{m}/{y} en la misma máquina que la página de{" "}
         <Link href="/rendimiento/">rendimiento</Link>. Los milisegundos los mide el propio programa con <code>Time.TickMs()</code>, así que
-        las pruebas cortas tienen una resolución de ±1 ms. Se repite con <code>python3 docs/benchmarks/run_checks.py</code>.
+        las pruebas cortas tienen una resolución de ±1 ms. Las comprobaciones de nulos, índices y divisiones están en todas las columnas;{" "}
+        <code>--checks</code> añade los diagnósticos de <code>delete</code>. Se repite con <code>python3 docs/benchmarks/run_checks.py</code>.
       </p>
     </>
   );

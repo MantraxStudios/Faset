@@ -1,6 +1,6 @@
 El núcleo se importa solo en todos los archivos (como si escribieras `using std;`). Reúne la salida
 por consola, las funciones globales al estilo C++ (`print`, `println`, `panic`, `assert`), `Math`,
-`Memory`, `String`, `Char`, `Convert`, `Environment` y las extensiones de `string`.
+`Memory`, `GC`, `String`, `Char`, `Convert`, `Environment` y las extensiones de `string`.
 
 ```faset
 int main()
@@ -12,9 +12,8 @@ int main()
     string t = s.Trim();                     // vista: no reserva memoria
     println(t.StartsWith("Faset"));          // true
 
-    string upper = t.ToUpper();              // copia nueva...
-    println(upper);
-    String.Free(upper);                      // ...que liberas tú
+    string upper = t.ToUpper();              // copia nueva (la recupera el recolector)
+    println(upper + "!");                    // concatenación con +
 
     int n = 0;
     if (Convert.TryToInt32("42", out n)) println(n + 1);
@@ -23,7 +22,9 @@ int main()
 ```
 
 <Callout type="nota">
-Las funciones que **crean** una cadena (`String.Concat`, `ToUpper`, `Convert.ToString`,
-`Console.ReadLine`…) devuelven memoria que liberas con `String.Free`. Las que **recortan**
-(`Substring`, `Trim`) devuelven vistas de la cadena original y no reservan nada.
+Las funciones que **crean** una cadena (`+`, `String.Concat`, `ToUpper`, `Convert.ToString`,
+`Console.ReadLine`…) reservan memoria del [recolector de basura](/lenguaje/memoria/), que la
+recupera sola: no hay que liberarla (`String.Free` ya no hace nada). Las que **recortan**
+(`Substring`, `Trim`) devuelven vistas de la cadena original y no copian nada. `GC.Collect()`,
+`GC.TotalMemory` y `GC.Collections` controlan y observan el recolector.
 </Callout>

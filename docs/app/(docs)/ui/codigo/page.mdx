@@ -53,9 +53,7 @@ namespace MiApp
         void OnNameChanged(Widget sender)
         {
             string nombre = txtName.Text.Length > 0 ? txtName.Text : "Faset";
-            string titulo = String.Concat("Hola, ", nombre, chkExcited.Checked ? "!" : "");
-            lblTitle.Text = titulo;                    // el control guarda su propia copia
-            String.Free(titulo);
+            lblTitle.Text = "Hola, " + nombre + (chkExcited.Checked ? "!" : "");
         }
 
         void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }

@@ -7,7 +7,8 @@ export const metadata = {
 
 <p className="lead">
   Un <code>struct</code> es un tipo valor (se copia y vive donde lo declares); una <code>class</code> es un
-  tipo referencia: <code>new</code> la crea en el heap y <code>delete</code> llama a su destructor y la libera.
+  tipo referencia: <code>new</code> la crea en el heap y el <a href="/lenguaje/memoria/">recolector de basura</a> la
+  recupera cuando ya nadie la usa.
 </p>
 
 ## Structs
@@ -61,10 +62,14 @@ int main()
     j.Sumar(250);
     println(j.Puntos());                      // 100
     println(Jugador.Creados);
-    delete j;                                 // llama a ~Jugador() y libera
+    delete j;                                 // ejecuta ~Jugador() ahora (opcional)
     return 0;
 }
 ```
+
+`delete` es opcional: ejecuta el destructor en ese momento, como `Dispose` en C#, pero no libera la
+memoria. Si no lo llamas, el recolector ejecuta el destructor cuando el objeto deja de usarse.
+Consulta el [modelo de memoria](/lenguaje/memoria/#delete-liberar-recursos-no-memoria).
 
 ## Accesibilidad
 
@@ -90,7 +95,6 @@ int main()
     auto inv = new Inventario();
     inv.Agregar(3);
     println(inv.Total);
-    delete inv;
     return 0;
 }
 ```

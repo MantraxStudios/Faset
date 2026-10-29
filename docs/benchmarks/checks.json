@@ -14,9 +14,9 @@
       "flag": "--no-checks",
       "ms": {
         "objetos": 22,
-        "listas": 78,
+        "listas": 79,
         "cadenas": 16,
-        "total": 115
+        "total": 117
       }
     },
     {
@@ -24,10 +24,10 @@
       "configuration": "Release",
       "flag": "--checks",
       "ms": {
-        "objetos": 23,
-        "listas": 78,
+        "objetos": 27,
+        "listas": 79,
         "cadenas": 16,
-        "total": 117
+        "total": 122
       }
     },
     {
@@ -35,10 +35,10 @@
       "configuration": "Debug",
       "flag": "--no-checks",
       "ms": {
-        "objetos": 53,
-        "listas": 149,
-        "cadenas": 22,
-        "total": 224
+        "objetos": 76,
+        "listas": 237,
+        "cadenas": 40,
+        "total": 354
       }
     },
     {
@@ -47,9 +47,9 @@
       "flag": "--checks",
       "ms": {
         "objetos": 82,
-        "listas": 321,
+        "listas": 267,
         "cadenas": 40,
-        "total": 442
+        "total": 388
       }
     }
   ]

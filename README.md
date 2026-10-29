@@ -11,10 +11,12 @@
 
 ---
 
-Lenguaje de programación **nativo**, con **tipado estático estricto**, **memoria manual** y
-**seguro por defecto**: los punteros y el código nativo viven en bloques `memory_unsafe` bien
-visibles. Su sintaxis **mezcla C# y C++**: clases, propiedades y extensiones de C#, junto con
-punteros, referencias, plantillas, `::`, `delete` y funciones globales de C++.
+Lenguaje de programación **nativo**, con **tipado estático estricto**, **memoria automática**
+(un recolector de basura nativo, como en C#) y **seguro por defecto**: sin referencias colgantes ni
+comportamiento indefinido en el código normal, y los punteros y el código nativo viven en bloques
+`memory_unsafe` bien visibles. Su sintaxis **mezcla C# y C++**: clases, propiedades, extensiones y
+`"a" + 1` de C#, junto con punteros, referencias, plantillas, `::`, destructores y funciones
+globales de C++.
 
 ```csharp
 using std::collections;          // estilo C++ ...
@@ -36,7 +38,7 @@ void Incrementar(int& x) { x++; }                     // referencia (C++)
 
 int main()                                            // punto de entrada al estilo C++
 {
-    auto lista = new List<int>();                     // sin recolector de basura
+    auto lista = new List<int>();                     // memoria automática: sin delete
     for (int i = 0; i < 10; i++) lista.Add(i * i);
     lista[0] = 100;                                   // operator[] devuelve T&
     lista.Sort();
@@ -48,8 +50,7 @@ int main()                                            // punto de entrada al est
 
     auto p = new Juego::Modelo::Punto(1, 2) + new Juego.Modelo.Punto(3, 4);
     println(p.Manhattan);
-
-    delete lista;                                     // tú decides cuándo liberar
+    println("total: " + lista.Count);                 // concatenación con + (C#)
     return 0;
 }
 ```
@@ -76,8 +77,9 @@ npm run build      # exportación estática en docs/out/
 
 `faset` comprueba el programa completo (tipos, sobrecargas, plantillas, accesibilidad, rutas de
 retorno…), genera C portable y lo compila con el compilador de C de la plataforma, que produce
-**código máquina nativo**. No hay máquina virtual ni recolector de basura: el ejecutable es
-equivalente a uno de C/C++, para x86-64, x86, ARM64 o ARMv7.
+**código máquina nativo**. No hay máquina virtual ni JIT: el ejecutable es equivalente a uno de
+C/C++, para x86-64, x86, ARM64 o ARMv7. Con el programa se enlazan dos archivos de C pequeños: el
+runtime (`faset_rt.c`) y el recolector de basura (`faset_gc.c`).
 
 ## Instalación
 
@@ -152,7 +154,7 @@ faset clean
     <TargetArch>x86_64</TargetArch>          <!-- x86_64 | x86 | arm64 | armv7 -->
     <Configuration>Debug</Configuration>     <!-- Debug | Release -->
     <StaticLink>false</StaticLink>
-    <RuntimeChecks>true</RuntimeChecks>      <!-- comprobaciones en ejecución (por defecto: solo Debug) -->
+    <RuntimeChecks>true</RuntimeChecks>      <!-- diagnósticos de 'delete' (por defecto: solo Debug) -->
     <AllowUnsafe>false</AllowUnsafe>         <!-- true: todo el proyecto es memory_unsafe -->
   </PropertyGroup>
   <ItemGroup>
@@ -184,8 +186,8 @@ Ejemplo: `tests/projects/cadena` (App → Motor → Base, y App → Base).
 faset run archivo.fst          # archivos sueltos, sin proyecto
 faset check                    # solo errores
 faset emit-c -o salida.c       # ver el C intermedio
-faset build --sanitize         # detecta errores de memoria y fugas (ASan + UBSan)
-faset build -c Release --checks  # Release con las comprobaciones de seguridad activas
+faset build --sanitize         # ASan + UBSan, para código memory_unsafe
+faset build -c Release --checks  # Release con los diagnósticos de 'delete' de Debug
 faset build --target android   # APK firmado (ver Android); --shared para una .so
 ```
 
@@ -320,12 +322,12 @@ importarlos o al usarlos con su nombre completo. `std` se importa siempre.
 | `bool`, `char`          | `char` es un punto de código Unicode (32 bits)     |
 | `sbyte` `byte` `short` `ushort` `int` `uint` `long` `ulong` | enteros de 8 a 64 bits |
 | `float` `double`        |                                                    |
-| `string`                | vista UTF-8 inmutable `{ptr, len}` (como `string_view`) |
+| `string`                | vista UTF-8 inmutable `{ptr, len}` (como `string_view`); se concatena con `+` |
 | `T*`                    | puntero, con aritmética como en C (solo en `memory_unsafe`) |
 | `T&`                    | referencia (parámetros, retornos y variables locales) |
 | `delegate*<A, B, R>`    | puntero a función                                  |
 | `struct`                | tipo valor                                         |
-| `class`                 | referencia: `new` reserva en el heap, `delete` libera |
+| `class`                 | referencia: `new` reserva en el heap; el recolector la recupera |
 | `enum`                  | enteros con nombre                                 |
 | `List<T>`, `Dictionary<K,V>`… | plantillas tuyas o de la biblioteca          |
 
@@ -360,23 +362,55 @@ Si un tipo no cumple lo que la plantilla necesita, el error indica dónde se ins
 programa.fst:26:12: nota: requerido por 'List<P>.Sort', usado aquí
 ```
 
-### Memoria
+### Memoria: recolector de basura
+
+La memoria es automática, como en C#. El runtime incluye un **recolector de basura** de marcado y
+barrido, conservador y con soporte de hilos (`faset_gc.c`): los objetos que ya nadie alcanza,
+ciclos incluidos (A → B → A), se recuperan solos. No hace falta `delete` ni `String.Free`.
 
 ```csharp
 Punto p = new Punto(1, 2);       // struct: valor en la pila
-Jugador j = new Jugador();       // class: heap
-delete j;                        // llama a ~Jugador() y libera
+Jugador j = new Jugador();       // class: heap del recolector
+string s = "vida: " + j.Vida;    // cadena nueva: también la recupera el recolector
+delete j;                        // opcional: ejecuta ~Jugador() ahora (como Dispose); no libera
 memory_unsafe
 {
     Punto* pp = &p;  pp->X = 10; // punteros: solo dentro de memory_unsafe
-    double* v = new double[n];   // arreglo crudo en el heap (a cero)
-    delete[] v;
+    double* v = new double[n];   // arreglo crudo (a cero); sin punteros: no se recorre
 }
 ```
 
+- **`delete obj`** ejecuta el destructor `~Clase()` una sola vez, para cerrar recursos (archivos,
+  sockets, ventanas) en un momento concreto. **Nunca libera la memoria**, así que no puede dejar una
+  referencia colgando. En Debug, usar el objeto después o hacer `delete` dos veces termina con
+  `Faset panic: uso de un objeto después de 'delete'` / `'delete' doble`; en Release, el uso
+  posterior lee memoria válida.
+- **Destructores como finalizadores**: si un objeto con destructor deja de usarse sin `delete`, el
+  recolector ejecuta su destructor tras una recolección (en el hilo que la provocó) y recupera su
+  memoria en la siguiente.
+- `String.Free` ya no hace nada (se conserva por compatibilidad). `Memory.Free` (memory_unsafe)
+  solo libera memoria que venga de C (`malloc`). `Memory.AllocBytes(n)` reserva un bloque de bytes
+  que el recolector no recorre, más rápido para búferes grandes.
+- **Clase `GC`**: `GC.Collect()` (recolecta y ejecuta los destructores pendientes), `GC.HeapBytes`
+  (tamaño del heap), `GC.TotalMemory` (bytes vivos) y `GC.Collections`.
+- **Cuándo recolecta**: cuando lo reservado desde la última recolección supera
+  `max(16 MB, bytes vivos)`. Variables de entorno: `FASET_GC_STATS=1` (una línea por recolección en
+  stderr), `FASET_GC=off` (no recolectar nunca) y `FASET_GC_MIN_MB=N` (umbral inicial).
+
+```
+[gc] #5  4.70 ms  vivos 10.8 MB  liberados 2.1 MB  montón 14.2 MB  destructores 0
+```
+
+- **Hilos**: los de `std.thread` (`Thread`, `ThreadPool`, `Parallel.For`) se registran solos; los
+  creados por código de C, en su primera reserva. Durante una recolección todos se detienen un
+  momento (señales en Linux/Android, `SuspendThread` en Windows).
+- **Pausas**: unos pocos ms con un heap de 10–25 MB (de 3 a 23 ms en una prueba de estrés con
+  3 millones de objetos; de 1 a 5 ms en FasetStudio, con unos 10 MB vivos). Las pruebas de CPU
+  siguen al nivel de C.
+
 ### Seguridad de memoria: `memory_unsafe`
 
-Faset es **seguro por defecto**. El código normal al estilo C# (clases, `new`/`delete`, `List<T>`,
+Faset es **seguro por defecto**. El código normal al estilo C# (clases, `new`, `List<T>`,
 `Dictionary<K,V>`, `string`, genéricos, propiedades, `ref`/`out`, `T&`, punteros a función con
 `&Funcion`) se escribe sin anotaciones. Lo que puede corromper la memoria solo se permite dentro
 de un **contexto `memory_unsafe`**, de modo que siempre se ve dónde vive el código peligroso:
@@ -421,22 +455,41 @@ implementación insegura y firma sin punteros es un **envoltorio seguro**: quien
 necesita `memory_unsafe`. Así está escrita la biblioteca estándar (`List<T>`, `StringBuilder`,
 `File`…: clases `memory_unsafe` con API pública segura).
 
+Devolver una referencia `T&` a memoria local (una variable local, un campo de un struct local, un
+parámetro por valor, o el resultado de una llamada que devuelve `ref` a la que se pasó una local
+por `ref`) es un error de compilación:
+
+```
+programa.fst:4:28: error: no se puede devolver una referencia a la variable local 'v' (dejaría de existir al salir del método)
+```
+
+Sí se pueden devolver referencias a campos `static`, a campos de objetos de clase y a parámetros
+`ref`.
+
+#### Sin comportamiento indefinido
+
+Faset genera C pero no hereda su comportamiento indefinido: el desbordamiento con signo es modular
+(`-fwrapv`); los desplazamientos enmascaran el contador como en C# (`x << n` usa `n & 31`, o
+`n & 63` en `long`/`ulong`) y `<<` sobre negativos está definido; las conversiones de real a entero
+se saturan (`(int)1e20 == 2147483647`, `(int)NaN == 0`, `(byte)300.7 == 255`).
+
 #### Comprobaciones en ejecución
 
-Lo que no se puede demostrar al compilar se comprueba al ejecutar. Están **activas en Debug** y
-desactivadas en Release; se controlan con `<RuntimeChecks>true|false</RuntimeChecks>` o con
-`--checks` / `--no-checks` (además definen el símbolo `RUNTIME_CHECKS` para `#if`):
+Lo que no se puede demostrar al compilar se comprueba al ejecutar, **siempre, también en
+Release**:
 
 | Comprobación | Qué detecta |
 |--------------|-------------|
 | referencias nulas | `obj.Campo`, `obj.Metodo()`, propiedades e indexadores sobre una referencia `null` |
-| uso después de `delete` | cada objeto lleva una cabecera que `delete` marca como liberada; usarlo después (o hacer `delete` dos veces) termina con un error en vez de corromper memoria. Los objetos liberados pasan por una cuarentena (4096 objetos / 64 MB) antes de volver a `malloc` |
 | índices de cadenas | `s[i]` fuera de `0..s.Length-1` |
 | división entera | `/`, `%`, `/=` y `%=` por cero, y `int.MinValue / -1` |
 | punteros a función | llamada a través de un `delegate*` nulo |
 
-Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… se comprueban
-**siempre**, también en Release. Un fallo escribe en stderr y termina con **código 101**:
+Los límites de `List<T>`, `Span<T>`, `Queue<T>`, `Dictionary.Get`, `Substring`… también se
+comprueban siempre. `<RuntimeChecks>true|false</RuntimeChecks>` y `--checks` / `--no-checks` solo
+controlan los **diagnósticos de Debug** (uso de un objeto después de `delete` y `delete` doble),
+activos por defecto en Debug; cuando están activos se define el símbolo `RUNTIME_CHECKS` para
+`#if`. Un fallo escribe en stderr y termina con **código 101**:
 
 ```
 Faset panic: List: índice fuera de rango at programa.fst:10
@@ -445,18 +498,17 @@ Faset panic: List: índice fuera de rango at programa.fst:10
 La línea es la de *tu* código, no la de la biblioteca: los métodos con `[TrackCaller]` (como
 `panic`, `assert` o `List.operator[]`) reciben la ubicación de quien los llama. Con
 `FASET_PANIC_ABORT=1` el programa llama a `abort()` en lugar de salir, para depurar con gdb.
-Una biblioteca `--shared` y el programa que la usa deben compilarse con el mismo valor de
-`RuntimeChecks` si se pasan objetos entre ellos (la cabecera de los objetos solo existe con checks).
 
-**Rendimiento** (`examples/benchmark_checks.fst`, gcc, x86-64): en Release las comprobaciones
-cuestan un 3 % en total (≈15 % en código dominado por accesos a campos de objetos; ≈0 % en
-cadenas y listas); en Debug (`-O0`) el programa tarda ≈1,75× más con ellas. Sin comprobaciones
-no se emite ningún código de comprobación ni cabecera en los objetos.
+**Rendimiento** (`examples/benchmark_checks.fst`, gcc, x86-64, `docs/benchmarks/checks.json`):
+en Release, `--checks` añade un 4 % en total (117 → 122 ms; casi todo en el código dominado por
+accesos a campos de objetos); en Debug (`-O0`), ≈1,1× (354 → 388 ms).
 
-**Lo que no cubre** (usa `faset build --sanitize` para encontrarlo): la propiedad de las cadenas
-sigue siendo manual (`String.Free` de una vista o de un literal); una referencia `T&` o un
-parámetro `ref` a un elemento de una `List<T>` deja de ser válido si la lista crece mientras se
-usa; y un uso después de `delete` ya no se detecta cuando el objeto ha salido de la cuarentena.
+**Lo que no cubre**: el código seguro descarta punteros colgantes, doble liberación, uso después de
+liberar, accesos fuera de límites y memoria sin inicializar. Con hilos, la garantía es como la de
+Go: un `string` es un par (puntero, longitud), y una carrera de datos que escriba la misma variable
+`string` desde dos hilos sin cerrojo puede dejarla a medio escribir; protege el estado compartido
+con `Mutex` y las primitivas de `std.thread`. Dentro de `memory_unsafe` (punteros crudos, `extern`
+de C) la responsabilidad es tuya; `faset build --sanitize` ayuda a encontrar esos errores.
 
 ### Interoperabilidad nativa
 
@@ -506,7 +558,6 @@ auto http = new HttpClient();
 HttpResponse r = http.Get("http://example.com/");
 if (r != null) println(r.Body);
 else println(http.ErrorMessage);
-delete r;
 
 auto server = new TcpListener(IPAddress.Loopback, 0);   // puerto 0 = cualquiera libre
 server.Start();
@@ -516,7 +567,7 @@ TcpClient peer = server.AcceptTcpClient(2000);
 client.WriteLine("hola");
 string line;
 if (peer.ReadLine(out line)) println(line);
-String.Free(line);
+delete peer; delete client; delete server;               // cierra los sockets ya (opcional)
 ```
 
 | Tipo | API |
@@ -557,11 +608,10 @@ string log = Path.Combine(tmp, "log.txt");
 File.WriteAllText(log, "uno\ndos\n");
 FileStream f = File.OpenRead(log);                         // null si no se puede abrir
 string line;
-while (f.ReadLine(out line)) { println(line); String.Free(line); }
-delete f;                                                  // cierra el archivo
+while (f.ReadLine(out line)) println(line);
+delete f;                                                  // cierra el archivo ya
 
 List<string> fuentes = Directory.GetFiles("src", "*.fst", true);   // recursivo
-Directory.FreeList(fuentes);
 FileInfo info = File.GetInfo(log);                         // Length, LastWriteTimeMs, Mode, IsSymlink…
 
 ProcessStartInfo si = new ProcessStartInfo("git");         // argv: sin shell, sin inyección
@@ -570,8 +620,6 @@ si.RedirectStandardOutput = true;
 Process p = Process.Start(si);                             // null si no arranca
 if (p.WaitForExit(5000)) print(p.Output); else p.Kill();
 println(p.ExitCode);
-delete p;
-delete si;
 Directory.Delete(tmp);                                     // recursivo; no sigue enlaces
 ```
 
@@ -586,10 +634,13 @@ Directory.Delete(tmp);                                     // recursivo; no sigu
 - `FileWatcher` usa inotify en Linux y compara instantáneas (`PollIntervalMs`) en el resto.
 - `Environment.SetVariable`, `GetVariables`… están en `std.os` (amplían `std.Environment`).
 
-**Propiedad de la memoria:** las funciones que crean cadenas o colecciones nuevas
-(`String.Concat`, `ToUpper`, `Text.Join`, `Dictionary.Keys`…) devuelven memoria que debes
-liberar con `String.Free` o `delete`. Las vistas (`Substring`, `Trim`, `Split`) no reservan
-memoria.
+**Memoria:** nada de lo que devuelve la biblioteca hay que liberarlo; lo recupera el recolector.
+Las funciones que crean cadenas o colecciones nuevas (`+`, `String.Concat`, `ToUpper`, `Text.Join`,
+`Dictionary.Keys`…) copian; las vistas (`Substring`, `Trim`, `Split`) no copian y mantienen viva la
+cadena original. `String.Free`, `File.FreeLines` y `Directory.FreeList` se conservan por
+compatibilidad, pero ya no hacen falta. Las clases que poseen un recurso del sistema (`FileStream`,
+sockets, `Process`, ventanas…) lo cierran en su destructor: con `delete`, en ese momento; si no,
+cuando el recolector recupera el objeto.
 
 ### Hilos (`std.thread`)
 
@@ -618,16 +669,15 @@ int main()
     Datos d = new Datos();
     List<Thread> hilos = new List<Thread>();
     for (int i = 0; i < 4; i++) hilos.Add(Thread.Run(&Trabajo, d));   // Thread.Run<Datos>
-    for (int i = 0; i < 4; i++) { hilos[i].Join(); delete hilos[i]; }
-    delete hilos;
+    for (int i = 0; i < 4; i++) hilos[i].Join();
     println(d.Suma);                                  // 2002000
     return 0;
 }
 ```
 
-El argumento se copia en una caja que el hilo libera, así que `T` puede ser cualquier tipo
-(clase, struct, entero, `string`). Si es un objeto, se comparte: debe seguir vivo hasta que el
-hilo termine y su acceso debe protegerse (`Mutex`, `AtomicInt`/`AtomicLong`, `Channel<T>`).
+El argumento se copia en una caja, así que `T` puede ser cualquier tipo (clase, struct, entero,
+`string`). Si es un objeto, se comparte: el recolector lo mantiene vivo mientras el hilo lo use,
+pero su acceso debe protegerse (`Mutex`, `AtomicInt`/`AtomicLong`, `Channel<T>`).
 Las versiones con `void*` (`new Thread(fn, void*)`, `Thread.Run(fn, void*)`,
 `Submit(fn, void*)`, `Parallel.For(..., void*)`) y la clase `Atomic`, que trabaja sobre
 punteros, son `memory_unsafe`.
@@ -644,8 +694,8 @@ punteros, son `memory_unsafe`.
 | `Parallel` | `Parallel.For(desde, hasta, &Cuerpo, arg [, maxHilos])` con `void Cuerpo(int i, T arg)` |
 | `Channel<T>` | cola productor/consumidor: `new Channel<T>(capacidad)` (0 = sin límite), `Send`, `TrySend`, `Receive(out v)`, `Receive(out v, ms)`, `TryReceive`, `Close`, `Count` |
 
-Todas las operaciones atómicas son secuencialmente consistentes. Nada se libera solo: el objeto
-que pasas como argumento debe seguir vivo mientras el hilo lo use.
+Todas las operaciones atómicas son secuencialmente consistentes. Los hilos de `std.thread` se
+registran solos en el recolector de basura, que recorre sus pilas.
 
 ### Fechas y horas (`std.time`)
 
@@ -686,10 +736,15 @@ println(sw.ElapsedMs);                                  // también ElapsedNs, E
 
 - Sin herencia, interfaces ni `virtual` (están en la hoja de ruta).
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
-- Sin `foreach`, interpolación `$"..."` ni lambdas (usa `&Funcion`).
+- Sin `foreach`, interpolación `$"..."` (usa `"x = " + x`) ni lambdas (usa `&Funcion`).
 - C no fija el orden de evaluación de los operandos: evita expresiones como
   `a[f()] = g()` cuando `f` y `g` tienen efectos que dependen entre sí.
 - Los bindings de Win32 y de Android más allá de `std.ui` no vienen incluidos: se usan con `extern`.
+- Una carrera de datos sobre una misma variable `string` (dos hilos escribiéndola sin cerrojo)
+  puede dejar una cadena a medio escribir; el código `memory_unsafe` no se comprueba.
+- El recolector es conservador y no mueve objetos: un entero que parezca una dirección del heap
+  puede mantener vivo un bloque que ya no se usa. Si una biblioteca de C se guarda un puntero a
+  memoria de Faset, mantén también una referencia en Faset mientras C lo use.
 - `std.thread` en Windows supone x86-64/ARM64 (los `extern` no declaran `__stdcall`, como en `std.ui`).
   Varios hilos que escriben con `println` a la vez pueden intercalar líneas: protégelo con un `Mutex`.
 - Android: `std.ui` no conoce los recortes de la pantalla (la barra de navegación se dibuja

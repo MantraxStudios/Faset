@@ -690,26 +690,18 @@ static int cmdNew(const std::vector<std::string>& args) {
                       "        ~MainWindow() { delete Window; }\n\n"
                       "        void OnNameChanged(Widget sender)\n        {\n"
                       "            string name = txtName.Text.Length > 0 ? txtName.Text : \"Faset\";\n"
-                      "            string title = String.Concat(\"Hello, \", name, chkExcited.Checked ? \"!\" : \"\");\n"
-                      "            lblTitle.Text = title;\n"
-                      "            String.Free(title);\n        }\n\n"
+                      "            lblTitle.Text = \"Hello, \" + name + (chkExcited.Checked ? \"!\" : \"\");\n        }\n\n"
                       "        void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }\n\n"
                       "        void OnGreetClick(Widget sender)\n        {\n"
                       "            greetings++;\n"
-                      "            string n = Convert.ToString(greetings);\n"
-                      "            string text = String.Concat(\"Greeted \", n, greetings == 1 ? \" time\" : \" times\");\n"
-                      "            lblSubtitle.Text = text;\n"
-                      "            String.Free(text);\n"
-                      "            String.Free(n);\n        }\n\n"
+                      "            lblSubtitle.Text = \"Greeted \" + greetings + (greetings == 1 ? \" time\" : \" times\");\n        }\n\n"
                       "        void OnCloseClick(Widget sender) { Window.Close(); }\n"
                       "    }\n}\n");
         writeFile(dir / "Program.fst",
                   "using std.ui;\n\nnamespace " + ns +
                       "\n{\n    public static class Program\n    {\n        public static int Main()\n        {\n"
                       "            auto window = new MainWindow();\n"
-                      "            int code = Application.Run(window.Window);\n"
-                      "            delete window;\n"
-                      "            return code;\n        }\n    }\n}\n");
+                      "            return Application.Run(window.Window);\n        }\n    }\n}\n");
     } else if (kind == "Library") {
         writeFile(dir / "Biblioteca.fst",
                   "namespace " + ns + "\n{\n    public static class Saludo\n    {\n"
@@ -721,8 +713,7 @@ static int cmdNew(const std::vector<std::string>& args) {
                       "            Console::WriteLine(\"¡Hola desde Faset!\");\n\n"
                       "            auto numeros = new List<int>();\n"
                       "            for (int i = 1; i <= 5; i++) numeros.Add(i * i);\n"
-                      "            Console::WriteLine(numeros.Sum());\n"
-                      "            delete numeros;\n        }\n    }\n}\n");
+                      "            Console::WriteLine(numeros.Sum());\n        }\n    }\n}\n");
     }
     writeFile(dir / ".gitignore", "bin/\nobj/\n");
     std::string shown = android ? (kind == "AppUI" ? "Android, AppUI" : "Android, consola") : kind;

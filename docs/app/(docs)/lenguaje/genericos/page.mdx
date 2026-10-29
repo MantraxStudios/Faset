@@ -30,7 +30,6 @@ int main()
 
     auto p = new Par<string, int>("edad", 31);
     println(p.Segundo);
-    delete p;
     println(default(double));              // valor por defecto de cualquier T
     return 0;
 }
@@ -60,7 +59,6 @@ int main()
     puntos.Sort();                          // necesita operator< : Punto lo tiene
     println(puntos[0].X);                   // 1
     println(puntos.Contains(new Punto(3, 1)));   // necesita operator==
-    delete puntos;
     return 0;
 }
 ```
@@ -93,7 +91,6 @@ int main()
     println(longitudes.Max());
     Algorithms.Swap<string>(nombres[0], nombres[1]);    // T& a, T& b
     println(nombres[0]);
-    delete nombres; delete longitudes;
     return 0;
 }
 ```

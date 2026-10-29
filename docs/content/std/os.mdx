@@ -13,7 +13,6 @@ int main()
     string salida;
     int codigo = Process.Capture("echo hola", out salida);
     print(salida);
-    String.Free(salida);
 
     auto p = new ChildProcess();
     auto sb = new StringBuilder();
@@ -23,7 +22,6 @@ int main()
         p.ReadAvailable(sb);
     }
     print(sb.View());
-    delete sb;
     delete p;
     return codigo;
 }

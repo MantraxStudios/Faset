@@ -29,7 +29,6 @@ int main()
 {
     auto l = new List<int>();       // de std.collections
     println(std::io::File::Exists("no-existe.txt"));   // nombre totalmente cualificado
-    delete l;
     return 0;
 }
 ```
@@ -43,14 +42,20 @@ normal. La biblioteca no tiene privilegios especiales: cumple las mismas reglas 
 
 ## Propiedad de la memoria
 
-Faset no tiene recolector de basura, así que cada función documenta quién libera lo que devuelve:
+La memoria la gestiona el [recolector de basura](/lenguaje/memoria/): nada de lo que devuelve la
+biblioteca hay que liberarlo. La documentación de cada función sigue diciendo si devuelve una copia
+o una vista, porque influye en el rendimiento:
 
 - **Copias nuevas** — `String.Concat`, `ToUpper`, `Text.Join`, `Convert.ToString`,
-  `File.ReadAllText`, `Dictionary.Keys()`… La memoria es tuya: libérala con `String.Free` o `delete`.
+  `File.ReadAllText`, `Dictionary.Keys()`… Reservan memoria del recolector, que la recupera cuando
+  deja de usarse.
 - **Vistas** — `Substring`, `Trim`, `Text.Split` (sus partes), `StringBuilder.View()`,
-  `Path.GetFileName`… No reservan memoria: son válidas mientras viva la cadena original.
-- **Colecciones** — se crean con `new` y se liberan con `delete`; su destructor libera la memoria
-  interna, pero no los objetos a los que apunten sus elementos.
+  `Path.GetFileName`… No copian nada: apuntan a la cadena original y la mantienen viva.
+- **Recursos** — las clases que poseen algo del sistema (`FileStream`, `TcpClient`, `Process`,
+  `Window`, `ThreadPool`…) lo cierran en su destructor. `delete` lo cierra en ese momento; si no lo
+  haces, se cierra cuando el recolector recupera el objeto.
+
+`String.Free` y `delete` de una colección siguen compilando, pero ya no hacen falta.
 
 ## Añadir tus propios módulos
 
