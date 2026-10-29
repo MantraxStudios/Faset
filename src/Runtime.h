@@ -9,3 +9,5 @@ extern const char* const kRuntimeSource;
 extern const char* const kRuntimeOsSource;
 // Recolector de basura (se compila aparte como faset_gc.c; ver RuntimeGc.cpp).
 extern const char* const kRuntimeGcSource;
+// Reproducción de vídeo de std.ui (VideoPlayer): se añade al runtime cuando se usa std.video.
+extern const char* const kRuntimeVideoSource;

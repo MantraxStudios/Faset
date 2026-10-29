@@ -442,8 +442,8 @@ namespace FasetStudio.Ide
         public string Status = "";           // mensaje para la barra de estado (vista de literal)
         public bool SwitchToCode;            // pide pasar a la vista de código
 
-        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel";
-        const int KindCount = 10;
+        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel|VideoPlayer";
+        const int KindCount = 11;
 
         public Designer(Document doc) { Doc = doc; }
 
@@ -837,7 +837,7 @@ namespace FasetStudio.Ide
         {
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
                           : kind == "CheckBox" ? "checkBox" : kind == "Slider" ? "slider" : kind == "ProgressBar" ? "progressBar"
-                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : "panel";
+                          : kind == "RadioButton" ? "radioButton" : kind == "ComboBox" ? "comboBox" : kind == "ListBox" ? "listBox" : kind == "VideoPlayer" ? "video" : "panel";
             for (int i = 1; ; i++)
             {
                 string num = Convert.ToString(i);
@@ -909,6 +909,13 @@ namespace FasetStudio.Ide
             {
                 w = 280;
                 h = 160;
+            }
+            else if (kind == "VideoPlayer")
+            {
+                w = 320;
+                h = 180;
+                n.Set("Source", "");
+                n.Set("ShowControls", "true");
             }
             n.SetInt("Width", w);
             n.SetInt("Height", h);
@@ -1124,6 +1131,7 @@ namespace FasetStudio.Ide
         }
 
         static string MainEvent(string kind) =>
+            kind == "VideoPlayer" ? "Ended" :
             kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed" : "Click";
 
         // ------------------------------------------------------------------ propiedades
@@ -1160,6 +1168,7 @@ namespace FasetStudio.Ide
                 return l;
             }
             Def(l, "Name", 7, "", "", "Control");
+            if (k == "VideoPlayer") return VideoProps(l);
             if (k == "Label" || k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Text", 0, "", "", "Control");
             if (k == "TextBox" || k == "ComboBox") Def(l, "Placeholder", 0, "", "", "Control");
             if (k == "ComboBox" || k == "ListBox")
@@ -1209,6 +1218,30 @@ namespace FasetStudio.Ide
             if (k == "Button" || k == "CheckBox" || k == "TextBox" || k == "RadioButton") Def(l, "Click", 6, "", "", "Events");
             if (k == "TextBox" || k == "CheckBox" || k == "Slider" || k == "RadioButton" || k == "ComboBox" || k == "ListBox")
                 Def(l, "Changed", 6, "", "", "Events");
+            return l;
+        }
+
+        // VideoPlayer: vídeo, disposición, colores y eventos propios (Opened, Ended, Failed).
+        List<PropDef> VideoProps(List<PropDef> l)
+        {
+            Def(l, "Source", 0, "", "", "Video");
+            Def(l, "AutoPlay", 3, "", "false", "Video");
+            Def(l, "Loop", 3, "", "false", "Video");
+            Def(l, "ShowControls", 3, "", "true", "Video");
+            Def(l, "Volume", 2, "", "1", "Video");
+            Def(l, "Stretch", 4, "Uniform|Fill|None", "Uniform", "Video");
+            Def(l, "X", 1, "", "0", "Layout");
+            Def(l, "Y", 1, "", "0", "Layout");
+            Def(l, "Width", 1, "", "320", "Layout");
+            Def(l, "Height", 1, "", "180", "Layout");
+            Def(l, "Anchor", 5, "", "Left,Top", "Layout");
+            Def(l, "Background", 8, "", "", "Colors");
+            Def(l, "BorderColor", 8, "", "", "Colors");
+            Def(l, "Accent", 8, "", "", "Colors");
+            Def(l, "Visible", 3, "", "true", "Behavior");
+            Def(l, "Opened", 6, "", "", "Events");
+            Def(l, "Ended", 6, "", "", "Events");
+            Def(l, "Failed", 6, "", "", "Events");
             return l;
         }
 
@@ -2164,6 +2197,11 @@ namespace FasetStudio.Ide
                 CenteredText(r, r.UiSmall, n.Get("Name"), x, y, w, h, 1, Pal(6));
                 return;
             }
+            if (k == "VideoPlayer")
+            {
+                DrawVideoNode(r, n, x, y, w, h);
+                return;
+            }
             if (k == "Panel")
             {
                 float rad = Z(n.Int("CornerRadius", 10));
@@ -2318,6 +2356,60 @@ namespace FasetStudio.Ide
             }
         }
 
+        // VideoPlayer en el diseñador: fondo oscuro, fotograma de película con "reproducir",
+        // el nombre del archivo y una barra de controles de muestra (si ShowControls).
+        void DrawVideoNode(Renderer r, UiNode n, float x, float y, float w, float h)
+        {
+            r.Rect(x, y, w, h, NodeColor(n, "Background", Color.Hex(0x000000)));
+            if (n.Has("BorderColor")) r.RoundBorder(x, y, w, h, 0, 1, NodeColor(n, "BorderColor", Pal(2)));
+            else r.RoundBorder(x, y, w, h, 0, 1, Color.Hex(0x808080, 0.35f));
+            Color fg = Color.Hex(0xffffff, 0.55f);
+            bool small = h < Z(90);
+            float iw = small ? Z(30) : Z(44), ih = small ? Z(22) : Z(32);
+            float cx = x + w / 2, cy = small ? y + h / 2 : y + h / 2 - Z(10);
+            r.PushClip(x, y, w, h);
+            r.RoundBorder(cx - iw / 2, cy - ih / 2, iw, ih, Z(4), 1.6f, fg);
+            for (int k = 0; k < 4; k++)
+            {
+                float hx = cx - iw / 2 + Z(5) + k * (iw - Z(12)) / 3;
+                r.RoundRect(hx, cy - ih / 2 + Z(3), Z(3), Z(3), Z(1), fg);
+                r.RoundRect(hx, cy + ih / 2 - Z(6), Z(3), Z(3), Z(1), fg);
+            }
+            PlayGlyph(r, cx + Z(1), cy, ih * 0.22f, fg);
+            if (!small)
+            {
+                string src = n.Get("Source");
+                string label = src.Length > 0 ? Path.GetFileName(src) : "VideoPlayer";
+                CenteredText(r, r.UiSmall, label, x + Z(4), cy + ih / 2 + Z(6), w - Z(8), Z(20), 1, Color.Hex(0xffffff, 0.7f));
+            }
+            if (n.Bool("ShowControls", true) && h >= Z(70))
+            {
+                float by = y + h - Z(22);
+                Color accent = NodeColor(n, "Accent", Color.Hex(0xffffff));
+                r.Rect(x, y + h - Z(44), w, Z(44), Color.Hex(0x000000, 0.35f));
+                PlayGlyph(r, x + Z(25), by, Z(7), Color.Hex(0xffffff));
+                float left = x + Z(48), right = x + w - Z(92);
+                if (right > left)
+                {
+                    r.RoundRect(left, by - Z(2), right - left, Z(4), Z(2), Color.Hex(0xffffff, 0.28f));
+                    r.RoundRect(left - Z(6), by - Z(6), Z(12), Z(12), Z(6), accent);
+                }
+                r.Text(r.UiSmall, x + w - Z(80), by - Z(8), "0:00 / 0:00", Color.Hex(0xffffff));
+            }
+            r.PopClip();
+        }
+
+        // Triángulo de "reproducir" con columnas de 1 px (el renderer no tiene polígonos).
+        static void PlayGlyph(Renderer r, float cx, float cy, float s, Color c)
+        {
+            float left = cx - s * 0.75f, len = s * 1.75f;
+            for (float dx = 0; dx < len; dx += 1)
+            {
+                float half = s * (1 - dx / len);
+                r.Rect(left + dx, cy - half, 1, half * 2, c);
+            }
+        }
+
         void DrawToolbox(Renderer r)
         {
             r.Rect(X, Y, ToolboxWidth, H, Theme.Surface);
@@ -2437,6 +2529,11 @@ namespace FasetStudio.Ide
             {
                 r.RoundBorder(x, y + 3, 22, 15, 4, 1.2f, c);
                 r.Text(r.Icons, x + 11, y + 2, "▾", c);
+            }
+            else if (kind == "VideoPlayer")
+            {
+                r.RoundBorder(x, y + 3, 22, 15, 3, 1.2f, c);
+                PlayGlyph(r, x + 11.5f, y + 10.5f, 4, c);
             }
             else if (kind == "ListBox")
             {

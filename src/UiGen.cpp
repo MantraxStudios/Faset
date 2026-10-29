@@ -16,6 +16,7 @@ struct Gen {
     std::string head;                // usings, namespace, clase y campos (línea 1)
     std::vector<std::string> lines;  // código por línea del XML (índice = línea - 1)
     std::vector<std::string> fields;
+    std::set<std::string> videoFields;  // campos de tipo VideoPlayer (el resto son Widget)
     std::set<std::string> names;
     int nextEvent = 1;
     int unnamed = 0;
@@ -127,12 +128,43 @@ struct Gen {
         return h;
     }
 
+    // <VideoPlayer>: atributos propios del reproductor. Devuelve true si 'key' era uno de ellos.
+    bool videoAttr(const XmlNode& n, const std::string& name, const std::string& key, const std::string& v, std::string& vcode,
+                   std::string& vpost, std::string& events, int ids[3]) {
+        std::string num;
+        if (key == "Source") vcode += " " + name + ".Source = " + quote(v) + ";";
+        else if (key == "AutoPlay") vpost += " " + name + ".AutoPlay = " + boolValue(n, key, v) + ";";
+        else if (key == "Loop" || key == "ShowControls") vcode += " " + name + "." + key + " = " + boolValue(n, key, v) + ";";
+        else if (key == "Volume") numAttr(n, key, num), vcode += " " + name + ".Volume = " + num + ";";
+        else if (key == "Stretch")
+            vcode += " " + name + ".Stretch = " + enumValue(n, key, v, "VideoStretch", {"Uniform", "Fill", "None"}) + ";";
+        else if (key == "Opened" || key == "Ended" || key == "Failed") {
+            int slot = key == "Opened" ? 0 : key == "Ended" ? 1 : 2;
+            ids[slot] = nextEvent++;
+            events += " if (ev == " + std::to_string(ids[slot]) + ") " + handler(n, key) + "(sender);";
+        } else return false;
+        return true;
+    }
+
+    // El campo de un <VideoPlayer> es un VideoPlayer: los atributos comunes van a su control (.View).
+    static std::string videoCode(const std::string& name, const std::string& code) {
+        std::string out = code, from = " " + name + ".", to = " " + name + ".View.";
+        for (size_t k = out.find(from); k != std::string::npos; k = out.find(from, k + to.size())) out.replace(k, from.size(), to);
+        std::string add = name + " = ";
+        if (out.rfind(add, 0) == 0) {
+            size_t semi = out.find(");");
+            out = add + "new VideoPlayer(" + out.substr(add.size(), semi + 1 - add.size()) + ")" + out.substr(semi + 1);
+        }
+        return out;
+    }
+
     void widget(const XmlNode& n, const std::string& parent) {
+        bool video = n.name == "VideoPlayer";
         static const std::vector<std::string> kinds = {"Panel",    "Label",       "Button",      "TextBox",  "CheckBox",
                                                        "Slider",   "ProgressBar", "RadioButton", "ComboBox", "ListBox"};
-        if (std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
+        if (!video && std::find(kinds.begin(), kinds.end(), n.name) == kinds.end()) {
             error(n.line, "control desconocido '<" + n.name + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
-                          "ProgressBar, RadioButton, ComboBox, ListBox)");
+                          "ProgressBar, RadioButton, ComboBox, ListBox, VideoPlayer)");
             return;
         }
         std::string name;
@@ -145,6 +177,9 @@ struct Gen {
             name = "__ui" + std::to_string(++unnamed);
         }
         fields.push_back(name);
+        if (video) videoFields.insert(name);
+        std::string vcode, vpost;  // VideoPlayer: código propio (AutoPlay va al final, tras Source)
+        int videoIds[3] = {0, 0, 0};
 
         std::string x = "0", y = "0", w = "100", h = "32";
         intAttr(n, "X", x);
@@ -160,6 +195,7 @@ struct Gen {
             const std::string& v = n.attrs.at(key);
             std::string num;
             if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") continue;
+            if (video && videoAttr(n, name, key, v, vcode, vpost, events, videoIds)) continue;
             if (key == "Text" || key == "Placeholder" || key == "Group") code += " " + name + "." + key + " = " + quote(v) + ";";
             else if (key == "Items") code += " " + name + ".SetItems(" + quote(v) + ");";
             else if (key == "SelectedIndex") intAttr(n, key, num), post += " " + name + ".SelectedIndex = " + num + ";";
@@ -204,6 +240,12 @@ struct Gen {
         if (clickId || changedId)
             code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(clickId) + ", " +
                     std::to_string(changedId) + "); }";
+        if (video) {
+            code = videoCode(name, code) + vcode + vpost;
+            if (videoIds[0] || videoIds[1] || videoIds[2])
+                code += " memory_unsafe { " + name + ".SetEvents(&__ui_event, (void*)this, " + std::to_string(videoIds[0]) + ", " +
+                        std::to_string(videoIds[1]) + ", " + std::to_string(videoIds[2]) + "); }";
+        }
         emit(n.line, " if (ev == 0) { " + code + " }" + events);
         if (!n.children.empty() && n.name != "Panel") error(n.children[0].line, "solo <Panel> puede contener otros controles");
         for (const XmlNode& c : n.children) widget(c, name);
@@ -259,7 +301,7 @@ std::string generateUiSource(const std::string& xml, int fileId) {
     std::string head = "using std; using std.ui;";
     if (!ns.empty()) head += " namespace " + ns + " {";
     head += " public partial class " + cls + " { public Window Window;";
-    for (const std::string& f : g.fields) head += " Widget " + f + ";";
+    for (const std::string& f : g.fields) head += (g.videoFields.count(f) ? " VideoPlayer " : " Widget ") + f + ";";
     head += " void InitializeComponent() { __ui_build(0, null); }";
     head += " memory_unsafe static void __ui_event(void* self, Widget sender, int ev) { ((" + cls +
             ")self).__ui_build(ev, sender); }";

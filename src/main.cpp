@@ -78,6 +78,7 @@ struct Options {
     std::vector<std::string> libs, libDirs;
     std::vector<std::string> runArgs;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
+    bool video = false;      // el programa usa std.video (VideoPlayer): se compila su runtime
     bool singleFile = false;
     Project* project = nullptr;
     std::string argv0;
@@ -338,6 +339,10 @@ static bool frontEnd(Options& o, std::string* csrc) {
             need = {"pthread"};  // en Android y Windows los hilos están en la biblioteca de C / kernel32
         else if (mod == "std.net" && o.target == "windows")
             need = {"ws2_32"};
+        else if (mod == "std.video") {
+            o.video = true;  // GStreamer / libmediandk se cargan con dlopen
+            if (o.target != "windows" && o.target != "android") need = {"dl", "pthread"};
+        }
         for (const std::string& l : need)
             if (std::find(o.libs.begin(), o.libs.end(), l) == o.libs.end()) o.libs.push_back(l);
     }
@@ -388,6 +393,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     fs::path rtC = tmp / "faset_rt.c";
     fs::path gcC = tmp / "faset_gc.c";
     std::string runtime = std::string(kRuntimeSource) + kRuntimeOsSource;
+    if (o.video) runtime += kRuntimeVideoSource;
     if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", kRuntimeHeader) || !writeFile(rtC, runtime) ||
         !writeFile(gcC, kRuntimeGcSource)) {
         diag.fatal("no se pudo escribir en " + tmp.string());
