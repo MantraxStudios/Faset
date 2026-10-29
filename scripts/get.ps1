@@ -1,5 +1,5 @@
 ﻿# Instalación de Faset en una línea (Windows x86_64, PowerShell):
-#   irm https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.ps1 | iex
+#   irm https://faset.lat/install.ps1 | iex
 # Variables opcionales: $env:FASET_ANDROID = "1" (también el módulo de Android), $env:FASET_YES = "1" (sin preguntas).
 $ErrorActionPreference = "Stop"
 $url = if ($env:FASET_URL) { $env:FASET_URL } else { "https://github.com/MantraxStudios/Faset/releases/latest/download/faset-windows-x86_64.zip" }

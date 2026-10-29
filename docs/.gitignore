@@ -15,3 +15,5 @@ benchmarks/build/
 
 # Generado por `next dev`
 AGENTS.md
+public/install.sh
+public/install.ps1

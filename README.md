@@ -86,13 +86,13 @@ runtime (`faset_rt.c`) y el recolector de basura (`faset_gc.c`).
 **Linux x86_64** (instala en `~/.local`, con FasetStudio):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.sh | sh
+curl -fsSL https://faset.lat/install.sh | sh
 ```
 
 **Windows x86_64** (PowerShell; instala en `%LOCALAPPDATA%\Faset`):
 
 ```powershell
-irm https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.ps1 | iex
+irm https://faset.lat/install.ps1 | iex
 ```
 
 O descarga el paquete de [Releases](https://github.com/MantraxStudios/Faset/releases/latest)

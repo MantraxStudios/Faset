@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "gen": "node scripts/extract-api.mjs && node scripts/extract-cli.mjs && node scripts/build-search-index.mjs",
+    "gen": "cp ../scripts/get.sh public/install.sh && cp ../scripts/get.ps1 public/install.ps1 && node scripts/extract-api.mjs && node scripts/extract-cli.mjs && node scripts/build-search-index.mjs",
     "predev": "npm run gen",
     "dev": "next dev --turbopack",
     "prebuild": "npm run gen",

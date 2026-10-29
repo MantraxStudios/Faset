@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Instalación de Faset en una línea (Linux x86_64):
-#   curl -fsSL https://raw.githubusercontent.com/MantraxStudios/Faset/main/scripts/get.sh | sh
+#   curl -fsSL https://faset.lat/install.sh | sh
 #   curl -fsSL .../get.sh | sh -s -- --android      (opciones de install.sh: --android, --all, --system, --yes)
 set -eu
 URL=${FASET_URL:-https://github.com/MantraxStudios/Faset/releases/latest/download/faset-linux-x86_64.tar.gz}
