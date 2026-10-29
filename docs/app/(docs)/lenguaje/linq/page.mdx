@@ -1,0 +1,138 @@
+export const metadata = {
+  title: "LINQ",
+  description: "Where, Select, OrderBy, GroupBy, Sum, Aggregate y compañía sobre List<T> y Dictionary con lambdas. Evaluación inmediata.",
+};
+
+# LINQ
+
+<p className="lead">
+  <code>List&lt;T&gt;</code> de <a href="/std/collections/">std.collections</a> tiene las operaciones
+  de LINQ de C#: filtran, transforman, ordenan y agregan con <a href="/lenguaje/lambdas/">lambdas</a>.
+  Los tipos se infieren solos: <code>personas.Select(p =&gt; p.Nombre)</code> es una
+  <code>List&lt;string&gt;</code>.
+</p>
+
+```faset
+using std.collections;
+
+class Producto
+{
+    public string Nombre;
+    public string Tipo;
+    public double Precio;
+    public Producto(string n, string t, double p) { Nombre = n; Tipo = t; Precio = p; }
+}
+
+int main()
+{
+    var ps = new List<Producto>();
+    ps.Add(new Producto("pera", "fruta", 1.5));
+    ps.Add(new Producto("queso", "lácteo", 7.0));
+    ps.Add(new Producto("uva", "fruta", 3.0));
+    ps.Add(new Producto("leche", "lácteo", 0.9));
+
+    var baratos = ps.Where(p => p.Precio < 2).Select(p => p.Nombre);
+    println(baratos[0] + ", " + baratos[1]);                // pera, leche
+
+    var orden = ps.OrderBy(p => p.Tipo).ThenByDescending(p => p.Precio);
+    println(orden[0].Nombre);                               // uva
+
+    println(ps.Sum(p => p.Precio));                         // 12.4
+    println(ps.Count(p => p.Tipo == "fruta"));              // 2
+    println(ps.Any(p => p.Precio > 5));                     // true
+    println(ps.MaxBy(p => p.Precio).Nombre);                // queso
+
+    var grupos = ps.GroupBy(p => p.Tipo);
+    for (int i = 0; i < grupos.Count; i++)
+        println(grupos[i].Key + ": " + grupos[i].Count);    // fruta: 2 / lácteo: 2
+    return 0;
+}
+```
+
+## Evaluación inmediata
+
+Cada operación recorre la lista **en el momento** y devuelve una lista nueva; la original no cambia.
+No hay `IEnumerable<T>` ni evaluación diferida: encadenar `Where(...).Select(...)` crea una lista
+intermedia. Para colecciones grandes en bucles críticos, un `for` es más rápido.
+
+## Operaciones de List&lt;T&gt;
+
+| Operación | Resultado |
+|---|---|
+| `Where(x => ...)`, `Where((x, i) => ...)` | Elementos que cumplen la condición (con su índice). |
+| `Select(x => ...)`, `Select((x, i) => ...)` | Lista transformada (`List<U>`). |
+| `SelectMany(x => lista)` | Aplana las listas que devuelve la función. |
+| `OrderBy(clave)`, `OrderByDescending(clave)` | Ordenación **estable** por clave (la clave necesita `<`; `string` compara por orden). |
+| `ThenBy(clave)`, `ThenByDescending(clave)` | Criterio secundario, justo después de `OrderBy`. |
+| `First(pred)`, `Last(pred)` | Primer/último que cumple; `panic` si no hay ninguno. |
+| `FirstOrDefault()`, `FirstOrDefault(pred)`, `LastOrDefault(...)` | Igual, o `default(T)`. |
+| `Any()`, `Any(pred)`, `All(pred)`, `Count(pred)` | Comprobaciones y recuento (`Count` sin paréntesis es el total). |
+| `Sum(sel)`, `Min(sel)`, `Max(sel)`, `Average()`, `Average(sel)` | Agregados con selector (`Sum()`, `Min()`, `Max()` sin selector suman/comparan los elementos). |
+| `MinBy(clave)`, `MaxBy(clave)` | El elemento con la clave mínima/máxima. |
+| `Distinct()` | Sin repetidos, en orden de aparición (`T` necesita `Hash.Of`). |
+| `Take(n)`, `Skip(n)`, `TakeWhile(pred)`, `SkipWhile(pred)` | Prefijos y sufijos. |
+| `GroupBy(clave)` | `List<Grouping<K, T>>` con `Key`, `Items` y `Count`, en orden de aparición. |
+| `ToList()`, `ToDictionary(clave)`, `ToDictionary(clave, valor)` | Copias. |
+| `Aggregate((a, b) => ...)`, `Aggregate(semilla, (acc, x) => ...)` | Acumulación de izquierda a derecha. |
+| `Zip(otra, (a, b) => ...)` | Combina elemento a elemento. |
+| `Concat(otra)` | Las dos listas seguidas. |
+
+También están los métodos clásicos de `List<T>` de .NET: `Sort(Comparison<T>)` (estable),
+`ForEach(Action<T>)`, `Find`, `FindLast`, `FindAll`, `FindIndex`, `Exists`, `TrueForAll`,
+`RemoveAll(Predicate<T>)` y `ConvertAll`.
+
+```faset
+using std.collections;
+
+int main()
+{
+    var l = new List<int>();
+    for (int i = 1; i <= 10; i++) l.Add(i);
+
+    println(l.Aggregate((a, b) => a * b));            // 3628800
+    println(l.Aggregate("", (s, x) => s + x));        // 12345678910
+    println(l.Average());                             // 5.5
+
+    var pares = l.Zip(l.Skip(1), (a, b) => a * b);
+    println(pares[0] + " " + pares[1]);               // 2 6
+
+    l.Sort((a, b) => b - a);                          // descendente, en el sitio
+    println(l[0]);                                    // 10
+    println(l.RemoveAll(x => x % 3 == 0));            // 3
+    println(l.Find(x => x < 5));                      // 4
+
+    int suma = 0;
+    l.ForEach(x => suma += x);
+    println(suma);                                    // 37
+    return 0;
+}
+```
+
+## Diccionarios
+
+`Dictionary<K, V>` añade `Pairs()` (una `List<KeyValuePair<K, V>>` con `Key` y `Value`, para usar
+LINQ), `ForEach((k, v) => ...)`, `GetOrAdd(clave, k => valor)`, `Any((k, v) => ...)`,
+`Count((k, v) => ...)` y `RemoveAll((k, v) => ...)`:
+
+```faset
+using std.collections;
+
+int main()
+{
+    var stock = new Dictionary<string, int>();
+    stock.Set("pera", 10);
+    stock.Set("uva", 0);
+    stock.Set("leche", 4);
+
+    println(stock.Count((k, v) => v > 0));                        // 2
+    var agotados = stock.Pairs().Where(p => p.Value == 0).Select(p => p.Key);
+    println(agotados[0]);                                         // uva
+    println(stock.GetOrAdd("queso", k => k.Length));              // 5
+    stock.RemoveAll((k, v) => v == 0);
+    println(stock.Count);                                         // 3
+    return 0;
+}
+```
+
+Las versiones con [punteros a función](/lenguaje/delegados/#punteros-a-función-delegate) (`&Funcion`)
+de `Where`, `Select`, `Any`, `All`, `Sort` y `ForEach` siguen disponibles para código que hable con C.

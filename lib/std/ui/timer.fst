@@ -58,6 +58,7 @@ namespace std.ui
                 due += interval;
                 if (due <= now) due = now + interval;  // si se retrasó mucho, no se acumulan disparos
                 RaiseEvent(tickEvent);
+                Tick(this);
                 if (!Enabled) return -1;
             }
             return (int)(due - now);

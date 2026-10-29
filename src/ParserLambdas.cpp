@@ -1,0 +1,102 @@
+// Faset - análisis sintáctico de lambdas y declaraciones de delegados.
+//
+//   x => x * 2          (a, b) => a + b          (int x, int y) => x * y
+//   () => { ...; return v; }
+//   delegate int Comparador(string a, string b);
+//   delegate bool Predicate<T>(T valor);
+#include "Parser.h"
+
+// ¿Empieza aquí una lambda? 'nombre =>' o '( ... ) =>' (paréntesis equilibrados).
+// Si es así la analiza; si no, no consume nada y devuelve nullptr.
+Expr* Parser::tryParseLambda() {
+    bool single = cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct && peekTok().text == "=>";
+    bool paren = false;
+    if (!single && isP("(")) {
+        int depth = 0;
+        size_t i = p_;
+        for (; i < toks_->size(); i++) {
+            const Token& t = (*toks_)[i];
+            if (t.kind == TokKind::End) break;
+            if (t.kind != TokKind::Punct) continue;
+            if (t.text == "(") depth++;
+            else if (t.text == ")" && --depth == 0) break;
+            else if (t.text == ";" || t.text == "{" || t.text == "}") break;  // no es una lista de parámetros
+        }
+        paren = i + 1 < toks_->size() && (*toks_)[i].kind == TokKind::Punct && (*toks_)[i].text == ")" &&
+                (*toks_)[i + 1].kind == TokKind::Punct && (*toks_)[i + 1].text == "=>";
+    }
+    if (!single && !paren) return nullptr;
+
+    auto* l = new LambdaExpr(cur().loc);
+    l->tokens = toks_;
+    l->tokBegin = p_;
+    l->file = file_;
+    if (single) {
+        LambdaExpr::LParam prm;
+        prm.loc = cur().loc;
+        prm.name = expectIdent();
+        l->params.push_back(prm);
+        expectP("=>");
+    } else {
+        expectP("(");
+        int typed = 0;
+        if (!isP(")")) {
+            do {
+                LambdaExpr::LParam prm;
+                prm.loc = cur().loc;
+                if (isK("ref") || isK("out")) fail("los parámetros de una lambda no pueden ser 'ref' ni 'out'");
+                bool bare = cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct &&
+                            (peekTok().text == "," || peekTok().text == ")");
+                if (!bare) {
+                    prm.tref = parseType();
+                    prm.loc = cur().loc;
+                    typed++;
+                }
+                prm.name = expectIdent();
+                l->params.push_back(prm);
+            } while (acceptP(","));
+        }
+        expectP(")");
+        if (typed != 0 && typed != (int)l->params.size())
+            fail(l->loc, "en una lambda, o todos los parámetros indican su tipo o ninguno lo hace");
+        expectP("=>");
+    }
+    if (isP("{")) l->blockBody = parseBlock();
+    else l->exprBody = parseAssign();
+    return l;
+}
+
+LambdaExpr* Parser::reparseLambda(LambdaExpr* l, Program& prog) {
+    Parser p(l->tokens, prog, l->file, "");
+    p.reparse_ = true;
+    p.p_ = l->tokBegin;
+    try {
+        Expr* e = p.tryParseLambda();
+        return e ? static_cast<LambdaExpr*>(e) : nullptr;
+    } catch (ParseError&) {
+        return nullptr;
+    }
+}
+
+// delegate R Nombre<T...>(parámetros);   (en un namespace o dentro de una clase)
+void Parser::parseDelegateDecl(ClassDecl* owner, std::vector<Attribute> attrs, Modifiers mods) {
+    SourceLoc loc = cur().loc;
+    p_++;  // 'delegate'
+    auto* m = new MethodDecl();
+    m->mods = mods;
+    if (!mods.hasAccess) m->mods.access = Access::Public;
+    m->attrs = std::move(attrs);
+    m->retRef = parseType();
+    m->loc = cur().loc;
+    m->name = expectIdent();
+    if (isP("<")) m->typeParams = parseTypeParams();
+    parseParams(m);
+    for (Param& p : m->params)
+        if (p.isRef() || p.isThis) fail(p.loc, "los parámetros de un delegado no pueden ser 'ref', 'out' ni 'this'");
+    if (m->variadic) fail(loc, "un delegado no puede ser variádico");
+    expectP(";");
+    m->owner = owner;
+    m->file = file_;
+    m->mods.isStatic = true;
+    if (!reparse_) prog_.delegates.push_back(m);
+}

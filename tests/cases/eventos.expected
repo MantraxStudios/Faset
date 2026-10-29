@@ -1,0 +1,17 @@
+false
+imprimir 21
+global: salón = 21
+imprimir 35
+¡alarma en salón: 35!
+global: salón = 35
+56
+global: salón = 1
+57
+2
+false
+global: salón = 2
+A 3
+global: salón = 3
+3
+1:hola
+2:hola

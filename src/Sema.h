@@ -13,6 +13,7 @@ struct NamespaceSym {
     std::map<std::string, ClassDecl*> types;  // incluye plantillas
     std::map<std::string, std::vector<MethodDecl*>> funcs;
     std::map<std::string, FieldDecl*> globals;
+    std::map<std::string, MethodDecl*> delegates;  // delegate int Comparador(string a, string b);
     std::string display() const { return name.empty() ? "<global>" : name; }
 };
 
@@ -24,6 +25,7 @@ struct Sym {
     Type* type = nullptr;       // tipo ya resuelto (alias a int, List<int>, ...)
     std::vector<MethodDecl*> funcs;
     FieldDecl* global = nullptr;
+    MethodDecl* dlg = nullptr;  // TypeK: tipo delegado declarado
 };
 
 class Sema {
@@ -60,6 +62,15 @@ public:
     void completeNamespaceMembers(NamespaceSym* ns, bool children);
     static std::string methodSignature(MethodDecl* m);
     static std::string typeDescription(ClassDecl* c);
+
+    // ---- lambdas, cierres y delegados (Lambdas.cpp)
+    std::vector<LambdaExpr*> lambdas;  // lambdas comprobadas que se emiten (fs_lamN)
+    struct Thunk {                     // adaptador grupo de métodos -> delegado (fs_thkN)
+        MethodDecl* target;
+        Type* dlg;
+        bool instance;
+    };
+    std::vector<Thunk> thunks;
 
 private:
     struct Ctx {
@@ -177,4 +188,38 @@ private:
     void completeScope();
     void completeMembers(Expr* obj, bool arrow, Type* ot);
     void completeTypes(const std::vector<std::string>& prefix);
+
+    // lambdas, cierres, delegados y eventos (Lambdas.cpp)
+    std::vector<LambdaExpr*> lambdaStack_;  // lambdas cuyo cuerpo se está comprobando
+    int trialDepth_ = 0;                    // > 0: comprobando una copia de prueba (sin efectos visibles)
+    Expr* eventLhs_ = nullptr;              // lado izquierdo de 'evento += h' / 'evento -= h'
+    Expr* calleeExpr_ = nullptr;            // expresión que se está llamando (para Count(...) frente a Count)
+    std::map<std::pair<MethodDecl*, Type*>, int> thunkIndex_;
+    Type* requireValue(Expr* e);
+    Type* checkOperand(Expr* e);  // como checkValue, pero admite lambdas y grupos de métodos
+    Type* checkLambdaExpr(Expr* e);
+    void registerDelegates();
+    Type* delegateFromDecl(MethodDecl* d, TypeRef* tr);
+    Type* builtinDelegateType(TypeRef* tr);
+    void checkEventField(FieldDecl* f);
+    bool eventAccessible(FieldDecl* f, Expr* e);
+    void noteLocalUse(VarInfo* v, SourceLoc loc);
+    void noteThisUse(SourceLoc loc);
+    bool lambdaReturn(ReturnStmt* rs);
+    bool bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret);
+    LambdaExpr* lambdaTrial(LambdaExpr* l, const std::vector<Type*>& params, Type* ret);
+    Type* lambdaReturnType(LambdaExpr* trial);
+    int lambdaCost(LambdaExpr* l, Type* d);
+    int groupCost(Expr* e, Type* d);
+    MethodDecl* groupMatch(Expr* e, Type* d, bool report);
+    int pendingCost(Expr* e, Type* to);
+    void convertPending(Expr*& e, Type* to);
+    Type* naturalType(Expr*& e);
+    void inferFromLambdas(MethodDecl* tmpl, const std::vector<Expr*>& args, std::map<std::string, Type*>& b);
+    bool unifyDelegate(TypeRef* p, Type* a, MethodDecl* tmpl, std::map<std::string, Type*>& b);
+    Type* checkDelegateCall(CallExpr* e);
+    bool delegateAssign(AssignExpr* e, Type* L);
+    bool hasCallableNamed(ClassDecl* c, const std::string& name);
+    void explainPendingArgs(const std::vector<MethodDecl*>& group, std::vector<Expr*>& args);
+    Type* resolveInTemplate(MethodDecl* tmpl, TypeRef* tr, const std::map<std::string, Type*>& b);
 };

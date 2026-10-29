@@ -200,6 +200,8 @@ void Parser::parseNamespaceBody(const std::string& ns, bool braced) {
             Modifiers mods = parseModifiers();
             if (isK("class") || isK("struct") || isK("enum") || isK("interface")) {
                 parseTypeDecl(ns, attrs, mods, begin);
+            } else if (isK("delegate") && !(peekTok().kind == TokKind::Punct && peekTok().text == "*")) {
+                parseDelegateDecl(hiddenFor(ns), attrs, mods);
             } else {
                 hasSection_ = false;
                 parseMember(hiddenFor(ns), attrs, mods, begin);
@@ -259,6 +261,9 @@ Modifiers Parser::parseModifiers() {
         else if (cur().kind == TokKind::Ident && cur().text == "partial" && (peekTok().text == "class" || peekTok().text == "struct"))
             p_++, m.isPartial = true;
         else if (cur().kind == TokKind::Ident && (cur().text == "inline" || cur().text == "constexpr")) p_++;
+        else if (cur().kind == TokKind::Ident && cur().text == "event" &&
+                 (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword))
+            p_++, m.isEvent = true;
         else if (isK("virtual") || isK("override") || isK("abstract") || isK("sealed"))
             fail("'" + cur().text + "' aún no está soportado (la herencia llegará en una versión futura)");
         else break;
@@ -406,6 +411,10 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
     };
 
     if (isK("class") || isK("struct") || isK("enum")) fail("los tipos anidados aún no están soportados");
+    if (isK("delegate") && !(peekTok().kind == TokKind::Punct && peekTok().text == "*")) {
+        parseDelegateDecl(c, attrs, mods);
+        return;
+    }
 
     auto finishMethod = [&](MethodDecl* m) {
         skipWhereClauses();
@@ -505,6 +514,8 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
 
     SourceLoc nameLoc = cur().loc;
     std::string name = expectIdent();
+    if (mods.isEvent && (isP("(") || isP("<") || isP("=>") || isP("{")))
+        fail(nameLoc, "'event' solo se puede aplicar a campos de tipo delegado (public event Action<T> Nombre;)");
 
     if (isP("(") || isP("<")) {
         auto* m = new MethodDecl();
@@ -638,6 +649,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         f->tref = type;
         f->name = name;
         f->unsafeCtx = ctxUnsafe;
+        f->isEvent = mods.isEvent;
         if (acceptP("=")) f->init = parseExpr();
         c->fields.push_back(f);
         if (!acceptP(",")) break;
@@ -989,6 +1001,7 @@ Stmt* Parser::parseStatement() {
 Expr* Parser::parseExpr() { return parseAssign(); }
 
 Expr* Parser::parseAssign() {
+    if (Expr* lambda = tryParseLambda()) return lambda;
     Expr* lhs = parseConditional();
     static const char* const ops[] = {"=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="};
     for (const char* op : ops) {

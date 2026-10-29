@@ -179,6 +179,421 @@ namespace std.collections
             r.AddRange(this);
             return r;
         }
+
+        // ============================================================ LINQ y delegados
+        //  Operaciones de estilo LINQ con lambdas (Func/Action). La evaluación es inmediata:
+        //  cada operación devuelve una lista nueva (la original no cambia).
+
+        // Criterio de OrderBy/ThenBy de esta lista (lo usa ThenBy para encadenar).
+        Func<T, T, int> orden;
+
+        // Ordena en el sitio con una comparación (negativo, cero o positivo). Estable.
+        public void Sort(Comparison<T> comparison) { Algorithms.StableSort<T>(items, count, comparison); }
+
+        public void ForEach(Action<T> action)
+        {
+            for (int i = 0; i < count; i++) action(items[i]);
+        }
+
+        public List<T> Where(Func<T, bool> predicate)
+        {
+            List<T> r = new List<T>();
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i])) r.Add(items[i]);
+            return r;
+        }
+
+        // Con el índice del elemento: lista.Where((x, i) => i % 2 == 0)
+        public List<T> Where(Func<T, int, bool> predicate)
+        {
+            List<T> r = new List<T>();
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i], i)) r.Add(items[i]);
+            return r;
+        }
+
+        public List<U> Select<U>(Func<T, U> selector)
+        {
+            List<U> r = new List<U>(count);
+            for (int i = 0; i < count; i++) r.Add(selector(items[i]));
+            return r;
+        }
+
+        public List<U> Select<U>(Func<T, int, U> selector)
+        {
+            List<U> r = new List<U>(count);
+            for (int i = 0; i < count; i++) r.Add(selector(items[i], i));
+            return r;
+        }
+
+        // Aplana: cada elemento produce una lista.
+        public List<U> SelectMany<U>(Func<T, List<U>> selector)
+        {
+            List<U> r = new List<U>();
+            for (int i = 0; i < count; i++) r.AddRange(selector(items[i]));
+            return r;
+        }
+
+        // Ordenaciones estables por clave (la clave necesita 'operator<'; string compara por orden).
+        public List<T> OrderBy<K>(Func<T, K> key)
+        {
+            return Ordered((a, b) => Algorithms.CompareKeys<K>(key(a), key(b)));
+        }
+
+        public List<T> OrderByDescending<K>(Func<T, K> key)
+        {
+            return Ordered((a, b) => Algorithms.CompareKeys<K>(key(b), key(a)));
+        }
+
+        // Criterio secundario: solo sobre el resultado de OrderBy/OrderByDescending/ThenBy.
+        [TrackCaller] public List<T> ThenBy<K>(Func<T, K> key)
+        {
+            if (orden == null) panic("ThenBy: la lista no viene de OrderBy, OrderByDescending ni ThenBy");
+            Func<T, T, int> previo = orden;
+            return Ordered((a, b) => {
+                int c = previo(a, b);
+                return c != 0 ? c : Algorithms.CompareKeys<K>(key(a), key(b));
+            });
+        }
+
+        [TrackCaller] public List<T> ThenByDescending<K>(Func<T, K> key)
+        {
+            if (orden == null) panic("ThenByDescending: la lista no viene de OrderBy, OrderByDescending ni ThenBy");
+            Func<T, T, int> previo = orden;
+            return Ordered((a, b) => {
+                int c = previo(a, b);
+                return c != 0 ? c : Algorithms.CompareKeys<K>(key(b), key(a));
+            });
+        }
+
+        List<T> Ordered(Func<T, T, int> comparison)
+        {
+            List<T> r = Clone();
+            Algorithms.StableSort<T>(r.items, r.count, comparison);
+            r.orden = comparison;
+            return r;
+        }
+
+        [TrackCaller] public T First(Func<T, bool> predicate)
+        {
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i])) return items[i];
+            panic("List.First: ningún elemento cumple la condición");
+            return default(T);
+        }
+
+        public T FirstOrDefault() => count > 0 ? items[0] : default(T);
+
+        public T FirstOrDefault(Func<T, bool> predicate)
+        {
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i])) return items[i];
+            return default(T);
+        }
+
+        [TrackCaller] public T Last(Func<T, bool> predicate)
+        {
+            for (int i = count - 1; i >= 0; i--)
+                if (predicate(items[i])) return items[i];
+            panic("List.Last: ningún elemento cumple la condición");
+            return default(T);
+        }
+
+        public T LastOrDefault() => count > 0 ? items[count - 1] : default(T);
+
+        public T LastOrDefault(Func<T, bool> predicate)
+        {
+            for (int i = count - 1; i >= 0; i--)
+                if (predicate(items[i])) return items[i];
+            return default(T);
+        }
+
+        public bool Any() => count > 0;
+
+        public bool Any(Func<T, bool> predicate)
+        {
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i])) return true;
+            return false;
+        }
+
+        public bool All(Func<T, bool> predicate)
+        {
+            for (int i = 0; i < count; i++)
+                if (!predicate(items[i])) return false;
+            return true;
+        }
+
+        // Cuántos cumplen la condición (lista.Count sin paréntesis es el total).
+        public int Count(Func<T, bool> predicate)
+        {
+            int n = 0;
+            for (int i = 0; i < count; i++)
+                if (predicate(items[i])) n++;
+            return n;
+        }
+
+        public U Sum<U>(Func<T, U> selector)
+        {
+            U s = default(U);
+            for (int i = 0; i < count; i++) s += selector(items[i]);
+            return s;
+        }
+
+        [TrackCaller] public U Min<U>(Func<T, U> selector)
+        {
+            if (count == 0) panic("List.Min: la lista está vacía");
+            U m = selector(items[0]);
+            for (int i = 1; i < count; i++)
+            {
+                U v = selector(items[i]);
+                if (v < m) m = v;
+            }
+            return m;
+        }
+
+        [TrackCaller] public U Max<U>(Func<T, U> selector)
+        {
+            if (count == 0) panic("List.Max: la lista está vacía");
+            U m = selector(items[0]);
+            for (int i = 1; i < count; i++)
+            {
+                U v = selector(items[i]);
+                if (m < v) m = v;
+            }
+            return m;
+        }
+
+        // Elemento con la clave mínima / máxima (el primero si hay empate).
+        [TrackCaller] public T MinBy<K>(Func<T, K> key)
+        {
+            if (count == 0) panic("List.MinBy: la lista está vacía");
+            int best = 0;
+            K bk = key(items[0]);
+            for (int i = 1; i < count; i++)
+            {
+                K k = key(items[i]);
+                if (k < bk)
+                {
+                    bk = k;
+                    best = i;
+                }
+            }
+            return items[best];
+        }
+
+        [TrackCaller] public T MaxBy<K>(Func<T, K> key)
+        {
+            if (count == 0) panic("List.MaxBy: la lista está vacía");
+            int best = 0;
+            K bk = key(items[0]);
+            for (int i = 1; i < count; i++)
+            {
+                K k = key(items[i]);
+                if (bk < k)
+                {
+                    bk = k;
+                    best = i;
+                }
+            }
+            return items[best];
+        }
+
+        [TrackCaller] public double Average()
+        {
+            if (count == 0) panic("List.Average: la lista está vacía");
+            return (double)Sum() / count;
+        }
+
+        [TrackCaller] public double Average<U>(Func<T, U> selector)
+        {
+            if (count == 0) panic("List.Average: la lista está vacía");
+            return (double)Sum<U>(selector) / count;
+        }
+
+        // Sin repetidos, en el orden de la primera aparición (T necesita Hash.Of y '==').
+        public List<T> Distinct()
+        {
+            List<T> r = new List<T>();
+            Dictionary<T, bool> seen = new Dictionary<T, bool>();
+            for (int i = 0; i < count; i++)
+                if (seen.Add(items[i], true)) r.Add(items[i]);
+            return r;
+        }
+
+        public List<T> Take(int n)
+        {
+            if (n > count) n = count;
+            List<T> r = new List<T>(n < 0 ? 0 : n);
+            for (int i = 0; i < n; i++) r.Add(items[i]);
+            return r;
+        }
+
+        public List<T> Skip(int n)
+        {
+            if (n < 0) n = 0;
+            List<T> r = new List<T>();
+            for (int i = n; i < count; i++) r.Add(items[i]);
+            return r;
+        }
+
+        public List<T> TakeWhile(Func<T, bool> predicate)
+        {
+            List<T> r = new List<T>();
+            for (int i = 0; i < count && predicate(items[i]); i++) r.Add(items[i]);
+            return r;
+        }
+
+        public List<T> SkipWhile(Func<T, bool> predicate)
+        {
+            int i = 0;
+            while (i < count && predicate(items[i])) i++;
+            List<T> r = new List<T>();
+            for (; i < count; i++) r.Add(items[i]);
+            return r;
+        }
+
+        // Grupos por clave, en el orden de la primera aparición de cada clave.
+        public List<Grouping<K, T>> GroupBy<K>(Func<T, K> key)
+        {
+            List<Grouping<K, T>> r = new List<Grouping<K, T>>();
+            Dictionary<K, int> index = new Dictionary<K, int>();
+            for (int i = 0; i < count; i++)
+            {
+                K k = key(items[i]);
+                int at = 0;
+                if (!index.TryGetValue(k, out at))
+                {
+                    at = r.Count;
+                    index.Set(k, at);
+                    r.Add(new Grouping<K, T>(k));
+                }
+                r[at].Items.Add(items[i]);
+            }
+            return r;
+        }
+
+        public List<T> ToList() => Clone();
+
+        // Diccionario clave -> elemento (si una clave se repite, gana el último).
+        public Dictionary<K, T> ToDictionary<K>(Func<T, K> key)
+        {
+            Dictionary<K, T> d = new Dictionary<K, T>();
+            for (int i = 0; i < count; i++) d.Set(key(items[i]), items[i]);
+            return d;
+        }
+
+        public Dictionary<K, V> ToDictionary<K, V>(Func<T, K> key, Func<T, V> value)
+        {
+            Dictionary<K, V> d = new Dictionary<K, V>();
+            for (int i = 0; i < count; i++) d.Set(key(items[i]), value(items[i]));
+            return d;
+        }
+
+        // Acumula de izquierda a derecha: lista.Aggregate((a, b) => a + b)
+        [TrackCaller] public T Aggregate(Func<T, T, T> func)
+        {
+            if (count == 0) panic("List.Aggregate: la lista está vacía");
+            T acc = items[0];
+            for (int i = 1; i < count; i++) acc = func(acc, items[i]);
+            return acc;
+        }
+
+        // Con semilla: lista.Aggregate("", (s, x) => s + x)
+        public A Aggregate<A>(A seed, Func<A, T, A> func)
+        {
+            A acc = seed;
+            for (int i = 0; i < count; i++) acc = func(acc, items[i]);
+            return acc;
+        }
+
+        // Combina elemento a elemento (hasta la lista más corta).
+        public List<R> Zip<U, R>(List<U> other, Func<T, U, R> f)
+        {
+            int n = count < other.Count ? count : other.Count;
+            List<R> r = new List<R>(n);
+            for (int i = 0; i < n; i++) r.Add(f(items[i], other[i]));
+            return r;
+        }
+
+        public List<T> Concat(List<T> other)
+        {
+            List<T> r = Clone();
+            r.AddRange(other);
+            return r;
+        }
+
+        // ---- búsquedas al estilo de List<T> de .NET
+        public T Find(Predicate<T> match)
+        {
+            for (int i = 0; i < count; i++)
+                if (match(items[i])) return items[i];
+            return default(T);
+        }
+
+        public T FindLast(Predicate<T> match)
+        {
+            for (int i = count - 1; i >= 0; i--)
+                if (match(items[i])) return items[i];
+            return default(T);
+        }
+
+        public List<T> FindAll(Predicate<T> match) => Where(match);
+
+        public int FindIndex(Predicate<T> match)
+        {
+            for (int i = 0; i < count; i++)
+                if (match(items[i])) return i;
+            return -1;
+        }
+
+        public bool Exists(Predicate<T> match) => FindIndex(match) >= 0;
+
+        public bool TrueForAll(Predicate<T> match) => All(match);
+
+        // Quita los elementos que cumplen la condición; devuelve cuántos quitó.
+        public int RemoveAll(Predicate<T> match)
+        {
+            int w = 0;
+            for (int i = 0; i < count; i++)
+            {
+                if (match(items[i])) continue;
+                items[w] = items[i];
+                w++;
+            }
+            int removed = count - w;
+            for (int i = w; i < count; i++) items[i] = default(T);
+            count = w;
+            return removed;
+        }
+
+        public List<U> ConvertAll<U>(Func<T, U> converter) => Select<U>(converter);
+    }
+
+    // Delegados de .NET (estructurales: Predicate<int> es el mismo tipo que Func<int, bool>).
+    public delegate bool Predicate<T>(T obj);
+    public delegate int Comparison<T>(T x, T y);
+
+    // Resultado de GroupBy: la clave y los elementos del grupo.
+    public class Grouping<K, T>
+    {
+        public K Key;
+        public List<T> Items = new List<T>();
+        public Grouping(K key) { Key = key; }
+        public int Count => Items.Count;
+        [TrackCaller] public T operator[](int index) => Items[index];
+    }
+
+    // Par clave/valor de un diccionario (Dictionary.Pairs()).
+    public struct KeyValuePair<K, V>
+    {
+        public K Key;
+        public V Value;
+        public KeyValuePair(K key, V value)
+        {
+            Key = key;
+            Value = value;
+        }
     }
 
     // ---------------------------------------------------------------- Stack<T>
@@ -398,6 +813,62 @@ namespace std.collections
                 if (used[i] == 1) r.Add(values[i]);
             return r;
         }
+
+        // ---- con delegados
+        // Pares clave/valor (para usar LINQ: dic.Pairs().Where(p => p.Value > 3)).
+        public List<KeyValuePair<K, V>> Pairs()
+        {
+            List<KeyValuePair<K, V>> r = new List<KeyValuePair<K, V>>(count);
+            for (int i = 0; i < capacity; i++)
+                if (used[i] == 1) r.Add(new KeyValuePair<K, V>(keys[i], values[i]));
+            return r;
+        }
+
+        public void ForEach(Action<K, V> action)
+        {
+            for (int i = 0; i < capacity; i++)
+                if (used[i] == 1) action(keys[i], values[i]);
+        }
+
+        // Valor de la clave; si no existe, lo crea con factory(clave).
+        public V GetOrAdd(K key, Func<K, V> factory)
+        {
+            int i = Find(key);
+            if (i >= 0) return values[i];
+            V v = factory(key);
+            Set(key, v);
+            return v;
+        }
+
+        public bool Any(Func<K, V, bool> predicate)
+        {
+            for (int i = 0; i < capacity; i++)
+                if (used[i] == 1 && predicate(keys[i], values[i])) return true;
+            return false;
+        }
+
+        public int Count(Func<K, V, bool> predicate)
+        {
+            int n = 0;
+            for (int i = 0; i < capacity; i++)
+                if (used[i] == 1 && predicate(keys[i], values[i])) n++;
+            return n;
+        }
+
+        // Quita las entradas que cumplen la condición; devuelve cuántas quitó.
+        public int RemoveAll(Func<K, V, bool> predicate)
+        {
+            int n = 0;
+            for (int i = 0; i < capacity; i++)
+            {
+                if (used[i] != 1 || !predicate(keys[i], values[i])) continue;
+                used[i] = 2;
+                count--;
+                tombstones++;
+                n++;
+            }
+            return n;
+        }
     }
 
     // ---------------------------------------------------------------- HashSet<T>
@@ -520,6 +991,54 @@ namespace std.collections
             }
             return -1;
         }
+
+        // Ordenación estable (mezcla) con una comparación: negativo, cero o positivo.
+        public static void StableSort<T>(T* data, int n, Func<T, T, int> compare)
+        {
+            if (n < 2) return;
+            if (n <= 16)
+            {
+                for (int i = 1; i < n; i++)
+                {
+                    T v = data[i];
+                    int j = i - 1;
+                    while (j >= 0 && compare(v, data[j]) < 0)
+                    {
+                        data[j + 1] = data[j];
+                        j--;
+                    }
+                    data[j + 1] = v;
+                }
+                return;
+            }
+            T* tmp = Memory.New<T>(n);
+            MergeSort<T>(data, tmp, n, compare);
+            Memory.Free(tmp);
+        }
+
+        static void MergeSort<T>(T* data, T* tmp, int n, Func<T, T, int> compare)
+        {
+            if (n <= 16)
+            {
+                StableSort<T>(data, n, compare);
+                return;
+            }
+            int mid = n / 2;
+            MergeSort<T>(data, tmp, mid, compare);
+            MergeSort<T>(data + mid, tmp, n - mid, compare);
+            int i = 0, j = mid, k = 0;
+            while (i < mid && j < n)
+            {
+                if (compare(data[j], data[i]) < 0) tmp[k++] = data[j++];
+                else tmp[k++] = data[i++];
+            }
+            while (i < mid) tmp[k++] = data[i++];
+            while (j < n) tmp[k++] = data[j++];
+            for (int q = 0; q < n; q++) data[q] = tmp[q];
+        }
+
+        // -1, 0 o 1 según 'operator<' (claves de OrderBy).
+        public static int CompareKeys<K>(K a, K b) => a < b ? -1 : (b < a ? 1 : 0);
 
         public static T Min<T>(T a, T b) => b < a ? b : a;
         public static T Max<T>(T a, T b) => a < b ? b : a;

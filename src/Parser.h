@@ -18,6 +18,8 @@ public:
     // Vuelve a analizar una plantilla desde sus tokens para crear una instancia nueva.
     static ClassDecl* reparseType(ClassDecl* tmpl, Program& prog);
     static MethodDecl* reparseMethod(MethodDecl* tmpl, Program& prog);
+    // Copia nueva de una lambda (se comprueba con otros tipos de parámetros; ver Lambdas.cpp).
+    static LambdaExpr* reparseLambda(LambdaExpr* l, Program& prog);
 
 private:
     struct ParseError {};
@@ -91,4 +93,8 @@ private:
     Expr* parsePostfix(Expr* e);
     Expr* parsePrimary();
     std::vector<Expr*> parseArgs();
+
+    // lambdas y delegados (ParserLambdas.cpp)
+    Expr* tryParseLambda();
+    void parseDelegateDecl(ClassDecl* owner, std::vector<Attribute> attrs, Modifiers mods);
 };

@@ -1,20 +1,143 @@
 export const metadata = {
-  title: "Punteros a función",
-  description: "delegate*<...> y &Funcion: callbacks nativos sin asignaciones, usados por List.Where, Select o Sort.",
+  title: "Delegados y punteros a función",
+  description: "Func<...>, Action<...> y delegados declarados; grupos de métodos, multicast, nulos y coste. delegate*<...> para interoperar con C.",
 };
 
-# Punteros a función
+# Delegados y punteros a función
 
 <p className="lead">
-  Faset usa la sintaxis de punteros a función de C#: <code>delegate*&lt;A, B, R&gt;</code> es un puntero a
-  una función que recibe <code>A</code> y <code>B</code> y devuelve <code>R</code> (el último tipo es siempre el
-  de retorno). Se obtienen con <code>&amp;Funcion</code> y se llaman como una función normal.
+  Un delegado es un valor que se puede llamar: una función, un método de un objeto o una
+  <a href="/lenguaje/lambdas/">lambda</a> con las variables que captura. Faset tiene los delegados
+  de C# (<code>Func</code>, <code>Action</code> y los declarados con <code>delegate</code>) y, para
+  hablar con C, los punteros a función <code>delegate*&lt;...&gt;</code>.
 </p>
+
+## Func y Action
+
+`Func<A, B, R>` recibe `A` y `B` y devuelve `R` (el último tipo es siempre el de retorno);
+`Action<A, B>` no devuelve nada. Se llaman como una función, o con `Invoke`:
+
+```faset
+int Doble(int x) => x * 2;
+void Saludar(string s) { println("hola " + s); }
+
+int main()
+{
+    Func<int, int> f = Doble;              // un método se convierte en delegado (sin '&')
+    Func<int, int, int> suma = (a, b) => a + b;
+    Func<double> pi = () => 3.14159;       // sin parámetros
+    Action<string> s = Saludar;
+    Action nada = () => { };
+
+    println(f(21));                        // 42
+    println(suma.Invoke(2, 3));            // 5
+    println(pi());                         // 3.14159
+    s("mundo");                            // hola mundo
+    nada();
+    return 0;
+}
+```
+
+## Delegados declarados
+
+`delegate` declara un tipo delegado con nombre, en un namespace o dentro de una clase, y también
+puede ser genérico. Los delegados de Faset son **estructurales**: dos delegados con la misma firma
+son el mismo tipo, así que un `Comparador` y un `Func<string, string, int>` se asignan entre sí.
+
+```faset
+delegate int Comparador(string a, string b);
+delegate bool Filtro<T>(T valor);
+
+int PorLongitud(string a, string b) => a.Length - b.Length;
+
+int main()
+{
+    Comparador c = PorLongitud;
+    println(c("hola", "a"));                       // 3
+    Func<string, string, int> mismo = c;           // misma firma: mismo tipo
+    println(mismo("a", "hola"));                   // -3
+    Filtro<int> par = x => x % 2 == 0;
+    println(par(4));                               // true
+    return 0;
+}
+```
+
+La biblioteca estándar declara `Predicate<T>` y `Comparison<T>` (en
+[`std.collections`](/std/collections/)), igual que .NET.
+
+## Métodos de objetos
+
+`objeto.Metodo` crea un delegado ligado a ese objeto: al llamarlo se ejecuta el método sobre él. Un
+método de un `struct` se ata a una **copia** del valor, como en C#.
+
+```faset
+class Contador
+{
+    public int Valor;
+    public void Sumar(int n) { Valor += n; }
+}
+
+int main()
+{
+    var c = new Contador();
+    Action<int> sumar = c.Sumar;
+    sumar(5);
+    sumar(10);
+    println(c.Valor);         // 15
+    return 0;
+}
+```
+
+## Null, igualdad y multicast
+
+Un delegado es una referencia: vale `null` hasta que se le asigna algo, y llamar a un delegado nulo
+termina el programa con un `panic` ("llamada a un delegado nulo"). Dos delegados son iguales si
+llaman a la misma función sobre el mismo objeto.
+
+Con `+=` y `-=` un delegado guarda una **lista de invocación** (multicast): al llamarlo se ejecutan
+todos en orden y devuelve el resultado del último. Es la base de los [eventos](/lenguaje/eventos/).
+
+```faset
+int Doble(int x) => x * 2;
+
+int main()
+{
+    Func<int, int> a = Doble;
+    Func<int, int> b = Doble;
+    println(a == b);                 // true
+    Func<int, int> nulo = null;
+    println(nulo == null);           // true
+
+    Action<string> eco = null;
+    eco += x => println("1: " + x);
+    eco += x => println("2: " + x);
+    eco("hola");                     // 1: hola / 2: hola
+    return 0;
+}
+```
+
+## Representación y coste
+
+Un delegado es un puntero a un pequeño objeto con la función de C y su entorno (el objeto de
+`obj.Metodo` o las variables capturadas de una lambda).
+
+| Operación | Coste |
+|---|---|
+| Método estático o lambda sin capturas → delegado | Ninguna reserva: el objeto es estático. |
+| `obj.Metodo` → delegado | Una reserva (el entorno es el propio objeto). |
+| Lambda con capturas | Dos reservas al evaluarla (delegado y entorno) y una caja por variable capturada. |
+| Llamar | Comprobación de nulo + llamada indirecta; nunca reserva memoria. |
+| `+=` / `-=` | Crea una lista nueva (los delegados son inmutables, como en C#). |
+
+## Punteros a función (delegate*)
+
+Para interoperar con C sigue existiendo la sintaxis de punteros a función de C#:
+`delegate*<A, B, R>` es un puntero a una función de C que recibe `A` y `B` y devuelve `R`. Se obtiene
+con `&Funcion` (solo métodos estáticos) y no tiene entorno ni lista de invocación:
 
 ```faset
 int Sumar(int a, int b) => a + b;
 int Restar(int a, int b) => a - b;
-void Saludar() { println("hola"); }
 
 int Aplicar(delegate*<int, int, int> op, int a, int b) => op(a, b);
 
@@ -24,44 +147,14 @@ int main()
     println(f(2, 3));                 // 5
     f = &Restar;
     println(Aplicar(f, 10, 4));       // 6
-
-    delegate*<void> g = &Saludar;     // sin parámetros ni retorno
-    g();
     return 0;
 }
 ```
 
-En el C generado es un puntero a función de C: no hay objetos, cierres ni asignaciones de memoria.
-
-## Con colecciones
-
-Mientras no haya lambdas, las operaciones de estilo LINQ de `List<T>` reciben punteros a función:
-
-```faset
-using std.collections;
-
-bool EsPar(int x) => x % 2 == 0;
-int Descendente(int a, int b) => b - a;
-void Mostrar(int x) { println(x); }
-
-int main()
-{
-    auto l = new List<int>();
-    for (int i = 1; i <= 6; i++) l.Add(i);
-    auto pares = l.Where(&EsPar);
-    pares.Sort(&Descendente);
-    pares.ForEach(&Mostrar);          // 6 4 2
-    println(l.Any(&EsPar));
-    return 0;
-}
-```
-
-## Callbacks con contexto
-
-Para pasar estado a un callback, añade un parámetro `void*` y conviértelo dentro. Es el mismo patrón
-que usa `std.ui` para los eventos. Como `void*` y la conversión `(Contador)self` reinterpretan
-memoria, este código va en un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/) (aquí,
-todo el archivo con la directiva `memory_unsafe;`):
+Úsalos para pasar callbacks a C (el comparador de `qsort`, una función de ventana...): consulta
+[interoperabilidad con C](/lenguaje/interop/). Para pasar estado a un callback de C, el patrón es un
+parámetro `void*` que se convierte dentro, en un contexto
+[`memory_unsafe`](/lenguaje/seguridad-de-memoria/):
 
 ```faset
 memory_unsafe;
@@ -84,5 +177,5 @@ int main()
 }
 ```
 
-Un puntero a función también puede pasarse a C (por ejemplo, el comparador de `qsort`): consulta
-[interoperabilidad con C](/lenguaje/interop/).
+En código Faset normal prefiere los delegados: aceptan lambdas, métodos de objetos y capturas sin
+`void*`. Las colecciones y `std.thread` aceptan los dos.

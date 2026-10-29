@@ -110,6 +110,43 @@ namespace MiApp
 
 La referencia completa, extraída del código fuente, está en [`std.ui`](/std/ui/).
 
+## Eventos con lambdas
+
+Todos los controles tienen los [eventos](/lenguaje/eventos/) `Click` y `Changed` (y los `Timer`,
+`Tick`), de tipo `Action<Widget>`: se pueden suscribir lambdas desde el código, además de los
+manejadores del `.fstui`, sin `memory_unsafe`:
+
+```faset
+using std.ui;
+
+class Demo
+{
+    public Window Window = new Window("Lambdas", 320, 140);
+    int segundos;
+
+    public Demo()
+    {
+        var lbl = Window.Add(Widget.Create(WidgetKind.Label, "lbl", 20, 20, 280, 24));
+        var btn = Window.Add(Widget.Create(WidgetKind.Button, "btn", 20, 60, 140, 32));
+        var reloj = Window.AddComponent(Widget.Create(WidgetKind.Timer, "reloj", 0, 0, 0, 0));
+        btn.Text = "Reiniciar";
+        btn.Click += s => segundos = 0;
+        reloj.Interval = 1000;
+        reloj.Tick += s => {
+            segundos++;
+            lbl.Text = "Segundos: " + segundos;
+        };
+        reloj.Start();
+    }
+}
+
+int main()
+{
+    var d = new Demo();
+    return Application.Run(d.Window);
+}
+```
+
 ## Conectar eventos a mano
 
 Los controles creados con `Widget.Create` no tienen eventos hasta que les das una función y un número

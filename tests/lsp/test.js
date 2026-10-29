@@ -144,6 +144,20 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const doc = await request('textDocument/hover', pos(proj.u, proj.t, 'OutputType', 2));
     assert.match(doc.contents.value, /WinExe/, 'documentación de la propiedad');
 
+    // ---- lambdas: tipos de los parámetros inferidos (hover y autocompletado)
+    const lam = { u: 'file://' + path.join(__dirname, 'lambdas.fst'), t: fs.readFileSync(path.join(__dirname, 'lambdas.fst'), 'utf8') };
+    notify('textDocument/didOpen', { textDocument: { uri: lam.u, languageId: 'faset', version: 1, text: lam.t } });
+    let lh = await request('textDocument/hover', pos(lam.u, lam.t, 'p.Precio', 0));
+    assert.match(lh.contents.value, /\(parámetro\) Producto p/, 'hover del parámetro de una lambda');
+    lh = await request('textDocument/hover', pos(lam.u, lam.t, 'x * 2', 0));
+    assert.match(lh.contents.value, /\(parámetro\) int x/, 'hover del parámetro desde el delegado');
+    lh = await request('textDocument/hover', pos(lam.u, lam.t, 'caros', 1));
+    assert.match(lh.contents.value, /List<string> caros/, 'tipo inferido de Select');
+    t = lam.t.replace('p.Precio > 10', 'p.');
+    edit(lam.u, t);
+    items = await complete(lam.u, t, 'p => p.', 7, '.');
+    assert.ok(labels(items).includes('Nombre') && labels(items).includes('Precio'), 'miembros del parámetro de una lambda');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');

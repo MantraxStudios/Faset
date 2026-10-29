@@ -77,6 +77,8 @@ std::string CodeGen::ctype(Type* t) {
         case TK::Struct: return t->decl->cname;
         case TK::Enum: return "int32_t";
         case TK::FuncPtr: return "faset_fn" + std::to_string(t->id);
+        case TK::Delegate: return "faset_delegate*";
+        case TK::Pending: return "void*";
         case TK::Error: return "int";
     }
     return "int";
@@ -153,6 +155,7 @@ std::string CodeGen::generate(bool shared) {
     out_ << "/* Generado por fasetc. No editar a mano. */\n";
     if (checks) out_ << "#ifndef FASET_CHECKS\n#define FASET_CHECKS 1\n#endif\n";
     out_ << kRuntimeHeader << "\n";
+    out_ << kDelegateRuntime << "\n";
     // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
     for (size_t i = 0; i < diag.files.size(); i++)
         out_ << "static const char fs__f" << i << "[] = " << cstring(diag.files[i]) << ";\n";
@@ -179,6 +182,7 @@ std::string CodeGen::generate(bool shared) {
         if (n == 0) out_ << "    char faset_vacio;\n";
         out_ << "};\n\n";
     }
+    emitDelegateSupport();
 
     std::vector<MethodDecl*> allMethods;
     for (ClassDecl* c : prog_.types) {
@@ -210,6 +214,7 @@ std::string CodeGen::generate(bool shared) {
                 out_ << ret << " " << c->cname << kind << i << "(" << ctorParams(c->ctors[i], true) << ");\n";
     }
     out_ << "static void fs__static_init(void);\n\n";
+    emitLambdaDecls();
 
     // Campos estáticos y variables globales.
     for (ClassDecl* c : prog_.types) {
@@ -232,6 +237,7 @@ std::string CodeGen::generate(bool shared) {
             curClass_ = m->owner;
             emitMethod(m);
         }
+    emitLambdaBodies();
 
     // Inicialización estática, en orden.
     out_ << "static void fs__static_init(void) {\n";
@@ -304,6 +310,9 @@ void CodeGen::emitMethod(MethodDecl* m) {
     out_ << signature(m) << " {\n";
     indent_ = 1;
     if (!m->isStatic()) line("(void)self;");
+    std::vector<VarInfo*> params;
+    for (Param& p : m->params) params.push_back(p.var);
+    boxParams(params);  // parámetros capturados por lambdas
     for (Stmt* s : m->body->stmts) emitStmt(s);
     indent_ = 0;
     out_ << "}\n\n";
@@ -339,7 +348,8 @@ void CodeGen::emitStmt(Stmt* s) {
             auto* d = static_cast<VarDeclStmt*>(s);
             for (auto& dc : d->decls) {
                 Type* t = dc.var->type;
-                if (dc.var->isRef) line(ctype(t) + "* " + dc.var->cname + " = &" + expr(dc.init) + ";");
+                if (dc.var->captured) declareLocalVar(dc.var, dc.init ? expr(dc.init) : "");
+                else if (dc.var->isRef) line(ctype(t) + "* " + dc.var->cname + " = &" + expr(dc.init) + ";");
                 else line(ctype(t) + " " + dc.var->cname + " = " + (dc.init ? expr(dc.init) : zeroInit(t)) + ";");
             }
             break;
@@ -519,7 +529,7 @@ std::string CodeGen::expr(Expr* e) {
         case EK::Name: {
             auto* n = static_cast<NameExpr*>(e);
             switch (n->ref) {
-                case NameExpr::Ref::Local: return n->var->isRef ? "(*" + n->var->cname + ")" : n->var->cname;
+                case NameExpr::Ref::Local: return localRef(n->var);
                 case NameExpr::Ref::Field: return "self->" + n->field->cname;
                 case NameExpr::Ref::StaticField: return n->field->cname;
                 case NameExpr::Ref::Property: return call(n->getter, "self", {}, n->loc);
@@ -537,11 +547,13 @@ std::string CodeGen::expr(Expr* e) {
                 case MemberExpr::Ref::StrPtr: return "((uint8_t*)" + memberAccess(m->obj, m->arrow, "ptr") + ")";
                 case MemberExpr::Ref::Property:
                     return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {}, m->loc);
+                case MemberExpr::Ref::DelegateInvoke: return expr(m->obj);
                 default: return "/*?*/0";
             }
         }
         case EK::Call: {
             auto* c = static_cast<CallExpr*>(e);
+            if (!c->target && c->callee->type->isDelegate()) return delegateCall(c);
             if (!c->target) {  // puntero a función
                 std::string fn = expr(c->callee);
                 fn = "((" + ctype(c->callee->type) + ")faset_chk_fn((void*)" + fn + ", " + callerLoc(c->loc) + "))";
@@ -583,6 +595,10 @@ std::string CodeGen::expr(Expr* e) {
             }
             if (b->op == "+" && e->type->is(TK::String))
                 return "faset_str_concat(" + toStr(b->lhs) + ", " + toStr(b->rhs) + ")";
+            if ((b->op == "==" || b->op == "!=") && b->lhs->type->isDelegate() && b->rhs->type->isDelegate()) {
+                std::string c = "faset_dlg_eq(" + expr(b->lhs) + ", " + expr(b->rhs) + ")";
+                return b->op == "==" ? c : "(!" + c + ")";
+            }
             std::string l = expr(b->lhs), r = expr(b->rhs);
             Type* lt = b->lhs->type;
             if (lt->is(TK::String) && b->rhs->type->is(TK::String)) {
@@ -630,6 +646,11 @@ std::string CodeGen::expr(Expr* e) {
                 return call(a->setter, self, {a->rhs}, a->loc);
             }
             if (a->opMethod) return "(" + expr(a->lhs) + " = " + call(a->opMethod, "", {a->lhs, a->rhs}, a->loc) + ")";
+            if ((a->op == "+=" || a->op == "-=") && a->lhs->type->isDelegate()) {  // evento += manejador
+                std::string lhs = expr(a->lhs);
+                return "(" + lhs + " = " + (a->op == "+=" ? "faset_dlg_combine(" : "faset_dlg_remove(") + lhs + ", " +
+                       expr(a->rhs) + "))";
+            }
             if (a->op == "+=" && a->lhs->type->is(TK::String)) {
                 std::string lhs = expr(a->lhs);
                 return "(" + lhs + " = faset_str_concat(" + lhs + ", " + toStr(a->rhs) + "))";
@@ -698,6 +719,8 @@ std::string CodeGen::expr(Expr* e) {
             std::string t = so->target->isClass() ? so->target->decl->cname : ctype(so->target);
             return "((int32_t)sizeof(" + t + "))";
         }
+        case EK::Lambda: return lambdaExpr(static_cast<LambdaExpr*>(e));
+        case EK::DelegateConv: return delegateConv(static_cast<DelegateConvExpr*>(e));
     }
     return "0";
 }

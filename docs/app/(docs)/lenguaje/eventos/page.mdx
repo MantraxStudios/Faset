@@ -1,0 +1,124 @@
+export const metadata = {
+  title: "Eventos",
+  description: "public event Action<T> Nombre: suscripción con += y -=, multicast, invocación sin manejadores y eventos de std.ui con lambdas.",
+};
+
+# Eventos
+
+<p className="lead">
+  Un evento es un campo <a href="/lenguaje/delegados/">delegado</a> marcado con <code>event</code>:
+  cualquiera puede suscribirse con <code>+=</code> y darse de baja con <code>-=</code>, pero solo la
+  clase que lo declara puede lanzarlo o reemplazarlo.
+</p>
+
+```faset
+class Termostato
+{
+    int temperatura;
+    public event Action<int> Cambiado;
+
+    public int Temperatura
+    {
+        get => temperatura;
+        set
+        {
+            temperatura = value;
+            Cambiado(value);          // lanza el evento (sin suscriptores no hace nada)
+        }
+    }
+}
+
+void Registrar(int t) { println("registro: " + t); }
+
+int main()
+{
+    var t = new Termostato();
+    t.Temperatura = 15;                                   // nadie escucha todavía
+
+    int maxima = 0;
+    t.Cambiado += Registrar;
+    t.Cambiado += v => { if (v > maxima) maxima = v; };
+    t.Temperatura = 21;                                   // registro: 21
+    t.Temperatura = 30;                                   // registro: 30
+
+    t.Cambiado -= Registrar;
+    t.Temperatura = 18;                                   // ya no imprime
+    println(maxima);                                      // 30
+    return 0;
+}
+```
+
+- **Multicast**: cada `+=` añade un manejador y se ejecutan en el orden en que se suscribieron.
+- **Sin manejadores**: lanzar un evento vacío no hace nada (un delegado normal nulo sería un
+  `panic`). `Cambiado.Invoke(valor)` es equivalente a `Cambiado(valor)`.
+- **`-=`** quita la última suscripción igual: los métodos se comparan por función y objeto. Una
+  lambda escrita otra vez es otra lambda, así que para darla de baja guárdala en una variable.
+- **Encapsulación**: fuera de la clase, `t.Cambiado(3)` o `t.Cambiado = null` son errores:
+
+```text
+error: el evento 'Termostato.Cambiado' solo se puede invocar o asignar dentro de 'Termostato';
+desde fuera usa '+=' o '-='
+```
+
+El tipo de un evento puede ser cualquier delegado, también uno declarado, y un evento puede ser
+`static`:
+
+```faset
+delegate void Aviso(string origen, int nivel);
+
+class Sensor
+{
+    public string Nombre;
+    public event Aviso Alarma;
+    public static event Action<string> Global;
+
+    public Sensor(string n) { Nombre = n; }
+    public void Medir(int nivel)
+    {
+        if (nivel > 8) Alarma(Nombre, nivel);
+        Global(Nombre + " midió " + nivel);
+    }
+}
+
+int main()
+{
+    var s = new Sensor("caldera");
+    s.Alarma += (origen, nivel) => println("¡alarma en " + origen + ": " + nivel + "!");
+    Sensor.Global += texto => println(texto);
+    s.Medir(3);      // caldera midió 3
+    s.Medir(9);      // ¡alarma en caldera: 9! / caldera midió 9
+    return 0;
+}
+```
+
+## Eventos de std.ui
+
+Los controles de [`std.ui`](/ui/codigo/) tienen los eventos `Click`, `Changed` y `Tick` (en los
+`Timer`), de tipo `Action<Widget>`, además de los manejadores que conecta el `.fstui`:
+
+```faset
+using std.ui;
+
+class Ventana
+{
+    public Window Window = new Window("Contador", 300, 120);
+    int clics;
+
+    public Ventana()
+    {
+        var etiqueta = Window.Add(Widget.Create(WidgetKind.Label, "lbl", 20, 20, 260, 24));
+        var boton = Window.Add(Widget.Create(WidgetKind.Button, "btn", 20, 60, 120, 32));
+        boton.Text = "Pulsa";
+        boton.Click += s => {
+            clics++;
+            etiqueta.Text = "Clics: " + clics;
+        };
+    }
+}
+
+int main()
+{
+    var v = new Ventana();
+    return Application.Run(v.Window);
+}
+```

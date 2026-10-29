@@ -21,6 +21,11 @@
 //    delete t;
 //
 //  También hay ThreadPool.Submit<T>, Parallel.For<T> y Thread.Run(&SinArgumentos).
+//  Con lambdas (el cierre mantiene vivo lo que captura mientras el hilo lo use):
+//
+//    auto t = Thread.Run(() => println("hola desde otro hilo"));
+//    pool.Submit(() => Procesar(dato));
+//    Parallel.For(0, n, i => resultados[i] = Calcular(i));
 //  Las versiones con 'void*' (Thread(fn, void*), Thread.Run(fn, void*), Submit(fn, void*),
 //  Parallel.For(..., void*)) son 'memory_unsafe'. Para contadores compartidos usa
 //  AtomicInt / AtomicLong; la clase Atomic trabaja sobre punteros (memory_unsafe).
@@ -136,6 +141,20 @@ namespace std.thread
         }
     }
 
+    // Caja con un delegado (lambdas): viaja como void* hasta el hilo.
+    memory_unsafe class ActionStart
+    {
+        public Action Fn;
+
+        public static void Run(void* self)
+        {
+            ActionStart b = (ActionStart)self;
+            Action fn = b.Fn;
+            delete b;
+            fn();
+        }
+    }
+
     memory_unsafe class ThreadStart0
     {
         public delegate*<void> Fn;
@@ -193,6 +212,16 @@ namespace std.thread
             b.Fn = start;
             b.Arg = arg;
             Thread t = Run(&ThreadStart<T>.Run, (void*)b);
+            if (t == null) delete b;
+            return t;
+        }
+
+        // Lanza un delegado o una lambda: Thread.Run(() => Trabajo(x)).
+        public static Thread Run(Action start)
+        {
+            ActionStart b = new ActionStart();
+            b.Fn = start;
+            Thread t = Run(&ActionStart.Run, (void*)b);
             if (t == null) delete b;
             return t;
         }
@@ -659,6 +688,16 @@ namespace std.thread
             return false;
         }
 
+        // Encola un delegado o una lambda: pool.Submit(() => Procesar(dato)).
+        public bool Submit(Action job)
+        {
+            ActionStart b = new ActionStart();
+            b.Fn = job;
+            if (Submit(&ActionStart.Run, (void*)b)) return true;
+            delete b;
+            return false;
+        }
+
         // Encola fn(arg); devuelve false si el grupo ya se está cerrando.
         public memory_unsafe bool Submit(delegate*<void*, void> fn, void* arg)
         {
@@ -749,8 +788,40 @@ namespace std.thread
         }
     }
 
+    memory_unsafe class ParallelAction
+    {
+        public Action<int> Fn;
+
+        public static void Call(int i, void* self)
+        {
+            ParallelAction b = (ParallelAction)self;
+            b.Fn(i);
+        }
+    }
+
     public memory_unsafe static class Parallel
     {
+        // Ejecuta body(i) para cada i en [fromInclusive, toExclusive) en varios hilos (el orden no
+        // está definido): Parallel.For(0, n, i => datos[i] = Calcular(i)).
+        public static void For(int fromInclusive, int toExclusive, Action<int> body)
+        {
+            For(fromInclusive, toExclusive, body, faset_cpu_count());
+        }
+
+        public static void For(int fromInclusive, int toExclusive, Action<int> body, int maxThreads)
+        {
+            ParallelAction b = new ParallelAction();
+            b.Fn = body;
+            For(fromInclusive, toExclusive, &ParallelAction.Call, (void*)b, maxThreads);
+            delete b;
+        }
+
+        // body(elemento) para cada elemento de la lista, en varios hilos.
+        public static void ForEach<T>(List<T> items, Action<T> body)
+        {
+            For(0, items.Count, i => body(items[i]));
+        }
+
         // Ejecuta body(i, arg) para cada i en [fromInclusive, toExclusive) repartiendo los
         // índices entre los procesadores; vuelve cuando han terminado todos. El orden no está
         // definido. 'arg' se comparte entre los hilos: si es un objeto, protégelo (Mutex,
