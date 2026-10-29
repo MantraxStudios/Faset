@@ -1,0 +1,39 @@
+ok    listener en puerto efímero
+ok    puerto asignado
+ok    sin conexiones pendientes
+ok    connect
+ok    pending
+ok    accept
+ok    extremos
+ok    nodelay
+ok    write
+ok    shutdown envío
+  servidor leyó: [hola servidor]
+  servidor leyó: [segunda línea]
+  servidor leyó: [sin final]
+ok    fin de datos sin error
+ok    write binario
+ok    20000 bytes recibidos intactos
+ok    receive con tiempo agotado
+ok    receive tras el tiempo agotado
+ok    accept con tiempo agotado
+ok    accept no bloqueante
+ok    connect no bloqueante en curso
+ok    poll de escritura
+ok    poll de lectura sin datos
+ok    receive no bloqueante
+ok    aceptar la conexión no bloqueante
+ok    socket aceptado es bloqueante
+ok    datos disponibles
+ok    conexión rechazada
+  mensaje: conexión rechazada
+ok    dirección en uso
+ok    udp bind
+ok    udp send
+ok    udp send 2
+ok    udp receive
+  recibido: datagrama 1
+ok    udp remitente
+ok    udp datagrama truncado
+ok    udp tiempo agotado
+ok    ipv6
