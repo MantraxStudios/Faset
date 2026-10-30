@@ -405,8 +405,15 @@ void Parser::parseParams(MethodDecl* m) {
             if (isP("[")) prm.attrs = parseAttributes();  // [CallerMemberName] ... (Members.cpp)
             prm.loc = cur().loc;
             if (acceptK("this")) prm.isThis = true;
+            if (isComptimeKw() && (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword)) {
+                p_++;  // comptime int n  (Comptime.cpp)
+                prm.isComptime = true;
+                m->hasCtParams = true;
+            }
             bool byRef = false;
             if (acceptK("ref") || acceptK("out")) byRef = true;
+            if (byRef && isComptimeKw() && (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword))
+                fail("un parámetro 'comptime' no puede ser ref ni out");
             acceptK("const");
             if (acceptK("params")) {  // params List<T> xs  /  params T[] xs (= List<T>)
                 prm.isParams = true;
@@ -615,6 +622,10 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
             m->tokBegin = begin;
         }
         parseParams(m);
+        if (m->hasCtParams && !m->tokens) {  // se vuelve a analizar por cada combinación de valores
+            m->tokens = toks_;
+            m->tokBegin = begin;
+        }
         finishMethod(m);
         markExplicit(m);
         c->methods.push_back(m);

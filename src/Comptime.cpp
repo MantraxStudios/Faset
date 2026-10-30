@@ -615,6 +615,190 @@ bool Sema::ctStmt(Stmt* s) {
     }
 }
 
+// ==================================================================== parámetros comptime
+//
+//   int Potencia(int x, comptime int n) { comptime if (n == 0) return 1; else return x * Potencia(x, n - 1); }
+//
+// Un método con parámetros 'comptime' es una plantilla, como un genérico: cada combinación de valores
+// de esos argumentos (que deben conocerse al compilar) tiene su propia versión, analizada de nuevo
+// desde los tokens, en la que el parámetro es una constante de tiempo de compilación (sirve en
+// 'comptime if', 'static_assert', 'const', 'Tipo<T>'...). En C la versión conserva el parámetro, pero
+// nunca lo lee: la llamada le pasa la constante (o null si es una lista).
+
+namespace {
+
+bool ctParamType(Type* t) {
+    if (!t || t->isError()) return true;
+    if (t->isNumeric() || t->is(TK::Bool) || t->is(TK::Char) || t->is(TK::String) || t->isEnum()) return true;
+    if (t->decl && isStd(t->decl, "std.collections", "List") && t->decl->typeArgs.size() == 1) return ctParamType(t->decl->typeArgs[0]);
+    return false;
+}
+
+// Clave de la versión: distingue el tipo y el valor exacto (también entre 1.0 y 1.0000000001).
+std::string ctKey(const CtValue& v) {
+    switch (v.k) {
+        case CtValue::Null: return "n";
+        case CtValue::Bool: return v.i ? "t" : "f";
+        case CtValue::Int:
+        case CtValue::Char: return "i" + std::to_string(v.i) + ":" + (v.t ? v.t->str() : "");
+        case CtValue::Float: {
+            char b[48];
+            std::snprintf(b, sizeof b, "%a", v.f);
+            return std::string("d") + b + ":" + (v.t ? v.t->str() : "");
+        }
+        case CtValue::Str: return "s" + std::to_string(v.s.size()) + ":" + v.s;
+        case CtValue::List: {
+            std::string s = "l[";
+            for (const CtValue& x : *v.list) s += ctKey(x) + ",";
+            return s + "]";
+        }
+        default: return "?";
+    }
+}
+
+// El valor como se escribiría en el código (para los mensajes: "n = 3", "modo = Modo.Rapido").
+std::string ctShow(CtInterp& I, const CtValue& v) {
+    switch (v.k) {
+        case CtValue::Null: return "null";
+        case CtValue::Bool: return v.i ? "true" : "false";
+        case CtValue::Int: return v.t && v.t->isEnum() ? v.t->str() + "." + I.toStr(v) : I.toStr(v);
+        case CtValue::Char: return "'" + I.toStr(v) + "'";
+        case CtValue::Str: return "\"" + (v.s.size() > 40 ? v.s.substr(0, 37) + "..." : v.s) + "\"";
+        case CtValue::List: {
+            std::string s = "[";
+            for (size_t i = 0; i < v.list->size(); i++) {
+                if (i == 8) return s + ", ...]";
+                s += (i ? ", " : "") + ctShow(I, (*v.list)[i]);
+            }
+            return s + "]";
+        }
+        default: return I.toStr(v);
+    }
+}
+
+}  // namespace
+
+void Sema::ctCheckParams(MethodDecl* m) {
+    if (m->kind != MethodKind::Normal) {
+        diag.error(m->loc, "solo los métodos pueden tener parámetros 'comptime' (no los constructores, operadores ni propiedades)");
+        return;
+    }
+    if (m->isVirtualish() || (m->owner && m->owner->kind == ClassKind::Interface)) {
+        diag.error(m->loc, "'" + m->name + "' tiene parámetros 'comptime' y no puede ser virtual, abstract, override ni de una "
+                           "interfaz: cada valor genera otra versión del método");
+        return;
+    }
+    if (!m->body || m->mods.isExtern) {
+        diag.error(m->loc, "un método con parámetros 'comptime' necesita cuerpo");
+        return;
+    }
+    if (!m->tokens) {
+        diag.error(m->loc, "las funciones locales no pueden tener parámetros 'comptime'");
+        return;
+    }
+    for (Param& p : m->params) {
+        if (!p.isComptime) continue;
+        if (p.isRef() || p.isParams || p.isThis)
+            diag.error(p.loc, "un parámetro 'comptime' no puede ser ref, out, params ni this");
+        else if (!ctParamType(p.type))
+            diag.error(p.loc, "un parámetro 'comptime' debe ser un número, bool, char, string, enum o List de ellos (no '" +
+                                  p.type->str() + "'); para elegir un tipo usa un parámetro genérico <T>");
+    }
+}
+
+MethodDecl* Sema::ctSpecialize(MethodDecl* m, std::vector<Expr*>& args, SourceLoc loc) {
+    if (m->mods.isComptime) return m;  // todas sus llamadas se evalúan al compilar
+    // Dentro de una función 'comptime' (que se comprueba como código normal) el argumento puede ser
+    // uno de sus parámetros: solo se conoce al evaluarla, y entonces el intérprete llama a la plantilla.
+    bool inComptime = ctx_.method && ctx_.method->mods.isComptime;
+    CtInterp I(*this);
+    std::vector<CtValue> vals(m->params.size());
+    std::string key, label;
+    for (size_t i = 0; i < m->params.size() && i < args.size(); i++) {
+        Param& p = m->params[i];
+        if (!p.isComptime || !p.type || p.type->isError()) continue;
+        CtValue v;
+        if (inComptime) {
+            if (!I.tryRun(args[i], v)) {
+                ctx_.method->ctOnly = true;
+                return m;
+            }
+        } else if (!I.run(args[i], v, "el argumento del parámetro comptime '" + p.name + "' debe conocerse al compilar")) {
+            return nullptr;
+        }
+        try {
+            v = I.convert(v, p.type, args[i]->loc);
+        } catch (CtError& err) {
+            I.report(err, args[i]->loc, "");
+            return nullptr;
+        }
+        vals[i] = v;
+        key += std::to_string(i) + "=" + ctKey(v) + ";";
+        label += (label.empty() ? "" : ", ") + p.name + " = " + ctShow(I, v);
+        // Al ejecutar, la versión no lee el parámetro: se le pasa la constante (las listas, null).
+        if (args[i]->kind != EK::IntLit && args[i]->kind != EK::BoolLit && args[i]->kind != EK::StringLit) {
+            Expr* x = nullptr;
+            std::string err;
+            if (v.k == CtValue::List) x = new NullExpr(args[i]->loc);
+            else x = CtHooks::toExpr(*this, v, args[i]->loc, err);
+            if (x) {
+                checkValue(x);
+                args[i]->lowered = x;
+            }
+        }
+    }
+    auto it = m->ctInstances.find(key);
+    if (it != m->ctInstances.end()) return it->second;
+    // Una versión con errores (un static_assert que falla) no genera más: así una recursión que ese
+    // static_assert debía cortar no repite el error en cada versión.
+    if (ctx_.method && ctx_.method->ctOf && diag.errorCount > workErrBase_) return nullptr;
+    std::string what = (m->owner && !m->owner->isNamespaceScope ? m->owner->displayName + "." : "") + m->name;
+    if (m->ctInstances.size() >= kCtMaxVersions) {
+        diag.error(loc, "'" + what + "' ya tiene " + std::to_string(kCtMaxVersions) + " versiones por sus parámetros "
+                        "'comptime' (¿una recursión sin 'comptime if' que la termine?)");
+        return nullptr;
+    }
+    MethodDecl* s = Parser::reparseMethod(m, prog_);
+    if (!s) return nullptr;
+    s->templateOf = m->templateOf;
+    s->typeArgMap = m->typeArgMap;
+    s->owner = m->owner;
+    s->unsafeBody = s->unsafeBody || m->unsafeBody;
+    s->unsafeApi = m->unsafeApi;
+    s->ctOf = m;
+    s->ctLabel = label;
+    s->cname = m->cname + "_c" + std::to_string(m->ctInstances.size() + 1);
+    m->ctInstances[key] = s;
+    ct().ctParamVals[s] = vals;
+    {
+        CtxSave save(*this);
+        enter(s->owner, s);
+        resolveMethodSignature(s);
+    }
+    genericMethods.push_back(s);
+    return s;
+}
+
+bool Sema::ctConstTarget(Expr* e) {
+    if (e->kind != EK::Name) return false;
+    auto* n = static_cast<NameExpr*>(e);
+    VarInfo* v = lookupLocal(n->name);
+    if (!v || !ct_ || !ct_->binds.count(v)) return false;
+    diag.error(e->loc, "'" + n->name + "' es un valor de tiempo de compilación (comptime) y no se puede modificar");
+    return true;
+}
+
+void Sema::ctBindParams(MethodDecl* m) {
+    auto it = ct().ctParamVals.find(m);
+    if (it == ct().ctParamVals.end()) return;
+    for (size_t i = 0; i < m->params.size() && i < it->second.size(); i++) {
+        Param& p = m->params[i];
+        if (!p.isComptime || !p.var) continue;
+        ct().binds[p.var] = it->second[i];
+        p.var->isConst = true;
+    }
+}
+
 bool Sema::ctAlwaysReturns(Stmt* s) {
     if (s->kind == SK::ComptimeIf || s->kind == SK::ComptimeForeach) return s->lowered && alwaysReturns(s->lowered);
     if (s->kind == SK::Block && s->lowered) return alwaysReturns(s->lowered);

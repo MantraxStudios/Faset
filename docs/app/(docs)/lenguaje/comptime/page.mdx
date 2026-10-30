@@ -1,6 +1,6 @@
 export const metadata = {
   title: "comptime: código en tiempo de compilación",
-  description: "Funciones y expresiones que el compilador evalúa mientras compila (al estilo de Zig): tablas precalculadas, constantes, static_assert, comptime if / foreach y límites.",
+  description: "Funciones, expresiones y parámetros que el compilador evalúa mientras compila (al estilo de Zig): tablas precalculadas, constantes, versiones especializadas, static_assert, comptime if / foreach y límites.",
 };
 
 # comptime: código en tiempo de compilación
@@ -50,11 +50,13 @@ class Programa
 El programa compilado no contiene `Factorial` ni el bucle de `Primos`: solo el número
 `2432902008176640000` y una lista con los 25 primos.
 
-## Dos formas de usarlo
+## Tres formas de usarlo
 
 - **Funciones `comptime`**: el modificador `comptime` en la declaración hace que *todas* sus llamadas
   se evalúen al compilar. Los argumentos tienen que ser constantes (literales, `const`, otras
   llamadas `comptime`...). Dentro de otra función `comptime` se llaman con normalidad.
+- **Parámetros `comptime`**: `int Potencia(int x, comptime int n)` genera una versión de la función
+  por cada valor de `n` (ver [más abajo](#parametros-comptime)).
 - **Expresiones `comptime`**: `comptime expr` evalúa una expresión cualquiera al compilar, también si
   llama a funciones normales (que no tienen nada de especial):
 
@@ -156,6 +158,81 @@ class Programa
 }
 ```
 
+## Parámetros comptime
+
+Un parámetro marcado con `comptime` recibe un valor que se conoce al compilar, y el método se
+**especializa**: cada valor distinto genera su propia versión, igual que un genérico genera una por
+cada tipo. Dentro de esa versión el parámetro es una constante de tiempo de compilación, así que
+sirve en `comptime if`, `comptime foreach`, `static_assert` y `const`. El resto de los parámetros
+son normales.
+
+```faset
+using std;
+
+enum Modo { Rapido, Saturado }
+
+class Programa
+{
+    // Potencia(x, 3) se convierte en x * x * x * 1: sin bucle ni recursión al ejecutar.
+    static long Potencia(long x, comptime int n)
+    {
+        static_assert(n >= 0, "el exponente no puede ser negativo");
+        comptime if (n == 0) return 1;
+        else return x * Potencia(x, n - 1);
+    }
+
+    // Un modo elegido al compilar: cada versión contiene solo su rama.
+    static int Sumar(int a, int b, comptime Modo modo = Modo.Rapido)
+    {
+        comptime if (modo == Modo.Saturado)
+        {
+            long r = (long)a + b;
+            return r > 2147483647 ? 2147483647 : (int)r;
+        }
+        else return a + b;
+    }
+
+    static void Main()
+    {
+        long b = 2;
+        println(Potencia(b, 10));                           // 1024
+        println(Sumar(2, 3));                               // 5
+        println(Sumar(2147483647, 3, modo: Modo.Saturado)); // 2147483647
+    }
+}
+```
+
+El argumento tiene que conocerse al compilar: un literal, una `const`, una expresión con ellas o una
+llamada que se pueda evaluar (`Potencia(b, K + 1)` vale; `Potencia(b, k)` con una variable `k`
+es un error). Un parámetro `comptime` puede ser un número, `bool`, `char`, `string`, un enum o una
+`List` de ellos. También puede tener valor por defecto y pasarse por nombre. Se puede usar en
+métodos genéricos (`T Extremo<T>(List<T> l, comptime bool minimo)`) y en métodos de clases
+genéricas.
+
+Algunas reglas que salen de que cada valor sea otra función:
+
+- El parámetro no se puede modificar (`n = 3` es un error).
+- Solo los métodos normales pueden tenerlos. Los constructores, operadores y propiedades no pueden.
+  Tampoco los métodos `virtual`, `abstract`, `override` ni los de una interfaz.
+- El método no se puede convertir en delegado (`Func<int, int> f = Potencia;`), porque no es una
+  sola función. Envuélvelo en una lambda: `x => Potencia(x, 2)`.
+- Una recursión tiene que terminar con un `comptime if`. Sin él, `n - 1` generaría versiones sin
+  fin; a las 256 versiones de un mismo método el compilador lo detiene con un error que lo explica.
+- Si un `static_assert` falla en una versión, no se generan más versiones desde ella; así el error
+  aparece una sola vez.
+
+Un error dentro de una versión indica con qué valores se generó:
+
+```fst
+println(Potencia(2, -1));
+// error: static_assert falló: el exponente no puede ser negativo
+// nota: requerido por 'Programa.Potencia' con n = -1, usado aquí
+```
+
+Dentro de una función `comptime`, los parámetros `comptime` también aceptan valores que solo se
+conocen al evaluarla. En `comptime long PotenciaN(long x, int n) => Potencia(x, n);`, cada llamada a
+`PotenciaN` se calcula al compilar con su propio `n`.
+
 ## static_assert
 
 `static_assert(condición, "mensaje")` comprueba algo al compilar: si es falso, es un error de
@@ -251,6 +328,7 @@ dan un error claro:
 | Elementos de listas y objetos creados por evaluación | 1 000 000 |
 | Longitud de una cadena | 16 MB |
 | Vueltas de un `comptime foreach` | 10 000 (100 000 en todo el programa) |
+| Versiones de un método con parámetros `comptime` | 256 |
 
 En el editor (FasetStudio o el [LSP](/empezar/editores/)) estos errores aparecen subrayados como
 cualquier otro, y al pasar el ratón sobre la variable de un `comptime foreach` se ve su valor.
@@ -260,3 +338,5 @@ cualquier otro, y al pasar el ratón sobre la variable de un `comptime foreach` 
 C# no puede ejecutar código al compilar: las constantes se limitan a expresiones con literales, y
 para generar tablas o código se recurre a generadores de código (*source generators*) escritos en
 otro proyecto, o se calcula todo al arrancar. En Faset es el mismo lenguaje, en el mismo archivo.
+Los parámetros `comptime` tampoco existen en C#: lo más parecido son los parámetros de plantilla
+con valor de C++ (`template<int N>`) y los parámetros `comptime` de Zig, de los que salen.

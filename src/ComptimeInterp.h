@@ -1598,7 +1598,7 @@ public:
                     if (k == S.objectDecl) continue;
                     const std::vector<MethodDecl*>& src = name == "Metodos" ? k->methods : k->ctors;
                     for (MethodDecl* m : src) {
-                        if (name == "Metodos" && (m->kind != MethodKind::Normal || m->isTemplate() || m->recordGen)) continue;
+                        if (name == "Metodos" && (m->kind != MethodKind::Normal || m->isTemplate() || m->ctTemplate() || m->recordGen)) continue;
                         if (m->mods.access != Access::Public || (name == "Constructores" && k != d)) continue;
                         S.resolveMethodSignature(m);
                         CtValue v;
@@ -2233,7 +2233,19 @@ public:
                 env->scopes.back()[d->name] = d->tref->isVar() ? v : convert(v, resolve(d->tref), d->loc);
                 return FNormal;
             }
-            case SK::ExprStmt: eval(static_cast<ExprStmt*>(s)->expr); return FNormal;
+            case SK::ExprStmt: {
+                Expr* x = static_cast<ExprStmt*>(s)->expr;
+                if (x->kind == EK::Call && static_cast<CallExpr*>(x)->callee->kind == EK::Name &&
+                    static_cast<NameExpr*>(static_cast<CallExpr*>(x)->callee)->name == "static_assert") {
+                    auto* c = static_cast<CallExpr*>(x);  // en una función que se está evaluando al compilar
+                    if (c->args.empty() || c->args.size() > 2) fail(c->loc, "uso: static_assert(condición, \"mensaje\");");
+                    if (!truthy(eval(c->args[0]), c->args[0]->loc))
+                        fail(c->loc, "static_assert falló" + (c->args.size() == 2 ? ": " + toStr(eval(c->args[1])) : std::string()));
+                    return FNormal;
+                }
+                eval(x);
+                return FNormal;
+            }
             case SK::If: {
                 auto* is = static_cast<IfStmt*>(s);
                 if (truthy(eval(is->cond), is->cond->loc)) return exec(is->then);
@@ -2401,6 +2413,25 @@ public:
             out = eval(e);
         } catch (CtError& err) {
             report(err, e->loc, what);
+            ok = false;
+        }
+        st.steps = savedSteps;
+        st.cells = savedCells;
+        st.stack = savedStack;
+        return ok;
+    }
+
+    // Como run, sin informar del error (¿se conoce el valor al compilar?).
+    bool tryRun(Expr* e, CtValue& out) {
+        long long savedSteps = st.steps, savedCells = st.cells;
+        std::vector<CtFrame> savedStack = st.stack;
+        st.steps = 0;
+        st.cells = 0;
+        st.stack.clear();
+        bool ok = true;
+        try {
+            out = eval(e);
+        } catch (CtError&) {
             ok = false;
         }
         st.steps = savedSteps;

@@ -426,8 +426,13 @@ MethodDecl* Sema::groupMatch(Expr* e, Type* d, bool report) {
     std::vector<TypeRef*> none;
     std::vector<TypeRef*>* ta = typeArgsOf(e);
     std::vector<MethodDecl*> found;
+    bool ctParams = false;
     for (MethodDecl* m0 : e->group) {
         if (m0->kind != MethodKind::Normal) continue;
+        if (m0->ctTemplate()) {  // una versión por cada valor: no hay una sola función a la que apuntar
+            ctParams = true;
+            continue;
+        }
         MethodDecl* m = m0;
         if (m0->isTemplate()) {
             std::vector<Expr*> fake;
@@ -451,7 +456,9 @@ MethodDecl* Sema::groupMatch(Expr* e, Type* d, bool report) {
         if (std::find(found.begin(), found.end(), m) == found.end()) found.push_back(m);
     }
     if (found.size() == 1) return found[0];
-    if (report)
+    if (report && found.empty() && ctParams)
+        diag.error(e->loc, "'" + memberName(e) + "' tiene parámetros 'comptime' y no se puede convertir en delegado; usa una lambda");
+    else if (report)
         diag.error(e->loc, found.empty() ? "ninguna sobrecarga de '" + memberName(e) + "' coincide con el delegado '" +
                                                d->str() + "'"
                                          : "la conversión de '" + memberName(e) + "' al delegado '" + d->str() +

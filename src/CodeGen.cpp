@@ -56,7 +56,7 @@ bool pointerFree(Type* t, int depth = 0) {
 }
 
 // ¿Se debe emitir este método? (las plantillas no; las instancias solo si se usaron)
-bool shouldEmit(MethodDecl* m) { return m && !m->isTemplate() && m->body && m->checked; }
+bool shouldEmit(MethodDecl* m) { return m && !m->isTemplate() && m->body && m->checked && !m->ctOnly; }
 
 }  // namespace
 

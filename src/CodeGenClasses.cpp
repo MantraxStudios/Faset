@@ -119,7 +119,7 @@ faset_string faset_type_enum_name(void* t, int32_t i) { return ((const faset_typ
 int32_t faset_type_enum_value(void* t, int32_t i) { return ((const faset_type*)t)->enumValues[i]; }
 )FASET";
 
-bool emitted(MethodDecl* m) { return m && !m->isTemplate() && m->body && m->checked; }
+bool emitted(MethodDecl* m) { return m && !m->isTemplate() && m->body && m->checked && !m->ctOnly; }
 
 // Nombre de un miembro para mostrar (sin el sufijo del campo de respaldo de las propiedades).
 std::string shownName(FieldDecl* f) {

@@ -353,6 +353,7 @@ private:
     std::string constraintError_;
     int patternCounter_ = 0;
     size_t fieldWorkDone_ = 0, workDone_ = 0;  // avance de processWork()
+    int workErrBase_ = 0;  // errores antes de comprobar el método actual de processWork()
     void initObjectModel();
     void resolveHierarchy(ClassDecl* c);
     void finishClassLayout(ClassDecl* c);
@@ -538,6 +539,10 @@ public:
     Type* checkComptimeExpr(ComptimeExpr* e);
     Type* ctResolveType(TypeRef* tr);
     bool ctStmt(Stmt* s);                            // comptime if/foreach/var, static_assert
+    void ctCheckParams(MethodDecl* m);               // parámetros 'comptime': dónde y de qué tipo
+    MethodDecl* ctSpecialize(MethodDecl* m, std::vector<Expr*>& args, SourceLoc loc);  // versión por valores
+    void ctBindParams(MethodDecl* m);
+    bool ctConstTarget(Expr* e);                     // asignar a un valor comptime: informa del error
     bool ctAlwaysReturns(Stmt* s);
     bool ctContainsBreak(Stmt* s);
     static bool ctAnyChild(Stmt* s, const std::function<bool(Stmt*)>& f);  // sentencias de comptime if/foreach

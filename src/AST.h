@@ -599,6 +599,7 @@ struct Param {
     bool defaultChecked = false;
     std::vector<Attribute> attrs;  // [CallerMemberName], [CallerArgumentExpression("x")], de usuario
     int callerInfo = 0;
+    bool isComptime = false;  // 'comptime int n': una versión del método por cada valor (Comptime.cpp)
     bool isRef() const { return tref && tref->isRef; }
 };
 
@@ -660,6 +661,17 @@ struct MethodDecl {
     TokenList tokens;
     size_t tokBegin = 0;
 
+    // Parámetros 'comptime' (Comptime.cpp): el método es una plantilla que se especializa por los
+    // valores de esos argumentos, como un genérico por sus tipos. 'ctOf' es el método del que sale
+    // una especialización y 'ctLabel' sus valores ("n = 3", para los mensajes). 'ctOnly': función
+    // 'comptime' que llama a una plantilla con argumentos que solo se conocen al evaluarla (no se
+    // genera en C: todas sus llamadas se evalúan al compilar).
+    bool hasCtParams = false;
+    MethodDecl* ctOf = nullptr;
+    std::map<std::string, MethodDecl*> ctInstances;
+    std::string ctLabel;
+    bool ctOnly = false;
+
     bool signatureDone = false;
     bool queued = false;   // cuerpo pendiente o ya comprobado
     bool checked = false;  // cuerpo comprobado: se emite en C
@@ -690,6 +702,7 @@ struct MethodDecl {
 
     bool isStatic() const { return mods.isStatic; }
     bool isTemplate() const { return !typeParams.empty() && !templateOf; }
+    bool ctTemplate() const { return hasCtParams && !ctOf; }
     bool retIsRef() const { return retRef && retRef->isRef; }
     bool isExtension() const { return !params.empty() && params[0].isThis; }
 };

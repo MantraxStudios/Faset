@@ -1,0 +1,9 @@
+3|no puede ser virtual, abstract, override ni de una interfaz
+6|solo los métodos pueden tener parámetros 'comptime'
+7|debe ser un número, bool, char, string, enum o List de ellos \(no 'object'\)
+8|no puede ser ref, out, params ni this
+9|'n' es un valor de tiempo de compilación \(comptime\) y no se puede modificar
+21|el argumento del parámetro comptime 'n' debe conocerse al compilar
+22|tiene parámetros 'comptime' y no se puede convertir en delegado
+11|ya tiene 256 versiones
+14|static_assert falló: el exponente no puede ser negativo

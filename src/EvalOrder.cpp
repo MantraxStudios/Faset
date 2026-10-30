@@ -415,7 +415,7 @@ void CodeGen::computeMethodEffects() {
     all.insert(all.end(), sema_.genericMethods.begin(), sema_.genericMethods.end());
     std::vector<MethodDecl*> work;
     for (MethodDecl* m : all) {
-        if (!m || !m->body || !m->checked || m->isTemplate() || m->mods.isExtern) continue;
+        if (!m || !m->body || !m->checked || m->isTemplate() || m->ctOnly || m->mods.isExtern) continue;
         if (methodEff_.emplace(m, 1).second) work.push_back(m);
     }
     for (bool changed = true; changed;) {

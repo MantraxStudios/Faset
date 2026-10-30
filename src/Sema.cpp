@@ -581,6 +581,7 @@ void Sema::resolveMethodSignature(MethodDecl* m) {
         if (!names.insert(p.name).second) diag.error(p.loc, "el parámetro '" + p.name + "' está duplicado");
     }
     if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "solo los métodos 'extern' pueden ser variádicos (...)");
+    if (m->hasCtParams && !m->ctOf) ctCheckParams(m);  // parámetros 'comptime' (Comptime.cpp)
     checkParamsSignature(m);  // 'params' (Sugar.cpp)
     if (defaultsReady_) resolveParamDefaults(m);  // parámetros opcionales (Members.cpp)
     else pendingDefaults_.push_back(m);
@@ -898,7 +899,7 @@ void Sema::useMethod(MethodDecl* m, const SourceLoc* at) {
         m->usedAt = *at;
         m->usedBy = ctx_.method;
     }
-    if (!m || m->queued || m->isTemplate() || !m->body) return;
+    if (!m || m->queued || m->isTemplate() || m->ctTemplate() || !m->body) return;
     m->queued = true;
     work_.push_back(m);
 }
@@ -921,11 +922,12 @@ void Sema::processWork() {
             MethodDecl* m = work_[wi++];
             CtxSave save(*this);
             int before = diag.errorCount;
+            workErrBase_ = before;
             checkMethod(m);
             // Como en C++: cadena de "requerido desde aquí" hasta el código del usuario.
             int depth = 0;
             for (MethodDecl* cur = diag.errorCount > before ? m : nullptr;
-                 cur && cur->hasUsedAt && (cur->templateOf || cur->owner->templateOf) && depth < 10;
+                 cur && cur->hasUsedAt && (cur->templateOf || cur->owner->templateOf || cur->ctOf) && depth < 10;
                  cur = cur->usedBy, depth++) {
                 std::string name = cur->owner->isNamespaceScope ? cur->name : cur->owner->displayName + "." + cur->name;
                 if (cur->templateOf) {
@@ -934,7 +936,17 @@ void Sema::processWork() {
                         name += (i ? ", " : "") + cur->typeArgMap[cur->templateOf->typeParams[i]]->str();
                     name += ">";
                 }
-                diag.note(cur->usedAt, "requerido por '" + name + "', usado aquí");
+                // Una recursión entre versiones de un método con parámetros 'comptime': solo los extremos.
+                int skipped = 0;
+                while (cur->ctOf && cur->usedBy && cur->usedBy->ctOf == cur->ctOf && cur->usedBy->hasUsedAt &&
+                       cur != m && cur->usedBy->usedBy && cur->usedBy->usedBy->ctOf == cur->ctOf) {
+                    cur = cur->usedBy;
+                    skipped++;
+                }
+                if (skipped) diag.note(cur->usedAt, "... " + std::to_string(skipped) + " versiones intermedias de '" + name + "' ...");
+                if (cur->ctOf) name += "' con " + cur->ctLabel + ", usado aquí";
+                else name += "', usado aquí";
+                diag.note(cur->usedAt, "requerido por '" + name);
             }
             if (fi < fieldWork_.size()) break;
         }
@@ -1017,6 +1029,7 @@ void Sema::checkMethod(MethodDecl* m) {
         p.var = declareLocal(p.name, p.type, p.loc, "p_");
         p.var->isRef = p.isRef();
     }
+    if (m->ctOf) ctBindParams(m);  // parámetros 'comptime': constantes en esta versión (Comptime.cpp)
     // En un 'override', ir a la definición lleva al miembro reemplazado de la base.
     if (ideMode && m->kind == MethodKind::Normal)
         addRef(m->loc, (int)m->name.size(),
@@ -1702,6 +1715,7 @@ Type* Sema::checkInner(Expr* e) {
             Type* t = checkValue(pe->operand);
             if (t->isError()) return t;
             if (!isLValue(pe->operand) || isConstTarget(pe->operand)) {
+                if (ctConstTarget(pe->operand)) return tc_.error();
                 diag.error(pe->loc, "el operando de '" + pe->op + "' debe ser una variable, campo o elemento");
                 return tc_.error();
             }
@@ -2369,6 +2383,7 @@ Type* Sema::checkCall(CallExpr* e) {
         explainPendingArgs(callee->group, e->args);  // errores dentro de las lambdas pasadas como argumento
         return tc_.error();
     }
+    if (m->ctTemplate() && !(m = ctSpecialize(m, e->args, e->loc))) return tc_.error();  // Comptime.cpp
     e->target = m;
     if (m == enumToString) e->intrinsic = 1;
     checkAccess(m->mods.access, m->owner, m->name, e->loc);
@@ -2468,6 +2483,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
             std::vector<MethodDecl*> viable;
             for (MethodDecl* m : e->operand->group) {
                 MethodDecl* c = m;
+                if (m->ctTemplate()) continue;  // parámetros 'comptime': una versión por cada valor
                 if (m->isTemplate()) {
                     std::vector<Type*> args;
                     std::vector<Expr*> none;
@@ -2546,6 +2562,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
     }
     if (op == "++" || op == "--") {
         if (!isLValue(e->operand) || isConstTarget(e->operand)) {
+            if (ctConstTarget(e->operand)) return tc_.error();
             diag.error(e->loc, "el operando de '" + op + "' debe ser una variable, campo o elemento");
             return tc_.error();
         }
@@ -2798,6 +2815,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
         return tc_.get(TK::Void);
     }
     if (!isLValue(e->lhs)) {
+        if (ctConstTarget(e->lhs)) return tc_.error();  // n = 3 con 'comptime int n' (Comptime.cpp)
         diag.error(e->lhs->loc, "el lado izquierdo de una asignación debe ser una variable, campo o elemento indexado");
         return tc_.error();
     }
@@ -2976,6 +2994,7 @@ std::string Sema::methodSignature(MethodDecl* m) {
         const Param& p = m->params[i];
         if (i) s += ", ";
         if (p.isThis) s += "this ";
+        if (p.isComptime) s += "comptime ";
         s += p.type ? p.type->str() + (p.isRef() ? "&" : "") : p.tref->str();
         s += " " + p.name + paramDefaultText(p);  // " = 0" (Members.cpp)
     }

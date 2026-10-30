@@ -81,6 +81,7 @@ struct CtState {
     long long unrolled = 0;             // vueltas de 'comptime foreach' en todo el programa
     std::vector<CtFrame> stack;         // llamadas en curso (para los mensajes de error)
     std::map<TypeRef*, Type*> typeCache;
+    std::map<MethodDecl*, std::vector<CtValue>> ctParamVals;  // especialización -> valores de sus parámetros comptime
     bool callerScanned = false;
     std::set<std::string> callerArgMethods;  // métodos con un parámetro [CallerArgumentExpression]
     // Reflexión al ejecutar (Reflection.cpp): tipos que necesitan metadatos.
@@ -104,6 +105,7 @@ constexpr int kCtMaxUnroll = 10000;          // vueltas de un 'comptime foreach'
 constexpr long long kCtMaxUnrollTotal = 100000;  // vueltas de 'comptime foreach' en todo el programa
 constexpr long long kCtMaxCells = 1000000;   // elementos de listas y objetos creados por evaluación
 constexpr size_t kCtMaxString = 16u << 20;   // bytes de una cadena
+constexpr size_t kCtMaxVersions = 256;       // versiones de un método con parámetros 'comptime'
 
 // Destinos de los atributos (deben coincidir con std.AttributeTargets en lib/std/attributes.fst).
 enum CtTarget {
