@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Calc/Calc.fstproj" Startup="true" />
+  <Project Path="CalcPruebas/CalcPruebas.fstproj" />
+</Solution>

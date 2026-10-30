@@ -109,6 +109,9 @@ export const nav: NavSection[] = [
     title: "Referencia",
     items: [
       { title: "Línea de órdenes (CLI)", href: "/cli/" },
+      { title: "Pruebas unitarias (faset test)", href: "/cli/pruebas/" },
+      { title: "Formateador (faset fmt)", href: "/cli/formato/" },
+      { title: "Compilación incremental", href: "/cli/compilacion-incremental/" },
       { title: "Android", href: "/android/" },
       { title: "Rendimiento", href: "/rendimiento/" },
     ],

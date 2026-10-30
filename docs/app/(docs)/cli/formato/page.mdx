@@ -1,0 +1,94 @@
+export const metadata = {
+  title: "Formateador (faset fmt)",
+  description: "faset fmt: formatea el código .fst con el estilo de C# (llaves en su línea, sangría de 4 espacios), comprueba el formato en CI y se integra en editores y FasetStudio.",
+};
+
+# Formateador (faset fmt)
+
+<p className="lead">
+  <code>faset fmt</code> deja el código con un único estilo, el de C#: llaves en su propia línea,
+  sangría de 4 espacios y espacios alrededor de los operadores. No tiene opciones de estilo: así todo
+  el código Faset se lee igual.
+</p>
+
+```bash
+faset fmt                      # todos los .fst de la carpeta actual (sin bin/, obj/ ni carpetas ocultas)
+faset fmt src Programa.fst     # archivos y carpetas concretos
+faset fmt --check              # no escribe nada: código 1 si algún archivo necesita formato (CI)
+faset fmt --stdin < a.fst      # de la entrada estándar a la salida (para editores)
+faset fmt -q                   # sin mensajes
+```
+
+## Qué cambia
+
+```faset
+class Programa{
+    static int Suma(int a,int b)=>a+b;
+    static void Main(){
+        if(Suma(1,2)==3){ println("bien"); }
+        else{
+          println("mal");
+        }
+    }
+}
+```
+
+queda así:
+
+```faset
+class Programa
+{
+    static int Suma(int a, int b) => a + b;
+    static void Main()
+    {
+        if (Suma(1, 2) == 3) { println("bien"); }
+        else
+        {
+            println("mal");
+        }
+    }
+}
+```
+
+- **Llaves** de los bloques de varias líneas en su propia línea (estilo Allman), también las de las
+  lambdas. Un bloque escrito en una línea (`{ get; set; }`, `{ return x; }`) se queda en una línea.
+- **Sangría** de 4 espacios según las llaves; las etiquetas `case` van un nivel dentro del `switch`.
+  Una sentencia partida en varias líneas conserva la alineación de sus continuaciones.
+- **Espacios** alrededor de los operadores binarios (`=`, `+`, `==`, `=>`, `??`, `|>`…), tras las comas
+  y tras `if`, `for`, `while`…; ninguno junto a `(`, `)`, `[`, `]` y `.`.
+- **Líneas en blanco**: como mucho una seguida, ninguna justo después de `{` o antes de `}`. Sin espacios
+  al final de las líneas y con un salto de línea al final del archivo.
+
+Los saltos de línea dentro de una sentencia son del autor: `faset fmt` no parte ni une líneas largas.
+
+## Qué no cambia nunca
+
+- Los **comentarios** y el texto de las **cadenas** (también `$"…"` interpoladas y `@"…"` de varias
+  líneas) quedan exactamente igual.
+- El **orden de los tokens**: el formateador solo cambia espacios y saltos de línea. Antes de escribir
+  un archivo vuelve a separarlo en tokens y comprueba que coinciden uno a uno con los del original; si
+  no, deja el archivo como estaba e informa del error.
+- Las construcciones que no reconoce se conservan tal cual: donde un símbolo es ambiguo (`<` de un
+  genérico o de una comparación, `*` de un puntero o de una multiplicación) respeta el espacio que
+  había.
+- Las directivas `#if` / `#else` se quedan en la columna 0 y cada rama se sangra por separado.
+
+Formatear dos veces da el mismo resultado que una (el formato es **idempotente**), y un archivo que no
+se puede separar en tokens (una cadena sin cerrar, llaves desparejadas) no se toca.
+
+## En los editores
+
+El [servidor de lenguaje](/empezar/editores/) (`faset lsp`) implementa `textDocument/formatting`:
+*Formatear documento* de VS Code, Neovim, Helix, Zed… usa `faset fmt`.
+
+En FasetStudio: **Editar → Formatear documento** (<Kbd>Shift+Alt+F</Kbd>), que se deshace con un solo
+<Kbd>Ctrl+Z</Kbd>, y **Editar → Formatear al guardar** para hacerlo en cada <Kbd>Ctrl+S</Kbd>.
+
+## En integración continua
+
+```bash
+faset fmt --check || { echo "Ejecuta 'faset fmt'"; exit 1; }
+```
+
+`--check` lista los archivos que cambiaría y termina con `1`; con un archivo que no se puede formatear,
+con `2`.

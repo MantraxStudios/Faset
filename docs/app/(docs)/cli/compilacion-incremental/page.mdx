@@ -1,0 +1,67 @@
+export const metadata = {
+  title: "Compilación incremental",
+  description: "La caché de objetos de faset: el runtime y las bibliotecas de C se compilan una vez, y recompilar sin cambios solo enlaza.",
+};
+
+# Compilación incremental
+
+<p className="lead">
+  Faset genera C y lo compila con el compilador de C del sistema. Para no repetir ese trabajo,
+  <code>faset build</code> guarda los objetos compilados en una caché: el runtime y las bibliotecas
+  de C se compilan una sola vez, y volver a compilar un proyecto que no ha cambiado solo enlaza.
+</p>
+
+## Cómo funciona
+
+Cada `.c` de la compilación (el C generado de tu programa, el runtime `faset_rt.c` y `faset_gc.c`, y el
+C de las bibliotecas que uses: imágenes, TLS, audio, WebView, tus `<NativeSource>`…) se compila por
+separado y su objeto se guarda con una clave que depende de:
+
+- el **compilador de C** (su ruta, tamaño y fecha: otro gcc u otra versión da otra clave),
+- las **opciones** que cambian el objeto (`-O`, `-g`, `-D`, `-f…`, `-m…`, `--target`…),
+- el **contenido** del `.c` y de todos los archivos que incluye (con `#include "…"`, y con `#include <…>`
+  si está en una carpeta `-I` de Faset).
+
+Por eso `Debug` y `Release`, cada plataforma y arquitectura (`--target windows`, `--target android`,
+`--arch`) y cada combinación de opciones tienen sus propios objetos y nunca se mezclan. Si cambia
+cualquier cosa de la clave, el objeto se vuelve a compilar.
+
+| Qué | Dónde |
+|---|---|
+| Runtime y bibliotecas de C (compartidos entre proyectos) | `~/.local/share/faset/cache/obj` (Windows: `%LOCALAPPDATA%\Faset\cache\obj`) |
+| El C de tu programa | `obj/<Configuración>/<plataforma>-<arquitectura>/<nombre>/` del proyecto |
+
+Los `.c` que faltan se compilan a la vez en varios procesos y después se enlaza todo.
+
+## Tiempos
+
+Medidos en un PC de escritorio con gcc (Linux x86_64):
+
+| Compilación | Sin caché | Con caché |
+|---|---|---|
+| Programa de consola (`hola.fst`) | 0,48 s | 0,27 s |
+| Aplicación `std.ui` (archivo suelto) | 2,1 s | 1,6 s |
+| FasetStudio, primera vez | 18,6 s | 16,4 s |
+| FasetStudio, sin cambios | 18,6 s | **0,4 s** |
+
+Con archivos `.fst` sueltos (sin `.fstproj`) el C del programa se compila siempre; dentro de un
+proyecto, si el C generado no cambia (por ejemplo, tras editar solo un comentario) tampoco se
+recompila.
+
+## Tamaño y limpieza
+
+- La caché compartida tiene un **límite de 1 GB** (`FASET_CACHE_MAX_MB` lo cambia): al pasarlo se borran
+  los objetos usados hace más tiempo. Los que no se usan en 30 días se borran siempre.
+- `faset clean` borra `bin/` y `obj/` del proyecto (también el objeto del programa).
+- `faset clean --cache` borra además la caché compartida.
+
+## Variables de entorno
+
+| Variable | Uso |
+|---|---|
+| `FASET_NO_CACHE` | Con `1`, sin caché: todo se compila con una sola orden, como antes. |
+| `FASET_CACHE_MAX_MB` | Tamaño máximo de la caché compartida en MB (por defecto 1024). |
+| `FASET_JOBS` | Cuántos `.c` se compilan a la vez (por defecto, la mitad de los núcleos y como mucho 4). |
+
+`faset build -v` muestra qué objetos salen de la caché (`en caché: faset_rt.c`) y las órdenes del
+compilador de C que sí se ejecutan.

@@ -55,6 +55,7 @@ private:
     void skipTo(const char* stop);
 
     // declaraciones
+    std::string attributeArgText();  // argumento de atributo que no es una cadena (TestRunner.cpp)
     void parseNamespaceBody(const std::string& ns, bool braced);
     void parseUsing(bool isImport);
     std::vector<std::string> parseDottedPath();

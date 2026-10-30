@@ -7,7 +7,7 @@ export const metadata = {
 
 <p className="lead">
   El explorador, la salida, la lista de problemas, el panel *Device* de Android y los del
-  [depurador](/studio/depurador/) (*Variables*, *Pila de llamadas* e *Inspección*) se pueden colocar
+  [depurador](/studio/depurador/) (*Variables*, *Pila de llamadas* e *Inspección*) y el de *Pruebas* se pueden colocar
   a la izquierda, a la derecha o abajo. La disposición y los tamaños se guardan entre sesiones.
 </p>
 
@@ -24,6 +24,21 @@ export const metadata = {
 El menú **Ver → Explorador / Salida / Problemas** muestra u oculta cada panel. El panel *Device*
 aparece al elegir un dispositivo Android en el selector de destino (y se puede mostrar u ocultar desde
 ese mismo menú). Los paneles del depurador aparecen al depurar y también están en **Ver**.
+
+## Pruebas
+
+**Ver → Pruebas** muestra las pruebas `[Test]` y `[TestCase]` del proyecto o de la solución
+(las de [`faset test`](/cli/pruebas/)) en un árbol por archivo y clase. Cada prueba lleva un punto de
+color: verde si pasó, rojo si falló (con el mensaje y los valores esperado y obtenido), amarillo si
+está ignorada y gris si aún no se ha ejecutado.
+
+- **Ejecutar todas**, **Ejecutar fallidas** y **Actualizar** (vuelve a leer la lista) están arriba del
+  panel; también en el menú **Compilar**.
+- Al pasar el ratón por una clase o una prueba aparece un ▶ que ejecuta solo esa clase o esa prueba.
+- En el editor, las líneas `[Test]` y `[TestCase(…)]` llevan un ▶ verde en el margen: un clic ejecuta
+  esa prueba (o ese caso).
+- Un clic en una prueba abre su línea; en una fallida, la línea donde falló.
+- La salida de `faset test` (y los errores de compilación) va al panel *Salida*.
 
 ## Dónde se guarda
 

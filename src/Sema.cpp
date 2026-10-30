@@ -5,6 +5,7 @@
 #include <functional>
 
 #include "Parser.h"
+#include "TestRunner.h"
 
 namespace {
 
@@ -700,7 +701,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
     }
     for (MethodDecl* m : c->methods)
         for (Attribute& a : m->attrs)
-            if (a.name != "Export" && a.name != "TrackCaller") diag.error(a.loc, "atributo desconocido '" + a.name + "'");
+            if (a.name != "Export" && a.name != "TrackCaller" && !isTestAttribute(a.name)) diag.error(a.loc, "atributo desconocido '" + a.name + "'");
 
     for (size_t i = 0; i < c->ctors.size(); i++) {
         MethodDecl* m = c->ctors[i];
@@ -962,6 +963,7 @@ void Sema::orderStructs() {
 void Sema::findEntry() {
     for (ClassDecl* c : prog_.types) {
         if (c->isTemplate() || c->templateOf) continue;
+        if (testHarnessEntry && c->name != kTestHarnessClass) continue;  // faset test: el main generado (TestRunner.cpp)
         for (MethodDecl* m : c->methods) {
             bool named = m->name == "Main" || (c->isNamespaceScope && m->name == "main");
             if (!named || !m->isStatic() || m->mods.isExtern || m->kind != MethodKind::Normal || m->isTemplate())

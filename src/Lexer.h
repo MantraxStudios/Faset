@@ -24,3 +24,6 @@ std::vector<Token> tokenize(const std::string& src, int fileId);
 // MACOS, DEBUG, RELEASE, FASET.
 void setDefines(const std::set<std::string>& defines);
 bool isKeyword(const std::string& s);
+// Longitud del símbolo (operador o puntuación) que empieza en s[i]; 0 si no hay ninguno. El
+// formateador (Formatter.cpp) separa los símbolos con la misma tabla que el compilador.
+size_t punctLength(const std::string& s, size_t i);

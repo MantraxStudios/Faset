@@ -119,6 +119,11 @@
         "category": "Faset"
       },
       {
+        "command": "faset.test",
+        "title": "Ejecutar pruebas",
+        "category": "Faset"
+      },
+      {
         "command": "faset.buildRelease",
         "title": "Compilar (Release)",
         "category": "Faset"

@@ -224,9 +224,12 @@ std::vector<Attribute> Parser::parseAttributes() {
             if (acceptP("(")) {
                 if (!isP(")")) {
                     do {
-                        if (cur().kind != TokKind::String) fail("los argumentos de atributo deben ser cadenas");
-                        a.args.push_back(cur().text);
-                        p_++;
+                        if (cur().kind == TokKind::String && (peekTok().text == "," || peekTok().text == ")")) {
+                            a.args.push_back(cur().text);
+                            p_++;
+                        } else {
+                            a.args.push_back(attributeArgText());  // [TestCase(1, -2.5, true)] (TestRunner.cpp)
+                        }
                     } while (acceptP(","));
                 }
                 expectP(")");

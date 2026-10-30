@@ -97,6 +97,8 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
         "Authors", "Optimize",
         // Paquetes (ver src/Packages.h)
         "PackageId", "License", "RepositoryUrl", "PackageIndex", "DebugSymbols", "RuntimeChecks", "AllowUnsafe",
+        // Pruebas (ver src/TestRunner.h)
+        "IsTestProject",
         // Android (APK)
         "AndroidPackage", "AppName", "VersionCode", "VersionName", "AndroidAbis", "AndroidTargetSdk", "AndroidIcon",
         "AndroidOrientation", "AndroidKeystore", "AndroidKeyAlias", "AndroidKeystorePassword", "AndroidKeyPassword"};

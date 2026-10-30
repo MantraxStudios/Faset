@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <unordered_set>
 
 static const std::unordered_set<std::string> kKeywords = {
@@ -628,4 +629,12 @@ std::vector<Token> tokenize(const std::string& src, int fileId) {
     Lex l(src, fileId);
     l.run();
     return std::move(l.out);
+}
+
+size_t punctLength(const std::string& s, size_t i) {
+    for (const char* p : kPuncts) {
+        size_t n = std::strlen(p);
+        if (s.compare(i, n, p) == 0) return n;
+    }
+    return 0;
 }

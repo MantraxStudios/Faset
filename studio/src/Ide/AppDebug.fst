@@ -238,6 +238,7 @@ namespace FasetStudio.Ide
             if (line < 0 || line >= v.Doc.Buffer.LineCount) return false;
             if (e.Button == 1)
             {
+                if (TestGutterClick(v, line)) return true;   // ▶ de un [Test] (Tests.fst)
                 dbg.ToggleBreakpoint(v.Doc.FullPath, line);
                 return true;
             }

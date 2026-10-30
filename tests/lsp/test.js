@@ -286,6 +286,20 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     items = await complete(mb.u, t, 'Externa.;', 8, '.');
     assert.ok(labels(items).includes('Interna') && labels(items).includes('Modo'), 'tipos anidados');
 
+    // ---- textDocument/formatting (faset fmt)
+    assert.ok(init.capabilities.documentFormattingProvider, 'capacidad de formato');
+    t = 'class A{\n  static int F(int x){return x*2;}\n}\n';
+    edit(un.u, t);
+    const fe = await request('textDocument/formatting', { textDocument: { uri: un.u }, options: { tabSize: 4, insertSpaces: true } });
+    assert.strictEqual(fe.length, 1, 'un cambio de formato');
+    const ls = t.split('\n'), r = fe[0].range;
+    const off = (p) => ls.slice(0, p.line).reduce((n, l) => n + l.length + 1, 0) + p.character;
+    t = t.slice(0, off(r.start)) + fe[0].newText + t.slice(off(r.end));
+    assert.strictEqual(t, 'class A\n{\n    static int F(int x) { return x * 2; }\n}\n', 'texto formateado');
+    edit(un.u, t);
+    const fe2 = await request('textDocument/formatting', { textDocument: { uri: un.u }, options: { tabSize: 4, insertSpaces: true } });
+    assert.strictEqual(fe2.length, 0, 'ya formateado: sin cambios');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');

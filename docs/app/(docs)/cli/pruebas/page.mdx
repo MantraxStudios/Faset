@@ -1,0 +1,171 @@
+export const metadata = {
+  title: "Pruebas unitarias (faset test)",
+  description: "faset test: métodos [Test] y [TestCase], [Ignore], [Setup] y [Teardown], la clase Assert, filtros, informes JUnit y JSON para CI y proyectos de pruebas.",
+};
+
+# Pruebas unitarias (faset test)
+
+<p className="lead">
+  <code>faset test</code> busca los métodos marcados con <code>[Test]</code>, genera el
+  <code>main</code> que los ejecuta, compila y muestra un resumen. No hace falta escribir ningún
+  <code>main</code> ni instalar nada: las aserciones están en <code>std.test</code>.
+</p>
+
+## Un primer ejemplo
+
+```faset
+// tests/CalculadoraTests.fst
+using std.test;
+
+public class CalculadoraTests
+{
+    [Test]
+    public void Suma() { Assert.Equal(4, 2 + 2); }
+
+    [TestCase(1, 2, 3)]
+    [TestCase(-1, 1, 0)]
+    public void SumaVarios(int a, int b, int esperado) { Assert.Equal(esperado, a + b); }
+
+    [Test, Ignore("pendiente del nuevo motor")]
+    public void Lenta() { }
+}
+```
+
+```bash
+$ faset test
+Pruebas de Calc (4)
+  ✓ CalculadoraTests.Suma (0,03 ms)
+  ✓ CalculadoraTests.SumaVarios(1, 2, 3) (0,01 ms)
+  ✗ CalculadoraTests.SumaVarios(-1, 1, 0) (0,07 ms)
+  ○ CalculadoraTests.Lenta (ignorada: pendiente del nuevo motor)
+
+Fallos:
+
+  1) CalculadoraTests.SumaVarios(-1, 1, 0)
+     tests/CalculadoraTests.fst:11
+     Assert.Equal: los valores no coinciden
+       esperado: 0
+       obtenido: 1
+
+Resultado: 2 correctas, 1 fallida, 1 ignorada (4 pruebas, 412 ms)
+```
+
+El código de salida es `0` si no falla ninguna y `1` si falla alguna (o si las pruebas no
+compilan), así que sirve directamente en integración continua.
+
+## Dónde van las pruebas
+
+`faset test [entrada]` acepta lo mismo que `faset build`: un `.fstproj`, una carpeta, archivos
+`.fst` sueltos o una solución `.fstp`. Las pruebas pueden estar:
+
+- **En el propio proyecto**, en la carpeta `tests/` o en archivos `*Tests.fst`. `faset build` y
+  `faset run` **no** compilan esos archivos; `faset test` sí (junto con el resto del proyecto, así
+  que las pruebas ven sus clases).
+- **En un proyecto de pruebas**: un `.fstproj` con `<IsTestProject>true</IsTestProject>`. No necesita
+  `Main`; `faset build` solo lo comprueba y `faset run` no lo ejecuta. Con `<ProjectReference>` usa las
+  bibliotecas que prueba.
+- **En cualquier archivo del proyecto**: un `[Test]` fuera de `tests/` también se encuentra.
+
+`faset test` de una **solución** ejecuta las pruebas de cada proyecto que tenga alguna (en el orden
+de compilación) y suma los resultados.
+
+## Métodos de prueba
+
+| Atributo | Efecto |
+|---|---|
+| `[Test]` | Método de prueba sin parámetros. |
+| `[TestCase(a, b, …)]` | Una prueba por atributo, con esos argumentos (números, cadenas, `true`/`false`, caracteres, `null`, constantes…). |
+| `[Ignore("motivo")]` | No se ejecuta; aparece como ignorada con el motivo. |
+| `[Setup]` | Se llama antes de cada prueba de su clase. |
+| `[Teardown]` | Se llama después de cada prueba de su clase, aunque falle. |
+
+Varios atributos se pueden escribir juntos: `[Test, Ignore("lenta")]`. Las reglas:
+
+- El método debe ser `public`. Puede ser `static` o de instancia; para los de instancia la clase debe
+  ser `public`, no abstracta y con un constructor público sin parámetros. **Cada prueba usa un objeto
+  nuevo**, así que los campos no se comparten entre pruebas.
+- Una prueba `async Task` se espera hasta que termina.
+- Las funciones de un `namespace` (sin clase) también pueden ser pruebas.
+
+## Assert
+
+`using std.test;` da la clase `Assert`. Todas sus aserciones son `[TrackCaller]`: un fallo apunta a la
+línea de **tu** prueba, no a la de `Assert`.
+
+| Aserción | Comprueba |
+|---|---|
+| `Assert.Equal(esperado, obtenido)` | Igualdad (`==`); enteros y reales de tipos distintos se comparan como `long` / `double`. |
+| `Assert.NotEqual(noEsperado, obtenido)` | Desigualdad. |
+| `Assert.True(cond)` / `Assert.False(cond)` | Una condición. |
+| `Assert.Null(obj)` / `Assert.NotNull(obj)` | Referencias de clase. |
+| `Assert.Near(esperado, obtenido, tolerancia)` | Reales: diferencia como mucho `tolerancia`. |
+| `Assert.Contains(fragmento, cadena)` | Una cadena contiene a otra. |
+| `Assert.Contains(elemento, lista)` | Una `List<T>` contiene un elemento (también `DoesNotContain`). |
+| `Assert.Throws<E>(() => …)` | La lambda lanza una excepción `E` (o derivada); la devuelve para seguir comprobándola. |
+| `Assert.Fail("motivo")` | Falla siempre. |
+
+`Equal`, `NotEqual`, `True`, `False`, `Null`, `NotNull` y `Near` aceptan un último argumento opcional con
+un mensaje: `Assert.True(x > 0, "x debe ser positivo")`.
+
+```faset
+using std;
+using std.test;
+
+public static class ConversionTests
+{
+    [Test]
+    public static void NumeroInvalido()
+    {
+        var e = Assert.Throws<FormatException>(() => { int.Parse("doce"); });
+        Assert.Contains("doce", e.Message);
+    }
+
+    [Test]
+    public static void Raiz() { Assert.Near(1.4142, Math.Sqrt(2), 0.0001); }
+}
+```
+
+## Fallos, excepciones y panics
+
+Cada prueba se ejecuta dentro de un `try`: una aserción que falla, cualquier excepción o un error del
+runtime que se convierte en excepción (referencia nula, índice fuera de rango, división por cero) la
+marcan como fallida y se sigue con la siguiente.
+
+Un [panic](/lenguaje/excepciones/) (`panic()`, `assert()`, uso después de `delete`…) termina el
+proceso y no se puede atrapar. Por eso `faset test` ejecuta el programa de pruebas como un proceso
+hijo: si muere a mitad, marca como fallida la prueba que estaba en marcha (con el mensaje del panic
+y su línea) y vuelve a lanzar el programa **desde la prueba siguiente**. Así cada fallo queda aislado
+y solo se paga un proceso nuevo por cada panic, no uno por prueba.
+
+Lo que una prueba escribe en la consola se muestra junto a su fallo (`salida:`) y va al informe.
+
+## Opciones
+
+```bash
+faset test                          # el proyecto (o la solución) de la carpeta actual
+faset test --filter Suma            # pruebas cuyo nombre contiene "Suma" (sin distinguir mayúsculas)
+faset test --filter A --filter B    # varias
+faset test --filter "Calc.Suma" --exact   # nombre completo exacto (sin los argumentos: todos los casos)
+faset test --list                   # solo lista las pruebas (--list --json para herramientas)
+faset test -q                       # solo los fallos y el resumen
+faset test --report pruebas.xml     # informe JUnit (CI: GitHub Actions, GitLab, Jenkins…)
+faset test --report pruebas.json    # informe JSON
+faset test -c Release               # cualquier opción de 'faset build'
+```
+
+El nombre de una prueba es `Espacio.Clase.Método` y, en un `[TestCase]`, sus argumentos:
+`CalculadoraTests.SumaVarios(1, 2, 3)`.
+
+El informe JSON tiene `total`, `passed`, `failed`, `skipped` y, por proyecto, cada prueba con su
+`status` (`passed`, `failed`, `skipped`), duración, archivo y línea y, si falló, `message`,
+`expected`, `actual`, `failureFile` y `failureLine`.
+
+`faset test` compila y ejecuta en **esta** máquina: no acepta `--target` de otra plataforma. Para
+comprobar que las pruebas compilan para Windows o Android usa `faset check --target windows`.
+
+## En FasetStudio
+
+El panel **Pruebas** (menú **Ver → Pruebas**) muestra el árbol de pruebas por archivo y clase con su
+estado. **Ejecutar todas**, **Ejecutar fallidas**, el ▶ de cada clase o prueba (al pasar el ratón)
+y el ▶ verde del margen junto a cada `[Test]` las ejecutan; un clic en una prueba fallida abre la
+línea del fallo. Consulta [Paneles acoplables](/studio/paneles/).

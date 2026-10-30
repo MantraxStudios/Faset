@@ -13,6 +13,7 @@ Soporte para el lenguaje **Faset** (`.fst`), sus proyectos (`.fstproj`) y sus in
   - información al pasar el ratón: tipos y firmas
   - ir a la definición (F12), también dentro de la biblioteca estándar
   - esquema del documento (Ctrl+Shift+O)
+  - formatear documento (Shift+Alt+F) con `faset fmt`
 - **Proyectos `.fstproj`**: resaltado XML, snippets (`fstproj`, `ProjectReference`, `NativeLibrary`…),
   autocompletado de elementos, propiedades y valores (`OutputType`, `TargetPlatform`, `Configuration`…),
   errores en vivo (propiedad desconocida, valor no válido) y documentación al pasar el ratón.
@@ -21,7 +22,7 @@ Soporte para el lenguaje **Faset** (`.fst`), sus proyectos (`.fstproj`) y sus in
   sacados del código de la ventana, errores del generador en la línea y el atributo correctos e ir a la
   definición del manejador (y, desde el `.fst`, del control en el `.fstui`).
 - **Comandos**: *Faset: Compilar* (Ctrl+Shift+B), *Faset: Ejecutar* (Ctrl+F5),
-  *Faset: Compilar (Release)* y *Faset: Reiniciar el servidor de lenguaje*.
+  *Faset: Compilar (Release)*, *Faset: Ejecutar pruebas* y *Faset: Reiniciar el servidor de lenguaje*.
 - **Snippets**: `main`, `program`, `class`, `struct`, `classT`, `prop`, `operator`, `indexer`,
   `ext`, `for`, `forlist`, `switch`, `list`, `dict`, `using`…
 

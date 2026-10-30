@@ -63,6 +63,7 @@ const std::vector<ElemSpec>& projectProps() {
         {"DebugSymbols", "Fuerza los símbolos de depuración (true o false).", {}, kBool, true},
         {"RuntimeChecks", "Comprobaciones en ejecución (límites, nulos, delete doble...): por defecto en Debug sí y en Release no.", {}, kBool, true},
         {"AllowUnsafe", "Permite código memory_unsafe en todo el proyecto sin marcarlo (true o false).", {}, kBool, true},
+        {"IsTestProject", "Proyecto de pruebas: sin Main, sus [Test] se ejecutan con 'faset test' (true o false).", {}, kBool, true},
         // Android (APK)
         {"AndroidPackage", "Paquete de la app Android (p. ej. com.empresa.app; por defecto com.faset.<nombre>).", {}, {}},
         {"AppName", "Nombre visible de la app en Android.", {}, {}},

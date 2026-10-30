@@ -10,6 +10,7 @@
 #   tests/debug/           información de depuración: '#line' en el C de Debug y gdb (si está) para
 #                          en una línea de Faset, muestra sus variables y avanza paso a paso
 #   tests/lsp/test.js      servidor de lenguaje (si hay Node)
+#   tests/pruebas/         faset test; tests/fmt/ faset fmt; además, compilación incremental (caché de objetos)
 set -u
 cd "$(dirname "$0")/.."
 FASET=./faset
@@ -144,6 +145,78 @@ sln_check() {
     return 0
 }
 if why=$(sln_check); then echo "ok     soluciones"; pass=$((pass+1)); else echo "FALLO  soluciones ($why)"; fail=$((fail+1)); fi
+cd "$(dirname "$0")/.." 2>/dev/null || true
+
+# Pruebas unitarias (tests/pruebas): 'faset test' de un proyecto (pruebas en tests/), de un proyecto
+# <IsTestProject> y de la solución: aserciones, [TestCase], [Ignore], [Setup]/[Teardown], una
+# excepción y un panic aislados, --filter, --list --json, informes JUnit/JSON y el código de salida.
+test_check() {
+    local F="$PWD/$FASET" d="$TMP/pruebas" out
+    rm -rf "$d" && cp -r tests/pruebas "$d" && cd "$d" || return 1
+    out=$("$F" test Calc/Calc.fstproj --report "$d/calc.xml" 2>&1) && { echo "Calc debería fallar"; echo "$out"; return 1; }
+    echo "$out" | grep -q "Resultado: 6 correctas, 4 fallidas, 1 ignorada (11 pruebas" || { echo "resumen de Calc"; echo "$out"; return 1; }
+    echo "$out" | grep -qF "✗ OpsTests.SumaCasos(2, 2, 5)" || { echo "[TestCase] fallido"; echo "$out"; return 1; }
+    echo "$out" | grep -q "CalcTests.fst:20$" && echo "$out" | grep -q "esperado: 5" && echo "$out" | grep -q "obtenido: 4" \
+        || { echo "archivo:línea o esperado/obtenido"; echo "$out"; return 1; }
+    echo "$out" | grep -q "panic: explota" && echo "$out" | grep -qF "✓ PanicTests.TrasElPanico" || { echo "panic aislado"; echo "$out"; return 1; }
+    echo "$out" | grep -q "InvalidOperationException: roto" || { echo "excepción"; echo "$out"; return 1; }
+    grep -q '<testsuite name="Calc" tests="11" failures="4" errors="0" skipped="1"' calc.xml || { echo "informe JUnit"; return 1; }
+    "$F" test Calc/Calc.fstproj --filter Cadenas > "$d/f.log" 2>&1 && grep -q "1 correcta, 0 fallidas" "$d/f.log" || { echo "--filter"; cat "$d/f.log"; return 1; }
+    "$F" test Calc/Calc.fstproj --list --json | grep -q '"name":"OpsTests.SumaCasos(-1, 1, 0)"' || { echo "--list --json"; return 1; }
+    "$F" build Calc/Calc.fstproj -o "$d/calc" > /dev/null 2>&1 && [ "$("$d/calc")" = 5 ] || { echo "build sin las pruebas"; return 1; }
+    "$F" test --filter Longitud --report "$d/r.json" > "$d/s.log" 2>&1 && grep -q '"total":2,"passed":2' "$d/r.json" \
+        || { echo "solución con filtro"; cat "$d/s.log"; return 1; }
+    "$F" test > "$d/s.log" 2>&1 && { echo "la solución debería fallar"; return 1; }
+    grep -q "2 proyectos con pruebas, 9 correctas, 4 fallidas, 1 ignoradas" "$d/s.log" || { echo "resumen de la solución"; cat "$d/s.log"; return 1; }
+    return 0
+}
+if why=$(test_check); then echo "ok     faset test"; pass=$((pass+1)); else echo "FALLO  faset test ($why)"; fail=$((fail+1)); fi
+cd "$(dirname "$0")/.." 2>/dev/null || true
+
+# Formateador: tests/fmt/feo.fst da feo.expected; formatear una copia de tests/cases, tests/errors y
+# lib/std es idempotente (la segunda pasada no cambia nada), --check y --stdin, y los casos
+# formateados compilan (con la biblioteca formateada) y dan la misma salida.
+fmt_check() {
+    local d="$TMP/fmt" n
+    "$FASET" fmt --stdin < tests/fmt/feo.fst | diff -u tests/fmt/feo.expected - > "$TMP/fmt.diff" || { echo "feo.expected"; cat "$TMP/fmt.diff"; return 1; }
+    "$FASET" fmt --stdin --check < tests/fmt/feo.expected || { echo "--check de un archivo formateado"; return 1; }
+    "$FASET" fmt --stdin --check < tests/fmt/feo.fst && { echo "--check de un archivo sin formatear"; return 1; }
+    rm -rf "$d" && mkdir -p "$d/tests" && cp -r lib "$d/" && cp -r tests/cases tests/errors "$d/tests/" || return 1
+    "$FASET" fmt "$d" -q || { echo "faset fmt"; return 1; }
+    "$FASET" fmt "$d" --check -q || { echo "no es idempotente"; "$FASET" fmt "$d" --check | head; return 1; }
+    for n in uniones flujo resultados iteradores lambdas patrones interpolacion inseguro linq registros; do
+        FASET_LIB="$d/lib" "$FASET" build "$d/tests/cases/$n.fst" -o "$TMP/fmt_$n" > /dev/null 2> "$TMP/fmt_$n.err" || { echo "$n no compila"; cat "$TMP/fmt_$n.err"; return 1; }
+        "$TMP/fmt_$n" 2> /dev/null | diff -q "tests/cases/$n.expected" - > /dev/null || { echo "$n: salida distinta"; return 1; }
+    done
+    for n in "$d"/tests/cases/*.fst; do
+        FASET_LIB="$d/lib" "$FASET" check "$n" > "$TMP/fmt_check.err" 2>&1 || { echo "$(basename "$n") no compila"; cat "$TMP/fmt_check.err"; return 1; }
+    done
+    return 0
+}
+if why=$(fmt_check); then echo "ok     faset fmt"; pass=$((pass+1)); else echo "FALLO  faset fmt ($why)"; fail=$((fail+1)); fi
+
+# Compilación incremental (src/BuildCache.cpp): sin cambios no se compila ningún .c; al cambiar un
+# archivo solo se compila el C del programa; Debug y Release no comparten objetos; 'clean' borra obj/.
+incr_check() {
+    local d="$TMP/incr" F="$PWD/$FASET"
+    rm -rf "$d" && mkdir -p "$d" && cd "$d" || return 1
+    "$F" new App > /dev/null && cd App || { echo "new"; return 1; }
+    "$F" build -o "$d/app" > /dev/null 2>&1 || { echo "primera compilación"; return 1; }
+    "$F" build -v -o "$d/app" > "$d/b2.log" 2>&1 || { echo "segunda compilación"; return 1; }
+    grep -q "'-c'" "$d/b2.log" && { echo "sin cambios se compiló C"; cat "$d/b2.log"; return 1; }
+    "$d/app" | grep -q "Hola desde Faset" || { echo "salida"; return 1; }
+    sed -i 's/Hola desde Faset/Hola otra vez/' Program.fst
+    "$F" build -v -o "$d/app" > "$d/b3.log" 2>&1 || { echo "tras editar"; return 1; }
+    [ "$(grep -c "'-c'" "$d/b3.log")" = 1 ] || { echo "tras editar debe compilarse solo el programa"; cat "$d/b3.log"; return 1; }
+    "$d/app" | grep -q "Hola otra vez" || { echo "el cambio no llegó al ejecutable"; return 1; }
+    "$F" build -c Release -v -o "$d/rel" > "$d/b4.log" 2>&1 && grep -q "'-c'.*programa" "$d/b4.log" || { echo "Release reutilizó el objeto de Debug"; return 1; }
+    "$F" build -v -o "$d/app" > "$d/b5.log" 2>&1 && ! grep -q "'-c'" "$d/b5.log" || { echo "Debug tras Release recompiló"; return 1; }
+    ls obj/Debug/*/*/programa-*.o obj/Release/*/*/programa-*.o > /dev/null 2>&1 || { echo "objetos en obj/"; return 1; }
+    "$F" clean > /dev/null && [ ! -d obj ] || { echo "clean"; return 1; }
+    FASET_NO_CACHE=1 "$F" build -o "$d/app2" > /dev/null 2>&1 && "$d/app2" | grep -q "Hola otra vez" || { echo "FASET_NO_CACHE"; return 1; }
+    return 0
+}
+if why=$(incr_check); then echo "ok     compilación incremental"; pass=$((pass+1)); else echo "FALLO  compilación incremental ($why)"; fail=$((fail+1)); fi
 cd "$(dirname "$0")/.." 2>/dev/null || true
 
 # Paquetes (tests/paquetes.sh): repositorios git locales, paquetes.lock, update, conflictos y sin conexión.

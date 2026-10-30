@@ -308,6 +308,16 @@ function symbolProvider() {
     };
 }
 
+// Formatear documento: textDocument/formatting (faset fmt).
+function formattingProvider() {
+    return {
+        async provideDocumentFormattingEdits(doc) {
+            const r = await client.query('textDocument/formatting', doc, { options: { tabSize: 4, insertSpaces: true } });
+            return Array.isArray(r) ? r.map((e) => vscode.TextEdit.replace(toRange(e.range), e.newText)) : [];
+        },
+    };
+}
+
 // ------------------------------------------------------------------ comandos
 
 function projectArgs() {
@@ -362,9 +372,11 @@ function activate(context) {
         vscode.languages.registerDefinitionProvider(SELECTOR, definitionProvider()),
         vscode.languages.registerCompletionItemProvider(SELECTOR, completionProvider(), '.', ':', '>', '<', '"', ' ', ','),
         vscode.languages.registerDocumentSymbolProvider(SELECTOR, symbolProvider()),
+        vscode.languages.registerDocumentFormattingEditProvider({ language: 'faset' }, formattingProvider()),
         vscode.commands.registerCommand('faset.build', () => runInTerminal('build')),
         vscode.commands.registerCommand('faset.buildRelease', () => runInTerminal('build', ['-c', 'Release'])),
         vscode.commands.registerCommand('faset.run', () => runInTerminal('run')),
+        vscode.commands.registerCommand('faset.test', () => runInTerminal('test')),
         vscode.commands.registerCommand('faset.restartServer', async () => {
             await client.stop();
             client.restarts = 0;

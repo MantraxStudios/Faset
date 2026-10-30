@@ -1,5 +1,7 @@
 #include "Lsp.h"
 
+#include "Formatter.h"
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -944,6 +946,7 @@ void Server::handle(const Json& msg, std::set<std::string>& dirty) {
         caps["hoverProvider"] = true;
         caps["definitionProvider"] = true;
         caps["documentSymbolProvider"] = true;
+        caps["documentFormattingProvider"] = true;  // faset fmt (Formatter.cpp)
         Json res = Json::object();
         res["capabilities"] = std::move(caps);
         Json info = Json::object();
@@ -1008,6 +1011,10 @@ void Server::handle(const Json& msg, std::set<std::string>& dirty) {
     else if (method == "textDocument/definition") reply(id, definition(params));
     else if (method == "textDocument/completion") reply(id, completion(params));
     else if (method == "textDocument/documentSymbol") reply(id, documentSymbols(params));
+    else if (method == "textDocument/formatting") {
+        auto it = docs_.find(uriToPath(params.get("textDocument").get("uri").asString()));
+        reply(id, it != docs_.end() ? formattingEdits(it->second.text) : Json::array());
+    }
     else replyError(id, -32601, "método no soportado: " + method);
 }
 

@@ -28,8 +28,10 @@
 #endif
 
 #include "Android.h"
+#include "BuildCache.h"
 #include "Setup.h"
 #include "CodeGen.h"
+#include "Formatter.h"
 #include "Frontend.h"
 #include "Lsp.h"
 #include "Lexer.h"
@@ -39,6 +41,7 @@
 #include "Runtime.h"
 #include "Sema.h"
 #include "Solution.h"
+#include "TestRunner.h"
 #include "Xml.h"
 
 namespace fs = std::filesystem;
@@ -109,7 +112,9 @@ static void usage() {
         "  faset run    [entrada] [-- args]      Compila y ejecuta\n"
         "  faset check  [entrada]                Comprueba errores sin compilar\n"
         "  faset emit-c [entrada] [-o f.c]       Genera el código C intermedio\n"
-        "  faset clean  [proyecto]               Borra bin/ y obj/\n"
+        "  faset clean  [proyecto] [--cache]     Borra bin/ y obj/ (--cache: también la caché de objetos de C)\n"
+        "  faset test   [entrada] [--filter X]   Ejecuta las pruebas [Test] (--report r.xml|r.json, --list)\n"
+        "  faset fmt    [archivos|carpetas]      Formatea el código .fst (--check: solo comprueba)\n"
         "  faset new sln [Nombre]                Crea una solución .fstp (sin nombre: en la carpeta actual)\n"
         "  faset new <Nombre> --solution [...]   Solución con un primer proyecto (Nombre/Nombre.fstp)\n"
         "  faset sln <orden>                     add, remove, list, startup, folder, move, rename, ref\n"
@@ -329,7 +334,10 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         }
         stack.pop_back();
         bool allowUnsafe = proj->boolProp("AllowUnsafe", false);
+        bool testProject = proj->boolProp("IsTestProject", false);
         for (const std::string& f : projectSources(*proj)) {
+            // tests/ y *Tests.fst solo entran en 'faset test' del propio proyecto (TestRunner.cpp).
+            if (!testProject && isTestSourceFile(f, proj->dir) && !(isRoot && o.command == "test")) continue;
             if (std::find(o.inputs.begin(), o.inputs.end(), f) == o.inputs.end()) o.inputs.push_back(f);
             if (allowUnsafe) o.unsafeFiles.insert(normalizePath(f));
         }
@@ -704,7 +712,13 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.push_back("-lm");
     if (o.target != "windows" && o.target != "android") cmd.push_back("-pthread");  // el recolector usa hilos
 
-    int r = runCommand(cmd, o.verbose);
+    // Cada .c se compila por separado con la caché de objetos (BuildCache.cpp) y luego se enlaza.
+    CompileCacheOptions cache;
+    cache.verbose = o.verbose;
+    cache.run = runCommand;
+    if (o.project)
+        cache.programCacheDir = (fs::path(o.project->dir) / "obj" / o.configuration / (o.target + "-" + o.arch) / stem).string();
+    int r = compileWithCache(cmd, cache);
     if (o.keepC) fs::copy_file(mainC, fs::path(outPath).replace_extension(".c"), fs::copy_options::overwrite_existing, ec);
     fs::remove_all(tmp, ec);
     if (r != 0) {
@@ -962,6 +976,48 @@ static int build(Options& o, std::string& outPath) {
     return copyAssets(o, outPath);
 }
 
+// faset test: compila el proyecto con el Main que genera TestRunner.cpp y ejecuta las pruebas.
+static int cmdTest(Options& o, const std::vector<std::string>& testArgs) {
+    if (o.target != kHostOS || o.arch != kHostArch) {
+        diag.fatal("'faset test' ejecuta las pruebas en esta máquina; no admite --target ni --arch de otra plataforma");
+        return 1;
+    }
+    TestBuildHost h;
+    h.inputs = o.inputs;
+    h.args = testArgs;
+    h.verbose = o.verbose;
+    h.defines = definesFor(o.target, o.configuration);
+    h.selfExe = selfExePath(o.argv0);
+    if (o.project) {
+        h.projectPath = o.project->path;
+        h.projectName = fs::path(o.project->path).stem().string();
+        h.objDir = (fs::path(o.project->dir) / "obj" / o.configuration / "pruebas").string();
+    } else {
+        std::string key = fs::current_path().string();
+        for (const std::string& f : o.inputs) key += "|" + f;
+        char hex[32];
+        std::snprintf(hex, sizeof hex, "%016llx", (unsigned long long)std::hash<std::string>{}(key));
+        h.objDir = (fs::temp_directory_path() / ("faset-pruebas-" + std::string(hex))).string();
+    }
+    h.build = [&o](const std::vector<std::string>& inputs, const std::string& output) {
+        Options b = o;
+        b.command = "build";
+        b.inputs = inputs;
+        b.output = output;
+        b.shared = 0;
+        b.gui = 0;
+        b.keepC = false;
+        std::string outPath;
+        return build(b, outPath);
+    };
+    int code = runTests(h);
+    if (!o.project) {  // archivos sueltos: la carpeta temporal no se reutiliza
+        std::error_code ec;
+        fs::remove_all(h.objDir, ec);
+    }
+    return code;
+}
+
 static std::string identifierFrom(const std::string& name) {
     std::string id;
     for (char c : name) id += isalnum((unsigned char)c) ? c : '_';
@@ -1141,9 +1197,16 @@ int main(int argc, char** argv) {
     if (o.command == "doctor") return cmdDoctor(o);
     if (o.command == "setup") return cmdSetup(std::vector<std::string>(args.begin() + 1, args.end()));
     if (o.command == "lsp") return runLanguageServer(o.argv0);
+    if (o.command == "fmt" || o.command == "format") return cmdFormat(std::vector<std::string>(args.begin() + 1, args.end()));
     if (o.command == "__analyze") {
         if (args.size() < 3) return 2;
         return runAnalyzer(args[1], args[2], o.argv0);
+    }
+    // Pruebas: 'faset test' de una solución y opciones propias (--filter, --report...) (src/TestRunner.cpp).
+    std::vector<std::string> testArgs;
+    if (o.command == "test") {
+        if (int code = 0; solutionTestCommand(args, o.argv0, code)) return code;
+        if (!takeTestOptions(args, testArgs)) return 1;
     }
     // Soluciones .fstp: 'faset sln', 'faset new sln' y build/run/check/clean de una solución (src/SolutionCli.cpp).
     if (int code = 0; solutionCommand(args, o.argv0, code)) return code;
@@ -1156,7 +1219,7 @@ int main(int argc, char** argv) {
         if (!projPath.empty() && loadProjectTree(projPath, o)) pkg = androidPackage(o);
         return androidCommand(std::vector<std::string>(args.begin() + 1, args.end()), pkg);
     }
-    static const std::vector<std::string> cmds = {"build", "run", "check", "emit-c", "clean"};
+    static const std::vector<std::string> cmds = {"build", "run", "check", "emit-c", "clean", "test"};
     if (std::find(cmds.begin(), cmds.end(), o.command) == cmds.end()) {
         std::string ext = fs::path(o.command).extension().string();
         if (ext == ".fst" || ext == ".fstproj") {
@@ -1169,6 +1232,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::string> positional;
+    bool cleanCache = false;  // faset clean --cache
     for (size_t i = 1; i < args.size(); i++) {
         const std::string& a = args[i];
         auto next = [&]() -> std::string {
@@ -1181,7 +1245,8 @@ int main(int argc, char** argv) {
         if (a == "--") {
             o.runArgs.assign(args.begin() + (long)i + 1, args.end());
             break;
-        } else if (a == "-o") o.output = next();
+        } else if (a == "--cache" && o.command == "clean") cleanCache = true;
+        else if (a == "-o") o.output = next();
         else if (a == "-c" || a == "--configuration") o.configuration = next();
         else if (a == "--target") o.target = next();
         else if (a == "--arch") o.arch = next();
@@ -1230,6 +1295,11 @@ int main(int argc, char** argv) {
         if (positional.empty()) collectInputs(fs::exists("src") ? "src" : ".", o.inputs);
     }
 
+    if (o.command == "clean" && cleanCache) {
+        unsigned long long bytes = clearObjectCache();
+        std::printf("Caché de objetos borrada: %s (%.1f MB)\n", objectCacheDir().c_str(), bytes / 1048576.0);
+        if (!o.project) return 0;
+    }
     if (o.command == "clean") {
         if (!o.project) {
             diag.fatal("'clean' necesita un proyecto .fstproj");
@@ -1272,6 +1342,16 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    if (o.command == "test") return cmdTest(o, testArgs);
+    // Un proyecto de pruebas no tiene Main: 'faset build' solo lo comprueba (las soluciones lo compilan así).
+    if (o.project && o.project->boolProp("IsTestProject", false) && (o.command == "build" || o.command == "run")) {
+        if (o.command == "run") {
+            diag.fatal("'" + o.project->path + "' es un proyecto de pruebas (<IsTestProject>): ejecútalo con 'faset test'");
+            return 1;
+        }
+        std::fprintf(stderr, "Proyecto de pruebas: se comprueba sin compilar (ejecuta sus pruebas con 'faset test').\n");
+        o.command = "check";
+    }
     if (o.command == "check") {
         if (!frontEnd(o, nullptr)) {
             std::fprintf(stderr, "%d error(es)\n", diag.errorCount);

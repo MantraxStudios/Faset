@@ -252,6 +252,7 @@ namespace FasetStudio.Ide
                 r.Text(r.Code, X + gutter - numW - cw * 2, ly + textTop, num, i == Cursor.Line ? Theme.LineNumberActive : Theme.LineNumber);
                 String.Free(num);
                 DebugMarks.Gutter(r, Doc.FullPath, i, X, ly, lh);   // punto de interrupción y flecha de la línea actual
+                TestMarks.Gutter(r, Doc.FullPath, line, X, ly, lh);  // ▶ de los [Test] (Tests.fst)
 
                 // Texto con resaltado
                 if (line.Length > kindsCapacity)

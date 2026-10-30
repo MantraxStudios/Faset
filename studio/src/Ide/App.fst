@@ -102,10 +102,10 @@ namespace FasetStudio.Ide
         List<HitBox> hits = new List<HitBox>();
 
         // Paneles acoplables: Explorador (0), Salida (1), Problemas (2), Dispositivo (3) y los del depurador:
-        // Variables (4), Pila de llamadas (5) e Inspección (6). Cada uno está en un lado
+        // Variables (4), Pila de llamadas (5), Inspección (6) y Pruebas (7, Tests.fst). Cada uno está en un lado
         // (0 izquierda, 1 derecha, 2 abajo); los del mismo lado se muestran como pestañas.
-        const int ActTool = 50;   // 50..56: pestañas de los paneles
-        const int ToolCount = 7;
+        const int ActTool = 50;   // 50..57: pestañas de los paneles
+        const int ToolCount = 8;
         const int ActTarget = 41; // selector de destino (este equipo / Android)
 
         // Android: dispositivos, emulador y vista del dispositivo (panel 3).
@@ -248,6 +248,7 @@ namespace FasetStudio.Ide
         public void Shutdown()
         {
             if (process != null && process.IsRunning) process.Kill();
+            if (TestsRunning) testProcess.Kill();   // 'faset test' (Tests.fst)
             dbg.Stop();
             android.Shutdown();   // termina el flujo de la pantalla y el shell de adb
             delete analyzer;
@@ -624,6 +625,7 @@ namespace FasetStudio.Ide
         {
             EditorView v = Editor;
             if (v == null) return;
+            if (FormatOnSave) FormatDocument(v, true);
             if (v.Doc.Save()) SetStatus(L.T("Saved"));
             else SetStatus(L.T("Could not save the file"));
         }
@@ -1333,6 +1335,7 @@ namespace FasetStudio.Ide
                 return;
             }
             if (e.Ctrl && k == 'b') { StartProcess(false); return; }
+            if (e.Alt && e.Shift && k == 'f') { FormatDocument(v, false); return; }   // Formatear documento (Tests.fst)
             // Depuración: F5 depurar / continuar, Ctrl+F5 ejecutar sin depurar, Shift+F5 detener,
             // F9 punto de interrupción, F10 / F11 / Shift+F11 paso a paso.
             if (k == Keys.F5)
@@ -1660,8 +1663,9 @@ namespace FasetStudio.Ide
                     return;
                 }
             }
-            // Paneles del depurador
+            // Paneles del depurador y de pruebas
             if (DebugPanelMouse(e, x, y)) return;
+            if (TestsMouseDown(x, y)) return;
             // Paneles de salida y de problemas
             if (InTool(2, x, y) && y >= toolRect[9] + PanelHeaderHeight)
             {
@@ -1844,6 +1848,7 @@ namespace FasetStudio.Ide
                 String.Free(code);
                 SetStatus(L.T("Language changed"));
             }
+            else if (id >= ActTestsAll && id <= ActTestsRefresh) TestsAction(id);
             else if (id >= ActDesignView && id < ActCodeView + 10)
             {
                 int gi = id >= ActCodeView ? id - ActCodeView : id - ActDesignView;
@@ -1985,6 +1990,7 @@ namespace FasetStudio.Ide
             else if (InTool(4, x, y)) dbg.VarsScroll = Math.Max(0, dbg.VarsScroll + e.ScrollLines);
             else if (InTool(5, x, y)) dbg.StackScroll = Math.Max(0, dbg.StackScroll + e.ScrollLines);
             else if (InTool(6, x, y)) dbg.WatchScroll = Math.Max(0, dbg.WatchScroll + e.ScrollLines);
+            else if (InTool(TestsTool, x, y)) testsScroll = Math.Max(0, testsScroll + e.ScrollLines);
             else
             {
                 for (int k = 0; k < groups.Count; k++)
@@ -2038,6 +2044,7 @@ namespace FasetStudio.Ide
                 }
             }
             if (UpdateDebugger()) redraw = true;
+            if (UpdateTests()) redraw = true;
             if (android.Update(r, buildTarget == "android" && ToolVisible(3))) redraw = true;
             if (android.Status.Length > 0)
             {
@@ -2162,6 +2169,7 @@ namespace FasetStudio.Ide
             ClearProblems();
             output.Clear();
             explorer.Unload();
+            ResetTests();   // panel Pruebas (Tests.fst)
             CloseCompletion();
             ClearHover();
             analysisPending = false;
@@ -2704,6 +2712,9 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Go to line"), "Ctrl+G", 117, ed);
                 m.Add(L.T("Toggle comment"), "Ctrl+/", 118, ed);
                 m.Add(L.T("Duplicate line"), "Ctrl+D", 119, ed);
+                m.Separator();
+                m.Add(L.T("Format document"), "Shift+Alt+F", 819, ed);
+                m.Add(L.T("Format on save"), FormatOnSave ? "✓" : "", 820, true);
             }
             else if (index == 2)
             {
@@ -2717,6 +2728,7 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Variables"), ToolVisible(4) ? "✓" : "", 720, ws);
                 m.Add(L.T("Call Stack"), ToolVisible(5) ? "✓" : "", 721, ws);
                 m.Add(L.T("Watch"), ToolVisible(6) ? "✓" : "", 722, ws);
+                m.Add(L.T("Tests"), ToolVisible(TestsTool) ? "✓" : "", 821, ws);
                 m.Add(L.T("Reset layout"), "", 127, ws);
                 m.Separator();
                 m.Add(L.T("Change language"), "", 125, true);
@@ -2738,6 +2750,9 @@ namespace FasetStudio.Ide
                 m.Add(L.T("Delete all breakpoints"), "", 708, dbg.Breakpoints.Count > 0);
                 m.Add(L.T("Just my code (skip the standard library)"), Settings.Get("debug.justmycode", "1") != "0" ? "✓" : "", 714, ws);
                 m.Add(sln ? L.T("Clean solution") : L.T("Clean"), "", 133, ws && !running && (projectFile.Length > 0 || sln));
+                m.Separator();
+                m.Add(L.T("Run tests"), "", 822, ws && !running && !TestsRunning);
+                m.Add(L.T("Run failed tests"), "", 823, ws && !running && !TestsRunning);
                 m.Separator();
                 m.Add("Debug", configuration == "Debug" ? "✓" : "", 135, ws);
                 m.Add("Release", configuration == "Release" ? "✓" : "", 136, ws);
@@ -2941,6 +2956,11 @@ namespace FasetStudio.Ide
             else if (id == 122) ToggleSplit();
             else if (id == 123) ToggleTool(1);
             else if (id == 124) ToggleTool(2);
+            else if (id == 819) FormatDocument(Editor, false);
+            else if (id == 820) Settings.Set("editor.formatOnSave", FormatOnSave ? "0" : "1");
+            else if (id == 821) ToggleTool(TestsTool);
+            else if (id == 822) RunAllTests();
+            else if (id == 823) RunFailedTests();
             else if (id == 126) ToggleTool(0);
             else if (id == 128) ToggleTool(3);
             else if (id == 180) SetBuildTarget("native");
@@ -3790,7 +3810,7 @@ namespace FasetStudio.Ide
         }
 
         static string ToolName(int t) => t == 0 ? "Explorer" : t == 1 ? "Output" : t == 2 ? "Problems" : t == 3 ? "Device"
-                                       : t == 4 ? "Variables" : t == 5 ? "Call Stack" : "Watch";
+                                       : t == 4 ? "Variables" : t == 5 ? "Call Stack" : t == 6 ? "Watch" : "Tests";
 
         bool InTool(int t, float x, float y)
         {
@@ -3857,6 +3877,7 @@ namespace FasetStudio.Ide
             else if (active == 4) dbg.DrawVariables(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
             else if (active == 5) dbg.DrawStack(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
             else if (active == 6) dbg.DrawWatch(r, x, y + PanelHeaderHeight, w, h - PanelHeaderHeight - 4, mouseX, mouseY);
+            else if (active == TestsTool) DrawTests(x, y, w, h);
             else android.Draw(r, x, y, w, h, mouseX, mouseY);
         }
 
