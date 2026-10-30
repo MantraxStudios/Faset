@@ -50,7 +50,7 @@ const jsonLd = {
       applicationCategory: "DeveloperApplication",
       applicationSubCategory: "Programming Language",
       operatingSystem: "Linux, Windows, Android",
-      softwareVersion: "0.4.0",
+      softwareVersion: "0.4.1",
       downloadUrl: "https://github.com/MantraxStudios/Faset/releases/latest",
       installUrl: siteUrl + "/empezar/instalacion/",
       license: "https://github.com/MantraxStudios/Faset/blob/main/LICENSE",

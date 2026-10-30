@@ -951,7 +951,7 @@ void Server::handle(const Json& msg, std::set<std::string>& dirty) {
         res["capabilities"] = std::move(caps);
         Json info = Json::object();
         info["name"] = "faset";
-        info["version"] = "0.4.0";
+        info["version"] = "0.4.1";
         res["serverInfo"] = std::move(info);
         reply(id, std::move(res));
         return;

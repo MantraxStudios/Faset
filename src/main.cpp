@@ -46,7 +46,7 @@
 
 namespace fs = std::filesystem;
 
-static const char* const kVersion = "0.4.0";
+static const char* const kVersion = "0.4.1";
 
 #if defined(_WIN32)
 static const char* const kHostOS = "windows";

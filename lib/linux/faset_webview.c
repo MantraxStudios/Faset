@@ -431,7 +431,13 @@ static int on_button_press(void* widget, void* event, void* data) {
 }
 
 /* window.faset en cada documento (también en los marcos). */
+/* Además del puente window.faset, quita document.startViewTransition: WebKitGTK 2.52 cierra el
+   programa (segfault al leer 0x48 en el proceso de la interfaz) cuando una página usa View Transitions
+   y no pudo crear su AcceleratedBackingStore, lo que pasa con el driver de NVIDIA en X11 (WebKit bug
+   321683). YouTube lo usa en la página de cada video. Sin la función, las páginas cambian de vista sin
+   la animación. */
 static const char kBridgeScript[] =
+    "try{delete Document.prototype.startViewTransition;}catch(e){}"
     "(function(){if(window.faset)return;var ls=[];window.faset={"
     "postMessage:function(m){window.webkit.messageHandlers.faset.postMessage(String(m));},"
     "onmessage:null,"
