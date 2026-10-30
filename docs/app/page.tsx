@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BenchBars, BuildTable, Machine, StartupTable, bench } from "@/components/Bench";
 import CodeBlock from "@/components/CodeBlock";
+import DownloadCounter from "@/components/DownloadCounter";
 import CopyButton from "@/components/CopyButton";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -219,9 +220,10 @@ export default function Home() {
               </div>
               <div className="install-line mono">
                 <span className="prompt">$</span>
-                <span>make &amp;&amp; ./faset run hola.fst</span>
-                <CopyButton text="make && ./faset run hola.fst" />
+                <span>curl -fsSL https://faset.lat/install.sh | sh</span>
+                <CopyButton text="curl -fsSL https://faset.lat/install.sh | sh" />
               </div>
+              <DownloadCounter />
             </div>
             <div className="hero-code">
               <CodeBlock code={HERO} lang="faset" title="programa.fst" />

@@ -38,6 +38,39 @@ const types = {
   ".map": "application/json; charset=utf-8",
 };
 
+// ---- /api/descargas: descargas de las versiones publicadas en GitHub (caché de 10 minutos).
+const releasesApi = "https://api.github.com/repos/MantraxStudios/Faset/releases?per_page=100";
+let downloadsCache = null;
+let downloadsTime = 0;
+
+async function downloads() {
+  if (downloadsCache && Date.now() - downloadsTime < 10 * 60 * 1000) return downloadsCache;
+  try {
+    const r = await fetch(releasesApi, {
+      headers: { "User-Agent": "faset.lat", Accept: "application/vnd.github+json" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!r.ok) throw new Error("GitHub " + r.status);
+    const releases = await r.json();
+    const out = { total: 0, linux: 0, windows: 0, versiones: [], actualizado: new Date().toISOString() };
+    for (const rel of releases) {
+      let n = 0;
+      for (const a of rel.assets || []) {
+        n += a.download_count || 0;
+        if (a.name.includes("linux")) out.linux += a.download_count || 0;
+        if (a.name.includes("windows")) out.windows += a.download_count || 0;
+      }
+      out.total += n;
+      out.versiones.push({ version: rel.tag_name, descargas: n });
+    }
+    downloadsCache = out;
+    downloadsTime = Date.now();
+  } catch (e) {
+    if (!downloadsCache) return { total: null, error: String(e.message || e) };
+  }
+  return downloadsCache;
+}
+
 async function stat(p) {
   try {
     return await fs.stat(p);
@@ -77,6 +110,15 @@ const server = createServer(async (req, res) => {
   } catch {
     res.writeHead(400);
     return res.end();
+  }
+  if (url.pathname === "/api/descargas") {
+    const body = JSON.stringify(await downloads());
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "public, max-age=300",
+      "Access-Control-Allow-Origin": "*",
+    });
+    return res.end(req.method === "HEAD" ? undefined : body);
   }
   let pathname;
   try {
