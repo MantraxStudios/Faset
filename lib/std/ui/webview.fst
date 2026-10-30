@@ -460,6 +460,7 @@ namespace std.ui
         public static void faset_wv_command(int id, int cmd) { }
         public static int faset_wv_history(int id) => 0;
         public static int faset_wv_pump() => 0;
+        public static int faset_wv_wait(int fd, int ms) => 0;
         public static int faset_wv_next_event(int* id, int* kind, byte** text, int* len) => 0;
         public static void faset_wv_release_focus() { }
     }
@@ -476,6 +477,7 @@ namespace std.ui
         public static extern void faset_wv_command(int id, int cmd);
         public static extern int faset_wv_history(int id);
         public static extern int faset_wv_pump();
+        public static extern int faset_wv_wait(int fd, int ms);
         public static extern int faset_wv_next_event(int* id, int* kind, byte** text, int* len);
         public static extern void faset_wv_release_focus();
     }

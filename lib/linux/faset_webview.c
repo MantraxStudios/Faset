@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
+#include <unistd.h>
 
 /* ------------------------------------------------------------------ tipos mínimos de GLib/GTK */
 
@@ -50,6 +52,13 @@ static struct {
     int tried, ok;
     /* glib / gobject */
     int (*g_main_context_iteration)(void*, int);
+    void* (*g_main_context_default)(void);
+    int (*g_main_context_acquire)(void*);
+    void (*g_main_context_release)(void*);
+    int (*g_main_context_prepare)(void*, int*);
+    int (*g_main_context_query)(void*, int, int*, struct pollfd*, int);
+    int (*g_main_context_check)(void*, int, struct pollfd*, int);
+    void (*g_main_context_dispatch)(void*);
     unsigned long (*g_signal_connect_data)(void*, const char*, GCallback, void*, void*, int);
     unsigned int (*g_signal_lookup)(const char*, GType);
     void (*g_signal_query)(unsigned int, GSignalQuery*);
@@ -149,6 +158,13 @@ static int load(void) {
     void* jsc = open_first(jscNames);
     void* x11 = open_first(x11Names);
     LOAD(glib, g_main_context_iteration, 1);
+    LOAD(glib, g_main_context_default, 1);
+    LOAD(glib, g_main_context_acquire, 1);
+    LOAD(glib, g_main_context_release, 1);
+    LOAD(glib, g_main_context_prepare, 1);
+    LOAD(glib, g_main_context_query, 1);
+    LOAD(glib, g_main_context_check, 1);
+    LOAD(glib, g_main_context_dispatch, 1);
     LOAD(glib, g_free, 1);
     LOAD(gobj, g_signal_connect_data, 1);
     LOAD(gobj, g_signal_lookup, 1);
@@ -584,6 +600,42 @@ int32_t faset_wv_history(int32_t id) {
 }
 
 /* Atiende GTK/WebKit sin bloquear. Devuelve el número de WebView vivos. */
+/* Espera hasta 'ms' a la vez a std.ui (su conexión X11 'fd' y el aviso de faset_loop_wake) y al
+   bucle de GLib, donde WebKit recibe los mensajes del proceso de la página, los eventos de su ventana
+   y sus fotogramas; lo que esté listo de GLib se atiende enseguida. Sin esto, WebKit solo avanzaba
+   cuando despertaba la ventana de std.ui (como mucho cada 15 ms y a saltos): la página iba trabada.
+   Devuelve 0 si no hay WebView (std.ui espera como siempre). GPollFD tiene la forma de struct pollfd. */
+extern int32_t faset_loop_wake_fd(void);
+
+int32_t faset_wv_wait(int32_t fd, int32_t ms) {
+    if (!F.ok) return 0;
+    int live = 0;
+    for (int i = 0; i < WV_MAX; i++)
+        if (g_views[i]) live = 1;
+    if (!live) return 0;
+    void* ctx = F.g_main_context_default();
+    if (!F.g_main_context_acquire(ctx)) return 0;
+    enum { kMax = 128 };
+    struct pollfd fds[kMax + 2];
+    int prio = 0, timeout = -1;
+    F.g_main_context_prepare(ctx, &prio);
+    int n = F.g_main_context_query(ctx, prio, &timeout, fds, kMax);
+    if (n > kMax) n = kMax;
+    int wake = faset_loop_wake_fd(), xi = -1, wi = -1;
+    if (fd >= 0) { xi = n; fds[n].fd = fd; fds[n].events = POLLIN; fds[n].revents = 0; n++; }
+    if (wake >= 0) { wi = n; fds[n].fd = wake; fds[n].events = POLLIN; fds[n].revents = 0; n++; }
+    if (timeout < 0 || timeout > ms) timeout = ms < 0 ? 0 : ms;
+    poll(fds, (nfds_t)n, timeout);
+    int glibCount = n - (xi >= 0) - (wi >= 0);
+    if (F.g_main_context_check(ctx, prio, fds, glibCount)) F.g_main_context_dispatch(ctx);
+    F.g_main_context_release(ctx);
+    if (wi >= 0 && (fds[wi].revents & POLLIN)) {
+        char buf[64];
+        while (read(wake, buf, sizeof buf) > 0) {}
+    }
+    return 1;
+}
+
 int32_t faset_wv_pump(void) {
     if (!F.ok) return 0;
     for (int k = 0; k < 200; k++)

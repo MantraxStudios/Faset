@@ -126,6 +126,11 @@ void faset_loop_wake(void) {
     }
 }
 void faset_loop_wait_msgs(int32_t ms) { (void)ms; }
+/* Lado de lectura del aviso de faset_loop_wake (el WebView de Linux lo espera junto a GLib). */
+int32_t faset_loop_wake_fd(void) {
+    faset_wake_init();
+    return faset_wake_fds[0];
+}
 /* Espera hasta 'ms' a que 'fd' (si es >= 0) tenga datos o a que alguien llame a faset_loop_wake. */
 _Bool faset_wait_fd_wake(int32_t fd, int32_t ms) {
     faset_wake_init();

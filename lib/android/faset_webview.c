@@ -365,6 +365,13 @@ void faset_wv_release_focus(void) {
 }
 
 /* Los eventos llegan solos por onEvent: aquí solo se cuenta cuántas vistas hay. */
+/* Android: el bucle de std.ui ya despierta con los mensajes del WebView; espera como siempre. */
+int32_t faset_wv_wait(int32_t fd, int32_t ms) {
+    (void)fd;
+    (void)ms;
+    return 0;
+}
+
 int32_t faset_wv_pump(void) {
     int n = 0;
     for (int i = 0; i < WV_MAX; i++)

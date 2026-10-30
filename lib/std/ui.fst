@@ -2887,6 +2887,8 @@ namespace std.ui
         {
             if (X11.XPending(display) > 0) return;
             if (ms < 0) ms = 0;
+            // Con un WebView, también el bucle de GLib de WebKit (lib/linux/faset_webview.c).
+            if (WebViewHost.Active && WebNative.faset_wv_wait(X11.XConnectionNumber(display), ms) != 0) return;
             UiLoop.faset_wait_fd_wake(X11.XConnectionNumber(display), ms);  // también despierta con Wake
         }
 
