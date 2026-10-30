@@ -21,6 +21,8 @@ public:
     static MethodDecl* reparseMethod(MethodDecl* tmpl, Program& prog);
     // Copia nueva de una lambda (se comprueba con otros tipos de parámetros; ver Lambdas.cpp).
     static LambdaExpr* reparseLambda(LambdaExpr* l, Program& prog);
+    // Copia nueva de una sentencia desde sus tokens (cuerpo de 'comptime foreach'; ParserComptime.cpp).
+    static Stmt* reparseStmt(const TokenList& toks, size_t begin, FileScope* file, Program& prog);
 
 private:
     struct ParseError {};
@@ -165,4 +167,10 @@ private:
     Expr* parseIndexList(Expr* first);                    // a[i, j]: índice (i, j)
     Pattern* parseListPattern();                          // [1, .., var x]
     bool startsRangeEnd() const;
+    // ---- tiempo de compilación y atributos (ParserComptime.cpp)
+    bool isComptimeKw() const { return cur().kind == TokKind::Ident && cur().text == "comptime"; }
+    void parseAttributeArgs(Attribute& a);
+    Stmt* tryParseComptimeStmt();
+    Expr* tryParseComptimeExpr();
+    bool tryParseStaticAssertMember(ClassDecl* c);
 };

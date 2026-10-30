@@ -281,7 +281,7 @@ if [ -x "$WINTC/x86_64-w64-mingw32-clang++" ]; then
         echo "ok     windows: FasetStudio.exe"; pass=$((pass+1))
     fi
     wbad=""
-    for name in hola archivos hilos excepciones_hilos excepciones_finally async_basico async_tareas; do
+    for name in hola archivos hilos excepciones_hilos excepciones_finally async_basico async_tareas atributos comptime reflexion json_automatico; do
         if ! $FASET build "tests/cases/$name.fst" --target windows -o "$TMP/win_$name.exe" > /dev/null 2> "$TMP/win_$name.err"; then
             wbad="$wbad\n  $name: $(head -n 3 "$TMP/win_$name.err")"
         elif [ "${FASET_TEST_WINE:-0}" = 1 ] && [ "$name" != archivos ] && command -v wine > /dev/null; then

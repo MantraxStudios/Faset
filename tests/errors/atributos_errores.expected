@@ -1,0 +1,10 @@
+14|el atributo \[SoloCampo\] no se puede aplicar a clases
+19|el atributo \[Rango\] está repetido
+20|atributo desconocido 'Desconocido'
+21|ninguna sobrecarga del constructor de 'Rango' acepta \(string\)
+22|'Rango' no tiene un campo o propiedad pública modificable 'Max'
+23|'NoEsAtributo' no es un atributo
+24|el atributo \[SoloCampo\] no se puede aplicar a métodos
+25|el atributo \[Export\] no se puede aplicar a campos
+29|\[Conditional\] solo se puede aplicar a métodos 'void'
+33|'Prohibido' está obsoleto: ya no existe

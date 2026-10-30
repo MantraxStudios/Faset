@@ -231,7 +231,7 @@ void Sema::resolveParamDefaults(MethodDecl* m) {
             if (a.name == "CallerMemberName") p.callerInfo = 1;
             else if (a.name == "CallerLineNumber") p.callerInfo = 2;
             else if (a.name == "CallerFilePath") p.callerInfo = 3;
-            else diag.error(a.loc, "atributo de parámetro desconocido '" + a.name + "'");
+            // los demás ([CallerArgumentExpression], atributos de usuario) los valida Attributes.cpp
         }
         if (!p.defaultValue) {
             if (p.callerInfo) diag.error(p.loc, "[Caller...] solo se puede aplicar a un parámetro opcional (con valor por defecto)");

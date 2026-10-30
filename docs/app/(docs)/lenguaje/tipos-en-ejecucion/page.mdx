@@ -114,6 +114,10 @@ int main()
 | `IsSubclassOf(Type otro)`, `IsInstanceOfType(object o)` | |
 | `GetEnumNames()` | los nombres de un enum, en una `List<string>` |
 
+Los campos, propiedades y métodos de un tipo se consultan con la [reflexión](/lenguaje/reflexion/):
+al compilar con `Tipo<T>` (sin coste) o al ejecutar con `GetFields()`, `GetMethods()`... de
+`std.reflection`.
+
 ## nameof
 
 `nameof(x)` es el nombre de una variable, tipo, miembro o método como cadena constante; el compilador

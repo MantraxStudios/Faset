@@ -24,6 +24,7 @@ bool isKeyword(const std::string& s) { return kKeywords.count(s) != 0; }
 static std::set<std::string> gDefines = {"FASET", "LINUX", "DEBUG"};
 
 void setDefines(const std::set<std::string>& defines) { gDefines = defines; }
+bool isDefinedSymbol(const std::string& name) { return gDefines.count(name) != 0; }
 
 namespace {
 

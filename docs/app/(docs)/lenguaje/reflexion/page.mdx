@@ -1,0 +1,200 @@
+export const metadata = {
+  title: "Reflexión",
+  description: "Reflexión de tiempo de compilación con Tipo<T> y comptime foreach (sin coste al ejecutar) y reflexión opcional al ejecutar con std.reflection (GetFields, GetValue, Invoke, Activator).",
+};
+
+# Reflexión
+
+<p className="lead">
+  La reflexión permite recorrer los campos, propiedades, métodos y atributos de un tipo. En C# es
+  un mecanismo de ejecución: lento, con cadenas y <em>boxing</em>. En Faset lo normal es hacerla
+  <strong>al compilar</strong>: el código que la usa se convierte en accesos directos, como si lo
+  hubieras escrito a mano. La reflexión al ejecutar existe también, pero es opcional.
+</p>
+
+## Al compilar: Tipo&lt;T&gt;
+
+`Tipo<T>` describe un tipo mientras se compila. Con [`comptime foreach`](/lenguaje/comptime/#comptime-if-foreach-y-var)
+se recorren sus miembros: el cuerpo se repite una vez por miembro, y `f.Get(obj)` se convierte en
+`obj.Campo`.
+
+```faset
+using std;
+
+class Persona
+{
+    public string Nombre = "";
+    public int Edad;
+    public double Altura { get; set; }
+}
+
+class Programa
+{
+    // Genérica: cada T recibe su propio código, sin metadatos ni búsquedas por nombre.
+    static void Volcar<T>(T obj)
+    {
+        comptime foreach (var f in Tipo<T>.Miembros)
+            println($"{f.Nombre} ({f.Tipo.Nombre}) = {f.Get(obj)}");
+    }
+
+    static void Main()
+    {
+        Persona p = new Persona();
+        p.Nombre = "Ana";
+        p.Edad = 30;
+        p.Altura = 1.7;
+        Volcar(p);
+        // Nombre (string) = Ana
+        // Edad (int) = 30
+        // Altura (double) = 1.7
+    }
+}
+```
+
+`Volcar<Persona>` se compila exactamente como tres `println` seguidos con `obj.Nombre`, `obj.Edad`
+y `obj.Altura`. Como los genéricos de Faset se instancian por tipo (igual que las plantillas de
+C++), la misma función genera un código distinto y directo para cada `T`. Así funciona el
+[JSON automático](/lenguaje/json-automatico/).
+
+### Consultas sobre un tipo
+
+| Consulta | Resultado |
+|---|---|
+| `Nombre`, `NombreCompleto`, `Namespace` | Nombre del tipo (`"List<int>"`), con su namespace |
+| `Campos`, `Propiedades`, `Miembros` | Campos públicos, propiedades públicas o ambos, en orden de declaración (primero los de la base) |
+| `Metodos`, `Constructores` | Métodos públicos (no genéricos) y constructores |
+| `Valores` | Valores de un enum (`d.Nombre`, `d.Valor`, `d.Entero`) |
+| `Atributos`, `Atributo<A>()`, `TieneAtributo<A>()`, `AtributosDe<A>()` | [Atributos](/lenguaje/atributos/) del tipo |
+| `EsClase`, `EsStruct`, `EsEnum`, `EsInterfaz`, `EsRegistro`, `EsAbstracta`, `EsSellada`, `EsTupla`, `EsGenerico` | Clase de tipo |
+| `EsNumerico`, `EsEntero`, `EsDecimal`, `EsTexto`, `EsBool`, `EsChar`, `EsPrimitivo`, `EsReferencia`, `EsValor`, `EsDelegado`, `EsPuntero` | Tipos primitivos y categorías |
+| `EsArreglo`, `EsLista`, `EsDiccionario`, `EsConjunto`, `EsNullable` | `T[]`, `List<T>`, `Dictionary<K, V>`, `HashSet<T>`, `T?` |
+| `Elemento`, `Clave`, `Valor`, `Subyacente`, `Base` | Tipo del elemento, de la clave, del valor, de un `T?` o un enum, y la clase base |
+| `ArgumentosGenericos`, `Interfaces` | Listas de tipos |
+| `TieneConstructorVacio`, `Implementa<I>()`, `DerivaDe<B>()` | Comprobaciones |
+
+Las consultas que dan un tipo también se pueden escribir en posición de tipo sobre un parámetro de
+tipo: `T.Elemento x = ...;`, `Leer<T.Clave>(...)`.
+
+### Miembros, métodos y parámetros
+
+| Sobre | Consultas |
+|---|---|
+| Un campo o propiedad `f` | `Nombre`, `Tipo` (un tipo: `f.Tipo.EsLista`...), `EsCampo`, `EsPropiedad`, `PuedeEscribir`, `SoloLectura`, `Indice`, `DeclaradoEn`, atributos; `f.Get(obj)` y `f.Set(obj, valor)` generan el acceso directo |
+| Un método `m` | `Nombre`, `Retorno`, `Parametros`, `EsEstatico`, `EsVirtual`, `DeclaradoEn`, atributos; `m.Invocar(obj, a, b)` genera la llamada `obj.M(a, b)` |
+| Un parámetro `p` | `Nombre`, `Tipo`, `Indice`, atributos |
+
+`comptime if` elige el código según el tipo, y solo se comprueba la rama elegida:
+
+```faset
+using std;
+using std.collections;
+
+class Pedido
+{
+    public int Id;
+    public List<string> Lineas = new List<string>();
+    public string Cliente = "";
+}
+
+class Programa
+{
+    static string Resumen<T>(T obj)
+    {
+        string s = Tipo<T>.Nombre + " {";
+        comptime foreach (var f in Tipo<T>.Campos)
+        {
+            comptime if (f.Tipo.EsLista) s += $" {f.Nombre}: {f.Get(obj).Count} elementos;";
+            else s += $" {f.Nombre}: {f.Get(obj)};";
+        }
+        return s + " }";
+    }
+
+    static void Main()
+    {
+        Pedido p = new Pedido();
+        p.Id = 7;
+        p.Lineas.Add("pan");
+        p.Cliente = "Luis";
+        println(Resumen(p));   // Pedido { Id: 7; Lineas: 1 elementos; Cliente: Luis; }
+    }
+}
+```
+
+`f.Get(obj).Count` solo tiene sentido para una lista; en la rama `else` (la de `Id` y `Cliente`)
+ni siquiera se comprueba.
+
+## Reflexión al ejecutar
+
+Cuando el tipo no se conoce hasta ejecutar (un complemento, un inspector de objetos, un
+enlazado de datos por nombre), `std.reflection` ofrece la API de C#: `GetFields()`,
+`GetProperties()`, `GetMethods()`, `GetValue`/`SetValue`, `Invoke` y `Activator.CreateInstance`.
+
+```faset
+using std;
+using std.collections;
+using std.reflection;
+
+class Columna : Attribute
+{
+    public string Nombre;
+    public Columna(string n) { Nombre = n; }
+}
+
+[Reflectable]
+class Cliente
+{
+    [Columna("nombre_cliente")] public string Nombre = "";
+    public int Puntos;
+    public void Sumar(int n) { Puntos += n; }
+}
+
+class Programa
+{
+    static void Main()
+    {
+        object o = Activator.CreateInstance(typeof(Cliente));
+        Type t = o.GetType();
+        t.GetField("Nombre").SetValue(o, Reflection.Box("Ana"));
+        foreach (FieldInfo f in t.GetFields())
+            println($"{f.Name}: {f.FieldType.Name} = {f.GetValue(o)}");
+        // Nombre: string = Ana
+        // Puntos: int = 0
+        println(t.GetField("Nombre").GetCustomAttribute<Columna>().Nombre);   // nombre_cliente
+
+        List<object> args = new List<object>();
+        args.Add(Reflection.Box(5));
+        t.GetMethod("Sumar").Invoke(o, args);
+        println(((Cliente)o).Puntos);   // 5
+    }
+}
+```
+
+### Metadatos solo para quien los usa
+
+Un programa que no usa la reflexión al ejecutar no lleva ningún metadato. Los llevan:
+
+- las clases marcadas con `[Reflectable]` (y las que derivan de ellas);
+- las clases que el compilador ve escritas directamente en `typeof(X).GetFields()`,
+  `GetProperties()`, `GetMethods()`, `GetField(...)`... o en `Activator.CreateInstance(typeof(X))`
+  y `Activator.CreateInstance<X>()`.
+
+Los metadatos tampoco los escribe el compilador a mano: para cada tipo la biblioteca los genera con
+la reflexión de tiempo de compilación (`Reflection.Registrar<T>()`, un `comptime foreach` sobre
+`Tipo<T>.Miembros`), así que `GetValue` llama a una función que lee el campo directamente, sin
+buscarlo por nombre. Pedir los campos de un tipo sin metadatos lanza
+`InvalidOperationException` con un mensaje que sugiere `[Reflectable]`.
+
+Como Faset no tiene *boxing*, los valores que no son objetos (`int`, `string`, structs) viajan
+como `object` dentro de un `Boxed<T>`: `Reflection.Box(5)` y `Reflection.Unbox<int>(o)`.
+`SetValue` con un valor del tipo equivocado lanza `InvalidCastException`. La reflexión al ejecutar
+solo admite clases; para structs y enums usa `Tipo<T>`.
+
+## Frente a C#
+
+| | C# | Faset |
+|---|---|---|
+| Recorrer los campos de `T` en código genérico | `typeof(T).GetFields()` al ejecutar, con *boxing* y búsquedas | `comptime foreach (var f in Tipo<T>.Campos)`: accesos directos, coste cero |
+| Leer un atributo | `GetCustomAttribute<A>()` crea el objeto al ejecutar | `f.Atributo<A>().Min` es una constante |
+| Errores (miembro que no existe, tipo equivocado) | Excepciones al ejecutar | Errores de compilación |
+| Metadatos en el ejecutable | Siempre, para todos los tipos | Solo para los tipos que usan la reflexión al ejecutar |
+| Compatible con compilación AOT / recorte | Con anotaciones y advertencias | Siempre: no hay nada dinámico |

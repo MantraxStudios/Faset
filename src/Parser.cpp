@@ -221,19 +221,7 @@ std::vector<Attribute> Parser::parseAttributes() {
             Attribute a;
             a.loc = cur().loc;
             a.name = expectIdent();
-            if (acceptP("(")) {
-                if (!isP(")")) {
-                    do {
-                        if (cur().kind == TokKind::String && (peekTok().text == "," || peekTok().text == ")")) {
-                            a.args.push_back(cur().text);
-                            p_++;
-                        } else {
-                            a.args.push_back(attributeArgText());  // [TestCase(1, -2.5, true)] (TestRunner.cpp)
-                        }
-                    } while (acceptP(","));
-                }
-                expectP(")");
-            }
+            if (isP("(")) parseAttributeArgs(a);  // ParserComptime.cpp
             attrs.push_back(a);
         } while (acceptP(","));
         expectP("]");
@@ -275,6 +263,8 @@ Modifiers Parser::parseModifiers() {
         else if (cur().kind == TokKind::Ident && cur().text == "required" &&
                  (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword || peekTok().text == "("))
             p_++, m.isRequired = true;  // miembros obligatorios (Members.cpp)
+        else if (isComptimeKw() && (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword))
+            p_++, m.isComptime = true;  // comptime int F(...): se evalúa al compilar (Comptime.cpp)
         else if (acceptK("virtual")) m.isVirtual = true;
         else if (acceptK("override")) m.isOverride = true;
         else if (acceptK("abstract")) m.isAbstract = true;
@@ -461,6 +451,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         return m;
     };
 
+    if (tryParseStaticAssertMember(c)) return;  // static_assert(cond, "mensaje"); (ParserComptime.cpp)
     if (isK("class") || isK("struct") || isK("enum") || isK("interface") || isRecordStart()) {
         parseNestedType(c, attrs, mods, begin);  // tipos anidados (ParserMembers.cpp)
         return;
@@ -1021,6 +1012,7 @@ Stmt* Parser::parseStatement() {
     if (isP("{")) return parseBlock();
     if (acceptP(";")) return new EmptyStmt(loc);
     if (Stmt* d = tryParseDefer()) return d;  // defer / errdefer (ParserUnions.cpp)
+    if (Stmt* ct = tryParseComptimeStmt()) return ct;  // comptime if / foreach / var (ParserComptime.cpp)
     if (isUnsafeKw()) {  // memory_unsafe { ... }
         unsafeKeywordError();
         p_++;
@@ -1216,6 +1208,7 @@ Expr* Parser::parseUnary() {
             return u;
         }
     }
+    if (Expr* ct = tryParseComptimeExpr()) return ct;  // comptime expr (ParserComptime.cpp)
     // await operando (palabra contextual; ver Async.cpp)
     if (cur().kind == TokKind::Ident && cur().text == "await") {
         const Token& n = peekTok();

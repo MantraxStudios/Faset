@@ -219,7 +219,7 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
         int line = d.loc.line, col = d.loc.col;
         // El código generado de un .fstui no se corresponde columna a columna con el XML.
         if (xmlDocKind(path) == XmlDocKind::Ui) xmlRefineUiDiagnostic(textOf(path), d.message, line, col);
-        addDiag(path, line, col, d.severity == Diagnostics::Severity::Error ? 1 : 3, d.message);
+        addDiag(path, line, col, d.severity == Diagnostics::Severity::Error ? 1 : d.severity == Diagnostics::Severity::Warning ? 2 : 3, d.message);
     }
     // Validación de los proyectos: el abierto, los que se están editando y el del archivo enfocado.
     for (const std::string& p : interest)

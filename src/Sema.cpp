@@ -169,6 +169,7 @@ bool Sema::run() {
     while (checkPendingConstraints()) processWork();
     orderStaticInits();  // orden de la inicialización estática por dependencias (StaticInit.cpp)
     propagateValidate();  // '?' en posiciones no admitidas (Unions.cpp)
+    ctAfterWork();  // static_assert, atributos y metadatos de reflexión (Comptime.cpp)
     orderStructs();
     findEntry();
     return diag.errorCount == 0;
@@ -498,6 +499,7 @@ Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
 
 Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
     if (tr->preset) return tr->preset;  // tipo ya resuelto (formas reescritas; Arrays.cpp)
+    if (Type* ct = ctResolveType(tr)) return ct;  // tipos de tiempo de compilación: f.Tipo, T.Elemento (Comptime.cpp)
     if (tr->isTuple || tr->nullable) return resolveSugarType(tr, allowVoid);  // (int, string), T? (Sugar.cpp)
     Type* base = nullptr;
     if (tr->isFuncPtr) {
@@ -699,9 +701,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
             }
         }
     }
-    for (MethodDecl* m : c->methods)
-        for (Attribute& a : m->attrs)
-            if (a.name != "Export" && a.name != "TrackCaller" && !isTestAttribute(a.name)) diag.error(a.loc, "atributo desconocido '" + a.name + "'");
+    // Los atributos (integrados y de usuario) se validan en Attributes.cpp.
 
     for (size_t i = 0; i < c->ctors.size(); i++) {
         MethodDecl* m = c->ctors[i];
@@ -1052,6 +1052,7 @@ void Sema::checkStmt(Stmt* s) {
 
 void Sema::checkStmtCore(Stmt* s) {
     if (iterCheckStmt(s)) return;   // yield, await foreach (Iterators.cpp)
+    if (ctStmt(s)) return;  // comptime if / foreach / var, static_assert (Comptime.cpp)
     if (checkSugarStmt(s)) return;  // foreach, deconstrucción, using, switch con patrones (Sugar.cpp)
     switch (s->kind) {
         case SK::Empty: break;
@@ -1256,7 +1257,7 @@ bool Sema::containsBreak(Stmt* s) {
             return containsBreak(is->then) || containsBreak(is->els);
         }
         case SK::Try: return excContainsBreak(static_cast<TryStmt*>(s));
-        default: return false;
+        default: return ctContainsBreak(s);
     }
 }
 
@@ -1304,7 +1305,7 @@ bool Sema::alwaysReturns(Stmt* s) {
             }
             return hasDefault;
         }
-        default: return false;
+        default: return ctAlwaysReturns(s);
     }
 }
 
@@ -1480,6 +1481,7 @@ bool Sema::isLValue(Expr* e) {
 
 bool Sema::constEval(Expr* e, int64_t& out, int depth) {
     if (!e || depth > 32) return false;
+    if (e->kind == EK::Comptime && e->lowered) return constEval(e->lowered, out, depth + 1);  // comptime expr
     switch (e->kind) {
         case EK::IntLit: {
             auto* l = static_cast<IntLitExpr*>(e);
@@ -1690,6 +1692,7 @@ Type* Sema::checkInner(Expr* e) {
             return ctx_.cls->type;
         case EK::Name: return checkName(static_cast<NameExpr*>(e));
         case EK::Await: return checkAwait(static_cast<AwaitExpr*>(e));  // Async.cpp
+        case EK::Comptime: return checkComptimeExpr(static_cast<ComptimeExpr*>(e));  // Comptime.cpp
         case EK::Member: return checkMember(static_cast<MemberExpr*>(e));
         case EK::Call: return checkCall(static_cast<CallExpr*>(e));
         case EK::Index: return checkIndex(static_cast<IndexExpr*>(e));
@@ -1901,6 +1904,7 @@ Type* Sema::checkMember(MemberExpr* e) {
 }
 
 Type* Sema::checkNameImpl(NameExpr* e) {
+    if (Type* ct = ctName(e)) return ct;  // valores de tiempo de compilación (Comptime.cpp)
     if (VarInfo* v = lookupLocal(e->name)) {
         e->ref = NameExpr::Ref::Local;
         e->var = v;
@@ -1983,6 +1987,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
 
 Type* Sema::checkMemberImpl(MemberExpr* e) {
     if (Type* t = unionMemberHook(e)) return t;  // Option.None, Result.Ok(...) (Unions.cpp)
+    if (Type* ct = ctMember(e)) return ct;  // f.Nombre, Tipo<T>.EsLista... (Comptime.cpp)
     bool isCallee = e == calleeExpr_;
     // Regla "Color Color" de C#: en 'Anchor.Left', si 'Anchor' es a la vez un campo de la clase y
     // el nombre de su tipo enum, se trata como el tipo.
@@ -2322,6 +2327,7 @@ std::vector<MethodDecl*> Sema::operatorsFor(Type* a, Type* b, const std::string&
 }
 
 Type* Sema::checkCall(CallExpr* e) {
+    if (Type* ct = ctCall(e)) return ct;  // f.Get(obj), f.Set(obj, v), static_assert... (Comptime.cpp)
     calleeExpr_ = e->callee;
     check(e->callee);
     calleeExpr_ = nullptr;
@@ -2412,7 +2418,7 @@ Type* Sema::checkCall(CallExpr* e) {
     }
     useMethod(m, &e->loc);
     coerceArgs(m, e->args);
-    return m->ret;
+    return ctAfterCall(e, m);  // funciones 'comptime', [Obsolete], [Conditional] (Comptime.cpp)
 }
 
 Type* Sema::checkIndex(IndexExpr* ix) {

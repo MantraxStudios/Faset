@@ -197,6 +197,7 @@ FrontendResult runFrontend(const FrontendOptions& opts) {
     enqueue((fs::path(lib) / "std" / "exceptions.fst").string(), "<std/exceptions>.fst");  // también implícito
     enqueue((fs::path(lib) / "std" / "result.fst").string(), "<std/result>.fst");  // Option<T>, Result<T, E> (implícito)
     enqueue((fs::path(lib) / "std" / "arrays.fst").string(), "<std/arrays>.fst");  // T[], Index, Range, Span<T> (implícito)
+    enqueue((fs::path(lib) / "std" / "attributes.fst").string(), "<std/attributes>.fst");  // Attribute, [Obsolete]... (Attributes.cpp)
     for (const std::string& in : opts.inputs) {
         std::string shown = in;
         fs::path rel = fs::path(in).lexically_relative(fs::current_path());

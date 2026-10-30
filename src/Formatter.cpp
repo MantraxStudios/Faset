@@ -234,7 +234,8 @@ bool isBinaryOp(const Tok& t) {
 
 bool isControlKeyword(const Tok& t) {
     static const std::set<std::string> kws = {"if",   "for",   "foreach", "while", "switch", "catch", "using", "lock", "fixed",
-                                              "return", "throw", "in",     "case",  "else",   "await", "when",  "yield", "is", "as"};
+                                              "return", "throw", "in",     "case",  "else",   "await", "when",  "yield", "is", "as",
+                                              "comptime"};
     return (t.k == K::Keyword || t.k == K::Ident) && kws.count(t.text);
 }
 
@@ -256,7 +257,7 @@ bool isHeaderKeyword(const Tok& t) {
 // Lo que va pegado a un '(' que lo sigue: el nombre de una llamada y unas pocas palabras clave.
 bool callLike(const Tok& t) {
     static const std::set<std::string> ctx = {"var", "async", "or", "and", "not", "await", "yield", "when", "where", "from",
-                                              "select", "let", "into", "on", "equals", "by", "with"};
+                                              "select", "let", "into", "on", "equals", "by", "with", "comptime"};
     static const std::set<std::string> kws = {"this", "base", "typeof", "sizeof", "default", "checked", "unchecked", "new",
                                               "delegate", "stackalloc", "operator"};
     if (t.k == K::Ident) return !ctx.count(t.text);

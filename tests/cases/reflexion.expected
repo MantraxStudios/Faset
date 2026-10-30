@@ -1,0 +1,21 @@
+campo Id: int = 7
+campo Nombre: string = Ana columna nombre_cliente
+propiedad Saldo: double = 10.5 escribible=True
+propiedad Doble: int = 14 escribible=False
+método string Saludar(string otro, int veces)
+método void Ingresar(double cantidad)
+método int Sumar(int a, int b)
+Luis 99.25
+8
+hola Eva; hola Eva; 
+100
+5
+Marca = Seat
+Puertas = 5
+Seat
+1
+no se puede convertir 'string' en 'int'
+'Cliente.Doble' es de solo lectura
+'Entidad.Id' no se puede usar sobre un 'Coche'
+False
+el tipo 'SinMetadatos' no tiene metadatos de reflexión: márcalo con [Reflectable]

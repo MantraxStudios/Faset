@@ -1,0 +1,14 @@
+Edad: edad no válida (200 no está entre 0 y 150)
+0
+clase: modelo
+clase: persona
+método Saludar: accion
+parámetro otro: a quién
+Edad: Rango 0..150 'edad no válida'
+Altura: Rango 1..300 'fuera de rango'
+1
+depurar: x
+1
+falló: x > 5
+ok: x * 2 == 6 && p.Nombre == "Ana"
+Edad Validar

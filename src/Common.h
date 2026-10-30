@@ -12,7 +12,7 @@ struct SourceLoc {
 
 class Diagnostics {
 public:
-    enum class Severity { Error, Note };
+    enum class Severity { Error, Note, Warning };
     struct Entry {
         Severity severity;
         SourceLoc loc;
@@ -35,6 +35,7 @@ public:
     void error(const SourceLoc& loc, const std::string& msg);
     void fatal(const std::string& msg);
     void note(const SourceLoc& loc, const std::string& msg);
+    void warning(const SourceLoc& loc, const std::string& msg);  // no impide compilar ([Obsolete])
     void reset() { *this = Diagnostics(); }
 };
 

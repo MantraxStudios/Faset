@@ -80,12 +80,22 @@ struct Modifiers {
     bool isVirtual = false, isOverride = false, isAbstract = false, isSealed = false, isNew = false;
     bool isAsync = false;  // modificador contextual 'async' (ver Async.cpp)
     bool isRequired = false;  // modificador contextual 'required' (ver Members.cpp)
+    bool isComptime = false;  // modificador contextual 'comptime': se evalúa al compilar (Comptime.cpp)
 };
 
 struct Attribute {
     SourceLoc loc;
     std::string name;
-    std::vector<std::string> args;
+    std::vector<std::string> args;  // argumentos que son literales de cadena (atributos integrados)
+    // Atributos de usuario (Attributes.cpp): argumentos del constructor y propiedades con nombre
+    // ([Rango(0, 100, Mensaje = "...")]); los resuelve y evalúa el compilador.
+    std::vector<Expr*> argExprs;
+    std::vector<std::string> namedArgs;
+    std::vector<Expr*> namedExprs;
+    std::vector<SourceLoc> namedLocs;
+    ClassDecl* cls = nullptr;    // clase del atributo (deriva de std.Attribute); nulo si es integrado
+    MethodDecl* ctor = nullptr;
+    int state = 0;               // 0 sin resolver, 1 resolviendo, 2 resuelto
 };
 
 // Directiva 'using' / 'import' de un archivo.
@@ -143,7 +153,8 @@ enum class EK {
     Await,                         // async/await (ver Async.cpp)
     Pipe, Propagate, UnionCase,    // |>, '?' de Result/Option y casos de unión (Flow.cpp / Unions.cpp)
     Collection, FromEnd, Range,    // arreglos, índices y rangos (ver Arrays.cpp)
-    OutVar                         // F(out var x) / F(out int x): declaración en un argumento (Members.cpp)
+    OutVar,                        // F(out var x) / F(out int x): declaración en un argumento (Members.cpp)
+    Comptime                       // comptime expr: se evalúa al compilar (Comptime.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -437,7 +448,8 @@ enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Contin
     Foreach, Deconstruct, Using,
     Await,   // punto de espera de un método async (lo genera Async.cpp)
     Yield,   // yield return / yield break de un iterador (ver Iterators.cpp)
-    Defer }; // defer / errdefer (Flow.cpp)
+    Defer,   // defer / errdefer (Flow.cpp)
+    ComptimeIf, ComptimeForeach, ComptimeVar };  // tiempo de compilación (Comptime.cpp)
 
 struct Stmt {
     SK kind;
@@ -582,7 +594,7 @@ struct Param {
     // (callerInfo 1, 2 y 3) reciben el valor del sitio de la llamada.
     Expr* defaultValue = nullptr;
     bool defaultChecked = false;
-    std::vector<Attribute> attrs;
+    std::vector<Attribute> attrs;  // [CallerMemberName], [CallerArgumentExpression("x")], de usuario
     int callerInfo = 0;
     bool isRef() const { return tref && tref->isRef; }
 };
@@ -733,6 +745,7 @@ struct ClassDecl {
     ClassDecl* outer = nullptr;
     std::vector<ClassDecl*> nested;
     struct UnionInfo* unionInfo = nullptr;  // 'union' (tipo algebraico): sus casos (Unions.cpp)
+    std::vector<Expr*> staticAsserts;      // static_assert(cond, "mensaje") de la clase o namespace (Comptime.cpp)
     bool isInterface() const { return kind == ClassKind::Interface; }
 
     bool isStaticClass() const { return mods.isStatic; }
@@ -1022,6 +1035,45 @@ struct RangeExpr : Expr {
     Expr* start = nullptr;
     Expr* end = nullptr;
     explicit RangeExpr(SourceLoc l) : Expr(EK::Range, l) {}
+};
+
+// ---------------------------------------------------------------- tiempo de compilación (Comptime.cpp)
+
+// comptime expr: el compilador evalúa 'operand' y pone el resultado como constante.
+struct ComptimeExpr : Expr {
+    Expr* operand = nullptr;
+    explicit ComptimeExpr(SourceLoc l) : Expr(EK::Comptime, l) {}
+};
+
+// comptime if (cond) a else b: solo se comprueba y se genera la rama elegida.
+struct ComptimeIfStmt : Stmt {
+    Expr* cond = nullptr;
+    Stmt* then = nullptr;
+    Stmt* els = nullptr;
+    explicit ComptimeIfStmt(SourceLoc l) : Stmt(SK::ComptimeIf, l) {}
+};
+
+// comptime foreach (var f in Tipo<T>.Campos) cuerpo: el cuerpo se repite (desenrollado) por cada
+// elemento, analizado de nuevo desde sus tokens, con 'f' como valor de tiempo de compilación.
+struct ComptimeForeachStmt : Stmt {
+    std::string name;
+    SourceLoc nameLoc;
+    Expr* coll = nullptr;
+    Stmt* body = nullptr;
+    TokenList tokens;
+    size_t bodyBegin = 0;
+    FileScope* file = nullptr;
+    explicit ComptimeForeachStmt(SourceLoc l) : Stmt(SK::ComptimeForeach, l) {}
+};
+
+// comptime var x = expr;  (valor o tipo de tiempo de compilación con ámbito de variable local)
+struct ComptimeVarStmt : Stmt {
+    TypeRef* tref = nullptr;
+    std::string name;
+    SourceLoc nameLoc;
+    Expr* init = nullptr;
+    VarInfo* var = nullptr;
+    explicit ComptimeVarStmt(SourceLoc l) : Stmt(SK::ComptimeVar, l) {}
 };
 
 struct Program {

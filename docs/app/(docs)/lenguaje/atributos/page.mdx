@@ -1,0 +1,179 @@
+export const metadata = {
+  title: "Atributos",
+  description: "Atributos de usuario (clases que derivan de Attribute) con argumentos y propiedades con nombre, [AttributeUsage], y los atributos estándar [Obsolete], [Conditional], [CallerArgumentExpression] y [Reflectable].",
+};
+
+# Atributos
+
+<p className="lead">
+  Un atributo añade información a una clase, un campo, una propiedad, un método o un parámetro:
+  <code>[Rango(0, 150)]</code>, <code>[JsonName("id")]</code>, <code>[Obsolete("usa Otro")]</code>.
+  Como en C#, un atributo es una clase; a diferencia de C#, el compilador lo evalúa al compilar y se
+  puede leer <a href="/lenguaje/reflexion/">sin ningún coste al ejecutar</a>.
+</p>
+
+## Atributos propios
+
+Un atributo es una clase que deriva de `Attribute`. `[Rango(...)]` busca la clase `Rango` o
+`RangoAttribute`. Los argumentos van al constructor, y después se pueden dar valores a campos o
+propiedades públicas por su nombre:
+
+```faset
+using std;
+using std.collections;
+
+[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+class Rango : Attribute
+{
+    public int Min, Max;
+    public string Mensaje = "fuera de rango";
+    public Rango(int min, int max) { Min = min; Max = max; }
+}
+
+class Persona
+{
+    public string Nombre = "";
+    [Rango(0, 150, Mensaje = "edad no válida")] public int Edad;
+    [Rango(30, 250)] public int Altura { get; set; }
+}
+
+class Programa
+{
+    // Un validador genérico: para cada miembro con [Rango] el compilador genera un 'if' directo.
+    static List<string> Validar<T>(T obj)
+    {
+        List<string> errores = new List<string>();
+        comptime foreach (var f in Tipo<T>.Miembros)
+        {
+            comptime if (f.TieneAtributo<Rango>())
+            {
+                comptime var r = f.Atributo<Rango>();
+                if (f.Get(obj) < r.Min || f.Get(obj) > r.Max) errores.Add($"{f.Nombre}: {r.Mensaje}");
+            }
+        }
+        return errores;
+    }
+
+    static void Main()
+    {
+        Persona p = new Persona();
+        p.Edad = 200;
+        p.Altura = 170;
+        foreach (string e in Validar(p)) println(e);   // Edad: edad no válida
+    }
+}
+```
+
+Los argumentos de un atributo tienen que ser constantes: literales, `const`, enums, `typeof`,
+`nameof` o llamadas [`comptime`](/lenguaje/comptime/). El compilador ejecuta el constructor (y los
+inicializadores de los campos) con su intérprete, así que un error en él es un error de
+compilación.
+
+`Validar<Persona>` no busca nada al ejecutar: se compila como si hubieras escrito a mano
+`if (obj.Edad < 0 || obj.Edad > 150) errores.Add("Edad: edad no válida");` y lo mismo para
+`Altura`.
+
+## Dónde se pueden poner: [AttributeUsage]
+
+`[AttributeUsage]` en la clase del atributo limita a qué se aplica (`AttributeTargets.Class`,
+`Struct`, `Enum`, `Interface`, `Field`, `Property`, `Method`, `Constructor`, `Parameter` o `All`,
+combinables con `|`) y si se puede repetir (`AllowMultiple = true`). Sin él, vale para todo y no se
+repite:
+
+```fst
+[AttributeUsage(AttributeTargets.Field)]
+class SoloCampo : Attribute { }
+
+[SoloCampo] class Mal { }
+// error: el atributo [SoloCampo] no se puede aplicar a clases; según su [AttributeUsage] solo vale para campos
+
+[Rango(1, 2)] [Rango(3, 4)] public int B;
+// error: el atributo [Rango] está repetido (usa [AttributeUsage(..., AllowMultiple = true)] para permitirlo)
+```
+
+## Leer los atributos
+
+- **Al compilar**, con la [reflexión de tiempo de compilación](/lenguaje/reflexion/):
+  `f.TieneAtributo<A>()`, `f.Atributo<A>()` (el primero, o `null`), `f.AtributosDe<A>()` y
+  `f.Atributos` (todos), sobre un tipo (`Tipo<T>`), un miembro, un método o un parámetro. El
+  atributo es un objeto de tiempo de compilación: sus campos (`r.Min`) son constantes.
+- **Al ejecutar**, `a.Crear()` construye el objeto del atributo (con los mismos argumentos), y la
+  [reflexión al ejecutar](/lenguaje/reflexion/#reflexión-al-ejecutar) los devuelve en
+  `GetCustomAttribute<A>()`.
+
+```faset
+using std;
+
+class Descripcion : Attribute
+{
+    public string Texto;
+    public Descripcion(string t) { Texto = t; }
+}
+
+[Descripcion("un punto del plano")]
+class Punto
+{
+    public int X, Y;
+    [Descripcion("saluda")] public void Hola([Descripcion("a quién")] string nombre) { }
+}
+
+class Programa
+{
+    static void Main()
+    {
+        println(Tipo<Punto>.Atributo<Descripcion>().Texto);   // un punto del plano
+        comptime foreach (var m in Tipo<Punto>.Metodos)
+        {
+            println(m.Nombre + ": " + m.Atributo<Descripcion>().Texto);       // Hola: saluda
+            comptime foreach (var p in m.Parametros)
+                println(p.Nombre + ": " + p.Atributo<Descripcion>().Texto);   // nombre: a quién
+        }
+        Attribute a = Tipo<Punto>.Atributo<Descripcion>().Crear();   // objeto al ejecutar
+        println(a.AttributeName());                                  // Descripcion
+    }
+}
+```
+
+## Atributos estándar
+
+| Atributo | Efecto |
+|---|---|
+| `[Obsolete("mensaje")]` | Cada llamada da un **aviso** al compilar; con `[Obsolete("mensaje", true)]` es un error. Dentro de otro miembro obsoleto no se avisa. |
+| `[Conditional("SÍMBOLO")]` | Si el [símbolo](/lenguaje/compilacion-condicional/) no está definido (`DEBUG`, `WINDOWS`...), las llamadas al método desaparecen, con sus argumentos (no se evalúan). Solo en métodos `void`. |
+| `[CallerArgumentExpression("param")]` | En un parámetro `string`: si la llamada no lo pasa, el compilador pone el texto del argumento `param`. |
+| `[Reflectable]` | La clase (y sus derivadas) lleva metadatos para la [reflexión al ejecutar](/lenguaje/reflexion/#reflexión-al-ejecutar). |
+| `[JsonName("x")]`, `[JsonIgnore]` | Nombre del miembro en el JSON, o no escribirlo ([JSON automático](/lenguaje/json-automatico/)). |
+| `[CallerMemberName]`, `[CallerLineNumber]`, `[CallerFilePath]`, `[SetsRequiredMembers]` | Ver [parámetros](/lenguaje/parametros/) e [inicializadores](/lenguaje/inicializadores/). |
+| `[TrackCaller]`, `[Export("símbolo")]`, `[Test]`, `[TestCase(...)]`... | Atributos internos del compilador: la línea de un error es la del que llama, función exportada de una biblioteca y pruebas de `faset test`. |
+
+```faset
+using std;
+
+class Programa
+{
+    [Obsolete("usa Nuevo()")] static int Viejo() => 1;
+
+    [Conditional("DEBUG")] static void Traza(string s) => println("traza: " + s);
+
+    static void Comprobar(bool cond, [CallerArgumentExpression("cond")] string texto = "")
+    {
+        if (!cond) println("falló: " + texto);
+    }
+
+    static void Main()
+    {
+        int x = Viejo();     // aviso: 'Programa.Viejo' está obsoleto: usa Nuevo()
+        Traza("hola");       // en Release (sin DEBUG) esta línea no existe
+        Comprobar(x > 5);    // falló: x > 5
+    }
+}
+```
+
+Con `Traza` compilado en Debug el ejemplo escribe también `traza: hola`.
+
+## Frente a C#
+
+En C# los argumentos de un atributo se guardan en los metadatos del ensamblado, y leerlos
+(`GetCustomAttributes`) crea los objetos al ejecutar con reflexión, que es lenta y no funciona con
+la compilación AOT recortada. En Faset se evalúan una sola vez al compilar: leerlos en código
+genérico no cuesta nada, y un argumento que no encaja es un error de compilación, no una excepción.

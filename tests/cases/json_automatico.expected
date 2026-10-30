@@ -1,0 +1,48 @@
+{"Id":1,"Nombre":"Ana \"la\" Pérez\n","Edad":30,"correo_e":"ana@ejemplo.es","Altura":1.72,"Favorito":"Verde","Hijos":null,"Etiquetas":["a","b"],"Notas":{"mates":9},"Casa":{"Calle":"Mayor","Numero":3},"Peso":{"Valor":61.5,"Unidad":"kg"},"Activo":false,"Inicial":"ñ","Pareja":null,"Calculada":60}
+{
+  "id": 1,
+  "nombre": "Ana \"la\" Pérez\n",
+  "edad": 30,
+  "correo_e": "ana@ejemplo.es",
+  "altura": 1.72,
+  "favorito": "Verde",
+  "etiquetas": [
+    "a",
+    "b"
+  ],
+  "notas": {
+    "mates": 9
+  },
+  "casa": {
+    "calle": "Mayor",
+    "numero": 3
+  },
+  "peso": {
+    "valor": 61.5,
+    "unidad": "kg"
+  },
+  "activo": false,
+  "inicial": "ñ",
+  "calculada": 60
+}
+True
+Ana "la" Pérez Mayor kg secreta True
+True
+[[1,2],[],[3]]
+dos {"1":"uno","2":"dos"}
+["x"]
+{"X":1,"Y":2}
+null
+1000 gé😀
+9223372036854775807 18446744073709551615 200
+Azul Rojo
+Sol
+2:11 se esperaba un número pero se encontró una cadena (línea 2, columna 11)
+se esperaba una cadena pero se encontró '}' (línea 1, columna 12)
+'Negro' no es un valor de Color (línea 1, columna 14)
+el número 300 no cabe en 'byte' (línea 1, columna 1)
+se esperaba un entero (int) pero se encontró 1.5 (línea 1, columna 1)
+texto sobrante después del valor JSON (línea 1, columna 3)
+cadena sin cerrar (línea 1, columna 5)
+se esperaba ',' o ']' pero se encontró el final del texto (línea 2, columna 2)
+JSON: se superó la profundidad máxima de 64 (¿referencia circular?)

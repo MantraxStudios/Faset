@@ -121,7 +121,7 @@ bool Sema::iterHasYield(Stmt* s) {
                 if (iterHasYield(c.body)) return true;
             return false;
         }
-        default: return false;
+        default: return ctAnyChild(s, [](Stmt* c) { return iterHasYield(c); });  // comptime if/foreach (Comptime.cpp)
     }
 }
 

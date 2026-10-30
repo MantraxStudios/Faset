@@ -520,4 +520,31 @@ public:
     bool arrayForeach(ForeachStmt* s, Type* ct);
     Expr* listPatternTest(Pattern* p, const SubjectFn& subj, Type* st);
     void packParamsArray(MethodDecl* m, std::vector<Expr*>& args);
+    // ---- tiempo de compilación, atributos y reflexión (Comptime.cpp, Attributes.cpp, Reflection.cpp)
+    // Un intérprete evalúa al compilar 'comptime expr', las funciones 'comptime', 'comptime if',
+    // 'comptime foreach' (desenrollado), 'static_assert' y la reflexión de Tipo<T> (sin coste al
+    // ejecutar). Los atributos de usuario son clases que derivan de std.Attribute.
+    friend class CtInterp;
+    friend struct CtState;
+    friend class CtHooks;
+    friend class CtAttr;
+    friend class CtReflect;
+    struct CtState* ct_ = nullptr;
+    CtState& ct();
+    Type* ctName(NameExpr* e);                       // nullptr: no es de tiempo de compilación
+    Type* ctMember(MemberExpr* e);
+    Type* ctCall(CallExpr* e);
+    Type* ctAfterCall(CallExpr* e, MethodDecl* m);   // funciones 'comptime', [Obsolete], [Conditional]
+    Type* checkComptimeExpr(ComptimeExpr* e);
+    Type* ctResolveType(TypeRef* tr);
+    bool ctStmt(Stmt* s);                            // comptime if/foreach/var, static_assert
+    bool ctAlwaysReturns(Stmt* s);
+    bool ctContainsBreak(Stmt* s);
+    static bool ctAnyChild(Stmt* s, const std::function<bool(Stmt*)>& f);  // sentencias de comptime if/foreach
+    void ctAfterWork();                              // static_assert de clases, atributos y reflexión
+    void attrCheckAll();
+    void attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl* cls, FileScope* file);
+    void reflectWant(ClassDecl* c, SourceLoc loc);   // el tipo necesita metadatos de reflexión al ejecutar
+    bool reflectStep();
+    Expr* attrCreateExpr(Attribute* a, SourceLoc loc);  // a.Crear(): construye el atributo al ejecutar
 };

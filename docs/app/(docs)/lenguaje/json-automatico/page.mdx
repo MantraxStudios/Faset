@@ -1,0 +1,203 @@
+export const metadata = {
+  title: "JSON automático",
+  description: "Json.Serialize y Json.Deserialize<T> sin reflexión al ejecutar: el compilador genera el código de cada tipo. [JsonName], [JsonIgnore], JsonOptions y errores con línea y columna.",
+};
+
+# JSON automático
+
+<p className="lead">
+  <code>Json.Serialize(obj)</code> convierte cualquier objeto en JSON y
+  <code>Json.Deserialize&lt;T&gt;(texto)</code> lo lee de vuelta, como <code>System.Text.Json</code>
+  de C#. La diferencia: no hay reflexión al ejecutar. Para cada tipo el compilador genera un
+  serializador directo con la <a href="/lenguaje/reflexion/">reflexión de tiempo de
+  compilación</a>.
+</p>
+
+```faset
+using std;
+using std.collections;
+using std.json;
+
+enum Rol { Admin, Usuario }
+
+class Direccion
+{
+    public string Calle = "";
+    public int Numero;
+}
+
+class Usuario
+{
+    public int Id;
+    public string Nombre = "";
+    [JsonName("correo")] public string Email = "";
+    [JsonIgnore] public string Clave = "";
+    public Rol Rol;
+    public int? Edad;
+    public List<string> Etiquetas = new List<string>();
+    public Direccion Casa;
+}
+
+class Programa
+{
+    static void Main()
+    {
+        Usuario u = new Usuario();
+        u.Id = 1;
+        u.Nombre = "Ana";
+        u.Email = "ana@ejemplo.es";
+        u.Clave = "secreta";
+        u.Etiquetas.Add("beta");
+        u.Casa = new Direccion();
+        u.Casa.Calle = "Mayor";
+        u.Casa.Numero = 3;
+
+        string json = Json.Serialize(u);
+        println(json);
+        // {"Id":1,"Nombre":"Ana","correo":"ana@ejemplo.es","Rol":"Admin","Edad":null,"Etiquetas":["beta"],"Casa":{"Calle":"Mayor","Numero":3}}
+
+        Usuario v = Json.Deserialize<Usuario>(json);
+        println(v.Casa.Calle + " " + v.Etiquetas[0]);   // Mayor beta
+    }
+}
+```
+
+## Qué tipos admite
+
+| Tipo | JSON |
+|---|---|
+| Clases, structs y registros | Objeto con sus campos y propiedades públicas, en orden de declaración (los de la clase base primero). Una referencia `null` es `null`. |
+| `string`, `char`, `bool`, números | Cadena, booleano, número (`long` y `ulong` sin perder precisión) |
+| Enums | Por su nombre (`"Admin"`); al leer también se acepta el número |
+| `T?` | El valor o `null` |
+| `T[]`, `List<T>`, `HashSet<T>` | Array |
+| `Dictionary<K, V>` | Objeto; las claves numéricas se escriben como cadenas (`{"1": ...}`) |
+
+Al leer, los miembros que el JSON no trae conservan su valor inicial, los que el tipo no tiene se
+saltan, y las propiedades de solo lectura (`public int Total => ...`) se escriben pero no se leen.
+Para leer un objeto, el tipo necesita un constructor público sin parámetros; los registros
+posicionales (`record Punto(int X, int Y)`) se pueden escribir pero no leer.
+
+Un tipo que no se puede convertir (un delegado, un puntero) es un **error de compilación** que
+señala la llamada a `Serialize` o `Deserialize`, no una excepción al ejecutar.
+
+## Atributos y opciones
+
+- `[JsonName("nombre")]` cambia el nombre del miembro en el JSON (tiene prioridad sobre `CamelCase`).
+- `[JsonIgnore]` lo omite al escribir y al leer.
+
+`JsonOptions` se pasa como segundo argumento:
+
+| Opción | Efecto |
+|---|---|
+| `Indented` | Saltos de línea y sangría (`IndentText`, por defecto dos espacios) |
+| `CamelCase` | `NombreCompleto` se escribe `nombreCompleto` (y se acepta así al leer) |
+| `IgnoreNull` | No escribe los miembros que valen `null` |
+| `CaseInsensitive` | Al leer, los nombres no distinguen mayúsculas |
+| `EnumsAsNumbers` | Enums como números |
+| `MaxDepth` | Anidamiento máximo (64): un objeto que se contiene a sí mismo da `InvalidOperationException` en vez de no terminar |
+
+```faset
+using std;
+using std.json;
+
+class Punto
+{
+    public int CoordX;
+    public int CoordY;
+    public Punto Siguiente;
+}
+
+class Programa
+{
+    static void Main()
+    {
+        Punto p = new Punto();
+        p.CoordX = 1;
+        p.CoordY = 2;
+        JsonOptions o = new JsonOptions();
+        o.Indented = true;
+        o.CamelCase = true;
+        o.IgnoreNull = true;
+        println(Json.Serialize(p, o));
+        // {
+        //   "coordX": 1,
+        //   "coordY": 2
+        // }
+        Punto q = Json.Deserialize<Punto>("{\"coordX\": 5}", o);
+        println(q.CoordX);   // 5
+    }
+}
+```
+
+## Errores
+
+Un texto mal formado, o que no encaja con el tipo pedido, lanza `JsonException` (que deriva de
+`FormatException`) con la línea y la columna:
+
+```faset
+using std;
+using std.json;
+
+class Producto
+{
+    public string Nombre = "";
+    public int Stock;
+}
+
+class Programa
+{
+    static void Main()
+    {
+        try
+        {
+            Json.Deserialize<Producto>("{\n  \"Nombre\": \"pan\",\n  \"Stock\": \"muchos\"\n}");
+        }
+        catch (JsonException e)
+        {
+            println(e.Message);   // se esperaba un número pero se encontró una cadena (línea 3, columna 12)
+            println($"{e.Line}:{e.Column}");   // 3:12
+        }
+        try { Json.Deserialize<byte>("300"); }
+        catch (FormatException e) { println(e.Message); }   // el número 300 no cabe en 'byte' (línea 1, columna 1)
+    }
+}
+```
+
+Para trabajar con un JSON sin un tipo que lo describa (o de forma dinámica), sigue estando
+[`Json.Parse`](/std/json/), que devuelve un árbol de `JsonValue`.
+
+## Cómo funciona
+
+`Json.Serialize<T>` llama a `JsonSerializer.Write<T>`, una función genérica de la biblioteca
+escrita con `comptime if` y `comptime foreach`. Para la clase `Direccion` de arriba, su instancia
+es, en la práctica, este código:
+
+```fst
+w.BeginObject();
+w.Key("Calle", "calle");  Write<string>(w, v.Calle);
+w.Key("Numero", "numero"); Write<int>(w, v.Numero);
+w.EndObject();
+```
+
+Al leer se genera una comparación directa del nombre de cada clave con cada miembro y una
+asignación `obj.Campo = Read<TipoDelCampo>(p)`. No se crean objetos intermedios (`JsonValue`) ni se
+busca nada por nombre en metadatos.
+
+### Rendimiento
+
+Serializar y leer de vuelta 100 000 objetos (`int`, `string`, `double`, `bool` y una
+`List<string>` de dos elementos; 9,7 MB de JSON), en Release en un portátil x86-64:
+
+| Operación | Tiempo |
+|---|---|
+| `Json.Serialize(lista)` | 175 ms (55 ms sin el campo `double`: escribir un `double` con la mínima cantidad de dígitos domina) |
+| `Json.Deserialize<List<Producto>>(texto)` | 73 ms |
+| `Json.Parse(texto)` (árbol `JsonValue`, como referencia) | 300 ms |
+
+## Frente a C#
+
+`System.Text.Json` usa reflexión al ejecutar salvo que se añada un generador de código
+(`JsonSerializerContext` con `[JsonSerializable(typeof(T))]` para cada tipo), y sus errores de tipo
+aparecen al ejecutar. En Faset el código generado es el comportamiento por defecto, funciona con
+genéricos sin registrar nada y los tipos no admitidos se detectan al compilar.

@@ -1,0 +1,237 @@
+export const metadata = {
+  title: "comptime: código en tiempo de compilación",
+  description: "Funciones y expresiones que el compilador evalúa mientras compila (al estilo de Zig): tablas precalculadas, constantes, static_assert, comptime if / foreach y límites.",
+};
+
+# comptime: código en tiempo de compilación
+
+<p className="lead">
+  Con <code>comptime</code> el compilador ejecuta código de Faset <em>mientras compila</em> y
+  escribe el resultado en el programa como una constante: tablas precalculadas, cadenas procesadas,
+  comprobaciones con <code>static_assert</code>… Es la idea de <code>comptime</code> de Zig, y es
+  también la base de la <a href="/lenguaje/reflexion/">reflexión sin coste</a> y del
+  <a href="/lenguaje/json-automatico/">JSON automático</a>.
+</p>
+
+```faset
+using std;
+using std.collections;
+
+// Cada llamada a una función 'comptime' se evalúa al compilar.
+comptime long Factorial(int n) => n <= 1 ? 1 : n * Factorial(n - 1);
+
+comptime List<int> Primos(int hasta)
+{
+    List<int> r = new List<int>();
+    for (int i = 2; i <= hasta; i++)
+    {
+        bool primo = true;
+        for (int d = 2; d * d <= i; d++)
+            if (i % d == 0) primo = false;
+        if (primo) r.Add(i);
+    }
+    return r;
+}
+
+class Programa
+{
+    const long F20 = comptime Factorial(20);   // una constante calculada al compilar
+    static List<int> primos = Primos(100);      // la lista ya viene rellena en el ejecutable
+
+    static void Main()
+    {
+        println(F20);              // 2432902008176640000
+        println(primos.Count);     // 25
+        println(comptime "faset".ToUpper() + "!");   // FASET!
+    }
+}
+```
+
+El programa compilado no contiene `Factorial` ni el bucle de `Primos`: solo el número
+`2432902008176640000` y una lista con los 25 primos.
+
+## Dos formas de usarlo
+
+- **Funciones `comptime`**: el modificador `comptime` en la declaración hace que *todas* sus llamadas
+  se evalúen al compilar. Los argumentos tienen que ser constantes (literales, `const`, otras
+  llamadas `comptime`...). Dentro de otra función `comptime` se llaman con normalidad.
+- **Expresiones `comptime`**: `comptime expr` evalúa una expresión cualquiera al compilar, también si
+  llama a funciones normales (que no tienen nada de especial):
+
+```faset
+using std;
+
+int Triple(int x) => x * 3;
+
+class Programa
+{
+    static void Main()
+    {
+        int a = Triple(5);               // se calcula al ejecutar
+        int b = comptime Triple(5);      // se calcula al compilar: el programa contiene 'int b = 15;'
+        const int K = comptime (1 << 10) + 1;
+        println(a + b + K);              // 1055
+    }
+}
+```
+
+### Qué se puede ejecutar al compilar
+
+El intérprete del compilador entiende un subconjunto *puro* del lenguaje:
+
+- aritmética de enteros (con el desbordamiento de cada tipo), `double`, `char`, `bool` y enums;
+- cadenas (`+`, `$"..."`, `Length`, `Substring`, `ToUpper`, `Replace`, `Split`, `Contains`...) y
+  `StringBuilder`;
+- `List<T>` (`Add`, `Count`, índices, `foreach`, `Sort`, `Sum`...);
+- variables, `if`, `switch`, bucles `for`/`while`/`foreach`, `break`/`continue`, patrones;
+- objetos de clases y structs propios (constructores, campos, propiedades y métodos);
+- llamadas a otras funciones, también recursivas;
+- `sizeof` de tipos primitivos y de structs formados por ellos.
+
+Lo que depende del momento de ejecución no se puede: E/S, hilos, `await`, lambdas, punteros o
+leer una variable normal (`int x = 3; comptime x + 1` es un error: el valor de `x` no se conoce al
+compilar). El resultado tiene que poder escribirse como constante: un número, una cadena, un enum,
+un `bool` o una `List` de ellos.
+
+### Tablas precalculadas
+
+Un caso típico: una tabla que costaría calcular cada vez que arranca el programa.
+
+```faset
+using std;
+using std.collections;
+
+comptime List<byte> TablaCrc8()
+{
+    List<byte> t = new List<byte>();
+    for (int i = 0; i < 256; i++)
+    {
+        int c = i;
+        for (int k = 0; k < 8; k++) c = (c & 0x80) != 0 ? ((c << 1) ^ 0x07) & 0xFF : (c << 1) & 0xFF;
+        t.Add((byte)c);
+    }
+    return t;
+}
+
+class Programa
+{
+    static List<byte> tabla = TablaCrc8();
+
+    static int Crc8(string s)
+    {
+        int c = 0;
+        for (int i = 0; i < s.Length; i++) c = tabla[c ^ s[i]];
+        return c;
+    }
+
+    static void Main()
+    {
+        println(Crc8("123456789"));   // 244
+    }
+}
+```
+
+## static_assert
+
+`static_assert(condición, "mensaje")` comprueba algo al compilar: si es falso, es un error de
+compilación. Se puede poner dentro de un método o como miembro de una clase o del archivo.
+
+```faset
+using std;
+
+struct Pixel { public byte R, G, B, A; }
+
+comptime int Version() => 3;
+
+static_assert(sizeof(Pixel) == 4, "Pixel debe ocupar 4 bytes");
+static_assert(Version() >= 2, "hace falta la versión 2 o posterior");
+
+class Programa
+{
+    static void Main()
+    {
+        static_assert(sizeof(long) == 8);
+        println("todo comprobado al compilar");   // todo comprobado al compilar
+    }
+}
+```
+
+`sizeof` de un struct se puede evaluar al compilar si su tamaño es el mismo en todas las
+plataformas; uno con un `long` o un `double` mal alineado (que en x86 de 32 bits ocuparía otra cosa)
+da un error que lo explica.
+
+## comptime if, foreach y var
+
+Dentro de una función normal, tres sentencias trabajan con valores de tiempo de compilación:
+
+- `comptime if (cond) A else B`: solo se comprueba y se genera la rama elegida. La otra puede
+  contener código que ni siquiera compilaría para este tipo.
+- `comptime foreach (var x in lista) cuerpo`: el cuerpo se *desenrolla*, una copia por elemento, con
+  `x` como valor de tiempo de compilación.
+- `comptime var x = expr;`: un valor (o un tipo) con nombre, con el ámbito de una variable local.
+
+Su uso principal es la [reflexión de tiempo de compilación](/lenguaje/reflexion/) en funciones
+genéricas, donde cada instancia (`Describir<int>`, `Describir<Persona>`...) recibe su propio código:
+
+```faset
+using std;
+using std.collections;
+
+enum Dia { Lunes, Martes, Miercoles }
+
+class Programa
+{
+    static string Describir<T>()
+    {
+        comptime if (Tipo<T>.EsLista) return "lista de " + Tipo<T.Elemento>.Nombre;
+        else comptime if (Tipo<T>.EsEnum) return "enum con " + Tipo<T>.Valores.Count + " valores";
+        else comptime if (Tipo<T>.EsNumerico) return "número de " + sizeof(T) + " bytes";
+        else return Tipo<T>.Nombre;
+    }
+
+    static void Main()
+    {
+        println(Describir<List<string>>());   // lista de string
+        println(Describir<Dia>());            // enum con 3 valores
+        println(Describir<double>());         // número de 8 bytes
+        comptime foreach (var d in Tipo<Dia>.Valores) println($"{d.Nombre} = {d.Entero}");
+        // Lunes = 0
+        // Martes = 1
+        // Miercoles = 2
+    }
+}
+```
+
+## Errores y límites
+
+Un error al evaluar muestra la pila de llamadas de tiempo de compilación, como lo haría una
+excepción:
+
+```fst
+comptime int Divide(int a, int b) => a / b;
+comptime int Medio(int x) => Divide(x, 0);
+int c = Medio(4);
+// error: al evaluar 'Medio' en tiempo de compilación: división por cero en tiempo de compilación
+// nota: en la llamada a 'Divide(int a, int b)' (tiempo de compilación)
+// nota: en la llamada a 'Medio(int x)' (tiempo de compilación)
+```
+
+Para que un error no cuelgue el compilador ni agote la memoria, cada evaluación tiene límites que
+dan un error claro:
+
+| Límite | Valor |
+|---|---|
+| Pasos (sentencias y vueltas de bucle) por evaluación | 20 000 000 (`¿bucle infinito?`) |
+| Llamadas anidadas | 200 |
+| Elementos de listas y objetos creados por evaluación | 1 000 000 |
+| Longitud de una cadena | 16 MB |
+| Vueltas de un `comptime foreach` | 10 000 (100 000 en todo el programa) |
+
+En el editor (FasetStudio o el [LSP](/empezar/editores/)) estos errores aparecen subrayados como
+cualquier otro, y al pasar el ratón sobre la variable de un `comptime foreach` se ve su valor.
+
+## Frente a C#
+
+C# no puede ejecutar código al compilar: las constantes se limitan a expresiones con literales, y
+para generar tablas o código se recurre a generadores de código (*source generators*) escritos en
+otro proyecto, o se calcula todo al arrancar. En Faset es el mismo lenguaje, en el mismo archivo.

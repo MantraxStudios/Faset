@@ -1,0 +1,19 @@
+3628800
+15 primos, el último 47
+244
+Hola Mundo En Faset
+42
+1025
+7
+Lunes = 0
+Martes = 1
+Miercoles = 2
+Punto: int X; int Y; Norma1()
+Pixel: struct de 4 bytes
+List<string>: lista de string
+Dictionary<string, int>: diccionario string -> int
+Dia: enum con 3 valores
+double: primitivo
+15
+42
+long de 64 bits

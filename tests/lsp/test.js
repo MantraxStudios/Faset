@@ -300,6 +300,30 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const fe2 = await request('textDocument/formatting', { textDocument: { uri: un.u }, options: { tabSize: 4, insertSpaces: true } });
     assert.strictEqual(fe2.length, 0, 'ya formateado: sin cambios');
 
+    // ---- atributos y comptime: hover del atributo, autocompletado en [ ], valores de comptime y
+    // errores de comptime / static_assert como diagnósticos
+    const ctf = (() => {
+        const p = path.join(__dirname, 'comptime.fst');
+        const u = 'file://' + p;
+        const t = fs.readFileSync(p, 'utf8');
+        notify('textDocument/didOpen', { textDocument: { uri: u, languageId: 'faset', version: 1, text: t } });
+        return { u, t };
+    })();
+    const ah2 = await request('textDocument/hover', pos(ctf.u, ctf.t, 'Rango(0', 1));
+    assert.match(ah2.contents.value, /\(atributo\) .*Rango/, 'hover de un atributo');
+    const fh = await request('textDocument/hover', pos(ctf.u, ctf.t, 'f.Nombre', 0));
+    assert.match(fh.contents.value, /comptime/, 'hover de la variable de comptime foreach');
+    t = ctf.t.replace('[Rango(0, 150)]', '[Ra]');
+    edit(ctf.u, t);
+    items = await complete(ctf.u, t, '[Ra]', 3);
+    assert.ok(labels(items).includes('Rango') && labels(items).includes('Obsolete'), 'atributos en [ ]');
+    t = ctf.t.replace('x * 2;', 'x / 0;');
+    edit(ctf.u, t);
+    await waitDiag(ctf.u, (ds) => ds.some((d) => /división por cero en tiempo de compilación/.test(d.message)), 'error de comptime');
+    t = ctf.t.replace('int d = Doble(4);', 'static_assert(Doble(4) == 9, "no cuadra"); int d = 1;');
+    edit(ctf.u, t);
+    await waitDiag(ctf.u, (ds) => ds.some((d) => /static_assert falló: no cuadra/.test(d.message)), 'static_assert');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');
