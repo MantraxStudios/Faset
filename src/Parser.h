@@ -118,6 +118,11 @@ private:
     Stmt* parseForeach();
     Stmt* parseUsingStmt();
     Stmt* tryParseDeconstruct();
+    // ---- iteradores (ParserIterators.cpp): yield, await foreach, funciones locales e
+    // implementaciones explícitas de interfaces
+    Stmt* parseIterStmt();
+    Stmt* parseLocalFunction();
+    TypeRef* parseExplicitIface();
     void parseSwitchLabel(SwitchStmt::Section& sec);
     // orientación a objetos (ParserClasses.cpp)
     bool isRecordStart() const;

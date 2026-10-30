@@ -227,4 +227,6 @@ Faset compila a C, así que el modelo de objetos es explícito y predecible:
 - Los structs no heredan de clases; pueden declarar interfaces solo para cumplir restricciones `where`.
 - Los métodos genéricos (`void F<T>()`) no pueden ser virtuales; las clases genéricas sí pueden
   tener métodos virtuales y derivar de otras.
-- No hay implementación explícita de interfaces (`int IForma.Area()`), ni constructores estáticos.
+- No hay constructores estáticos. La implementación explícita de interfaces (`int IForma.Area()`) se
+  admite: ese miembro solo se usa a través de la interfaz (ver
+  [iteradores](/lenguaje/iteradores/#ienumerablet-e-ienumeratort)).

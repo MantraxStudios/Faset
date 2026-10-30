@@ -273,6 +273,7 @@ Type* Sema::resolveSugarType(TypeRef* tr, bool allowVoid) {
 }
 
 int Sema::sugarImplicit(Expr* e, Type* from, Type* to) {
+    if (int r = iterImplicit(e, from, to); r >= 0) return r;  // string -> IEnumerable<char> (Iterators.cpp)
     if (isDefaultLiteral(e)) return to->isVoid() ? 0 : 1;
     if (Type* el = nullableElem(to)) {
         if (from->is(TK::Null)) return 1;
@@ -302,6 +303,7 @@ bool Sema::sugarCoerce(Expr*& e, Type* to) {
         c->type = to;
         e = c;
     };
+    if (iterCoerce(e, to)) return true;  // string -> IEnumerable<char> (Iterators.cpp)
     if (isDefaultLiteral(e)) {
         if (to->isVoid()) return false;
         e->type = to;
@@ -990,6 +992,7 @@ void Sema::checkForeach(ForeachStmt* s) {
         ctx_.scopes.pop_back();
     };
     if (ct->isError()) return fallback();
+    if (ct->isClass() && findMethods(ct->decl, "GetEnumerator").empty()) ct = iterForeachSource(s->coll, ct);  // Iterators.cpp
     bool has = ct->is(TK::String) && !findExtensions("GetEnumerator").empty();
     if (ct->isAggregate())
         for (MethodDecl* m : ct->decl->methods) has |= m->name == "GetEnumerator";
@@ -1033,10 +1036,11 @@ void Sema::checkForeach(ForeachStmt* s) {
     }
     inner->stmts.push_back(s->body);
     w->body = inner;
-    checkStmt(w);
+    Stmt* loop = iterForeachLoop(ev, et, w, loc);  // Dispose() al salir (IEnumerator<T>, Iterators.cpp)
+    checkStmt(loop);
     ctx_.scopes.pop_back();
     auto* blk = new BlockStmt(loc);
-    blk->stmts = {d1, d2, w};
+    blk->stmts = {d1, d2, loop};
     s->lowered = blk;
 }
 

@@ -277,6 +277,11 @@
           "match": "\\bawait\\b(?=\\s*[A-Za-z_(@\"$])"
         },
         {
+          "comment": "Iteradores: yield return / yield break (palabra contextual)",
+          "name": "keyword.control.yield.faset",
+          "match": "\\byield\\b(?=\\s+(return|break)\\b)"
+        },
+        {
           "name": "storage.modifier.async.faset",
           "match": "\\basync\\b(?=\\s+[A-Za-z_(]|\\s*\\()"
         },

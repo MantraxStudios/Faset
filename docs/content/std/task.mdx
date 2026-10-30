@@ -34,3 +34,7 @@ encolan (en el grupo de hilos o en el contexto capturado), nunca se ejecutan den
 completa la tarea. Los hilos del grupo y el de los temporizadores están registrados en el recolector
 de basura: una tarea pendiente (y el marco de su método `async`) sigue viva mientras algo pueda
 completarla.
+
+Los flujos asíncronos (`IAsyncEnumerable<T>`, `async IAsyncEnumerable<T> F()` con `yield return` y
+`await foreach`, más `ToListAsync()` y `ToAsyncEnumerable()`) están en
+[Iteradores y yield](/lenguaje/iteradores/#flujos-asíncronos-await-foreach).

@@ -249,6 +249,7 @@ void Sema::resolveHierarchy(ClassDecl* c) {
 
 // Implementación de un método de interfaz en la clase (o en sus bases).
 MethodDecl* Sema::findInterfaceImpl(ClassDecl* c, MethodDecl* im) {
+    if (MethodDecl* m = iterExplicitImpl(c, im)) return m;  // 'T IInterfaz.Miembro()' (Iterators.cpp)
     for (ClassDecl* k = c; k; k = k->base)
         for (MethodDecl* m : k->methods)
             if (!m->isStatic() && !m->isTemplate() && sameSig(m, im)) return m;

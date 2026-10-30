@@ -53,6 +53,7 @@ export const nav: NavSection[] = [
       { title: "Eventos", href: "/lenguaje/eventos/" },
       { title: "async y await", href: "/lenguaje/async/" },
       { title: "LINQ", href: "/lenguaje/linq/" },
+      { title: "Iteradores y yield", href: "/lenguaje/iteradores/" },
       { title: "Referencias, ref y out", href: "/lenguaje/referencias/" },
       { title: "Namespaces, using e import", href: "/lenguaje/namespaces/" },
       { title: "Compilación condicional", href: "/lenguaje/compilacion-condicional/" },

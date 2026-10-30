@@ -1,6 +1,6 @@
 export const metadata = {
   title: "foreach",
-  description: "Recorrer List, Dictionary, HashSet, Span, cadenas y tus propios tipos con foreach en Faset.",
+  description: "Recorrer List, Dictionary, HashSet, Span, cadenas, iteradores (IEnumerable<T>) y tus propios tipos con foreach en Faset; await foreach para flujos asíncronos.",
 };
 
 # foreach
@@ -8,8 +8,10 @@ export const metadata = {
 <p className="lead">
   <code>foreach</code> recorre los elementos de una colección sin manejar índices. Funciona con
   <code>List&lt;T&gt;</code>, <code>Dictionary&lt;K, V&gt;</code>, <code>HashSet&lt;T&gt;</code>,
-  <code>Stack&lt;T&gt;</code>, <code>Span&lt;T&gt;</code>, <code>string</code> y cualquier tipo tuyo
-  que tenga un método <code>GetEnumerator()</code>.
+  <code>Stack&lt;T&gt;</code>, <code>Queue&lt;T&gt;</code>, <code>Span&lt;T&gt;</code>,{" "}
+  <code>string</code>, cualquier <code>IEnumerable&lt;T&gt;</code> (como los{" "}
+  <a href="/lenguaje/iteradores/">iteradores con yield</a>) y cualquier tipo tuyo que tenga un método{" "}
+  <code>GetEnumerator()</code>.
 </p>
 
 ## Listas
@@ -133,6 +135,64 @@ void main()
 Si tu clase envuelve una lista, basta con devolver su enumerador:
 `public ListEnumerator<string> GetEnumerator() => items.GetEnumerator();`.
 
+Lo más sencillo, sin escribir un enumerador, es un [iterador](/lenguaje/iteradores/) con
+`yield return`; y si la clase implementa `IEnumerable<T>` también sirve para LINQ:
+
+```faset
+using std.collections;
+
+class Cuenta : IEnumerable<int>
+{
+    int desde, hasta;
+    public Cuenta(int a, int b) { desde = a; hasta = b; }
+    public IEnumerator<int> GetEnumerator()
+    {
+        for (int i = desde; i <= hasta; i++) yield return i;
+    }
+}
+
+void main()
+{
+    foreach (int i in new Cuenta(1, 5)) print(i);   // 12345
+    println();
+    println(new Cuenta(1, 10).Where(i => i % 3 == 0).Sum());   // 18
+}
+```
+
+## IEnumerable&lt;T&gt; y Dispose
+
+`foreach` sobre un `IEnumerable<T>` (un parámetro de ese tipo, el resultado de un iterador o de
+LINQ) usa la interfaz: `GetEnumerator()`, `MoveNext()` y `Current`. Además, al salir del bucle por
+cualquier camino (fin, `break`, `return` o una excepción) llama a `Dispose()` del enumerador, así que
+los bloques `finally` de un iterador se ejecutan aunque no se recorra entero.
+
+```faset
+using std.collections;
+
+static int Suma(IEnumerable<int> xs)   // vale para List, HashSet, iteradores, LINQ...
+{
+    int s = 0;
+    foreach (int x in xs) s += x;
+    return s;
+}
+
+static void Main()
+{
+    List<int> l = new List<int>();
+    l.Add(3);
+    l.Add(4);
+    HashSet<int> h = new HashSet<int>();
+    h.Add(10);
+    println(Suma(l) + Suma(h) + Suma(Enumerable.Range(1, 3)));   // 23
+}
+```
+
+## await foreach
+
+Los flujos asíncronos (`IAsyncEnumerable<T>`, por ejemplo un `async` iterador) se recorren con
+`await foreach` dentro de un método `async`: cada elemento se espera sin bloquear el hilo y al salir
+se llama a `DisposeAsync()`. Ver [flujos asíncronos](/lenguaje/iteradores/#flujos-asíncronos-await-foreach).
+
 ## Cómo se compila
 
 `foreach (T x in c) cuerpo` equivale a:
@@ -147,4 +207,20 @@ while (e.MoveNext())
 ```
 
 Los enumeradores de la biblioteca son `struct`, así que el bucle no reserva memoria y el compilador
-de C lo optimiza como un `for` con índice.
+de C lo optimiza como un `for` con índice. Esto no cambia porque las colecciones implementen
+`IEnumerable<T>`: `foreach` sobre una `List<T>` usa su `GetEnumerator()` propio (el `struct`).
+
+Si el enumerador tiene un método `Dispose()` (como `IEnumerator<T>`), el bucle va dentro de un
+`try`/`finally` que lo llama:
+
+```fst
+var e = c.GetEnumerator();
+try
+{
+    while (e.MoveNext()) { T x = e.Current; cuerpo }
+}
+finally
+{
+    e.Dispose();
+}
+```

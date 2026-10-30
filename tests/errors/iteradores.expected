@@ -1,0 +1,10 @@
+8|no se puede usar 'return' en un iterador
+11|debe devolver IEnumerable<T> o IEnumerator<T> \(no 'int'\)
+19|no se puede usar 'yield' dentro de un bloque 'finally'
+24|'await' solo se puede usar en un iterador 'async'
+28|un iterador 'async' debe devolver IAsyncEnumerable<T>
+33|debe ser 'async'
+40|no se puede convertir implícitamente el tipo 'int' en 'string'
+43|un iterador no puede tener parámetros 'ref' ni 'out'
+48|debe devolver IEnumerable<T> o IEnumerator<T> \(no 'void'\)
+51|'await foreach' solo se puede usar dentro de un método o lambda 'async'

@@ -26,3 +26,10 @@ int main()
     return 0;
 }
 ```
+
+`List<T>`, `Dictionary<K, V>`, `HashSet<T>`, `Stack<T>` y `Queue<T>` implementan `IEnumerable<T>`:
+se pueden pasar a cualquier parámetro `IEnumerable<T>` y reciben el [LINQ perezoso](/lenguaje/linq/)
+de `Enumerable` (`Enumerable.Range`, `Take`, `Zip`, `GroupBy`...). Los métodos propios de `List<T>`
+(`lista.Where(...)`) siguen siendo inmediatos y `foreach` sobre una colección concreta usa su
+enumerador `struct`, sin reservar memoria. Para escribir secuencias propias con `yield return`, ver
+[Iteradores y yield](/lenguaje/iteradores/).

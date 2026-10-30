@@ -394,7 +394,8 @@ struct WithExpr : Expr {  // registro with { X = 1, Y = 2 }
 
 enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty, Try, Throw,
     Foreach, Deconstruct, Using,
-    Await };  // punto de espera de un método async (lo genera Async.cpp)
+    Await,   // punto de espera de un método async (lo genera Async.cpp)
+    Yield }; // yield return / yield break de un iterador (ver Iterators.cpp)
 
 struct Stmt {
     SK kind;
@@ -613,6 +614,11 @@ struct MethodDecl {
     int recordGen = 0;                 // miembro generado por 'record' (1 ToString, 2 GetHashCode, 3 ==)
     std::vector<VarInfo*> patternVars; // variables de patrones 'is T x' (se declaran al inicio en C)
     struct AsyncInfo* async = nullptr; // método o lambda 'async': máquina de estados (ver Async.cpp)
+    // Implementación explícita de un miembro de interfaz: 'IEnumerator<T> IEnumerable<T>.GetEnumerator()'
+    // (ver Iterators.cpp). 'name' queda como "Interfaz.Miembro" para que no se encuentre por nombre.
+    TypeRef* explicitIface = nullptr;
+    ClassDecl* explicitDecl = nullptr;
+    std::string explicitName;
     bool isVirtualish() const { return mods.isVirtual || mods.isOverride || mods.isAbstract; }
 
     bool isStatic() const { return mods.isStatic; }
@@ -797,6 +803,7 @@ struct ForeachStmt : Stmt {
     std::vector<SourceLoc> nameLocs;
     Expr* coll = nullptr;
     Stmt* body = nullptr;
+    bool isAwait = false;               // await foreach (flujos asíncronos, ver Iterators.cpp)
     explicit ForeachStmt(SourceLoc l) : Stmt(SK::Foreach, l) {}
 };
 
@@ -841,6 +848,16 @@ struct AwaitStmt : Stmt {
     AwaitExpr* aw = nullptr;
     VarInfo* result = nullptr;
     explicit AwaitStmt(SourceLoc l) : Stmt(SK::Await, l) {}
+};
+
+// ---------------------------------------------------------------- iteradores (ver Iterators.cpp)
+
+// yield return valor;  /  yield break;
+struct YieldStmt : Stmt {
+    Expr* value = nullptr;   // nulo en 'yield break'
+    bool isBreak = false;
+    Expr* store = nullptr;   // <it>.__actual = valor (comprobada)
+    explicit YieldStmt(SourceLoc l) : Stmt(SK::Yield, l) {}
 };
 
 struct Program {

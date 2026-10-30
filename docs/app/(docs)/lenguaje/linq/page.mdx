@@ -1,16 +1,98 @@
 export const metadata = {
   title: "LINQ",
-  description: "Where, Select, OrderBy, GroupBy, Sum, Aggregate y compañía sobre List<T> y Dictionary con lambdas. Evaluación inmediata.",
+  description: "Where, Select, OrderBy, GroupBy, Sum, Aggregate y compañía con lambdas: perezoso sobre cualquier IEnumerable<T> e inmediato en los métodos propios de List<T>.",
 };
 
 # LINQ
 
 <p className="lead">
-  <code>List&lt;T&gt;</code> de <a href="/std/collections/">std.collections</a> tiene las operaciones
-  de LINQ de C#: filtran, transforman, ordenan y agregan con <a href="/lenguaje/lambdas/">lambdas</a>.
-  Los tipos se infieren solos: <code>personas.Select(p =&gt; p.Nombre)</code> es una
-  <code>List&lt;string&gt;</code>.
+  <a href="/std/collections/">std.collections</a> tiene las operaciones de LINQ de C#: filtran,
+  transforman, ordenan y agregan con <a href="/lenguaje/lambdas/">lambdas</a>. Hay dos sabores: los
+  operadores <strong>perezosos</strong> sobre cualquier <code>IEnumerable&lt;T&gt;</code> (como en
+  C#) y los métodos <strong>inmediatos</strong> propios de <code>List&lt;T&gt;</code>, que devuelven
+  listas nuevas al momento.
 </p>
+
+## LINQ perezoso sobre IEnumerable&lt;T&gt;
+
+`Enumerable` añade los operadores de LINQ como [métodos de extensión](/lenguaje/extensiones/) de
+`IEnumerable<T>`: valen para los [iteradores](/lenguaje/iteradores/), para `HashSet<T>`,
+`Dictionary<K, V>`, `Stack<T>`, `Queue<T>`, `string` y para cualquier clase que implemente
+`IEnumerable<T>`. Los que devuelven una secuencia **no recorren nada** hasta que alguien pide
+elementos, y los elementos pasan de uno en uno por toda la cadena:
+
+```faset
+using std.collections;
+
+static void Main()
+{
+    IEnumerable<int> q = Enumerable.Range(1, 6)
+        .Where(x => { println("  filtra " + x); return x % 2 == 0; })
+        .Select(x => x * x);
+    println("nada se ha evaluado aún");
+    foreach (int x in q) println("obtiene " + x);
+    // filtra 1 / filtra 2 / obtiene 4 / filtra 3 / filtra 4 / obtiene 16 / ...
+
+    println(q.Sum());                                     // 56 (vuelve a recorrer)
+    List<int> lista = q.ToList();                         // materializa: [4, 16, 36]
+    println(lista.Count);                                 // 3
+
+    HashSet<string> vistos = new HashSet<string>();
+    vistos.Add("ana");
+    vistos.Add("eva");
+    println(vistos.Select(s => s.Length).Sum());          // 6
+    println("murciélago".Count(c => "aeiouáéíóú".Contains(c)));   // 5
+}
+```
+
+Cada recorrido vuelve a evaluar la cadena entera (y vuelve a llamar a las lambdas). Si vas a
+recorrer el resultado varias veces, guárdalo con `ToList()`.
+
+| Operador | Resultado |
+|---|---|
+| `Enumerable.Range(desde, n)`, `Enumerable.Repeat(x, n)`, `Enumerable.Empty<T>()` | Secuencias generadas. |
+| `Where(pred)`, `Where((x, i) => ...)`, `Select(f)`, `Select((x, i) => ...)`, `SelectMany(x => secuencia)` | Filtros y proyecciones (perezosos). |
+| `Take(n)`, `Skip(n)`, `TakeWhile(pred)`, `SkipWhile(pred)` | Prefijos y sufijos (perezosos: `Take` sirve con secuencias infinitas). |
+| `Concat(otra)`, `Append(x)`, `Prepend(x)`, `Zip(otra, f)`, `Zip(otra)` (tuplas) | Combinaciones (perezosas). |
+| `Distinct()`, `DistinctBy(clave)`, `Chunk(n)` (trozos `List<T>`), `Reverse()` | Perezosos (`Reverse` lee todo al empezar). |
+| `OrderBy(clave)`, `OrderByDescending(clave)`, `.ThenBy(clave)`, `.ThenByDescending(clave)` | Ordenación estable; se ordena al empezar cada recorrido. |
+| `GroupBy(clave)` | Grupos `Grouping<K, T>` (con `Key`, `Items` y `Count`; también son `IEnumerable<T>`). |
+| `Count()`, `Count(pred)`, `Any()`, `Any(pred)`, `All(pred)`, `Contains(x)` | Recorren en el acto. |
+| `First()`, `First(pred)`, `Last(...)`, `ElementAt(i)` | Lanzan `InvalidOperationException` (o `ArgumentOutOfRangeException`) si no hay elemento. |
+| `FirstOrDefault(...)`, `LastOrDefault(...)` | O `default(T)`. |
+| `Sum()`, `Sum(sel)`, `Min(...)`, `Max(...)`, `Average(...)`, `Aggregate(...)` | Agregados. |
+| `ToList()`, `ToHashSet()`, `ToDictionary(clave)`, `ToDictionary(clave, valor)`, `ForEach(accion)` | Materializan el resultado. |
+
+## Dos versiones: inmediata en List&lt;T&gt;, perezosa en IEnumerable&lt;T&gt;
+
+`List<T>` conserva sus propios métodos `Where`, `Select`, `OrderBy`... por compatibilidad y
+velocidad: recorren la lista **en el momento** y devuelven una `List<T>` nueva (se puede indexar:
+`r[0]`). Como los métodos propios tienen prioridad sobre las extensiones, `lista.Where(...)` es la
+versión inmediata. Una `List<T>` usada como `IEnumerable<T>` recibe la perezosa:
+
+```faset
+using std.collections;
+
+static void Main()
+{
+    List<int> l = new List<int>();
+    l.Add(1);
+    l.Add(5);
+
+    List<int> ahora = l.Where(x => x > 2);                       // inmediata: List<int> ya calculada
+    IEnumerable<int> luego = l.AsEnumerable().Where(x => x > 2); // perezosa
+    l.Add(9);
+    println(ahora.Count + " " + luego.Count());                  // 1 2
+}
+```
+
+En C# todo LINQ es perezoso; si portas código de C# que depende de esa pereza (secuencias
+infinitas, efectos en las lambdas, ver los cambios de la lista), usa `AsEnumerable()` o declara la
+variable como `IEnumerable<T>`. Si un método propio no acepta los argumentos (por ejemplo
+`diccionario.Count(kv => ...)`, que no encaja con su `Count((k, v) => ...)`), se usa la extensión de
+`IEnumerable<T>`, igual que en C#.
+
+## Operaciones inmediatas de List&lt;T&gt;
 
 ```faset
 using std.collections;
@@ -49,13 +131,9 @@ int main()
 }
 ```
 
-## Evaluación inmediata
-
 Cada operación recorre la lista **en el momento** y devuelve una lista nueva; la original no cambia.
-No hay `IEnumerable<T>` ni evaluación diferida: encadenar `Where(...).Select(...)` crea una lista
-intermedia. Para colecciones grandes en bucles críticos, un `for` es más rápido.
-
-## Operaciones de List&lt;T&gt;
+Encadenar `Where(...).Select(...)` crea una lista intermedia. Para colecciones grandes en bucles
+críticos, un `for` es más rápido.
 
 | Operación | Resultado |
 |---|---|

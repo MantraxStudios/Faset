@@ -12,7 +12,7 @@ export const metadata = {
 
 | No disponible | Alternativa |
 |---|---|
-| Herencia de varias clases, implementación explícita de interfaces (`int IForma.Area()`) | Una clase base y [varias interfaces](/lenguaje/interfaces/) |
+| Herencia de varias clases | Una clase base y [varias interfaces](/lenguaje/interfaces/) |
 | *Boxing* (convertir `int`, `string` o un struct a `object` o a una interfaz) | Un tipo envoltorio o un [registro](/lenguaje/registros/) `record class` |
 | Expresiones `throw` (`x ?? throw ...`) | Una instrucción `throw` (las [excepciones](/lenguaje/excepciones/) sí existen) |
 | Parámetros con valor por defecto | Sobrecargas (o [`params`](/lenguaje/comodidades/#params)) |
@@ -23,15 +23,21 @@ export const metadata = {
 | `goto`, `stackalloc`, `fixed` | — |
 | Operadores compuestos sobre la propiedad de un struct temporal (`F().X += 1`) | Guardar el struct en una variable |
 | `await` en la condición o el incremento de un `for`, en la condición de un `do`-`while`, dentro de `?.`/`??=` o en un filtro `when` | `var x = await ...;` antes (ver [async y await](/lenguaje/async/)) |
-| `await foreach`, `IAsyncEnumerable<T>`, `ValueTask`, métodos `async` en un `struct` o con parámetros `ref`/`out` | `Task<List<T>>`, una clase o un método estático |
+| `ValueTask`, métodos `async` o iteradores en un `struct` o con parámetros `ref`/`out` | `Task<T>`, una clase o un método estático |
+| `IEnumerable`/`IEnumerator` no genéricos, `Reset()`, `IDisposable`, `[EnumeratorCancellation]` | `IEnumerable<T>`; `Dispose()` está en `IEnumerator<T>`; el token como argumento |
+| `yield` en una lambda sin tipo de delegado conocido; funciones locales genéricas, con `ref`/`out` o llamadas antes de declararse | Una [función local](/lenguaje/iteradores/#funciones-locales) declarada antes de usarla |
 
 ## Otras notas
 
 - Lambdas y delegados: los delegados son estructurales (`Predicate<int>` y `Func<int, bool>` son el
   mismo tipo); un `delegate` declarado dentro de una clase se usa por su nombre simple (no
-  `Clase.Delegado`) y no puede usar los parámetros de tipo de una clase genérica; LINQ evalúa de
-  forma inmediata (sin `IEnumerable<T>`) y `Distinct`/`GroupBy`/`ToDictionary` necesitan claves con
-  `Hash.Of` (números, `char`, `bool`, `string`).
+  `Clase.Delegado`) y no puede usar los parámetros de tipo de una clase genérica. Los métodos LINQ
+  propios de `List<T>` (`lista.Where(...)`) son inmediatos; los de `IEnumerable<T>` son perezosos
+  como en C# (ver [LINQ](/lenguaje/linq/#dos-versiones-inmediata-en-listt-perezosa-en-ienumerablet)).
+  `Distinct`/`GroupBy`/`ToDictionary` necesitan claves con `Hash.Of` (números, `char`, `bool`,
+  `string`).
+- Un struct no se puede usar como `IEnumerable<T>` (no hay *boxing*); `string` sí (se convierte en un
+  `IEnumerable<char>` que recorre sus caracteres).
 
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
 - El [orden de evaluación](/lenguaje/operadores/#orden-de-evaluación) es el de C#, salvo en la

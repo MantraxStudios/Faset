@@ -396,6 +396,7 @@ Type* Sema::asyncLambdaReturnType(LambdaExpr* t) {
 
 Type* Sema::checkAwait(AwaitExpr* e) {
     awaitCount_++;
+    if (iterAwaitInvalid(e)) return tc_.error();  // 'await' en un iterador que no es async (Iterators.cpp)
     AsyncInfo* a = ctx_.async;
     if (!a) {
         checkValue(e->operand);
@@ -735,6 +736,16 @@ void Sema::asyncLowerStmt(Stmt* s) {
             if (u->decl) asyncLowerStmt(u->decl);
             break;
         }
+        case SK::Yield: {  // yield return await x; (iterador async, Iterators.cpp)
+            auto* ys = static_cast<YieldStmt*>(s);
+            if (!containsAwait(ys->store)) break;
+            std::vector<Stmt*> pre;
+            auto* n = new YieldStmt(*ys);
+            n->lowered = nullptr;
+            asyncSpill(n->store, pre);
+            wrap(pre, n);
+            break;
+        }
         default: break;  // do-while y for con 'await' en la condición: error en asyncValidate
     }
 }
@@ -822,6 +833,7 @@ struct AwaitValidator {
                 break;
             }
             case SK::Throw: expr(static_cast<ThrowStmt*>(s)->value); break;
+            case SK::Yield: expr(static_cast<YieldStmt*>(s)->store); break;
             case SK::Using: {
                 auto* u = static_cast<UsingStmt*>(s);
                 stmt(u->decl);

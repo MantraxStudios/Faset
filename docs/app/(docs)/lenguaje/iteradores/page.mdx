@@ -1,0 +1,331 @@
+export const metadata = {
+  title: "Iteradores y yield",
+  description: "yield return y yield break, IEnumerable<T> e IEnumerator<T>, generadores perezosos e infinitos, finally y Dispose, funciones locales y flujos asíncronos con await foreach.",
+};
+
+# Iteradores y yield
+
+<p className="lead">
+  Un <strong>iterador</strong> es un método que produce una secuencia de valores de uno en uno con{" "}
+  <code>yield return</code>. Como en C#, el compilador lo convierte en una{" "}
+  <strong>máquina de estados</strong>: el método se suspende en cada <code>yield return</code> y
+  continúa justo ahí cuando se pide el siguiente elemento. Las secuencias son{" "}
+  <code>IEnumerable&lt;T&gt;</code> de <code>std.collections</code> y se recorren con{" "}
+  <a href="/lenguaje/foreach/">foreach</a> o con <a href="/lenguaje/linq/">LINQ</a>.
+</p>
+
+## Un primer iterador
+
+```faset
+using std.collections;
+
+static IEnumerable<int> Pares(int hasta)
+{
+    for (int i = 0; i <= hasta; i += 2)
+        yield return i;              // entrega i y se suspende aquí
+}
+
+static void Main()
+{
+    foreach (int x in Pares(8)) print(x + " ");   // 0 2 4 6 8
+    println();
+    println(Pares(100).Count());                    // 51
+}
+```
+
+- Un método, una propiedad (`get`) o una [función local](#funciones-locales) es un iterador si su
+  cuerpo contiene `yield`. Debe devolver `IEnumerable<T>` o `IEnumerator<T>`.
+- `yield return valor;` entrega un elemento (convertido a `T`) y suspende el iterador.
+- `yield break;` termina la secuencia. Llegar al final del cuerpo también la termina.
+- `return` no se puede usar en un iterador, ni `yield` dentro de un bloque `finally`.
+
+## Evaluación perezosa
+
+Llamar a un iterador **no ejecuta nada** de su cuerpo: solo crea la secuencia. Cada `MoveNext()`
+(cada vuelta del `foreach`) ejecuta el cuerpo hasta el siguiente `yield return`. Por eso el orden de
+los efectos es intercalado:
+
+```faset
+using std.collections;
+
+static IEnumerable<string> Pasos()
+{
+    println("  empieza");
+    yield return "uno";
+    println("  sigue");
+    yield return "dos";
+    println("  termina");
+}
+
+static void Main()
+{
+    IEnumerable<string> s = Pasos();   // aún no imprime nada
+    println("creado");
+    foreach (string x in s) println("recibe " + x);
+}
+// creado / empieza / recibe uno / sigue / recibe dos / termina
+```
+
+Cada recorrido empieza de nuevo: un segundo `foreach` sobre la misma secuencia vuelve a ejecutar el
+cuerpo desde el principio, con los mismos argumentos.
+
+## Generadores infinitos
+
+Como solo se calcula lo que se pide, un iterador puede no terminar nunca. `Take`, `TakeWhile` y
+`First` de [LINQ](/lenguaje/linq/) cortan la secuencia:
+
+```faset
+using std.collections;
+
+static IEnumerable<long> Fibonacci()
+{
+    long a = 0, b = 1;
+    while (true)
+    {
+        yield return a;
+        long t = a + b;
+        a = b;
+        b = t;
+    }
+}
+
+static void Main()
+{
+    foreach (long f in Fibonacci().Take(10)) print(f + " ");   // 0 1 1 2 3 5 8 13 21 34
+    println();
+    println(Fibonacci().First(f => f > 1000));                    // 1597
+}
+```
+
+## finally, break y Dispose
+
+Si el recorrido termina antes de tiempo (`break`, `return` o una excepción dentro del `foreach`),
+`foreach` llama a `Dispose()` del enumerador: el iterador se reanuda en el `yield` donde estaba
+como si allí hubiera un `yield break`, así que sus bloques `finally` se ejecutan. Sirve para cerrar
+archivos, liberar recursos o dejar constancia:
+
+```faset
+using std.collections;
+
+static IEnumerable<string> Lineas()
+{
+    println("abre");
+    try
+    {
+        yield return "a";
+        yield return "b";
+        yield return "c";
+    }
+    finally
+    {
+        println("cierra");      // también si quien recorre sale antes
+    }
+}
+
+static void Main()
+{
+    foreach (string l in Lineas())
+    {
+        println(l);
+        if (l == "b") break;
+    }
+}
+// abre / a / b / cierra
+```
+
+Si recorres a mano con `GetEnumerator()` y `MoveNext()`, llama tú a `Dispose()` al terminar
+(normalmente en un `finally`).
+
+## Excepciones
+
+Una excepción lanzada dentro del iterador sale de `MoveNext()` hacia quien recorre, después de
+ejecutar los `finally` del iterador. A partir de ahí la secuencia queda terminada.
+
+```faset
+using std.collections;
+
+static IEnumerable<int> Lee()
+{
+    yield return 1;
+    throw new InvalidOperationException("dato corrupto");
+}
+
+static void Main()
+{
+    try
+    {
+        foreach (int x in Lee()) println(x);          // 1
+    }
+    catch (InvalidOperationException e)
+    {
+        println("error: " + e.Message);               // error: dato corrupto
+    }
+}
+```
+
+## Variables, `this` y lambdas
+
+Las variables locales y los parámetros de un iterador viven en el **marco** de la máquina de estados
+(un objeto del recolector), así que conservan su valor entre dos `yield`. Un iterador de instancia
+puede usar `this` y sus campos, y otros iteradores (también recursivos):
+
+```faset
+using std.collections;
+
+class Arbol
+{
+    public int Valor;
+    public Arbol Izq, Der;
+    public Arbol(int v, Arbol i, Arbol d) { Valor = v; Izq = i; Der = d; }
+
+    public IEnumerable<int> EnOrden()
+    {
+        if (Izq != null) foreach (int x in Izq.EnOrden()) yield return x;
+        yield return Valor;
+        if (Der != null) foreach (int x in Der.EnOrden()) yield return x;
+    }
+}
+
+static void Main()
+{
+    Arbol t = new Arbol(2, new Arbol(1, null, null), new Arbol(3, null, null));
+    foreach (int x in t.EnOrden()) print(x);   // 123
+    println();
+}
+```
+
+Las lambdas creadas dentro de un iterador pueden capturar sus variables, igual que en un método
+normal.
+
+## Funciones locales
+
+Una función local se declara dentro de un método y puede usar sus variables. También puede ser un
+iterador (y llamarse a sí misma):
+
+```faset
+using std.collections;
+
+static void Main()
+{
+    int tope = 3;
+    IEnumerable<int> Hasta(int desde)
+    {
+        for (int i = desde; i <= tope; i++) yield return i;
+    }
+    int Factorial(int n) => n <= 1 ? 1 : n * Factorial(n - 1);
+
+    foreach (int x in Hasta(1)) print(x);     // 123
+    println();
+    println(Factorial(5));                     // 120
+}
+```
+
+En Faset una función local es una variable delegado (`Func<...>` o `Action<...>`) con una lambda:
+captura las variables por referencia y solo se puede llamar después de su declaración. No puede ser
+genérica ni tener parámetros `ref`/`out`.
+
+## IEnumerable&lt;T&gt; e IEnumerator&lt;T&gt;
+
+```fst
+public interface IEnumerable<T> { IEnumerator<T> GetEnumerator(); }
+public interface IEnumerator<T> { T Current { get; } bool MoveNext(); void Dispose(); }
+```
+
+- `List<T>`, `Dictionary<K, V>` (de `KeyValuePair<K, V>`), `HashSet<T>`, `Stack<T>`, `Queue<T>` y
+  `Grouping<K, T>` implementan `IEnumerable<T>`, y `string` se convierte en `IEnumerable<char>`.
+  Se pueden pasar a cualquier parámetro `IEnumerable<T>` y usar con el LINQ perezoso.
+- Su `foreach` directo **no cambia**: sigue usando el enumerador `struct` de cada colección, sin
+  reservar memoria. Solo a través de la interfaz se usa un enumerador de clase.
+- Un iterador que devuelve `IEnumerator<T>` da directamente el enumerador (sin `GetEnumerator`).
+
+Para que una clase tuya sea `IEnumerable<T>`, lo más cómodo es implementar `GetEnumerator()` con
+`yield`. Si la clase ya tiene un `GetEnumerator()` propio (por ejemplo uno `struct`, más rápido),
+implementa el de la interfaz de forma **explícita**: `foreach` sobre la clase usa el propio y la
+interfaz usa el explícito.
+
+```faset
+using std.collections;
+
+class Baraja : IEnumerable<string>
+{
+    List<string> cartas = new List<string>();
+    public void Add(string c) { cartas.Add(c); }
+
+    public ListEnumerator<string> GetEnumerator() => cartas.GetEnumerator();    // foreach directo
+    IEnumerator<string> IEnumerable<string>.GetEnumerator()                   // como IEnumerable<T>
+    {
+        foreach (string c in cartas) yield return c;
+    }
+}
+
+static void Main()
+{
+    Baraja b = new Baraja();
+    b.Add("as");
+    b.Add("rey");
+    foreach (string c in b) print(c + " ");               // as rey
+    println();
+    println(b.Where(c => c.Length > 2).First());          // rey
+}
+```
+
+## Flujos asíncronos: `await foreach`
+
+Un método `async` que devuelve `IAsyncEnumerable<T>` (de `std.task`) puede usar `await` y
+`yield return`: es un **flujo asíncrono**. Se recorre con `await foreach`, que espera cada elemento
+sin bloquear el hilo y llama a `DisposeAsync()` al salir (los `finally` del flujo se ejecutan):
+
+```faset
+using std.collections;
+using std.task;
+
+static async IAsyncEnumerable<int> Lecturas(int n)
+{
+    for (int i = 1; i <= n; i++)
+    {
+        await Task.Delay(50);         // p. ej. esperar a un sensor o a la red
+        yield return i * 10;
+    }
+}
+
+static async Task Main()
+{
+    await foreach (int x in Lecturas(3)) println("lectura " + x);   // 10, 20, 30
+    List<int> todas = await Lecturas(2).ToListAsync();
+    println(todas.Count);                                             // 2
+}
+```
+
+- `IAsyncEnumerator<T>` tiene `Current`, `Task<bool> MoveNextAsync()` y `Task DisposeAsync()`
+  (en C# son `ValueTask`). La tarea de `MoveNextAsync` termina con `true` en el siguiente
+  `yield return` y con `false` al final; una excepción del flujo la deja fallida y `await foreach` la
+  relanza.
+- `await foreach` solo se puede usar en un método o lambda `async` (también en otro flujo).
+- `ToListAsync()` recoge un flujo en una lista y `ToAsyncEnumerable()` convierte un
+  `IEnumerable<T>`.
+
+## Cómo se compila
+
+Un iterador usa la misma máquina de estados que [async y await](/lenguaje/async/#cómo-se-compila):
+
+- Todas las variables del cuerpo (y los parámetros) son campos de un **marco** reservado en el
+  recolector; llamar al método solo crea el marco, con una copia de los argumentos, y un
+  `Generador<T>`, que es a la vez `IEnumerable<T>` e `IEnumerator<T>`.
+- `MoveNext()` llama a la función de paso, que salta (con un `switch` y `goto`) al punto del último
+  `yield` y sigue hasta el siguiente: guarda el valor en `Current` y devuelve `true`; al final
+  devuelve `false`.
+- Los bloques `try` que rodean un `yield` se vuelven a establecer en cada reanudación (como con
+  `await`). `Dispose()` reanuda con una orden de terminar, que recorre la cadena de `finally`.
+- `GetEnumerator()` devuelve el propio generador la primera vez; las siguientes crean otro marco
+  con los argumentos originales.
+- En un flujo asíncrono, cada `MoveNextAsync()` crea la `Task<bool>` que completa el siguiente
+  `yield`; los `await` usan la continuación de la máquina async.
+
+## Diferencias con C#
+
+- `yield` también se puede usar dentro de un `try` con `catch` (C# no lo permite).
+- No existen las interfaces no genéricas `IEnumerable`/`IEnumerator`, ni `Reset()`.
+- `IEnumerator<T>` declara `Dispose()` directamente (no hay `IDisposable`).
+- Una lambda solo puede contener `yield` si el tipo de delegado se conoce (`Func<IEnumerable<int>>`);
+  lo normal es una función local.
+- `[EnumeratorCancellation]` no existe: pasa el `CancellationToken` como argumento normal.

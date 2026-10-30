@@ -556,8 +556,19 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         return;
     }
 
+    TypeRef* explicitIface = c->isNamespaceScope ? nullptr : parseExplicitIface();  // 'T IInterfaz.Miembro' (ParserIterators.cpp)
     SourceLoc nameLoc = cur().loc;
     std::string name = expectIdent();
+    std::string explicitName;
+    if (explicitIface) {  // el nombre no se puede escribir: solo se usa a través de la interfaz
+        explicitName = name;
+        name = explicitIface->parts.back() + "." + name;
+    }
+    auto markExplicit = [&](MethodDecl* m) {
+        if (!m || !explicitIface) return;
+        m->explicitIface = explicitIface;
+        m->explicitName = explicitName;
+    };
     if (mods.isEvent && (isP("(") || isP("<") || isP("=>") || isP("{")))
         fail(nameLoc, "'event' solo se puede aplicar a campos de tipo delegado (public event Action<T> Nombre;)");
 
@@ -576,6 +587,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         }
         parseParams(m);
         finishMethod(m);
+        markExplicit(m);
         c->methods.push_back(m);
         return;
     }
@@ -685,6 +697,8 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                 expectP(";");
             }
         }
+        markExplicit(m);
+        markExplicit(setter);
         c->methods.push_back(m);
         if (setter) c->methods.push_back(setter);
         return;
@@ -1031,6 +1045,7 @@ Stmt* Parser::parseStatement() {
         s->body = parseStatement();
         return s;
     }
+    if (Stmt* it = parseIterStmt()) return it;  // yield, await foreach, funciones locales (ParserIterators.cpp)
     if (isK("foreach")) return parseForeach();
     if (isK("using")) return parseUsingStmt();
     if (Stmt* d = tryParseDeconstruct()) return d;  // var (a, b) = ...;  (int a, string b) = ...;

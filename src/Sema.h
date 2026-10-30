@@ -374,4 +374,29 @@ private:
     Type* checkIs(IsExpr* e);
     Type* checkAs(AsExpr* e);
     Type* checkWith(WithExpr* e);
+    // ---- iteradores (Iterators.cpp): yield return / yield break con la máquina de estados de
+    // Async.cpp, IEnumerable<T> / IEnumerator<T>, flujos asíncronos (await foreach) e
+    // implementaciones explícitas de interfaces.
+public:
+    static bool iterHasYield(Stmt* s);
+private:
+    ClassDecl* iterLibType(const char* module, const char* name, bool generic);
+    int iterKindOf(Type* t, Type** elem);
+    AsyncInfo* iterBegin(MethodDecl* fn, Type* ret, LambdaExpr* lambda, bool isAsync, SourceLoc loc);
+    AsyncInfo* iterMethodBegin(MethodDecl* m);
+    void checkYield(YieldStmt* y);
+    bool iterCheckStmt(Stmt* s);
+    bool iterReturn(ReturnStmt* rs, AsyncInfo* a);
+    bool iterAwaitInvalid(AwaitExpr* e);
+    Stmt* iterForeachLoop(VarInfo* ev, Type* et, Stmt* loop, SourceLoc loc);
+    Type* iterForeachSource(Expr*& coll, Type* ct);
+    void checkAwaitForeach(ForeachStmt* s);
+    void iterUnify(TypeRef* p, Type* t, MethodDecl* tmpl, std::map<std::string, Type*>& b);
+    bool iterStringToEnumerable(Type* from, Type* to);
+    int iterImplicit(Expr* e, Type* from, Type* to);
+    bool iterCoerce(Expr*& e, Type* to);
+    void iterResolveExplicit(MethodDecl* m);
+    MethodDecl* iterExplicitImpl(ClassDecl* c, MethodDecl* im);
+    void iterExtensionFallback(MemberExpr* me, std::vector<Expr*>& args, SourceLoc loc,
+                               const std::vector<TypeRef*>& typeArgs);
 };
