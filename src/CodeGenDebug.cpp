@@ -13,6 +13,7 @@
 #include <filesystem>
 
 #include "CodeGen.h"
+#include "Frontend.h"  // nativeToUtf8
 
 namespace {
 const char* const kResetMarker = "#line @C";
@@ -31,7 +32,7 @@ void CodeGen::lineDirective(SourceLoc l) {
     std::error_code ec;
     std::filesystem::path abs = std::filesystem::absolute(path, ec);
     if (!ec) path = abs.lexically_normal().generic_string();
-    out_ << "#line " << l.line << " " << cstring(path) << "\n";
+    out_ << "#line " << l.line << " " << cstring(nativeToUtf8(path)) << "\n";
 }
 
 void CodeGen::resetLoc() {

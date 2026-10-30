@@ -16,21 +16,31 @@ using FasetStudio.Platform;
 
 namespace FasetStudio
 {
+#if WINDOWS
+    static extern uint GetModuleFileNameW(void* module, ushort* buffer, uint size);
+#else
     static extern long readlink(byte* path, byte* buf, ulong size);
+#endif
 
     public memory_unsafe static class Program
     {
         // Ruta real del ejecutable: argv[0] no sirve si se lanzó desde el PATH o con un enlace.
         static string ExecutablePath()
         {
-            if (!OS.IsWindows)
-            {
-                byte* buf = (byte*)Memory.AllocZeroed(4096);
-                long n = readlink("/proc/self/exe".Ptr, buf, 4095);
-                string path = n > 0 ? String.Copy(String.FromBytes(buf, n)) : "";  // FromBytes es una vista de 'buf'
-                Memory.Free(buf);
-                if (n > 0) return path;
-            }
+#if WINDOWS
+            ushort* wbuf = Memory.New<ushort>(32768);   // admite rutas largas (\\?\...)
+            uint wn = GetModuleFileNameW(null, wbuf, 32768);
+            string wpath = wn > 0 && wn < 32768 ? Utf16.Decode(wbuf, (int)wn) : String.Copy("");
+            Memory.Free(wbuf);
+            if (wpath.Length > 0) return wpath;
+            String.Free(wpath);
+#else
+            byte* buf = (byte*)Memory.AllocZeroed(4096);
+            long n = readlink("/proc/self/exe".Ptr, buf, 4095);
+            string path = n > 0 ? String.Copy(String.FromBytes(buf, n)) : "";  // FromBytes es una vista de 'buf'
+            Memory.Free(buf);
+            if (n > 0) return path;
+#endif
             return Path.GetFullPath(Environment.GetArg(0));
         }
 
@@ -47,13 +57,20 @@ namespace FasetStudio
                 String.Free(dir);
                 dir = parent;
                 if (dir.Length == 0) break;
-                string candidate = Path.Combine(dir, "faset");
+                string candidate = Path.Combine(dir, OS.IsWindows ? "faset.exe" : "faset");
                 if (File.Exists(candidate)) return candidate;
                 String.Free(candidate);
             }
             String.Free(dir);
             string found;
-            if (Process.Capture("command -v faset", out found) == 0) return String.Copy(found.Trim());
+            // 'where' (Windows) puede listar varias coincidencias: vale la primera línea.
+            if (Process.Capture(OS.IsWindows ? "where faset.exe" : "command -v faset", out found) == 0)
+            {
+                string first = found.Trim();
+                int nl = first.IndexOf("\n");
+                if (nl > 0) first = first.Substring(0, nl).Trim();
+                if (first.Length > 0) return String.Copy(first);
+            }
             return String.Copy("");
         }
 
@@ -150,7 +167,7 @@ namespace FasetStudio
                 window = new Window();
                 if (!window.Create("FasetStudio", width, height))
                 {
-                    Console.ErrorLine(L.T("FasetStudio: could not open the window (is an X server or XWayland running?)"));
+                    Window.ShowError(L.T(OS.IsWindows ? "FasetStudio: could not create the window" : "FasetStudio: could not open the window (is an X server or XWayland running?)"));
                     return 1;
                 }
                 uint* icon = MakeIcon(64);
@@ -158,7 +175,7 @@ namespace FasetStudio
                 delete[] icon;
                 if (!renderer.InitWindow(window))
                 {
-                    Console.ErrorLine(renderer.Error);
+                    Window.ShowError(renderer.Error);
                     return 1;
                 }
             }

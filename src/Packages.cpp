@@ -125,7 +125,7 @@ bool isLocalGitPath(const std::string& s) { return s.find("://") == std::string:
 
 std::string quote(const std::string& s) {
 #if defined(_WIN32)
-    return "\"" + s + "\"";
+    return windowsQuote(s);
 #else
     std::string r = "'";
     for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c);

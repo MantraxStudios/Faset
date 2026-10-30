@@ -14,6 +14,7 @@
 //   <ItemGroup>
 //     <Compile Remove="pruebas/**" />
 //     <NativeLibrary Include="user32" />
+//     <NativeSource Include="native/ayuda.c" Platform="windows" />   C propio que se compila con el programa
 //     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
 //     <Asset Include="sonidos/**" />          junto al ejecutable o en assets/ del APK
 //     <PackageReference Include="Json5" Git="https://github.com/usuario/json5-faset" Version="^1.2" />
@@ -41,6 +42,7 @@ struct Project {
     std::vector<std::string> compileInclude, compileRemove;
     std::vector<std::string> nativeLibs, libPaths;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // <NativeLibrary Include="x" Platform="windows" />
+    std::vector<std::pair<std::string, std::string>> nativeSources;  // <NativeSource Include="a.c" Platform="windows" />: (ruta absoluta, plataforma o "")
     std::vector<std::string> references;  // rutas a otros .fstproj
     std::vector<std::string> androidPermissions;  // <AndroidPermission Include="INTERNET" />
     std::vector<std::string> assetInclude, assetRemove;  // <Asset Include="sonidos/**" />

@@ -64,6 +64,7 @@ Save = Guardar
 Don't save = No guardar
 Cancel = Cancelar
 FasetStudio: could not open the window (is an X server or XWayland running?) = FasetStudio: no se pudo abrir la ventana (¿hay un servidor X o XWayland?)
+FasetStudio: could not create the window = FasetStudio: no se pudo crear la ventana
 
 # Menús
 File = Archivo
@@ -413,6 +414,7 @@ The program panicked = El programa produjo un panic
 The program received a signal = El programa recibió una señal
 Could not start gdb = No se pudo iniciar gdb
 gdb was not found: install it (e.g. sudo apt install gdb) to debug = No se encontró gdb: instálalo (p. ej. sudo apt install gdb) para depurar
+gdb was not found: install gdb for Windows (e.g. MSYS2 or WinLibs) and add it to the PATH to debug = No se encontró gdb: instala gdb para Windows (p. ej. de MSYS2 o WinLibs) y añádelo al PATH para depurar
 gdb does not answer: is it version 9 or newer? = gdb no responde: ¿es la versión 9 o posterior?
 The debugger works with programs for this computer (Android debugging is not supported) = El depurador funciona con programas para este equipo (no se puede depurar en Android)
 [debugging stopped] = [depuración detenida]

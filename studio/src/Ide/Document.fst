@@ -143,12 +143,16 @@ namespace FasetStudio.Ide
         {
             faset = String.Copy(fasetPath);
             Available = fasetPath.Length > 0;
+#if WINDOWS
+            string tmp = Path.GetTempPath();   // %TEMP% del usuario
+#else
             string tmp = Environment.GetVariable("TMPDIR");
             if (tmp.IsEmpty())
             {
                 String.Free(tmp);
-                tmp = String.Copy(OS.IsWindows ? "C:/Windows/Temp" : "/tmp");
+                tmp = String.Copy("/tmp");
             }
+#endif
             string stamp = String.FromInt(Time.NowUnixMs() % 1000000000);
             requestPath = String.Concat(tmp, "/fasetstudio-", stamp);
             string reqName = String.Concat(requestPath, "-req.json");
@@ -168,13 +172,39 @@ namespace FasetStudio.Ide
             String.Free(resultPath);
         }
 
+        // ChildProcess.ReadAvailable sin los '\r' de los finales de línea de Windows (en los
+        // paneles se verían como un carácter desconocido). true si añadió algo.
+        public static bool ReadChild(ChildProcess p, StringBuilder into)
+        {
+#if WINDOWS
+            StringBuilder tmp = new StringBuilder();
+            bool any = p.ReadAvailable(tmp);
+            if (any)
+            {
+                string clean = Text.Replace(tmp.View(), "\r", "");
+                into.Append(clean);
+                String.Free(clean);
+            }
+            delete tmp;
+            return any;
+#else
+            return p.ReadAvailable(into);
+#endif
+        }
+
+        // Entrecomilla un argumento para la línea de shell de Process.Capture / ChildProcess:
+        // sh ('...') en Linux; en Windows, cmd.exe ("..." con las reglas de CommandLineToArgvW).
         public static string Quote(string s)
         {
+#if WINDOWS
+            return CommandLine.QuoteCmd(s);
+#else
             StringBuilder sb = new StringBuilder();
             sb.Append("'").Append(Text.Replace(s, "'", "'\\''")).Append("'");
             string r = sb.ToString();
             delete sb;
             return r;
+#endif
         }
 
         // Lanza el análisis. 'focusText' (opcional) reemplaza el texto del documento enfocado.

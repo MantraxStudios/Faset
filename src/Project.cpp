@@ -122,6 +122,12 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                     if (platform.empty()) out.nativeLibs.insert(out.nativeLibs.end(), inc.begin(), inc.end());
                     else
                         for (auto& l : inc) out.platformLibs.push_back({l, platform});
+                } else if (it.name == "NativeSource") {
+                    // Fuentes C propias del proyecto (opcionalmente solo para una plataforma).
+                    std::string platform = it.attrs["Platform"];
+                    std::transform(platform.begin(), platform.end(), platform.begin(), ::tolower);
+                    for (auto& f : inc)
+                        out.nativeSources.push_back({(fs::path(out.dir) / f).lexically_normal().string(), platform});
                 } else if (it.name == "LibraryPath") {
                     for (auto& d : inc) out.libPaths.push_back((fs::path(out.dir) / d).lexically_normal().string());
                 } else if (it.name == "AndroidPermission") {

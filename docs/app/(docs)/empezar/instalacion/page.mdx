@@ -6,8 +6,8 @@ export const metadata = {
 # Instalación
 
 <p className="lead">
-  Descarga el paquete de tu sistema: trae el compilador <code>faset</code>, la biblioteca estándar y,
-  en Linux, FasetStudio. El instalador deja configurado el <strong>módulo de tu plataforma</strong>
+  Descarga el paquete de tu sistema: trae el compilador <code>faset</code>, la biblioteca estándar y
+  FasetStudio. El instalador deja configurado el <strong>módulo de tu plataforma</strong>
   (el compilador de C que necesita <code>faset</code>) y te ofrece el de Android.
 </p>
 
@@ -16,7 +16,7 @@ export const metadata = {
 | Sistema | Paquete | Contenido |
 |---|---|---|
 | **Linux x86_64** | [faset-linux-x86_64.tar.gz](https://github.com/MantraxStudios/Faset/releases/latest/download/faset-linux-x86_64.tar.gz) | `faset`, FasetStudio, `lib/`, `install.sh` |
-| **Windows x86_64** | [faset-windows-x86_64.zip](https://github.com/MantraxStudios/Faset/releases/latest/download/faset-windows-x86_64.zip) | `faset.exe`, `lib/`, `install.ps1` (FasetStudio aún no existe para Windows) |
+| **Windows x86_64** | [faset-windows-x86_64.zip](https://github.com/MantraxStudios/Faset/releases/latest/download/faset-windows-x86_64.zip) | `faset.exe`, `FasetStudio.exe`, `lang\`, `faset.ico`, `lib\`, `install.ps1`, `LEEME.txt` |
 
 Todas las versiones están en [GitHub Releases](https://github.com/MantraxStudios/Faset/releases).
 
@@ -59,18 +59,63 @@ irm https://faset.lat/install.ps1 | iex
 O a mano: descomprime `faset-windows-x86_64.zip` y ejecuta
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File faset\install.ps1            # -Android para incluir Android
+powershell -ExecutionPolicy Bypass -File faset\install.ps1             # instalar
+powershell -ExecutionPolicy Bypass -File faset\install.ps1 -Desktop    # y un acceso directo en el escritorio
+powershell -ExecutionPolicy Bypass -File faset\install.ps1 -Uninstall  # quitarlo (también los accesos directos)
 ```
 
-Se instala en `%LOCALAPPDATA%\Faset`, se añade al `PATH` del usuario y se ejecuta
-`faset setup windows`, que descarga [llvm-mingw](https://github.com/mstorsjo/llvm-mingw) (clang +
-MinGW-w64): no hace falta instalar Visual Studio ni MSYS2. Si ya tienes `gcc` o `clang` en el `PATH`,
-se usa ese.
+Se instala en `%LOCALAPPDATA%\Faset`, se añade al `PATH` del usuario, se crea el acceso directo
+**FasetStudio** en el menú Inicio (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\FasetStudio.lnk`,
+con el icono `faset.ico`) y se ejecuta `faset setup windows`, que descarga
+[llvm-mingw](https://github.com/mstorsjo/llvm-mingw) (clang + MinGW-w64): no hace falta instalar
+Visual Studio ni MSYS2. Si ya tienes `gcc` o `clang` en el `PATH`, se usa ese. Otras opciones:
+`-Android` (incluye el módulo de Android), `-Yes` (no pregunta) y `-NoSetup` (no ejecuta `faset setup`).
+
+Requisitos: **Windows 10 o posterior x64** (usa el Universal C Runtime) y un controlador de la GPU
+con **Vulkan**.
+
+#### FasetStudio en Windows
+
+`FasetStudio.exe` es una aplicación de ventana (sin consola). Usa una ventana Win32 (consciente del DPI
+de cada monitor, título en UTF-8, portapapeles y cursores) y dibuja con Vulkan a través de
+`vulkan-1.dll`, que se carga al arrancar y viene con el controlador de la GPU; si falta, FasetStudio
+muestra un mensaje de error en español. Las fuentes salen de `%WINDIR%\Fonts` (Consolas para el código,
+Segoe UI para la interfaz y Segoe UI Symbol para los símbolos, rasterizadas con stb_truetype).
+
+- **Configuración** en `%APPDATA%\FasetStudio\settings.ini` (en Linux, `~/.config/fasetstudio/settings.ini`);
+  los temporales van a `%TEMP%`.
+- **Compilador:** busca `faset.exe` junto a `FasetStudio.exe` (o en la variable `FASET` o en el `PATH`).
+  IntelliSense, compilar y ejecutar, crear proyectos, los paquetes y las soluciones llaman a
+  `faset.exe`, que necesita el compilador de C de `faset setup windows` (llvm-mingw); el instalador ya
+  lo ejecuta.
+- **Depurador:** necesita un `gdb` de Windows en el `PATH` (por ejemplo, el de MSYS2 o WinLibs); si no
+  lo encuentra, lo avisa.
+- **Android:** busca `adb.exe` en `%ANDROID_HOME%`, `%ANDROID_SDK_ROOT%`, `%LOCALAPPDATA%\Android\Sdk`
+  (donde lo instala `faset setup android`) o en el `PATH`.
+
+Para compilarlo tú mismo desde Linux (compilación cruzada con llvm-mingw):
+
+```bash
+faset build studio --target windows   # studio/bin/Release/windows-x86_64/FasetStudio.exe
+scripts/dist.sh windows               # el zip faset-windows-x86_64.zip
+```
 
 <Callout type="aviso">
-La versión de Windows del compilador se genera por compilación cruzada desde Linux y todavía no se ha
-probado en un Windows real; FasetStudio, el WebView y el VideoPlayer aún no están disponibles allí.
-Desde Linux sí se compilan programas para Windows (`faset build --target windows`).
+**Compilado pero aún sin probar en un Windows real.** El compilador y FasetStudio para Windows se
+generan por compilación cruzada desde Linux. FasetStudio se ha probado con **Wine 10** en Linux (GPU
+NVIDIA a través de winevulkan): la ventana se abre y dibuja con Vulkan; funcionan la ventana de inicio,
+abrir un proyecto, el editor (escribir, también ñ, € y emoji, atajos, portapapeles, rueda del ratón,
+doble clic, redimensionar, minimizar y restaurar), IntelliSense con `faset.exe`, crear un proyecto, el
+diálogo de abrir carpeta y la configuración en `%APPDATA%`.
+
+**Sin probar:** compilar y ejecutar programas desde FasetStudio en Windows (necesita llvm-mingw para
+Windows, que no estaba disponible bajo Wine en la prueba), el depurador, las herramientas de Android,
+el DPI alto de un Windows real y las fuentes reales de Windows (Consolas, Segoe UI).
+
+**Limitación conocida:** el IDE aún no escala la interfaz, así que en pantallas de DPI alto (150 % o
+más) se dibuja a 1:1 píxeles (pequeño pero nítido). El WebView y el VideoPlayer de `std.ui` aún no
+están disponibles en Windows. Desde Linux también se compilan programas para Windows
+(`faset build --target windows`).
 </Callout>
 
 ## Módulos de cada plataforma: `faset setup`

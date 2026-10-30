@@ -85,6 +85,7 @@ struct Options {
     std::vector<std::string> uiAssets;  // imágenes de los .fstui (Source/Icon), relativas a la entrada
     std::vector<std::string> runArgs;
     std::vector<std::pair<std::string, std::string>> platformLibs;  // (biblioteca, plataforma)
+    std::vector<std::pair<std::string, std::string>> nativeSources;  // <NativeSource>: (archivo C, plataforma o "")
     std::vector<std::string> extraSources;  // C de la biblioteca estándar (p. ej. el WebView de std.ui)
     bool video = false;      // el programa usa std.video (VideoPlayer): se compila su runtime
     std::vector<std::string> cSources;  // fuentes C de la biblioteca estándar (p. ej. lib/audio/faset_audio.c)
@@ -175,7 +176,7 @@ static bool readText(const fs::path& path, std::string& out) {
 
 static std::string quote(const std::string& s) {
 #if defined(_WIN32)
-    return "\"" + s + "\"";
+    return windowsQuote(s);
 #else
     std::string r = "'";
     for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c);
@@ -186,13 +187,15 @@ static std::string quote(const std::string& s) {
 static int runCommand(const std::vector<std::string>& args, bool verbose) {
     std::string cmd;
     for (size_t i = 0; i < args.size(); i++) cmd += (i ? " " : "") + quote(args[i]);
-    if (verbose) std::fprintf(stderr, "$ %s\n", cmd.c_str());
+    if (verbose) std::fprintf(stderr, "$ %s\n", nativeToUtf8(cmd).c_str());
 #if defined(_WIN32)
-    cmd = "\"" + cmd + "\"";  // cmd.exe elimina las comillas exteriores
-#endif
+    // Sin cmd.exe: no expande %VAR% en las rutas ni los argumentos de 'faset run', y la línea
+    // puede llegar a 32767 caracteres (cmd.exe corta en 8191).
+    int r = runProgramWindows(args);
+    if (r == -1) std::fprintf(stderr, "faset: no se pudo ejecutar '%s'\n", args.empty() ? "" : args[0].c_str());
+#else
     std::fflush(stdout);
     int r = std::system(cmd.c_str());
-#if !defined(_WIN32)
     if (r != -1 && WIFEXITED(r)) r = WEXITSTATUS(r);
 #endif
     return r;
@@ -331,6 +334,7 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         }
         o.libs.insert(o.libs.end(), proj->nativeLibs.begin(), proj->nativeLibs.end());
         o.platformLibs.insert(o.platformLibs.end(), proj->platformLibs.begin(), proj->platformLibs.end());
+        o.nativeSources.insert(o.nativeSources.end(), proj->nativeSources.begin(), proj->nativeSources.end());
         o.libDirs.insert(o.libDirs.end(), proj->libPaths.begin(), proj->libPaths.end());
         for (const std::string& perm : proj->androidPermissions)
             if (std::find(o.androidPermissions.begin(), o.androidPermissions.end(), perm) == o.androidPermissions.end())
@@ -1167,6 +1171,14 @@ int main(int argc, char** argv) {
     if (o.checks < 0) o.checks = o.configuration == "Debug";
     for (auto& [lib, platform] : o.platformLibs)
         if (platform == o.target) o.libs.push_back(lib);
+    for (auto& [src, platform] : o.nativeSources) {
+        if (!platform.empty() && platform != o.target) continue;
+        if (!fs::exists(src)) {
+            diag.fatal("no existe la fuente nativa '" + src + "' (<NativeSource>)");
+            return 1;
+        }
+        if (std::find(o.cSources.begin(), o.cSources.end(), src) == o.cSources.end()) o.cSources.push_back(src);
+    }
     if (o.target != "linux" && o.target != "windows" && o.target != "android" && o.target != "macos") {
         diag.fatal("objetivo desconocido '" + o.target + "' (usa native, linux, windows o android)");
         return 1;
@@ -1198,7 +1210,7 @@ int main(int argc, char** argv) {
     std::string outPath;
     if (int r = build(o, outPath)) return r;
     if (o.command == "build") {
-        std::fprintf(stderr, "Compilado: %s  [%s-%s, %s]\n", outPath.c_str(), o.target.c_str(), o.arch.c_str(),
+        std::fprintf(stderr, "Compilado: %s  [%s-%s, %s]\n", nativeToUtf8(outPath).c_str(), o.target.c_str(), o.arch.c_str(),
                      o.configuration.c_str());
         return 0;
     }

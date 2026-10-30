@@ -103,13 +103,15 @@ namespace FasetStudio.Ide
         }
     }
 
-    // Preferencias del usuario en ~/.config/fasetstudio/settings.ini (clave=valor).
+    // Preferencias del usuario (clave=valor): ~/.config/fasetstudio/settings.ini en Linux y
+    // %APPDATA%\FasetStudio\settings.ini en Windows.
     public static class Settings
     {
         static Dictionary<string, string> values = new Dictionary<string, string>();
         static string path = "";
 
-        public static void Load()
+        // Carpeta personal del usuario: HOME o, en Windows, USERPROFILE (copia; "" si no hay).
+        public static string HomeFolder()
         {
             string home = Environment.GetVariable("HOME");
             if (home.IsEmpty())
@@ -117,6 +119,28 @@ namespace FasetStudio.Ide
                 String.Free(home);
                 home = Environment.GetVariable("USERPROFILE");
             }
+            return home;
+        }
+
+        public static void Load()
+        {
+#if WINDOWS
+            string appData = Environment.GetVariable("APPDATA");
+            if (appData.IsEmpty())
+            {
+                String.Free(appData);
+                string profile = HomeFolder();
+                if (profile.IsEmpty()) return;
+                appData = Path.Combine(profile, "AppData/Roaming");
+                String.Free(profile);
+            }
+            string dir = Path.Combine(appData, "FasetStudio");
+            Directory.Create(dir);
+            path = Path.Combine(dir, "settings.ini");
+            String.Free(dir);
+            String.Free(appData);
+#else
+            string home = HomeFolder();
             if (home.IsEmpty()) return;
             string config = Path.Combine(home, ".config");
             Directory.Create(config);
@@ -126,6 +150,7 @@ namespace FasetStudio.Ide
             String.Free(dir);
             String.Free(config);
             String.Free(home);
+#endif
             string text;
             if (!File.TryReadAllText(path, out text)) return;
             List<string> lines = Text.Split(text, "\n");

@@ -10,13 +10,26 @@ const char* const kRuntimeExcHeader = R"FASET(
    y hace longjmp. Los marcos están en la pila, así que el recolector ve la excepción en vuelo.
    Sin un marco, una excepción termina el programa como un panic (código 101). */
 #include <setjmp.h>
-#if defined(_WIN32)
+#if defined(__MINGW32__) && defined(__x86_64__)
+   /* MinGW x64: setjmp(b) es _setjmp(b, marco) y longjmp desenrolla con SEH (RtlUnwindEx) hasta
+      ese marco; falla al cruzar marcos sin datos de desenrollado o devoluciones de llamada del
+      sistema (un WndProc). Con marco nulo, longjmp solo restaura los registros, como en POSIX. */
+#  define FASET_SETJMP(b) _setjmp((b), NULL)
+#  define FASET_LONGJMP(b) longjmp(b, 1)
+#elif defined(_WIN32)
 #  define FASET_SETJMP(b) setjmp(b)
 #  define FASET_LONGJMP(b) longjmp(b, 1)
 #else
    /* _setjmp no guarda la máscara de señales (en bionic setjmp hace una llamada al sistema). */
 #  define FASET_SETJMP(b) _setjmp(b)
 #  define FASET_LONGJMP(b) _longjmp(b, 1)
+#endif
+/* La dirección de una variable 'volatile' escapa: el compilador no puede eliminar las escrituras
+   que le lleguen por un puntero no volatile (ref/out) antes de un longjmp. */
+#if defined(__GNUC__)
+#  define FASET_ESCAPE(p) __asm__ __volatile__("" : : "r"((const volatile void*)(p)) : "memory")
+#else
+#  define FASET_ESCAPE(p) ((void)(p))
 #endif
 typedef struct faset_exc_type {
     const char* name;                    /* nombre de la clase */

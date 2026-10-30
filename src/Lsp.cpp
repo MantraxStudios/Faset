@@ -448,11 +448,11 @@ std::string uriToPath(const std::string& uri) {
 #if defined(_WIN32)
     if (p.size() > 2 && p[0] == '/' && p[2] == ':') p = p.substr(1);
 #endif
-    return normalizePath(p);
+    return normalizePath(utf8ToNative(p));  // la URI es UTF-8; las rutas, de la página ANSI en Windows
 }
 
 std::string pathToUri(const std::string& path) {
-    std::string p = path;
+    std::string p = nativeToUtf8(path);
     std::replace(p.begin(), p.end(), '\\', '/');
     if (p.empty() || p[0] != '/') p = "/" + p;
     std::string r = "file://";
@@ -516,15 +516,13 @@ size_t offsetOf(const std::string& text, int line0, int byteCol) {
     return std::min(text.size(), start + (size_t)byteCol);
 }
 
+#if !defined(_WIN32)
 std::string quoteArg(const std::string& s) {
-#if defined(_WIN32)
-    return "\"" + s + "\"";
-#else
     std::string r = "'";
     for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c);
     return r + "'";
-#endif
 }
+#endif
 
 class Server {
 public:
@@ -674,11 +672,12 @@ Json Server::analyze(const std::string& focus, const std::map<std::string, std::
     std::string resPath = (tmp / (base + "-res.json")).string();
     Json result;
     if (writeText(reqPath, req.dump())) {
-        std::string cmd = quoteArg(self_) + " __analyze " + quoteArg(reqPath) + " " + quoteArg(resPath);
 #if defined(_WIN32)
-        cmd = "\"" + cmd + "\"";
-#endif
+        int rc = runProgramWindows({self_, "__analyze", reqPath, resPath});  // sin cmd.exe
+#else
+        std::string cmd = quoteArg(self_) + " __analyze " + quoteArg(reqPath) + " " + quoteArg(resPath);
         int rc = std::system(cmd.c_str());
+#endif
         std::string text;
         if (rc == 0 && readText(resPath, text)) Json::parse(text, result);
     }

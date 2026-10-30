@@ -1,7 +1,8 @@
 # FasetStudio
 
 Entorno de desarrollo para Faset, **escrito en Faset**. Dibuja con **Vulkan**, usa la ventana nativa
-de X11, rasteriza el texto con FreeType y obtiene el IntelliSense del propio compilador.
+de X11 (Linux) o Win32 (Windows), rasteriza el texto con FreeType (stb_truetype en Windows) y obtiene
+el IntelliSense del propio compilador.
 
 ```bash
 make studio                       # desde la raíz del repositorio
@@ -10,6 +11,46 @@ make studio                       # desde la raíz del repositorio
 ```
 
 Se le puede pasar una carpeta, un `.fstproj`, una solución `.fstp` o un archivo `.fst`.
+
+## Windows
+
+> **Compilado pero aún sin probar en un Windows real.** Se ha probado con Wine 10 en Linux (GPU NVIDIA
+> a través de winevulkan); ver abajo qué funciona y qué no se ha probado.
+
+```bash
+faset build studio --target windows   # desde Linux, con llvm-mingw → studio/bin/Release/windows-x86_64/FasetStudio.exe
+scripts/dist.sh windows               # faset-windows-x86_64.zip
+```
+
+El zip `faset-windows-x86_64.zip` trae `faset.exe`, `FasetStudio.exe` (aplicación de ventana, sin
+consola), `lang\`, `faset.ico`, `lib\`, `install.ps1` y `LEEME.txt`.
+`powershell -ExecutionPolicy Bypass -File install.ps1 [-Desktop]` instala en `%LOCALAPPDATA%\Faset`,
+lo añade al `PATH` del usuario, crea el acceso directo «FasetStudio» en el menú Inicio
+(`%APPDATA%\Microsoft\Windows\Start Menu\Programs\FasetStudio.lnk`; con `-Desktop`, también en el
+escritorio) y ejecuta `faset setup windows`. `-Uninstall` lo quita todo, accesos directos incluidos;
+`-Android`, `-Yes` y `-NoSetup` funcionan como antes.
+
+- **Requisitos:** Windows 10 o posterior x64 (usa el Universal C Runtime) y un controlador de la GPU
+  con Vulkan. `vulkan-1.dll` se carga al arrancar; si falta, se muestra un mensaje de error en español.
+- **Ventana:** Win32 consciente del DPI de cada monitor, título en UTF-8, portapapeles y cursores.
+- **Fuentes:** de `%WINDIR%\Fonts`: Consolas (código), Segoe UI (interfaz) y Segoe UI Symbol
+  (símbolos), rasterizadas con stb_truetype.
+- **Configuración** en `%APPDATA%\FasetStudio\settings.ini`; temporales en `%TEMP%`.
+- **Compilador:** busca `faset.exe` junto a `FasetStudio.exe`, en la variable `FASET` o en el `PATH`.
+  IntelliSense, compilar y ejecutar, nuevo proyecto, paquetes y soluciones llaman a `faset.exe`, que
+  necesita el compilador de C de `faset setup windows` (llvm-mingw; lo ejecuta el instalador).
+- **Depurador:** necesita un `gdb` de Windows en el `PATH` (MSYS2, WinLibs…); si no está, lo avisa.
+- **Android:** busca `adb.exe` en `%ANDROID_HOME%`, `%ANDROID_SDK_ROOT%`, `%LOCALAPPDATA%\Android\Sdk`
+  (donde lo instala `faset setup android`) o en el `PATH`.
+
+Probado con Wine: la ventana se abre y dibuja con Vulkan, la ventana de inicio, abrir un proyecto, el
+editor (escribir, también ñ, € y emoji, atajos, portapapeles, rueda, doble clic, redimensionar,
+minimizar y restaurar), IntelliSense con `faset.exe`, crear un proyecto, el diálogo de abrir carpeta y
+la configuración en `%APPDATA%`. **Sin probar:** compilar y ejecutar programas desde el IDE en Windows
+(necesita llvm-mingw para Windows, no disponible bajo Wine en la prueba), el depurador, las
+herramientas de Android, el DPI alto y las fuentes de un Windows real. **Limitación conocida:** la
+interfaz aún no se escala, así que con DPI alto (150 % o más) se dibuja a 1:1 píxeles (pequeño pero
+nítido).
 
 ## Funciones
 
@@ -25,7 +66,7 @@ Se le puede pasar una carpeta, un `.fstproj`, una solución `.fstp` o un archivo
   arquitectura, configuración, enlazado estático, referencias de proyecto y bibliotecas nativas)
 - **Interfaz en inglés y traducible**: cada idioma es un archivo `lang/<código>.txt` con líneas
   `English = Traducción` (incluye español). El idioma se cambia desde la barra de estado o el menú Ver y
-  se recuerda en `~/.config/fasetstudio/settings.ini`; también `FASET_STUDIO_LANG=es`
+  se recuerda en `~/.config/fasetstudio/settings.ini` (Windows: `%APPDATA%\FasetStudio\settings.ini`); también `FASET_STUDIO_LANG=es`
 - **Diseño monocromo** (negro, grises y blanco) con formas redondeadas y sombras dibujadas en el shader
   y cursores del ratón según la zona (texto, mano, redimensionar)
 
@@ -173,8 +214,8 @@ líneas de Faset; `src/Ide/Debugger.fst` traduce los nombres del C (`l_x`, `p_x`
   en la línea de Faset que los produjo, con el mensaje en *Variables* y en *Salida*.
 - **Solo mi código** (menú Compilar): el paso a paso no entra en la biblioteca estándar.
 - La salida del programa va al panel *Salida*; no hay entrada estándar (`< /dev/null`).
-- Solo Linux con gdb ≥ 9 (`sudo apt install gdb`); Android y la depuración remota no están
-  soportados. `FASET_DEBUG_MI=archivo` guarda el diálogo con gdb para diagnosticar.
+- Linux con gdb ≥ 9 (`sudo apt install gdb`); en Windows, un `gdb` de Windows en el `PATH` (sin
+  probar). Android y la depuración remota no están soportados. `FASET_DEBUG_MI=archivo` guarda el diálogo con gdb para diagnosticar.
 
 Verbos del modo sin ventana: `bp archivo línea [condición]`, `debug`, `next`, `step`, `stepout`,
 `continue`, `pause`, `restart`, `waitstop`, `stopdebug`, `frame N`, `expand ruta`, `watch expr`,
@@ -191,7 +232,7 @@ Explorador, Salida, Problemas y los paneles del depurador se pueden colocar a la
 - **Botón derecho en la pestaña:** acoplar a un lado, ocultar o restablecer la disposición.
 - Los paneles que están en el mismo lado se muestran como pestañas.
 - **Ver → Explorador / Salida / Problemas** los muestra u oculta.
-- La disposición y los tamaños se guardan en `~/.config/fasetstudio/settings.ini`.
+- La disposición y los tamaños se guardan en `~/.config/fasetstudio/settings.ini` (Windows: `%APPDATA%\FasetStudio\settings.ini`).
 
 Los RadioButton con el mismo `Group` dentro del mismo contenedor se excluyen entre sí. ComboBox y
 ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `SelectedIndex` y
@@ -203,9 +244,10 @@ ListBox exponen `Items`/`SetItems`, `AddItem`, `RemoveItemAt`, `ClearItems`, `Se
 |------------------------|--------------------------------------------------------------------|
 | `src/Gfx/Vk.fst`       | bindings de Vulkan escritos en Faset (structs con la disposición de C) |
 | `src/Gfx/Renderer.fst` | renderizador 2D: swapchain, pipeline, atlas, lotes con recorte, capturas |
-| `src/Gfx/Font.fst`     | FreeType → atlas de glifos bajo demanda                            |
+| `src/Gfx/Font.fst`     | FreeType (Linux) o stb_truetype (Windows) → atlas de glifos bajo demanda |
 | `src/Gfx/Shaders.fst`  | SPIR-V generado desde `shaders/ui.vert` y `shaders/ui.frag`        |
 | `src/Platform/X11.fst` | ventana, teclado, ratón y portapapeles con Xlib                    |
+| `src/Platform/Win32.fst` | lo mismo en Windows con Win32                                    |
 | `src/Ide/Debugger.fst` | depurador: gdb por MI, puntos de interrupción, variables, pila e inspección |
 | `src/Ide/*.fst`        | búfer de texto, resaltado, editor, explorador, IntelliSense y la aplicación |
 
@@ -222,7 +264,9 @@ Para regenerar los shaders hace falta `npm install @webgpu/glslang@0.0.15` y lue
 
 ## Limitaciones
 
-- Solo Linux (X11/XWayland) por ahora. La versión de Windows necesita un backend Win32 para la ventana.
+- Linux (X11/XWayland) y Windows (Win32). La versión de Windows está compilada pero aún sin probar en
+  un Windows real (ver [Windows](#windows)).
+- La interfaz aún no se escala: en pantallas de DPI alto (150 % o más) se dibuja a 1:1 píxeles.
 - Los programas que se ejecutan con Ctrl+F5 (o se depuran con F5) no reciben entrada por teclado: la
   salida va al panel *Salida*.
 - No hay refactorizaciones (renombrar, buscar referencias).

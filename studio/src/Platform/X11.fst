@@ -2,6 +2,7 @@
 //  Ventana nativa con Xlib: creación, eventos de teclado/ratón y portapapeles.
 //  Los eventos de Xlib (XEvent, 192 bytes) se leen por desplazamientos (Linux 64 bits).
 // =============================================================================
+#if !WINDOWS
 using std.text;
 using std.os;
 
@@ -33,53 +34,6 @@ namespace FasetStudio.Platform
                                          ulong* actualType, int* actualFormat, ulong* nitems, ulong* bytesAfter, byte** data);
     static extern int XSendEvent(void* dpy, ulong w, int propagate, long mask, void* ev);
     static extern int XFree(void* data);
-
-    public enum EventKind { None, KeyDown, MouseDown, MouseUp, MouseMove, Scroll, Resize, Close, Expose, FocusLost }
-
-    // Forma del puntero del ratón.
-    public enum CursorKind { Arrow, Text, Hand, ResizeHorizontal, ResizeVertical }
-
-    public static class Keys
-    {
-        public const uint BackSpace = 0xff08;
-        public const uint Tab = 0xff09;
-        public const uint ShiftTab = 0xfe20;
-        public const uint Return = 0xff0d;
-        public const uint KeypadEnter = 0xff8d;
-        public const uint Escape = 0xff1b;
-        public const uint Delete = 0xffff;
-        public const uint Home = 0xff50;
-        public const uint Left = 0xff51;
-        public const uint Up = 0xff52;
-        public const uint Right = 0xff53;
-        public const uint Down = 0xff54;
-        public const uint PageUp = 0xff55;
-        public const uint PageDown = 0xff56;
-        public const uint End = 0xff57;
-        public const uint F1 = 0xffbe;
-        public const uint F5 = 0xffc2;
-        public const uint F6 = 0xffc3;
-        public const uint F9 = 0xffc6;
-        public const uint F10 = 0xffc7;
-        public const uint F11 = 0xffc8;
-        public const uint F12 = 0xffc9;
-    }
-
-    public struct Event
-    {
-        public EventKind Kind;
-        public int X;
-        public int Y;
-        public int Button;      // 1 izquierdo, 2 central, 3 derecho
-        public uint Key;        // keysym (letras en minúscula)
-        public char Char;       // carácter escrito (0 si no hay)
-        public bool Ctrl;
-        public bool Shift;
-        public bool Alt;
-        public int Width;
-        public int Height;
-        public int ScrollLines; // positivo = hacia abajo
-    }
 
     public memory_unsafe class Window
     {
@@ -153,6 +107,9 @@ namespace FasetStudio.Platform
                 XCloseDisplay(display);
             }
         }
+
+        // Muestra un error fatal (en Linux, por la salida de errores).
+        public static void ShowError(string message) { Console.ErrorLine(message); }
 
         public void SetTitle(string title)
         {
@@ -379,3 +336,4 @@ namespace FasetStudio.Platform
         }
     }
 }
+#endif

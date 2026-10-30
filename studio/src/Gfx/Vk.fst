@@ -1,5 +1,5 @@
 // =============================================================================
-//  Bindings de Vulkan 1.0 (+ VK_KHR_surface, VK_KHR_swapchain, VK_KHR_xlib_surface)
+//  Bindings de Vulkan 1.0 (+ VK_KHR_surface, VK_KHR_swapchain y VK_KHR_xlib_surface o VK_KHR_win32_surface)
 //  escritos en Faset. Los structs reproducen exactamente la disposición en memoria
 //  de los de C; los handles no despachables son ulong y los despachables void*.
 //  Todo el archivo es FFI: se declara entero como contexto memory_unsafe.
@@ -50,6 +50,7 @@ namespace FasetStudio.Gfx
         public const int ST_SWAPCHAIN_CREATE_INFO_KHR = 1000001000;
         public const int ST_PRESENT_INFO_KHR = 1000001001;
         public const int ST_XLIB_SURFACE_CREATE_INFO_KHR = 1000004000;
+        public const int ST_WIN32_SURFACE_CREATE_INFO_KHR = 1000009000;
 
         // Resultados
         public const int SUCCESS = 0;
@@ -118,11 +119,19 @@ namespace FasetStudio.Gfx
         public uint enabledExtensionCount; public byte** ppEnabledExtensionNames;
     }
 
+#if WINDOWS
+    public struct VkWin32SurfaceCreateInfoKHR
+    {
+        public int sType; public void* pNext; public uint flags;
+        public void* hinstance; public void* hwnd;
+    }
+#else
     public struct VkXlibSurfaceCreateInfoKHR
     {
         public int sType; public void* pNext; public uint flags;
         public void* dpy; public ulong window;
     }
+#endif
 
     public struct VkDeviceQueueCreateInfo
     {
@@ -460,7 +469,13 @@ namespace FasetStudio.Gfx
     static extern void vkGetDeviceQueue(void* device, uint family, uint index, void** queue);
     static extern int vkDeviceWaitIdle(void* device);
 
+#if WINDOWS
+    static extern int vkCreateWin32SurfaceKHR(void* instance, VkWin32SurfaceCreateInfoKHR* info, void* alloc, ulong* surface);
+    // vulkan-1.dll se carga al arrancar (native/windows/vulkan_loader.c): 0 si no está instalado.
+    static extern int faset_vk_load();
+#else
     static extern int vkCreateXlibSurfaceKHR(void* instance, VkXlibSurfaceCreateInfoKHR* info, void* alloc, ulong* surface);
+#endif
     static extern void vkDestroySurfaceKHR(void* instance, ulong surface, void* alloc);
     static extern int vkGetPhysicalDeviceSurfaceSupportKHR(void* pd, uint family, ulong surface, uint* supported);
     static extern int vkGetPhysicalDeviceSurfaceCapabilitiesKHR(void* pd, ulong surface, VkSurfaceCapabilitiesKHR* caps);

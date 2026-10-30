@@ -175,15 +175,28 @@ namespace FasetStudio.Gfx
         bool Init(bool headless)
         {
             offscreen = headless;
+#if WINDOWS
+            if (faset_vk_load() == 0)
+                return Fail("No se encontró Vulkan (vulkan-1.dll).\n\nFasetStudio dibuja con Vulkan: instala o actualiza el controlador de tu tarjeta gráfica (NVIDIA, AMD o Intel) y vuelve a abrirlo.");
+#endif
             if (!CreateInstance()) return false;
             if (!offscreen)
             {
+#if WINDOWS
+                VkWin32SurfaceCreateInfoKHR si = new VkWin32SurfaceCreateInfoKHR();
+                si.sType = VK.ST_WIN32_SURFACE_CREATE_INFO_KHR;
+                si.hinstance = User32.GetModuleHandleW(null);
+                si.hwnd = window.Hwnd;
+                if (vkCreateWin32SurfaceKHR(instance, &si, null, &surface) != VK.SUCCESS)
+                    return Fail("no se pudo crear la superficie Vulkan para la ventana");
+#else
                 VkXlibSurfaceCreateInfoKHR si = new VkXlibSurfaceCreateInfoKHR();
                 si.sType = VK.ST_XLIB_SURFACE_CREATE_INFO_KHR;
                 si.dpy = window.Display;
                 si.window = window.Handle;
                 if (vkCreateXlibSurfaceKHR(instance, &si, null, &surface) != VK.SUCCESS)
                     return Fail("no se pudo crear la superficie Vulkan para la ventana");
+#endif
             }
             if (!PickDevice()) return false;
             if (!CreateDevice()) return false;
@@ -205,7 +218,11 @@ namespace FasetStudio.Gfx
             app.apiVersion = VK.ApiVersion10;
             byte** exts = new byte*[2];
             exts[0] = "VK_KHR_surface".Ptr;
+#if WINDOWS
+            exts[1] = "VK_KHR_win32_surface".Ptr;
+#else
             exts[1] = "VK_KHR_xlib_surface".Ptr;
+#endif
             VkInstanceCreateInfo ci = new VkInstanceCreateInfo();
             ci.sType = VK.ST_INSTANCE_CREATE_INFO;
             ci.pApplicationInfo = &app;
@@ -780,14 +797,50 @@ namespace FasetStudio.Gfx
             return f;
         }
 
+#if WINDOWS
+        // "a.ttf;b.ttf" -> "<carpeta>/a.ttf;<carpeta>/b.ttf" (lista para Font.FindFile).
+        static string FontList(string folder, string names)
+        {
+            List<string> parts = std.text.Text.Split(names, ";");
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < parts.Count; i++)
+            {
+                if (i > 0) sb.Append(";");
+                string full = Path.Combine(folder, parts[i]);
+                sb.Append(full);
+                String.Free(full);
+            }
+            delete parts;
+            string r = sb.ToString();
+            delete sb;
+            return r;
+        }
+#endif
+
         bool LoadFonts()
         {
+#if WINDOWS
+            // Fuentes del sistema (%WINDIR%\Fonts): Consolas para el código y Segoe UI para la interfaz;
+            // Segoe UI Symbol cubre los símbolos (▸ ▾ ▶ ■ ●) que no tienen las otras. DejaVu, si
+            // está instalada, sirve de alternativa (también en Wine, que no trae las fuentes de Windows).
+            string windir = Environment.GetVariable("WINDIR");
+            if (windir.IsEmpty()) windir = "C:\\Windows";
+            string fonts = Path.Combine(windir, "Fonts");
+            string mono = Font.FindFile(FontList(fonts, "consola.ttf;DejaVuSansMono.ttf;cour.ttf;lucon.ttf"));
+            string monoBold = Font.FindFile(FontList(fonts, "consolab.ttf;DejaVuSansMono-Bold.ttf;courbd.ttf"));
+            string monoItalic = Font.FindFile(FontList(fonts, "consolai.ttf;DejaVuSansMono-Oblique.ttf;couri.ttf"));
+            string sans = Font.FindFile(FontList(fonts, "segoeui.ttf;DejaVuSans.ttf;tahoma.ttf;arial.ttf"));
+            string sansBold = Font.FindFile(FontList(fonts, "segoeuib.ttf;DejaVuSans-Bold.ttf;tahomabd.ttf;arialbd.ttf"));
+            Font.FallbackPath = Font.FindFile(FontList(fonts, "seguisym.ttf;DejaVuSans.ttf;segoeui.ttf"));
+            if (mono.IsEmpty()) return Fail("no se encontró una fuente monoespaciada en la carpeta Fonts de Windows (Consolas o Courier New)");
+#else
             string mono = Font.FindFile("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf;/usr/share/fonts/TTF/DejaVuSansMono.ttf;/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf;/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf;C:/Windows/Fonts/consola.ttf");
             string monoBold = Font.FindFile("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf;/usr/share/fonts/TTF/DejaVuSansMono-Bold.ttf;/usr/share/fonts/truetype/noto/NotoSansMono-Bold.ttf;C:/Windows/Fonts/consolab.ttf");
             string monoItalic = Font.FindFile("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Oblique.ttf;/usr/share/fonts/TTF/DejaVuSansMono-Oblique.ttf;/usr/share/fonts/truetype/liberation/LiberationMono-Italic.ttf;C:/Windows/Fonts/consolai.ttf");
             string sans = Font.FindFile("/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf;/usr/share/fonts/noto/NotoSans-Regular.ttf;/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf;/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf;C:/Windows/Fonts/segoeui.ttf");
             string sansBold = Font.FindFile("/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf;/usr/share/fonts/noto/NotoSans-Bold.ttf;/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf;/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf;C:/Windows/Fonts/segoeuib.ttf");
             if (mono.IsEmpty()) return Fail("no se encontró una fuente monoespaciada (instala DejaVu Sans Mono)");
+#endif
             if (monoBold.IsEmpty()) monoBold = mono;
             if (monoItalic.IsEmpty()) monoItalic = mono;
             if (sans.IsEmpty()) sans = mono;
@@ -805,7 +858,11 @@ namespace FasetStudio.Gfx
             bool ok = Code.Load(mono, 14, Atlas) && CodeBold.Load(monoBold, 14, Atlas) && CodeItalic.Load(monoItalic, 14, Atlas) &&
                       Ui.Load(sans, 13, Atlas) && UiBold.Load(sansBold, 13, Atlas) && UiSmall.Load(sans, 11, Atlas) &&
                       Icons.Load(mono, 12, Atlas) && Title.Load(sansBold, 24, Atlas);
+#if WINDOWS
+            if (!ok) return Fail("no se pudieron cargar las fuentes de Windows (stb_truetype)");
+#else
             if (!ok) return Fail("FreeType no pudo cargar las fuentes");
+#endif
             // Interlineado más generoso para el editor; todas las variantes comparten el alto de línea.
             Code.LineHeight += 4;
             CodeBold.LineHeight = Code.LineHeight;

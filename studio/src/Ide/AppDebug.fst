@@ -54,8 +54,10 @@ namespace FasetStudio.Ide
             {
                 output.Clear();
                 ShowTool(1);
-                output.Append(L.T("gdb was not found: install it (e.g. sudo apt install gdb) to debug")).Append("\n");
-                SetStatus(L.T("gdb was not found: install it (e.g. sudo apt install gdb) to debug"));
+                string missing = OS.IsWindows ? "gdb was not found: install gdb for Windows (e.g. MSYS2 or WinLibs) and add it to the PATH to debug"
+                                              : "gdb was not found: install it (e.g. sudo apt install gdb) to debug";
+                output.Append(L.T(missing)).Append("\n");
+                SetStatus(L.T(missing));
                 return;
             }
             // El ejecutable de depuración va a obj/debug/ (en una solución, -o es el del proyecto de inicio).
@@ -65,6 +67,12 @@ namespace FasetStudio.Ide
             string dir = Path.Combine(rootFolder, "obj/debug");
             Directory.Create(dir);
             debugExe = Path.Combine(dir, name);
+            if (OS.IsWindows)   // 'faset build -o' añade .exe en Windows
+            {
+                string withExe = String.Concat(debugExe, ".exe");
+                String.Free(debugExe);
+                debugExe = withExe;
+            }
             debugCwd = projectFile.Length > 0 ? String.Copy(Path.GetDirectoryName(projectFile)) : String.Copy(rootFolder);
             string q = Analyzer.Quote(debugExe);
             extraBuildArgs = String.Concat(" -g -o ", q);

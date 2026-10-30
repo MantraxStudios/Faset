@@ -405,7 +405,7 @@ namespace FasetStudio.Ide
         {
             string qf = Analyzer.Quote(analyzer.Compiler), qd = Analyzer.Quote(rootFolder), qs = Analyzer.Quote(solutionFile);
             StringBuilder cmd = new StringBuilder();
-            cmd.Append("cd ").Append(qd).Append(" && ").Append(qf).Append(" sln ").Append(qs).Append(" ").Append(arguments).Append(" 2>&1");
+            cmd.Append(OS.IsWindows ? "cd /d " : "cd ").Append(qd).Append(" && ").Append(qf).Append(" sln ").Append(qs).Append(" ").Append(arguments).Append(" 2>&1");
             string r = cmd.ToString();
             delete cmd;
             return r;
@@ -982,7 +982,7 @@ namespace FasetStudio.Ide
                 {
                     string qf = Analyzer.Quote(analyzer.Compiler), qr = Analyzer.Quote(Path.GetDirectoryName(projectFile));
                     StringBuilder stop = new StringBuilder();
-                    stop.Append("cd ").Append(qr).Append(" && ").Append(qf).Append(" android stop");
+                    stop.Append(OS.IsWindows ? "cd /d " : "cd ").Append(qr).Append(" && ").Append(qf).Append(" android stop");
                     String.Free(qr);
                     if (android.Device.Length > 0)
                     {
@@ -2010,10 +2010,10 @@ namespace FasetStudio.Ide
 
             if (process != null && process.IsRunning)
             {
-                if (process.ReadAvailable(output)) redraw = true;
+                if (Analyzer.ReadChild(process, output)) redraw = true;
                 if (process.HasExited)
                 {
-                    process.ReadAvailable(output);
+                    Analyzer.ReadChild(process, output);
                     int code = process.ExitCode;
                     long ms = now - processStart;
                     string codeText = String.FromInt(code), msText = String.FromInt(ms);
@@ -2304,7 +2304,7 @@ namespace FasetStudio.Ide
         {
             string saved = Settings.Get("projects.location", "");
             if (saved.Length > 0) return String.Copy(saved);
-            string home = Environment.GetVariable("HOME");
+            string home = Settings.HomeFolder();
             string folder = Path.Combine(home, "FasetProjects");
             String.Free(home);
             return folder;
@@ -2358,7 +2358,7 @@ namespace FasetStudio.Ide
             bool withSolution = createSolution && !newProjectInSolution;
             string qf = Analyzer.Quote(analyzer.Compiler), qloc = Analyzer.Quote(location), qname = Analyzer.Quote(name);
             StringBuilder cmd = new StringBuilder();
-            cmd.Append("cd ").Append(qloc).Append(" && ").Append(qf).Append(" new ").Append(qname).Append(kind);
+            cmd.Append(OS.IsWindows ? "cd /d " : "cd ").Append(qloc).Append(" && ").Append(qf).Append(" new ").Append(qname).Append(kind);
             if (withSolution) cmd.Append(" --solution");   // Nombre/Nombre.fstp + Nombre/Nombre/Nombre.fstproj
             string outText;
             int code = Process.Capture(cmd.View(), out outText);
@@ -2414,7 +2414,7 @@ namespace FasetStudio.Ide
             if (!Directory.Exists(start))
             {
                 String.Free(start);
-                start = Environment.GetVariable("HOME");
+                start = Settings.HomeFolder();
             }
             BrowseTo(start);
             String.Free(start);
@@ -3634,7 +3634,7 @@ namespace FasetStudio.Ide
         // Texto del selector de destino (copia).
         string TargetLabel()
         {
-            if (buildTarget != "android") return String.Copy(L.T(OS.Name() == "windows" ? "Windows" : "Linux"));
+            if (buildTarget != "android") return String.Copy(L.T(OS.IsWindows ? "Windows" : "Linux"));
             if (android.StartingAvd.Length > 0) return String.Copy(L.T("Starting emulator…"));
             if (android.Device.Length == 0) return String.Copy("Android");
             string model = android.ModelOf(android.Device);

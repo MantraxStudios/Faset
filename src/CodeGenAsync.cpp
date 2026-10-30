@@ -64,6 +64,10 @@ void CodeGen::asyncField(const std::string& ct, const std::string& name) {
 void CodeGen::emitLocalDecl(const std::string& ct, const std::string& name, const std::string& init, const std::string& qual) {
     if (!async_) {
         line(ct + qual + name + (init.empty() ? "" : " = " + init) + ";");
+        // Una variable 'volatile' (modificada dentro de un 'try') puede cambiar a través de un puntero
+        // no volatile (argumento 'ref'/'out'); si su dirección no escapa, clang -O2 borra esas
+        // escrituras antes del longjmp al integrar la función llamada.
+        if (qual.find("volatile") != std::string::npos) line("FASET_ESCAPE(&" + name + ");");
         return;
     }
     asyncField(ct, name);

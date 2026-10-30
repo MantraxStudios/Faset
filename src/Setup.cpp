@@ -66,7 +66,7 @@ void setEnv(const char* name, const std::string& value) {
 
 std::string quote(const std::string& s) {
 #if defined(_WIN32)
-    return "\"" + s + "\"";
+    return windowsQuote(s);
 #else
     std::string r = "'";
     for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c);

@@ -165,7 +165,46 @@ const char* const kRuntimeSource = R"FASET(
 static int faset_argc;
 static char** faset_argv;
 
+#if defined(_WIN32)
+/* UTF-16 -> UTF-8 con malloc (NULL si falla). */
+static char* faset_w_to_utf8(const wchar_t* w) {
+    int n = WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL);
+    char* s = n > 0 ? (char*)malloc((size_t)n) : NULL;
+    if (s) WideCharToMultiByte(CP_UTF8, 0, w, -1, s, n, NULL, NULL);
+    return s;
+}
+/* UTF-8 -> UTF-16 con malloc, terminada en 0 (NULL si falla). */
+static wchar_t* faset_utf8_to_w(const char* s, int len) {
+    int n = len > 0 ? MultiByteToWideChar(CP_UTF8, 0, s, len, NULL, 0) : 0;
+    wchar_t* w = (wchar_t*)malloc(sizeof(wchar_t) * (size_t)(n + 1));
+    if (!w) return NULL;
+    if (n > 0) MultiByteToWideChar(CP_UTF8, 0, s, len, w, n);
+    w[n] = 0;
+    return w;
+}
+#endif
+
 void faset_rt_init(int argc, char** argv) {
+#if defined(_WIN32)
+    /* El argv de main viene en la página de códigos ANSI ("ñ" en cp1252, '?' fuera de ella): se
+       rehace en UTF-8 desde la línea de órdenes UTF-16. */
+    if (argv) {
+        int wn = 0;
+        wchar_t** wv = CommandLineToArgvW(GetCommandLineW(), &wn);
+        char** u = wv && wn > 0 ? (char**)malloc(sizeof(char*) * (size_t)(wn + 1)) : NULL;
+        if (u) {
+            int k = 0;
+            for (; k < wn; k++)
+                if (!(u[k] = faset_w_to_utf8(wv[k]))) break;
+            u[k] = NULL;
+            if (k == wn) {
+                argc = wn;
+                argv = u;
+            }
+        }
+        if (wv) LocalFree(wv);
+    }
+#endif
     faset_argc = argc;
     faset_argv = argv;
     if (argv) faset_gc_init_main();
@@ -382,6 +421,32 @@ faset_string faset_read_line(void) {
     fflush(stdout);
     size_t cap = 64, len = 0;
     char* buf = (char*)faset_alloc((int64_t)cap);
+#if defined(_WIN32)
+    /* Consola: se lee en UTF-16 (fgetc devolvería la página OEM de la consola, p. ej. cp850). */
+    HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode;
+    if (in && in != INVALID_HANDLE_VALUE && GetConsoleMode(in, &mode)) {
+        wchar_t wb[2];
+        DWORD got;
+        while (ReadConsoleW(in, wb, 1, &got, NULL) && got == 1 && wb[0] != L'\n') {
+            if (wb[0] == 0x1A && len == 0) break; /* Ctrl+Z: fin de la entrada */
+            char u[8];
+            int n;
+            if (wb[0] >= 0xD800 && wb[0] < 0xDC00 && ReadConsoleW(in, wb + 1, 1, &got, NULL) && got == 1)
+                n = WideCharToMultiByte(CP_UTF8, 0, wb, 2, u, sizeof u, NULL, NULL);
+            else
+                n = WideCharToMultiByte(CP_UTF8, 0, wb, 1, u, sizeof u, NULL, NULL);
+            if (n <= 0) continue;
+            while (len + (size_t)n + 1 >= cap) { cap *= 2; buf = (char*)faset_realloc(buf, (int64_t)cap); }
+            memcpy(buf + len, u, (size_t)n);
+            len += (size_t)n;
+        }
+        if (len > 0 && buf[len - 1] == '\r') len--;
+        buf[len] = 0;
+        faset_string s = { (const uint8_t*)buf, (int64_t)len };
+        return s;
+    }
+#endif
     int c;
     while ((c = fgetc(stdin)) != EOF && c != '\n') {
         if (len + 1 >= cap) { cap *= 2; buf = (char*)faset_realloc(buf, (int64_t)cap); }
@@ -580,11 +645,31 @@ faset_string faset_getenv(faset_string name) {
 }
 
 int32_t faset_system(faset_string cmd) {
-    char* p = faset_cstr(cmd);
     fflush(stdout);
+#if defined(_WIN32)
+    /* UTF-8 -> UTF-16 (system() usaría la página ANSI). cmd.exe /c quita la primera y la última
+       comilla de la línea si empieza por comilla: se envuelve en otro par para que llegue intacta. */
+    wchar_t* w = faset_utf8_to_w((const char*)cmd.ptr, (int)cmd.len);
+    if (!w) return -1;
+    size_t n = wcslen(w);
+    wchar_t* line = (wchar_t*)malloc(sizeof(wchar_t) * (n + 3));
+    int r = -1;
+    if (line) {
+        line[0] = L'"';
+        memcpy(line + 1, w, sizeof(wchar_t) * n);
+        line[n + 1] = L'"';
+        line[n + 2] = 0;
+        r = _wsystem(line);
+        free(line);
+    }
+    free(w);
+    return (int32_t)r;
+#else
+    char* p = faset_cstr(cmd);
     int r = system(p);
     free(p);
     return (int32_t)r;
+#endif
 }
 
 

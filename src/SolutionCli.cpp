@@ -34,7 +34,7 @@ void fail(const std::string& msg) { std::fprintf(stderr, "faset: error: %s\n", m
 
 std::string quoteArg(const std::string& s) {
 #if defined(_WIN32)
-    return "\"" + s + "\"";
+    return windowsQuote(s);
 #else
     std::string r = "'";
     for (char c : s) r += c == '\'' ? std::string("'\\''") : std::string(1, c);
@@ -47,16 +47,17 @@ int runSelf(const std::string& self, const std::vector<std::string>& args, bool 
     for (const std::string& a : args) cmd += " " + quoteArg(a);
     if (verbose) std::fprintf(stderr, "$ %s\n", cmd.c_str());
 #if defined(_WIN32)
-    cmd = "\"" + cmd + "\"";
-#endif
+    std::vector<std::string> all = {self};
+    all.insert(all.end(), args.begin(), args.end());
+    return runProgramWindows(all);
+#else
     std::fflush(stdout);
     std::fflush(stderr);
     int r = std::system(cmd.c_str());
-#if !defined(_WIN32)
     if (r != -1 && WIFEXITED(r)) r = WEXITSTATUS(r);
     else if (r != -1) r = 1;
-#endif
     return r;
+#endif
 }
 
 bool hasExt(const std::string& p, const char* ext) { return fs::path(p).extension() == ext; }
