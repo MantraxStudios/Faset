@@ -528,6 +528,7 @@ void CodeGen::emitStmt(Stmt* s) {
         case SK::Try: emitTry(static_cast<TryStmt*>(s)); break;
         case SK::Throw: emitThrow(static_cast<ThrowStmt*>(s)); break;
         case SK::Await: emitAwait(static_cast<AwaitStmt*>(s)); break;  // CodeGenAsync.cpp
+        case SK::Yield: emitYield(static_cast<YieldStmt*>(s)); break;  // CodeGenIterators.cpp
         default: break;  // SK del azúcar: SugarGen.cpp
     }
 }

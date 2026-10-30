@@ -19,4 +19,15 @@ struct AsyncInfo {
     Expr* setException = nullptr;  // <task>.SetException(<exc>)
     std::vector<VarInfo*> vars;    // todas sus variables locales: viven en el marco (objeto del recolector)
     int awaits = 0;
+    // Iteradores (ver Iterators.cpp): la misma máquina de estados con 'yield' como punto de suspensión.
+    //   1 IEnumerable<T>, 2 IEnumerator<T>, 3 IAsyncEnumerable<T>, 4 IAsyncEnumerator<T>; -1 tipo no válido.
+    int iterKind = 0;
+    Type* elem = nullptr;          // T de los elementos
+    Type* gen = nullptr;           // Generador<T> / GeneradorAsync<T> (el objeto que se devuelve)
+    VarInfo* iterObj = nullptr;    // <it>: el generador (recibe Current)
+    VarInfo* stepDlg = nullptr;    // <paso>: Func<int, bool> / Func<int, Task<bool>> (env = marco)
+    VarInfo* cloneDlg = nullptr;   // <clon>: Func<Generador<T>> (otro recorrido desde el principio)
+    Expr* newIter = nullptr;       // <it> = new Generador<T>(<paso>, <clon>)   (comprobada)
+    int yields = 0;
+    bool isAsyncIter() const { return iterKind == 3 || iterKind == 4; }
 };

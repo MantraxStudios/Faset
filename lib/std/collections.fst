@@ -14,7 +14,7 @@ using std.hash;
 namespace std.collections
 {
     // ---------------------------------------------------------------- List<T>
-    public memory_unsafe class List<T>
+    public memory_unsafe class List<T> : IEnumerable<T>
     {
         T* items;
         int count;
@@ -31,6 +31,8 @@ namespace std.collections
         // Contador de modificaciones (lo usa ListEnumerator para detectar cambios en un foreach).
         public int Version => version;
         public ListEnumerator<T> GetEnumerator() => new ListEnumerator<T>(this);
+        // Como IEnumerable<T> (LINQ perezoso, parámetros IEnumerable<T>): ver collections/iteradores.fst.
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in this) yield return x; }
         // Puntero a los elementos (válido hasta la próxima modificación).
         public T* Data => items;
 
@@ -585,13 +587,15 @@ namespace std.collections
     public delegate int Comparison<T>(T x, T y);
 
     // Resultado de GroupBy: la clave y los elementos del grupo.
-    public class Grouping<K, T>
+    public class Grouping<K, T> : IEnumerable<T>
     {
         public K Key;
         public List<T> Items = new List<T>();
         public Grouping(K key) { Key = key; }
         public int Count => Items.Count;
         [TrackCaller] public T operator[](int index) => Items[index];
+        public ListEnumerator<T> GetEnumerator() => Items.GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in Items) yield return x; }
     }
 
     // Enumerador de List<T> para foreach. Si la lista se modifica durante el recorrido,
@@ -620,7 +624,7 @@ namespace std.collections
     }
 
     // ---------------------------------------------------------------- Stack<T>
-    public class Stack<T>
+    public class Stack<T> : IEnumerable<T>
     {
         List<T> items = new List<T>();
         ~Stack() { delete items; }
@@ -633,10 +637,11 @@ namespace std.collections
         public void Clear() { items.Clear(); }
         // foreach recorre la pila de la base a la cima (en el orden en que se apilaron).
         public ListEnumerator<T> GetEnumerator() => items.GetEnumerator();
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in items) yield return x; }
     }
 
     // ---------------------------------------------------------------- Queue<T> (búfer circular)
-    public memory_unsafe class Queue<T>
+    public memory_unsafe class Queue<T> : IEnumerable<T>
     {
         T* items;
         int head;
@@ -672,6 +677,12 @@ namespace std.collections
 
         public void Clear() { head = 0; count = 0; }
 
+        // foreach recorre la cola en orden de salida (del primero al último).
+        IEnumerator<T> IEnumerable<T>.GetEnumerator()
+        {
+            for (int i = 0; i < count; i++) yield return items[(head + i) % capacity];
+        }
+
         void Grow()
         {
             int newCap = capacity < 8 ? 8 : capacity * 2;
@@ -686,7 +697,7 @@ namespace std.collections
 
     // ---------------------------------------------------------------- Dictionary<K, V> (tabla hash)
     //  Las claves deben tener un Hash.Of(K) (enteros, char, string, punteros...).
-    public memory_unsafe class Dictionary<K, V>
+    public memory_unsafe class Dictionary<K, V> : IEnumerable<KeyValuePair<K, V>>
     {
         K* keys;
         V* values;
@@ -713,6 +724,10 @@ namespace std.collections
         public K SlotKey(int i) => keys[i];
         public V SlotValue(int i) => values[i];
         public DictionaryEnumerator<K, V> GetEnumerator() => new DictionaryEnumerator<K, V>(this);
+        IEnumerator<KeyValuePair<K, V>> IEnumerable<KeyValuePair<K, V>>.GetEnumerator()
+        {
+            foreach (KeyValuePair<K, V> kv in this) yield return kv;
+        }
 
         int Find(K key)
         {
@@ -965,7 +980,7 @@ namespace std.collections
     }
 
     // ---------------------------------------------------------------- HashSet<T>
-    public class HashSet<T>
+    public class HashSet<T> : IEnumerable<T>
     {
         Dictionary<T, bool> map = new Dictionary<T, bool>();
         ~HashSet() { delete map; }
@@ -978,6 +993,7 @@ namespace std.collections
         public void Clear() { map.Clear(); }
         public List<T> ToList() => map.Keys();
         public HashSetEnumerator<T> GetEnumerator() => new HashSetEnumerator<T>(map.GetEnumerator());
+        IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in this) yield return x; }
     }
 
     // ---------------------------------------------------------------- algoritmos genéricos

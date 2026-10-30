@@ -1,0 +1,14 @@
+creado inicio da1 usa1 da2 usa2 da3 usa3 fin
+dos recorridos: 12 (10 anotaciones)
+0 1 1 2 3 5 8 13 21 34 55 89 
+primer fib > 1000: 1597
+A:try usaA1 A:finally-interno A:finally B:try usaB1 usaB2 B:finally-interno usaB3 B:finally C:try usaC1 usaC2 C:finally-interno usaC3 C:finally
+usa1 usa2 lanza:finally atrapada:fallo en 3
+busca: B2
+B:try B:finally-interno B:finally
+en orden 123467, hojas 137
+cuadrados 4,9,16,25, factorial 720
+3 103 203 
+10 20 30 
+rango 55, hasta 5, vacío False
+D:try actual D1 D:finally-interno D:finally después: False

@@ -224,7 +224,7 @@ private:
     };
     std::map<std::pair<const TryStmt*, char>, AsyncRegion> asyncRegions_;
     std::vector<std::pair<int, std::string>> asyncTop_;  // despacho al entrar en la función de paso
-    std::map<const AwaitStmt*, int> asyncStates_;
+    std::map<const Stmt*, int> asyncStates_;  // 'await' y 'yield' (iteradores) -> número de estado
     void emitAsyncMethod(MethodDecl* m);
     void emitAsyncLambda(LambdaExpr* l);
     void emitAsyncMachine(AsyncInfo* a, const std::string& entrySig, const std::string& selfType,
@@ -239,6 +239,11 @@ private:
                        const std::string& qual = " ");
     // FASET_TRY(marco) { — y, en un método async, la reentrada tras una suspensión.
     void emitTryOpen(TryStmt* t, char kind, const std::string& frame);
+    // ---- iteradores (CodeGenIterators.cpp): la misma máquina con 'yield' como suspensión
+    void emitIterMachine(AsyncInfo* a, const std::string& entrySig, const std::string& selfType,
+                         const std::string& selfInit, const std::vector<VarInfo*>& params, BlockStmt* body);
+    void emitYield(YieldStmt* y);
+    void emitYieldBreak();
 };
 
 // Runtime de los delegados (se añade al C generado tras la cabecera del runtime).

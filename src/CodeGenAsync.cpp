@@ -145,10 +145,12 @@ void CodeGen::asyncAnalyze(Stmt* s, std::vector<std::pair<const TryStmt*, char>>
             asyncAnalyze(t->finallyBody, chain, states);
             break;
         }
-        case SK::Await: {
+        case SK::Await:
+        case SK::Yield: {  // 'yield' de un iterador: otro punto de suspensión (CodeGenIterators.cpp)
+            if (s->kind == SK::Yield && static_cast<YieldStmt*>(s)->isBreak) break;
             int k = ++states;
-            asyncStates_[static_cast<AwaitStmt*>(s)] = k;
-            std::string target = "fs_aw" + std::to_string(k);
+            asyncStates_[s] = k;
+            std::string target = (s->kind == SK::Yield ? "fs_yd" : "fs_aw") + std::to_string(k);
             for (size_t i = chain.size(); i-- > 0;) {
                 AsyncRegion& r = asyncRegions_[chain[i]];
                 if (r.label.empty()) r.label = "fs_ar" + std::to_string(asyncRegions_.size());
@@ -223,6 +225,10 @@ void CodeGen::emitAsyncLambda(LambdaExpr* l) {
 
 void CodeGen::emitAsyncMachine(AsyncInfo* a, const std::string& entrySig, const std::string& selfType,
                                const std::string& selfInit, const std::vector<VarInfo*>& params, BlockStmt* body) {
+    if (a->iterKind) {  // iterador con 'yield' (CodeGenIterators.cpp)
+        emitIterMachine(a, entrySig, selfType, selfInit, params, body);
+        return;
+    }
     LambdaExpr* lam = a->lambda;
     std::string n = "fs_a" + std::to_string(++asyncCounter_);
     std::string frT = n + "_fr";

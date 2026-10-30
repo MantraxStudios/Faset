@@ -269,7 +269,7 @@
     },
     {
      "name": "keyword.control.faset",
-     "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally)\\b"
+     "match": "\\b(if|else|while|do|for|foreach|in|break|continue|return|switch|case|default|goto|throw|try|catch|finally|yield|await)\\b"
     },
     {
      "name": "keyword.operator.memory.faset",

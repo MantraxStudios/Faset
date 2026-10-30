@@ -90,6 +90,11 @@ std::string mangleName(const std::string& name) {
         {"operator!", "op_not"}, {"operator~", "op_inv"}, {"operator[]", "op_index"},
     };
     auto it = ops.find(name);
+    if (it == ops.end() && name.find('.') != std::string::npos) {  // implementación explícita: 'IEnumerable.GetEnumerator'
+        std::string r = name;
+        std::replace(r.begin(), r.end(), '.', '_');
+        return "x_" + r;
+    }
     return it == ops.end() ? name : it->second;
 }
 
@@ -546,6 +551,7 @@ void Sema::resolveMethodSignature(MethodDecl* m) {
     }
     if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "solo los métodos 'extern' pueden ser variádicos (...)");
     checkParamsSignature(m);  // 'params' (Sugar.cpp)
+    iterResolveExplicit(m);   // 'T IInterfaz.Miembro()' (Iterators.cpp)
 }
 
 void Sema::resolveClassSignatures(ClassDecl* c) {
@@ -819,6 +825,8 @@ bool Sema::unify(TypeRef* p, Type* a, MethodDecl* tmpl, std::map<std::string, Ty
     if (!p->typeArgs.empty() && t->isAggregate() && t->decl->templateOf &&
         t->decl->templateOf->name == p->parts.back() && t->decl->typeArgs.size() == p->typeArgs.size()) {
         for (size_t i = 0; i < p->typeArgs.size(); i++) unify(p->typeArgs[i], t->decl->typeArgs[i], tmpl, b);
+    } else {
+        iterUnify(p, t, tmpl, b);  // IEnumerable<T> frente a List<int> o string (Iterators.cpp)
     }
     return true;
 }
@@ -981,7 +989,8 @@ void Sema::checkMethod(MethodDecl* m) {
     m->checked = true;
     if (!m->body) return;
     if (m->kind == MethodKind::Ctor) checkCtorInit(m);
-    AsyncInfo* async = m->mods.isAsync ? asyncBegin(m, m->ret, nullptr, m->loc) : nullptr;  // Async.cpp
+    AsyncInfo* async = iterMethodBegin(m);  // iterador con 'yield' (Iterators.cpp)
+    if (!async && m->mods.isAsync) async = asyncBegin(m, m->ret, nullptr, m->loc);  // Async.cpp
     for (Stmt* s : m->body->stmts) checkStmt(s);
     if (async) asyncEnd(async, m->body);
     Type* mustReturn = async ? (async->result ? async->result : tc_.get(TK::Void)) : m->ret;
@@ -1004,16 +1013,17 @@ void Sema::checkStmt(Stmt* s) {
 }
 
 void Sema::checkStmtCore(Stmt* s) {
+    if (iterCheckStmt(s)) return;   // yield, await foreach (Iterators.cpp)
     if (checkSugarStmt(s)) return;  // foreach, deconstrucción, using, switch con patrones (Sugar.cpp)
     switch (s->kind) {
         case SK::Empty: break;
         case SK::Block: {
             auto* b = static_cast<BlockStmt*>(s);
-            ctx_.scopes.emplace_back();
+            if (!b->noScope) ctx_.scopes.emplace_back();  // noScope: función local (ParserIterators.cpp)
             if (b->memoryUnsafe) ctx_.unsafeDepth++;
             for (Stmt* c : b->stmts) checkStmt(c);
             if (b->memoryUnsafe) ctx_.unsafeDepth--;
-            ctx_.scopes.pop_back();
+            if (!b->noScope) ctx_.scopes.pop_back();
             break;
         }
         case SK::VarDecl: {
@@ -1120,6 +1130,7 @@ void Sema::checkStmtCore(Stmt* s) {
             excCheckJump(s);
             if (lambdaReturn(rs)) break;  // 'return' dentro del cuerpo de una lambda
             MethodDecl* m = ctx_.method;
+            if (m && iterReturn(rs, m->async)) break;  // iterador: se termina con 'yield break' (Iterators.cpp)
             Type* ret = m ? m->ret : tc_.get(TK::Void);
             if (m && m->async) ret = m->async->result ? m->async->result : tc_.error();  // async Task<T>: devuelve T
             if (ret->isVoid()) {
@@ -1214,6 +1225,7 @@ bool Sema::alwaysReturns(Stmt* s) {
     switch (s->kind) {
         case SK::Return: return true;
         case SK::Throw: return true;
+        case SK::Yield: return static_cast<YieldStmt*>(s)->isBreak;  // yield break (Iterators.cpp)
         case SK::Try: return excAlwaysReturns(static_cast<TryStmt*>(s));
         case SK::Block:
             for (Stmt* c : static_cast<BlockStmt*>(s)->stmts)
@@ -2268,6 +2280,8 @@ Type* Sema::checkCall(CallExpr* e) {
     }
     std::vector<TypeRef*> noArgs;
     std::vector<TypeRef*>* typeArgs = exprTypeArgs(callee);
+    if (callee->kind == EK::Member)  // métodos propios que no encajan: extensiones (Iterators.cpp)
+        iterExtensionFallback(static_cast<MemberExpr*>(callee), e->args, e->loc, typeArgs ? *typeArgs : noArgs);
     bool ext = callee->kind == EK::Member && static_cast<MemberExpr*>(callee)->extension;
     if (ext) e->args.insert(e->args.begin(), static_cast<MemberExpr*>(callee)->obj);
 
@@ -2880,6 +2894,7 @@ void Sema::addRef(SourceLoc loc, int length, const std::string& hover, const Sou
 
 void Sema::addCompletion(const std::string& label, int kind, const std::string& detail) {
     if (label.empty() || label == kCompletionMarker || label[0] == '<') return;
+    if (label.find('.') != std::string::npos) return;  // implementación explícita 'IEnumerable.GetEnumerator'
     if (!completionSeen_.insert(label + "#" + std::to_string(kind)).second) return;
     completions.push_back({label, kind, detail});
 }
@@ -2939,7 +2954,7 @@ void Sema::completeScope() {
         "class", "struct", "enum", "namespace", "using", "import", "public", "private", "static", "extern",
         "operator", "delegate", "ref", "out", "memory_unsafe", "int", "long", "double", "float", "bool", "char", "byte", "string", "void",
         "interface", "abstract", "virtual", "override", "sealed", "protected", "internal", "is", "as", "typeof", "nameof",
-        "record", "object", "async", "await"};
+        "record", "object", "async", "await", "yield"};
     for (const char* k : keywords) addCompletion(k, kKeyword, "");
 }
 

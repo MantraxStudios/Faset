@@ -350,5 +350,6 @@ posición, es un error con la alternativa.
 | Tipo de retorno distinto de `void`, `Task` y `Task<T>` | `un método async debe devolver void, Task o Task<T>` | |
 
 Diferencias con C#: `x += await f()` lee `x` después de esperar (C# lo lee antes); no hay
-`IAsyncEnumerable`/`await foreach`, `ValueTask` ni `async` en métodos locales; `Wait()` y `Result`
+`ValueTask` (los flujos `IAsyncEnumerable<T>` con `await foreach` están en
+[Iteradores y yield](/lenguaje/iteradores/#flujos-asíncronos-await-foreach)); `Wait()` y `Result`
 lanzan la excepción original en lugar de una `AggregateException`, y `WhenAll` falla con la primera.

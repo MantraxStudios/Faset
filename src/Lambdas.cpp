@@ -247,6 +247,7 @@ bool Sema::lambdaReturn(ReturnStmt* rs) {
     if (lambdaStack_.empty()) return false;
     LambdaExpr* l = lambdaStack_.back();
     if (ctx_.method != l->fn) return false;
+    if (l->fn && iterReturn(rs, l->fn->async)) return true;  // iterador: 'yield break' (Iterators.cpp)
     l->returns.push_back(rs);
     if (!l->ret) {  // infiriendo el tipo de retorno
         if (rs->value) checkOperand(rs->value);
@@ -312,7 +313,8 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
     ctx_.scopes.emplace_back();
     ctx_.async = nullptr;  // una lambda dentro de un método async tiene su propio contexto
     fn->async = nullptr;
-    if (l->isAsync) ctx_.async = asyncBegin(fn, ret, l, l->loc);  // máquina de estados (Async.cpp)
+    if (l->blockBody && iterHasYield(l->blockBody)) ctx_.async = iterBegin(fn, ret, l, l->isAsync, l->loc);  // Iterators.cpp
+    else if (l->isAsync) ctx_.async = asyncBegin(fn, ret, l, l->loc);  // máquina de estados (Async.cpp)
     for (size_t i = 0; i < l->params.size(); i++) {
         auto& p = l->params[i];
         p.var = declareLocal(p.name, params[i], p.loc, "p_");
@@ -372,6 +374,7 @@ LambdaExpr* Sema::lambdaTrial(LambdaExpr* l, const std::vector<Type*>& params, T
 
 // Tipo de retorno inferido de una copia comprobada sin retorno conocido (nullptr si no se puede).
 Type* Sema::lambdaReturnType(LambdaExpr* t) {
+    if (t->blockBody && iterHasYield(t->blockBody)) return nullptr;  // iterador: el tipo debe ser conocido
     if (t->isAsync) return asyncLambdaReturnType(t);  // Task / Task<T> (Async.cpp)
     if (t->exprBody) {
         Type* bt = t->exprBody->type;

@@ -1,0 +1,10 @@
+abre lee1 usa10 lee2 usa20 lee3 usa30 cierra
+abre lee1 usa10 lee2 usa20 cierra
+#10 #20 #30 | abre lee1 lee2 lee3 cierra
+sumas: 100 30
+recibe 1
+atrapada: falló la lectura
+manual: 30 | abre lee1 lee2 lee3 cierra
+hola mundo
+hola mundo
+total 10
