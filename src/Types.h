@@ -69,6 +69,7 @@ public:
     const std::vector<Type*>& delegates() const { return delegates_; }
     Type* pendingLambda() { return &pendingLambda_; }
     Type* pendingGroup() { return &pendingGroup_; }
+    Type* pendingCase() { return &pendingCase_; }  // caso de unión genérica sin tipo (Unions.cpp)
     // Tipo primitivo a partir de su palabra clave, o nullptr.
     Type* fromKeyword(const std::string& kw);
 
@@ -79,4 +80,5 @@ private:
     std::map<std::vector<Type*>, Type*> delegateCache_;
     std::vector<Type*> delegates_;
     Type pendingLambda_{TK::Pending}, pendingGroup_{TK::Pending};
+    Type pendingCase_{TK::Pending};
 };

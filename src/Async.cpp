@@ -196,6 +196,7 @@ std::vector<Slot> slotsOf(Expr* e) {
         case EK::MatchFail: add(static_cast<MatchFailExpr*>(e)->value); break;
         case EK::DelegateConv: add(static_cast<DelegateConvExpr*>(e)->receiver); break;
         case EK::Await: add(static_cast<AwaitExpr*>(e)->operand); break;
+        case EK::Propagate: add(static_cast<PropagateExpr*>(e)->operand); break;  // expr? (Unions.cpp)
         default: break;
     }
     return s;
@@ -205,6 +206,7 @@ bool containsAwait(Expr* e) {
     if (!e) return false;
     if (e->lowered) return containsAwait(e->lowered);
     if (e->kind == EK::Await) return true;
+    if (e->kind == EK::Propagate && !static_cast<PropagateExpr*>(e)->spilled) return true;  // '?' (Unions.cpp)
     for (Slot& s : slotsOf(e))
         if (containsAwait(*s.p)) return true;
     return false;
@@ -502,6 +504,12 @@ void Sema::asyncSpill(Expr*& e, std::vector<Stmt*>& pre) {
             e = checkedRef(st->result, loc);
             return;
         }
+        case EK::Propagate: {  // expr?: <t> = expr; if (<t> es Err/None) return ...; y queda <t>.valor
+            auto* pe = static_cast<PropagateExpr*>(e);
+            asyncSpill(pe->operand, pre);
+            e = propagateSpill(pe, pre);
+            return;
+        }
         case EK::Binary: {
             auto* b = static_cast<BinaryExpr*>(e);
             if ((b->op == "&&" || b->op == "||") && !b->opMethod && containsAwait(b->rhs)) {
@@ -606,7 +614,7 @@ void Sema::asyncSpill(Expr*& e, std::vector<Stmt*>& pre) {
 // Después de comprobar una sentencia con algún 'await' en sus propias expresiones: forma reescrita
 // (s->lowered) con los 'await' como sentencias AwaitStmt delante.
 void Sema::asyncLowerStmt(Stmt* s) {
-    if (!s || !ctx_.async) return;
+    if (!s) return;  // (checkStmt solo llama con 'await' en un método async o con '?' de Unions.cpp)
     if (s->lowered) {
         asyncLowerStmt(s->lowered);
         return;

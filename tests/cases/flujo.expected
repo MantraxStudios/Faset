@@ -1,0 +1,26 @@
+10
+segundo registrado
+primero registrado
+0
+cuerpo
+segundo registrado
+primero registrado
+vuelta 0
+fin 0
+fin 1
+fin 2
+sin error
+defer siempre
+atrapada: boom
+errdefer: solo con error
+defer siempre
+Ok(5)
+Err(no es un número: x)
+errdefer por '?' con x
+10
+15
+22
+12
+49
+-3
+HOLA

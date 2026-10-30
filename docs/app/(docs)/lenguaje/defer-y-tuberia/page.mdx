@@ -1,0 +1,105 @@
+export const metadata = {
+  title: "defer, errdefer y |>",
+  description: "defer y errdefer para ejecutar código al salir de un bloque, y el operador de tubería |> para encadenar llamadas.",
+};
+
+# defer, errdefer y |>
+
+## defer
+
+`defer S;` ejecuta `S` al salir del bloque, por cualquier camino: final normal, `return`, `break`,
+`continue` o una excepción. Si hay varios, se ejecutan en orden inverso (el último registrado,
+primero), como en Go y Zig:
+
+```faset
+using std;
+
+class Programa
+{
+    static int Calcular(int n)
+    {
+        defer println("primero registrado");
+        defer println("segundo registrado");
+        if (n > 0) return n * 2;
+        println("cuerpo");
+        return 0;
+    }
+
+    static void Main()
+    {
+        println(Calcular(5));
+        // segundo registrado
+        // primero registrado
+        // 10
+    }
+}
+```
+
+Equivale a envolver el resto del bloque en `try { ... } finally { S }`, así que también funciona en
+métodos `async` y se intercala correctamente con los `using var` del mismo bloque.
+
+## errdefer
+
+`errdefer S;` solo ejecuta `S` si se sale del bloque por una excepción o porque un `?` devolvió un
+`Err`/`None`. Sirve para deshacer un trabajo a medias:
+
+```faset
+using std;
+
+class Programa
+{
+    static Result<int, string> Parsear(string s)
+    {
+        int n;
+        if (int.TryParse(s, out n)) return Ok(n);
+        return Err("no es un número: " + s);
+    }
+
+    static Result<int, string> Procesar(string s)
+    {
+        errdefer println("deshaciendo " + s);
+        int n = Parsear(s)?;
+        return Ok(n + 1);
+    }
+
+    static void Main()
+    {
+        println(Procesar("4").ToString());      // Ok(5)
+        println(Procesar("x").ToString());      // deshaciendo x, y luego Err(no es un número: x)
+    }
+}
+```
+
+## El operador |>
+
+`a |> f` pasa el valor de la izquierda como **primer argumento** de la llamada de la derecha (como
+en F# o Elixir), para leer una cadena de transformaciones de izquierda a derecha:
+
+```faset
+using std;
+
+class Programa
+{
+    static int Doble(int x) => x * 2;
+    static int Suma(int a, int b) => a + b;
+
+    static void Main()
+    {
+        println(5 |> Doble);                        // Doble(5) = 10
+        println(5 |> Suma(10));                     // Suma(5, 10) = 15
+        println(5 |> Doble |> Suma(1) |> Doble);    // 22
+        println("hola" |> ToUpper());               // "hola".ToUpper() = HOLA
+        println(7 |> x => x * x);                   // 49
+        Func<int, int> neg = x => -x;
+        println(3 |> (neg));                        // neg(3) = -3
+    }
+}
+```
+
+| Forma | Equivale a |
+|---|---|
+| `a \|> f` | `f(a)` |
+| `a \|> F(b, c)` | `F(a, b, c)` |
+| `a \|> Metodo(b)` | `a.Metodo(b)`, si no hay una función `Metodo` visible (métodos de instancia y de extensión) |
+| `a \|> x => cuerpo` | el cuerpo con `x = a`, sin crear un delegado |
+| `a \|> (expr)` | `(expr)(a)`: se llama al valor, por ejemplo un delegado |

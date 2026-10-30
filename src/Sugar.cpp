@@ -103,6 +103,7 @@ bool Sema::isSugarExpr(EK k) const {
     switch (k) {
         case EK::Interp: case EK::CondAccess: case EK::CondRecv: case EK::Tuple: case EK::Let: case EK::SwitchExpr:
         case EK::IsPattern: case EK::ParamsList: case EK::MatchFail: case EK::CoalesceAssign:
+        case EK::Pipe: case EK::Propagate: case EK::UnionCase:  // Flow.cpp / Unions.cpp
             return true;
         default: return false;
     }
@@ -119,6 +120,8 @@ Type* Sema::checkSugar(Expr* e) {
         case EK::Tuple: return checkTuple(static_cast<TupleExpr*>(e));
         case EK::SwitchExpr: return checkSwitchExpr(static_cast<SwitchExpr*>(e));
         case EK::IsPattern: return checkIsPattern(static_cast<IsPatternExpr*>(e));
+        case EK::Pipe: return checkPipe(static_cast<PipeExpr*>(e));                  // Flow.cpp
+        case EK::Propagate: return checkPropagate(static_cast<PropagateExpr*>(e));   // Unions.cpp
         default: return e->type ? e->type : tc_.error();  // nodos generados: ya tienen tipo
     }
 }
@@ -275,6 +278,7 @@ Type* Sema::resolveSugarType(TypeRef* tr, bool allowVoid) {
 int Sema::sugarImplicit(Expr* e, Type* from, Type* to) {
     if (int r = iterImplicit(e, from, to); r >= 0) return r;  // string -> IEnumerable<char> (Iterators.cpp)
     if (isDefaultLiteral(e)) return to->isVoid() ? 0 : 1;
+    if (e && unionRetarget(e, to, false)) return 1;  // Option<long> x = Some(5) (Unions.cpp)
     if (Type* el = nullableElem(to)) {
         if (from->is(TK::Null)) return 1;
         if (nullableElem(from)) return 0;
@@ -309,6 +313,7 @@ bool Sema::sugarCoerce(Expr*& e, Type* to) {
         e->type = to;
         return true;
     }
+    if (unionRetarget(e, to, true)) return true;  // Unions.cpp
     if (Type* el = nullableElem(to)) {
         if (from->is(TK::Null)) {
             wrap();
@@ -475,6 +480,7 @@ Type* Sema::checkCoalesceAssign(AssignExpr* e) {
 Type* Sema::checkCondAccess(CondAccessExpr* e) {
     Type* O = checkValue(e->obj);
     if (O->isError()) return O;
+    if (Type* r = propagateCondAccess(e, O)) return r;  // r?.Campo con un Result/Option: r? (Unions.cpp)
     if (Type* el = nullableElem(O)) {
         e->objNullable = true;
         e->recvType = el;
@@ -568,6 +574,7 @@ Type* Sema::checkDeconstructAssign(AssignExpr* e) {
 // ================================================================== operadores binarios
 
 Type* Sema::sugarBinary(BinaryExpr* e, Type*& L, Type*& R) {
+    unionBinary(e, L, R);  // x == None: el caso sin tipo toma el del otro operando (Unions.cpp)
     const std::string& op = e->op;
     // 'default' sin tipo junto a otro operando: toma su tipo (x == default).
     if (isDefaultLiteral(e->rhs) && !L->is(TK::Null)) e->rhs->type = R = L;
@@ -691,6 +698,7 @@ Expr* Sema::propertyTests(Pattern* p, const SubjectFn& subj, Type* st) {
 
 Expr* Sema::patternTest(Pattern* p, const SubjectFn& subj, Type* st) {
     SourceLoc l = p->loc;
+    if (Expr* u = unionPatternTest(p, subj, st)) return u;  // casos de una unión (Unions.cpp)
     switch (p->kind) {
         case PK::Discard: return mkBool(true, l);
         case PK::Constant: {
@@ -746,6 +754,7 @@ Expr* Sema::patternTest(Pattern* p, const SubjectFn& subj, Type* st) {
             }
             return all;
         }
+        case PK::Case: break;  // lo trata unionPatternTest al principio (Unions.cpp)
     }
     return mkBool(false, l);
 }
@@ -830,6 +839,11 @@ Type* Sema::checkSwitchExpr(SwitchExpr* e) {
         ctx_.scopes.pop_back();
         conds.push_back(cond);
         if (!arm.guard && isIrrefutable(arm.pat)) covered = true;
+    }
+    {  // exhaustividad en tiempo de compilación sobre una unión (Unions.cpp)
+        std::vector<std::pair<Pattern*, Expr*>> pats;
+        for (auto& arm : e->arms) pats.push_back({arm.pat, arm.guard});
+        unionExhaustive(st, pats, loc, true);
     }
     // Tipo del resultado: el común a todos los brazos (como en '?:'); 'null' lo hace T?.
     Type* T = nullptr;
@@ -925,6 +939,12 @@ bool Sema::lowerSwitchStmt(SwitchStmt* s) {
         }
     }
     if (def) order.push_back(def);  // 'default' se prueba al final, esté donde esté
+    if (!def) {  // exhaustividad sobre una unión (Unions.cpp)
+        std::vector<std::pair<Pattern*, Expr*>> pats;
+        for (auto& sec : s->sections)
+            for (size_t i = 0; i < sec.patterns.size(); i++) pats.push_back({sec.patterns[i], sec.guards[i]});
+        unionExhaustive(st, pats, loc, false);
+    }
     std::vector<IfStmt*> ifs;
     for (SwitchStmt::Section* sec : order) {
         ctx_.scopes.emplace_back();
@@ -975,6 +995,9 @@ bool Sema::checkSugarStmt(Stmt* s) {
         case SK::Deconstruct: checkDeconstruct(static_cast<DeconstructStmt*>(s)); return true;
         case SK::Using: checkUsing(static_cast<UsingStmt*>(s)); return true;
         case SK::Switch: return lowerSwitchStmt(static_cast<SwitchStmt*>(s));
+        case SK::Defer:  // las demás se convierten en try/finally al comprobar su bloque (Flow.cpp)
+            diag.error(s->loc, "'defer' debe ir directamente dentro de un bloque { ... }");
+            return true;
         default: return false;
     }
 }

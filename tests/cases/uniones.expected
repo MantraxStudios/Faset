@@ -1,0 +1,36 @@
+Circulo(2)
+Rect(3, 4)
+Punto
+24
+círculo rectángulo punto
+círculo grande
+círculo de radio 2
+rectángulo ancho
+rectángulo 3x4
+punto
+true
+false
+true
+true
+true
+true
+false
+ancho 3
+c no es un rectángulo
+radio mayor que 1
+true
+caso círculo 2
+caso rect Rect(3, 4)
+caso punto
+6
+Hoja(7)
+-10
+(2 + 3 * -4)
+Suma(Num(2), Mul(Num(3), Neg(Num(4))))
+true
+Pedido { Cliente = Ana, Pieza = Rect(2, 5) }
+pedido de rectángulo ancho
+Punto
+Circulo(2)
+10
+2

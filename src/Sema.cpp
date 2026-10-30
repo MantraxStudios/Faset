@@ -52,6 +52,7 @@ bool isAssignOrCallLike(Expr* e) {
     switch (e->kind) {
         case EK::Call: case EK::Assign: case EK::Postfix: case EK::New: return true;
         case EK::CondAccess: case EK::CoalesceAssign: return true;  // obj?.Metodo();  a ??= b;
+        case EK::Pipe: case EK::Propagate: return true;             // a |> F;  Guardar()?;  (Flow.cpp / Unions.cpp)
         case EK::Unary: {
             auto* u = static_cast<UnaryExpr*>(e);
             return u->op == "++" || u->op == "--";
@@ -161,6 +162,7 @@ bool Sema::run() {
     }
     processWork();
     while (checkPendingConstraints()) processWork();
+    propagateValidate();  // '?' en posiciones no admitidas (Unions.cpp)
     orderStructs();
     findEntry();
     return diag.errorCount == 0;
@@ -516,7 +518,7 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
             diag.error(tr->loc, "no se encontró el tipo '" + tr->str() + "'");
             return tc_.error();
         }
-        if (s.decl && s.decl->isStaticClass()) {
+        if (s.decl && s.decl->isStaticClass() && !(s.decl->arityTwin && !tr->typeArgs.empty())) {  // Result y Result<T, E>
             diag.error(tr->loc, "no se puede usar la clase estática '" + s.decl->name + "' como tipo");
             return tc_.error();
         }
@@ -991,6 +993,7 @@ void Sema::checkMethod(MethodDecl* m) {
     if (m->kind == MethodKind::Ctor) checkCtorInit(m);
     AsyncInfo* async = iterMethodBegin(m);  // iterador con 'yield' (Iterators.cpp)
     if (!async && m->mods.isAsync) async = asyncBegin(m, m->ret, nullptr, m->loc);  // Async.cpp
+    lowerDefers(m->body->stmts);  // defer / errdefer -> try/finally (Flow.cpp)
     for (Stmt* s : m->body->stmts) checkStmt(s);
     if (async) asyncEnd(async, m->body);
     Type* mustReturn = async ? (async->result ? async->result : tc_.get(TK::Void)) : m->ret;
@@ -1007,9 +1010,10 @@ void Sema::checkCondition(Expr*& e) {
 }
 
 void Sema::checkStmt(Stmt* s) {
-    int awaits = awaitCount_;
+    int awaits = awaitCount_, props = propagateCount_;
     checkStmtCore(s);
-    if (awaitCount_ != awaits) asyncLowerStmt(s);  // saca los 'await' de sus expresiones (Async.cpp)
+    // Saca los 'await' (Async.cpp) y los '?' (Unions.cpp) de sus expresiones.
+    if ((awaitCount_ != awaits && ctx_.async) || propagateCount_ != props) asyncLowerStmt(s);
 }
 
 void Sema::checkStmtCore(Stmt* s) {
@@ -1021,6 +1025,7 @@ void Sema::checkStmtCore(Stmt* s) {
             auto* b = static_cast<BlockStmt*>(s);
             if (!b->noScope) ctx_.scopes.emplace_back();  // noScope: función local (ParserIterators.cpp)
             if (b->memoryUnsafe) ctx_.unsafeDepth++;
+            lowerDefers(b->stmts);  // defer / errdefer -> try/finally (Flow.cpp)
             for (Stmt* c : b->stmts) checkStmt(c);
             if (b->memoryUnsafe) ctx_.unsafeDepth--;
             if (!b->noScope) ctx_.scopes.pop_back();
@@ -1180,6 +1185,7 @@ void Sema::checkStmtCore(Stmt* s) {
                     else if (!seen.insert(v).second) diag.error(lbl->loc, "etiqueta 'case' duplicada");
                     sec.values.push_back(v);
                 }
+                lowerDefers(sec.body);  // Flow.cpp
                 for (Stmt* b : sec.body) checkStmt(b);
                 if (!sectionEnds(sec.body))
                     diag.error(ss->loc, "el control no puede pasar de una etiqueta 'case' a otra (falta 'break')");
@@ -1844,6 +1850,7 @@ Type* Sema::checkName(NameExpr* e) {
 Type* Sema::checkMember(MemberExpr* e) {
     if (e->name == kCompletionMarker) {
         completionRequested = true;
+        if (unionMemberHook(e) || unionTemplateOf(e->obj)) return tc_.error();  // Option.| : sus casos (Unions.cpp)
         Type* ot = check(e->obj);
         completeMembers(e->obj, e->arrow, ot);
         return tc_.error();
@@ -1933,11 +1940,13 @@ Type* Sema::checkNameImpl(NameExpr* e) {
         return s.global->type;
     }
     if (s.kind != Sym::None) return fromSym(e, s, e->typeArgs);
+    if (Type* t = unionNameHook(e)) return t;  // Some / None / Ok / Err (Unions.cpp)
     diag.error(e->loc, "el nombre '" + e->name + "' no existe en el contexto actual");
     return tc_.error();
 }
 
 Type* Sema::checkMemberImpl(MemberExpr* e) {
+    if (Type* t = unionMemberHook(e)) return t;  // Option.None, Result.Ok(...) (Unions.cpp)
     bool isCallee = e == calleeExpr_;
     // Regla "Color Color" de C#: en 'Anchor.Left', si 'Anchor' es a la vez un campo de la clase y
     // el nombre de su tipo enum, se trata como el tipo.
@@ -2258,6 +2267,7 @@ Type* Sema::checkCall(CallExpr* e) {
     check(e->callee);
     calleeExpr_ = nullptr;
     for (Expr* a : e->args) checkOperand(a);
+    if (Type* t = unionCallHook(e)) return t;  // Option.Some(5), Ok(x) (Unions.cpp)
     Expr* callee = e->callee;
     if (callee->type->isError()) return tc_.error();
     if (callee->vk == ValKind::Value && callee->type->isDelegate()) return checkDelegateCall(e);
@@ -2755,9 +2765,10 @@ Type* Sema::checkAssign(AssignExpr* e) {
 
 Type* Sema::checkCond(CondExpr* e) {
     checkCondition(e->cond);
-    Type* A = checkOperand(e->a);
-    Type* B = checkOperand(e->b);
+    Type* A = unionCondOperand(e->a);
+    Type* B = unionCondOperand(e->b);
     if (A->isError() || B->isError()) return tc_.error();
+    if (A == tc_.pendingCase() && B == A) return A;  // c ? Ok(1) : Err("x"): toma el tipo del destino
     if (A == B) return A;
     if (A->isNumeric() && B->isNumeric()) {
         Type* p = numericPromote(e->a, e->b);
@@ -2831,6 +2842,7 @@ std::string Sema::typeDescription(ClassDecl* c) {
     std::string s = c->isStaticClass() ? "static class " : c->kind == ClassKind::Struct ? "struct "
                     : c->kind == ClassKind::Enum ? "enum " : c->kind == ClassKind::Interface ? "interface " : "class ";
     if (c->isRecord) s = "record " + std::string(c->kind == ClassKind::Struct ? "struct " : "");
+    if (c->unionInfo) return unionDescription(c);  // union Forma { Circulo(double Radio), ... } (Unions.cpp)
     if (c->mods.isAbstract) s = "abstract " + s;
     if (c->mods.isSealed) s = "sealed " + s;
     if (!c->ns.empty()) s += c->ns + ".";
@@ -2894,6 +2906,7 @@ void Sema::addRef(SourceLoc loc, int length, const std::string& hover, const Sou
 
 void Sema::addCompletion(const std::string& label, int kind, const std::string& detail) {
     if (label.empty() || label == kCompletionMarker || label[0] == '<') return;
+    if (label.rfind("__", 0) == 0) return;  // miembros internos generados (uniones: __caso, __Caso_Campo)
     if (label.find('.') != std::string::npos) return;  // implementación explícita 'IEnumerable.GetEnumerator'
     if (!completionSeen_.insert(label + "#" + std::to_string(kind)).second) return;
     completions.push_back({label, kind, detail});

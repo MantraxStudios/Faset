@@ -314,6 +314,8 @@ bool CodeGen::emitSugarStmt(Stmt* s) {
             return true;
         }
         case SK::Return: {
+            // Dentro de un 'try': los libera la cadena de saltos, intercalados con los finally (Exceptions.cpp).
+            if (!excRegions_.empty() && excRegions_.back().method == curMethod_) return false;
             std::string clean = usingCleanup(-1);
             if (clean.empty()) return false;
             auto* rs = static_cast<ReturnStmt*>(s);
@@ -327,6 +329,7 @@ bool CodeGen::emitSugarStmt(Stmt* s) {
             return true;
         }
         case SK::Break: case SK::Continue: {
+            if (sema_.excJumpCross.count(s) && !excRegions_.empty() && excRegions_.back().method == curMethod_) return false;
             std::string clean = usingCleanup(s->kind == SK::Break ? 2 : 1);
             if (clean.empty()) return false;
             line("{ " + clean + (s->kind == SK::Break ? "break; }" : "continue; }"));

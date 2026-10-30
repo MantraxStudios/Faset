@@ -198,7 +198,7 @@ void Parser::parseNamespaceBody(const std::string& ns, bool braced) {
             size_t begin = p_;
             std::vector<Attribute> attrs = parseAttributes();
             Modifiers mods = parseModifiers();
-            if (isK("class") || isK("struct") || isK("enum") || isK("interface") || isRecordStart()) {
+            if (isK("class") || isK("struct") || isK("enum") || isK("interface") || isRecordStart() || isUnionStart()) {
                 parseTypeDecl(ns, attrs, mods, begin);
             } else if (isK("delegate") && !(peekTok().kind == TokKind::Punct && peekTok().text == "*")) {
                 parseDelegateDecl(hiddenFor(ns), attrs, mods);
@@ -316,6 +316,12 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         p_++;
         c->isRecord = true;
         c->kind = acceptK("struct") ? ClassKind::Struct : (acceptK("class"), ClassKind::Class);
+    } else if (isUnionStart()) {  // union Forma { ... } / union class X / union struct Y (ParserUnions.cpp)
+        p_++;
+        c->kind = ClassKind::Struct;
+        c->unionInfo = new UnionInfo();
+        if (acceptK("class")) c->unionInfo->isRef = true;
+        else acceptK("struct");
     } else fail("se esperaba 'class', 'struct' o 'enum' pero se encontró '" + cur().text + "'");
     c->name = c->displayName = expectIdent();
     c->unsafeCtx = mods.isMemoryUnsafe || nsUnsafe_;
@@ -352,6 +358,8 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
     expectP("{");
     if (c->kind == ClassKind::Enum) {
         parseEnumBody(c);
+    } else if (c->unionInfo) {
+        parseUnionBody(c);
     } else {
         bool savedHas = hasSection_;
         Access savedSec = section_;
@@ -741,7 +749,7 @@ MethodDecl* Parser::reparseMethod(MethodDecl* tmpl, Program& prog) {
     p.reparse_ = true;
     p.p_ = tmpl->tokBegin;
     ClassDecl tmp;
-    tmp.kind = tmpl->owner->kind;
+    tmp.kind = tmpl->owner->unionInfo ? ClassKind::Struct : tmpl->owner->kind;  // uniones: miembros públicos
     tmp.name = tmpl->owner->templateOf ? tmpl->owner->templateOf->name : tmpl->owner->name;
     tmp.isNamespaceScope = tmpl->owner->isNamespaceScope;
     tmp.unsafeCtx = tmpl->owner->unsafeCtx;
@@ -988,6 +996,7 @@ Stmt* Parser::parseStatement() {
     SourceLoc loc = cur().loc;
     if (isP("{")) return parseBlock();
     if (acceptP(";")) return new EmptyStmt(loc);
+    if (Stmt* d = tryParseDefer()) return d;  // defer / errdefer (ParserUnions.cpp)
     if (isUnsafeKw()) {  // memory_unsafe { ... }
         unsafeKeywordError();
         p_++;
@@ -1109,6 +1118,7 @@ Expr* Parser::parseAssign() {
 Expr* Parser::parseConditional() {
     Expr* c = parseBinary(1);
     if (isP("??")) c = parseCoalesce(c);  // a ?? b (ParserSugar.cpp)
+    if (isP("|>")) c = parsePipe(c);      // a |> f (ParserUnions.cpp)
     if (isP("?")) {
         auto* e = new CondExpr(cur().loc);
         p_++;
@@ -1143,7 +1153,7 @@ static int binaryPrec(const Token& t) {
 Expr* Parser::parseBinary(int minPrec) {
     Expr* lhs = parseUnary();
     for (;;) {
-        if (isK("switch")) {  // x switch { ... } (ParserSugar.cpp)
+        if (isK("switch") || isMatchKw()) {  // x switch { ... } / x match { ... } (ParserSugar.cpp)
             lhs = parseSwitchExpr(lhs);
             continue;
         }
@@ -1190,6 +1200,12 @@ Expr* Parser::parseUnary() {
             auto* a = new AwaitExpr(loc);
             a->operand = parseUnary();
             requestModule({"std", "task"});
+            if (a->operand->kind == EK::Propagate) {  // await F()?  es  (await F())?
+                auto* pe = static_cast<PropagateExpr*>(a->operand);
+                a->operand = pe->operand;
+                pe->operand = a;
+                return pe;
+            }
             return a;
         }
     }
@@ -1266,6 +1282,11 @@ Expr* Parser::parsePostfix(Expr* e) {
             e = ix;
         } else if (isP("?") && peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "[")) {
             return parseConditionalAccess(e);  // obj?.Campo, obj?[i] (ParserSugar.cpp)
+        } else if (isP("?") && propagateFollows()) {  // expr? de Result/Option (ParserUnions.cpp)
+            auto* pe = new PropagateExpr(loc);
+            p_++;
+            pe->operand = e;
+            e = pe;
         } else if (isP("++") || isP("--")) {
             auto* pe = new PostfixExpr(loc);
             pe->op = cur().text;

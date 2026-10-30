@@ -1,0 +1,53 @@
+Ok(12)
+Err(no es un número: x)
+Ok(3)
+Err(no es un número: dos)
+Ok(30)
+Err(ErrorApp(app: no es un número: tres))
+Ok(5)
+Err(7)
+derivado
+Some(42)
+None
+Some(hola)
+None
+None
+Ok(102)
+Err(negativo)
+3
+Ok(42)
+Err(no es un número: z)
+Ok(6)
+Err(no es un número: b)
+True True
+Ok(10)
+Err(fallo)
+Ok(5)
+Err(pequeño)
+Err(5)
+-1
+5
+5
+Some(5)
+error fallo
+True True
+Some(3)
+None
+anónimo
+None
+Err(vacío)
+true
+false
+Some(3)
+None
+8
+true
+atrapada: Result.Unwrap(): Err(fallo)
+atrapada: se esperaba un nombre
+Ok(77)
+true
+error: int.Parse: 'x7' no es un número entero
+pequeño 5
+grande
+no es un número: no
+1

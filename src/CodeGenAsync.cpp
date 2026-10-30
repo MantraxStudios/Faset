@@ -193,9 +193,12 @@ void CodeGen::emitAsyncReturn(ReturnStmt* rs) {
         else if (async_->res) line(async_->res->cname + " = " + expr(rs->value) + ";");
         else line("(void)(" + expr(rs->value) + ");");
     }
-    if (std::string clean = usingCleanup(-1); !clean.empty()) line(clean);
-    if (!excRegions_.empty() && excRegions_.back().method == curMethod_) emitExcJumpChain(2, (int)excRegions_.size());
-    else line("goto fs_done;");
+    if (!excRegions_.empty() && excRegions_.back().method == curMethod_) {
+        emitExcJumpChain(2, (int)excRegions_.size());  // libera los 'using' entre los finally (Exceptions.cpp)
+    } else {
+        if (std::string clean = usingCleanup(-1); !clean.empty()) line(clean);
+        line("goto fs_done;");
+    }
     indent_--;
     line("}");
 }

@@ -1,0 +1,190 @@
+export const metadata = {
+  title: "Uniones, Option y Result",
+  description: "Tipos algebraicos (union), patrones de caso con exhaustividad comprobada, Option<T>, Result<T, E> y el operador ? de propagación de errores.",
+};
+
+# Uniones, Option y Result
+
+<p className="lead">
+  Una <code>union</code> es un tipo que vale exactamente uno de varios casos, cada uno con sus
+  propios campos (los <em>tipos algebraicos</em> de Rust, F# o Swift). El compilador comprueba que
+  un <code>switch</code> sobre una unión cubre todos los casos.
+</p>
+
+```faset
+using std;
+
+union Forma
+{
+    Circulo(double Radio),
+    Rect(double Ancho, double Alto),
+    Punto
+}
+
+class Programa
+{
+    static double Area(Forma f) => f switch
+    {
+        Circulo(var r) => 3.14159 * r * r,
+        Rect(var a, var b) => a * b,
+        Punto => 0,
+    };
+
+    static void Main()
+    {
+        Forma c = Forma.Circulo(2);
+        Forma r = Forma.Rect(3, 4);
+        println(c.ToString());      // Circulo(2)
+        println(Area(r));           // 12
+        println(Forma.Punto == Forma.Punto);   // true: igualdad por valor
+    }
+}
+```
+
+Cada unión genera `ToString()`, `==`/`!=` por valor y `GetHashCode()`. Los casos sin campos se
+escriben sin paréntesis (`Forma.Punto`).
+
+## Patrones de caso
+
+Los casos se pueden usar en cualquier patrón (`switch`, `is`, `case`), con patrones anidados,
+relacionales y de propiedad:
+
+```faset
+using std;
+
+union Expr { Num(int V), Suma(Expr A, Expr B), Neg(Expr E) }
+
+class Programa
+{
+    static string Ver(Expr e) => e switch
+    {
+        Num(var v) => $"{v}",
+        Suma(var a, var b) => $"({Ver(a)} + {Ver(b)})",
+        Neg(Num(var v)) => $"-{v}",
+        Neg(var x) => $"-({Ver(x)})",
+    };
+
+    static void Main()
+    {
+        var e = Expr.Suma(Expr.Num(2), Expr.Neg(Expr.Num(4)));
+        println(Ver(e));                                // (2 + -4)
+        if (e is Suma { A: Num(> 1) }) println("empieza por un número mayor que 1");
+    }
+}
+```
+
+Una unión que se contiene a sí misma (`Expr`) es automáticamente un tipo referencia; las demás son
+tipos valor. `match` es un alias de `switch` de expresión: `e match { ... }`.
+
+### Exhaustividad
+
+Si un `switch` sobre una unión no cubre todos los casos, es un error de compilación que dice cuáles
+faltan, también con patrones anidados:
+
+```fst
+static int A(Forma f) => f switch { Circulo(var r) => 1, Punto => 2 };
+// error: el 'switch' sobre 'Forma' no es exhaustivo: falta el caso Rect(_, _)
+
+static int B(Option<Option<int>> o) => o switch { Some(Some(var x)) => x, None => 0 };
+// error: ... no es exhaustivo: falta el caso Some(None)
+```
+
+`_ => ...` (o `default:`) cubre el resto.
+
+## Option y Result
+
+La biblioteca estándar define dos uniones genéricas siempre disponibles:
+
+- `Option<T>`: `Some(T Value)` o `None` (un valor que puede faltar);
+- `Result<T, E>`: `Ok(T Value)` o `Err(E Error)` (un resultado o un error, sin excepciones).
+
+`Some`, `None`, `Ok` y `Err` se pueden escribir sin calificar. Sus argumentos de tipo se deducen de
+los argumentos y del destino (el tipo de retorno, la variable, el parámetro), también en los dos
+brazos de `?:` y en el retorno de una lambda:
+
+```faset
+using std;
+using std.collections;
+
+class Programa
+{
+    static Result<int, string> Parsear(string s)
+    {
+        int n;
+        if (int.TryParse(s, out n)) return Ok(n);
+        return Err("no es un número: " + s);
+    }
+
+    static Option<int> Primero(List<int> l) => l.Count > 0 ? Some(l[0]) : None;
+
+    static void Main()
+    {
+        println(Parsear("12").ToString());          // Ok(12)
+        println(Parsear("x").ToString());           // Err(no es un número: x)
+        println(Primero(new List<int>()).ToString());   // None
+
+        Result<int, string> bien = Ok(5);
+        println(bien.Map(x => x * 2).ToString());                       // Ok(10)
+        println(bien.AndThen(x => x > 9 ? Ok(x) : Err("pequeño")).ToString());  // Err(pequeño)
+        println(bien.UnwrapOr(-1));                                     // 5
+        println(bien.Match(v => "valor " + v, e => "error " + e));      // valor 5
+    }
+}
+```
+
+Combinadores principales: `IsOk`/`IsErr`, `IsSome`/`IsNone`, `Map`, `MapErr`, `AndThen`, `Filter`,
+`UnwrapOr`, `UnwrapOrElse`, `Unwrap`, `Expect`, `ToOption`, `OkOr`, `Match`. `Unwrap()` y
+`Expect(...)` lanzan `UnwrapException` si no hay valor. `Result.Try(() => ...)` convierte una
+excepción en un `Err`.
+
+`Option<T>` y `T?` se convierten entre sí: `Option<int> o = quizas;` (con `int? quizas`) y
+`int? v = o;` o `o.ToNullable()`.
+
+## El operador `?`
+
+`expr?` sobre un `Result` o un `Option` da el valor si es `Ok`/`Some`; si es `Err`/`None`, el
+método devuelve ese error en ese momento (como `?` en Rust):
+
+```faset
+using std;
+
+class ErrorApp
+{
+    public string Texto;
+    public ErrorApp(string t) { Texto = t; }
+    public static ErrorApp From(string s) => new ErrorApp("app: " + s);
+    public override string ToString() => "ErrorApp(" + Texto + ")";
+}
+
+class Programa
+{
+    static Result<int, string> Parsear(string s)
+    {
+        int n;
+        if (int.TryParse(s, out n)) return Ok(n);
+        return Err("no es un número: " + s);
+    }
+
+    static Result<int, string> Suma(string a, string b) => Ok(Parsear(a)? + Parsear(b)?);
+
+    static Result<int, ErrorApp> ConOtroError(string s)
+    {
+        int n = Parsear(s)?;    // string -> ErrorApp con ErrorApp.From
+        return Ok(n * 10);
+    }
+
+    static void Main()
+    {
+        println(Suma("1", "2").ToString());         // Ok(3)
+        println(Suma("1", "dos").ToString());       // Err(no es un número: dos)
+        println(ConOtroError("x").ToString());      // Err(ErrorApp(app: no es un número: x))
+    }
+}
+```
+
+- Los operandos se evalúan de izquierda a derecha: en `Parsear(a)? + Parsear(b)?`, si el primero
+  falla el segundo no se llega a evaluar.
+- El error se convierte al del método con una conversión implícita o con un método
+  `static E From(OtroError)` del tipo de error.
+- Funciona en métodos normales, `async` y lambdas de bloque. Con `errdefer` (ver
+  [defer y |>](/lenguaje/defer-y-tuberia/)) se puede limpiar cuando un `?` devuelve un error.

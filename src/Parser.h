@@ -130,4 +130,13 @@ private:
     void synthesizeRecord(ClassDecl* c, const std::vector<Param>& params, bool positional);
     Expr* parseIsAs(Expr* lhs);
     Expr* parseWith(Expr* operand);
+    // uniones (tipos algebraicos), '?' de propagación, defer/errdefer, |> y 'match' (ParserUnions.cpp)
+    bool isUnionStart() const;
+    void parseUnionBody(ClassDecl* c);
+    void synthesizeUnion(ClassDecl* c);
+    Pattern* parseCasePattern(TypeRef* tr, SourceLoc loc);
+    bool propagateFollows() const;
+    bool isMatchKw() const;
+    Stmt* tryParseDefer();
+    Expr* parsePipe(Expr* lhs);
 };

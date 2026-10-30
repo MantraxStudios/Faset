@@ -146,7 +146,11 @@ void CodeGen::line(const std::string& s) {
     out_ << std::string(indent_ * 4, ' ') << s << "\n";
 }
 
-std::string CodeGen::loc(SourceLoc l) { return "fs__f" + std::to_string(l.file) + ", " + std::to_string(l.line); }
+// Una ubicación oculta (file < 0: código generado, sin posición en el editor) no tiene archivo.
+std::string CodeGen::loc(SourceLoc l) {
+    if (l.file < 0) return "\"?\", " + std::to_string(l.line);
+    return "fs__f" + std::to_string(l.file) + ", " + std::to_string(l.line);
+}
 
 // Dentro de un método [TrackCaller] se reenvía la ubicación que recibió (como en Rust).
 std::string CodeGen::callerLoc(SourceLoc l) {

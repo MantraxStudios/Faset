@@ -1,0 +1,10 @@
+6|no es exhaustivo: falta el caso Rect\(_, _\)
+7|no es exhaustivo: falta el caso Some\(None\)
+8|'Forma' no tiene el caso 'Triangulo'
+9|tiene 2 campo\(s\), pero el patrón tiene 1
+10|no se puede inferir el tipo de 'None'
+11|el operador '\?' necesita un Result<T, E> o un Option<T>
+13|solo se puede usar en un método que devuelve Result<T, E>
+16|ninguna sobrecarga de 'Circulo' acepta los argumentos
+17|la expresión no se puede invocar
+18|no se puede convertir el caso 'Err' de 'Result' en 'Option<int>'

@@ -129,7 +129,8 @@ enum class EK {
     // Azúcar sintáctico (Sugar.cpp / SugarGen.cpp)
     Interp, CondAccess, CondRecv, Tuple, Let, SwitchExpr, IsPattern, ParamsList, MatchFail, CoalesceAssign,
     Is, As, TypeOf, NameOf, With,  // orientación a objetos (ver SemaClasses.cpp)
-    Await                          // async/await (ver Async.cpp)
+    Await,                         // async/await (ver Async.cpp)
+    Pipe, Propagate, UnionCase     // |>, '?' de Result/Option y casos de unión (Flow.cpp / Unions.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -395,7 +396,8 @@ struct WithExpr : Expr {  // registro with { X = 1, Y = 2 }
 enum class SK { Block, VarDecl, ExprStmt, If, While, DoWhile, For, Break, Continue, Return, Switch, Delete, Empty, Try, Throw,
     Foreach, Deconstruct, Using,
     Await,   // punto de espera de un método async (lo genera Async.cpp)
-    Yield }; // yield return / yield break de un iterador (ver Iterators.cpp)
+    Yield,   // yield return / yield break de un iterador (ver Iterators.cpp)
+    Defer }; // defer / errdefer (Flow.cpp)
 
 struct Stmt {
     SK kind;
@@ -677,6 +679,7 @@ struct ClassDecl {
     bool isRecord = false;
     // Mismo nombre con y sin parámetros de tipo en un namespace (Task y Task<T>): el otro.
     ClassDecl* arityTwin = nullptr;
+    struct UnionInfo* unionInfo = nullptr;  // 'union' (tipo algebraico): sus casos (Unions.cpp)
     bool isInterface() const { return kind == ClassKind::Interface; }
 
     bool isStaticClass() const { return mods.isStatic; }
@@ -731,7 +734,8 @@ struct LetExpr : Expr {
     explicit LetExpr(SourceLoc l) : Expr(EK::Let, l) {}
 };
 
-enum class PK { Constant, Relational, And, Or, Not, Discard, Var, Property, Positional, Type };
+enum class PK { Constant, Relational, And, Or, Not, Discard, Var, Property, Positional, Type,
+    Case };  // caso de una unión: Forma.Circulo(var r) (Unions.cpp)
 
 // Patrones de 'switch', 'case' e 'is'.
 struct Pattern {
@@ -858,6 +862,64 @@ struct YieldStmt : Stmt {
     bool isBreak = false;
     Expr* store = nullptr;   // <it>.__actual = valor (comprobada)
     explicit YieldStmt(SourceLoc l) : Stmt(SK::Yield, l) {}
+};
+
+// ---------------------------------------------------------------- uniones y flujo (Unions.cpp / Flow.cpp)
+
+// union Forma { Circulo(double Radio), Rect(double Ancho, double Alto), Punto; ...miembros }
+// Se convierte en un struct (o una clase si es recursiva) con una etiqueta '__caso', un campo
+// '__Caso_Campo' por cada campo de cada caso y una función de construcción por caso.
+struct UnionCaseInfo {
+    SourceLoc loc;
+    std::string name;
+    std::vector<Param> fields;   // los campos (con su TypeRef)
+    bool unit() const { return fields.empty(); }
+};
+struct UnionInfo {
+    std::vector<UnionCaseInfo> cases;
+    bool isRef = false;  // tipo por referencia (clase): unión recursiva o 'union class'
+    int find(const std::string& n) const {
+        for (size_t i = 0; i < cases.size(); i++)
+            if (cases[i].name == n) return (int)i;
+        return -1;
+    }
+};
+inline std::string unionFieldName(const std::string& cas, const std::string& field) { return "__" + cas + "_" + field; }
+
+// a |> f  (f(a));  a |> F(b) (F(a, b));  a |> x => cuerpo
+struct PipeExpr : Expr {
+    Expr* lhs = nullptr;
+    Expr* rhs = nullptr;
+    bool rhsParen = false;  // a |> (expr): se llama al valor de 'expr'
+    explicit PipeExpr(SourceLoc l) : Expr(EK::Pipe, l) {}
+};
+
+// expr?  (Result/Option): si es Err/None, el método devuelve ese error en el acto.
+struct PropagateExpr : Expr {
+    Expr* operand = nullptr;
+    VarInfo* tmp = nullptr;      // <t> = operando
+    Expr* test = nullptr;        // <t> es Err/None (comprobada)
+    Stmt* early = nullptr;       // { marcas de errdefer; return Err(...)/None; } (comprobada)
+    Expr* value = nullptr;       // <t>.valor (comprobada)
+    bool done = false, spilled = false;
+    explicit PropagateExpr(SourceLoc l) : Expr(EK::Propagate, l) {}
+};
+
+// Caso de una unión genérica sin argumentos de tipo (Option.None, Ok(5)): el tipo sale de los
+// argumentos o del destino (como una lambda). Sema lo deja en 'lowered' de la expresión original.
+struct UnionCaseExpr : Expr {
+    ClassDecl* tmpl = nullptr;
+    std::string name;
+    std::vector<Expr*> args;
+    bool hasCall = false;
+    explicit UnionCaseExpr(SourceLoc l) : Expr(EK::UnionCase, l) {}
+};
+
+// defer sentencia;  errdefer sentencia;  (Sema lo convierte en try/finally)
+struct DeferStmt : Stmt {
+    Stmt* body = nullptr;
+    bool onError = false;  // errdefer: solo al salir por una excepción o por un Err/None de '?'
+    explicit DeferStmt(SourceLoc l) : Stmt(SK::Defer, l) {}
 };
 
 struct Program {

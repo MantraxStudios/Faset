@@ -233,6 +233,36 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     items = await complete(asy.u, t, 'aw\n', 2);
     assert.ok(labels(items).includes('await') && labels(items).includes('async'), 'palabras clave async/await');
 
+    // ---- uniones: hover del tipo y de los casos, casos en patrones y en Option., switch no exhaustivo
+    const un = (() => {
+        const p = path.join(__dirname, 'uniones.fst');
+        const u = 'file://' + p;
+        const t = fs.readFileSync(p, 'utf8');
+        notify('textDocument/didOpen', { textDocument: { uri: u, languageId: 'faset', version: 1, text: t } });
+        return { u, t };
+    })();
+    const uh = await request('textDocument/hover', pos(un.u, un.t, 'Forma f)', 1));
+    assert.match(uh.contents.value, /union Forma \{ Circulo\(double Radio\), Rect\(double Ancho, double Alto\), Punto \}/, 'hover de una unión');
+    const ch = await request('textDocument/hover', pos(un.u, un.t, 'Rect(var a', 1));
+    assert.match(ch.contents.value, /caso de Forma\) Rect\(double Ancho, double Alto\)/, 'hover de un caso en un patrón');
+    const cdef = await request('textDocument/definition', pos(un.u, un.t, 'Rect(var a', 1));
+    assert.strictEqual(cdef.range.start.line, 5, 'caso -> su declaración');
+    const sh = await request('textDocument/hover', pos(un.u, un.t, 'Some(4)', 1));
+    assert.match(sh.contents.value, /caso de Option\) Some\(T Value\)/, 'hover de Some');
+    t = un.t.replace('        Punto => 0,\n', '        Forma. => 0,\n');
+    edit(un.u, t);
+    items = await complete(un.u, t, 'Forma. =>', 6, '.');
+    assert.ok(['Circulo', 'Rect', 'Punto'].every((n) => labels(items).includes(n)), 'casos en un patrón');
+    assert.ok(!labels(items).some((n) => n.startsWith('__')), 'sin miembros internos');
+    t = un.t.replace('Some(4);', 'Option.');
+    edit(un.u, t);
+    items = await complete(un.u, t, 'Option.', 7, '.');
+    assert.ok(labels(items).includes('Some') && labels(items).includes('None'), 'casos de Option');
+    t = un.t.replace('        Punto => 0,\n', '');
+    edit(un.u, t);
+    const ud = await waitDiag(un.u, (ds) => ds.some((d) => /no es exhaustivo: falta el caso Punto/.test(d.message)), 'switch no exhaustivo');
+    assert.ok(ud.length >= 1, 'diagnóstico de exhaustividad');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');

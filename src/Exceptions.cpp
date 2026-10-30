@@ -495,6 +495,18 @@ void CodeGen::emitExcJumpChain(int kind, int cross) {
             target = i;
             break;
         }
+    // Objetos de 'using' que deja atrás el salto, en orden inverso: hasta el 'try' cuyo finally se
+    // ejecuta ahora (los de fuera se liberan después de él) o, si no hay ninguno, hasta el destino.
+    if (kind >= 2) {
+        std::string clean;
+        if (target >= 0) {
+            for (size_t i = usings_.size(); i-- > excRegions_[target].usingsAt;)
+                for (size_t j = usings_[i].objs.size(); j-- > 0;) clean += usings_[i].objs[j];
+        } else {
+            clean = usingCleanup(kind == 2 ? -1 : kind == 3 ? 2 : 1);
+        }
+        if (!clean.empty()) line(clean);
+    }
     if (cross > 0) line("faset_exc_top = " + excRegions_[target >= 0 ? target : n - cross].frame + ".prev;");
     if (target >= 0) {
         ExcRegion& r = excRegions_[target];
@@ -564,6 +576,7 @@ void CodeGen::emitTry(TryStmt* t) {
         reg.frame = f;
         reg.id = id;
         reg.method = curMethod_;
+        reg.usingsAt = usings_.size();
         excRegions_.push_back(reg);
         if (t->catches.empty()) emitStmt(t->body);
         else emitTryCatch(t);
@@ -602,6 +615,7 @@ void CodeGen::emitTryCatch(TryStmt* t) {
     reg.frame = f;
     reg.id = id;
     reg.method = curMethod_;
+    reg.usingsAt = usings_.size();
     excRegions_.push_back(reg);
     emitStmt(t->body);
     excRegions_.pop_back();

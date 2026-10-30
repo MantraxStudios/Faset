@@ -105,6 +105,7 @@ private:
         int breakRemain = -1, contRemain = -1;  // break/continue que pasan por este finally
         bool ret = false;                       // algún 'return' pasa por este finally
         MethodDecl* method = nullptr;           // método que la abrió (un cuerpo anidado no la ve)
+        size_t usingsAt = 0;                    // ámbitos de 'using' abiertos al entrar (los de dentro se liberan antes del finally)
     };
     std::vector<ExcRegion> excRegions_;
     std::vector<std::string> excCatchFrames_;  // marco de la cláusula catch actual ('throw;')
@@ -165,6 +166,7 @@ private:
     std::string strOf(Type* t, const std::string& v, int depth = 0);
     std::string eqOf(Type* t, const std::string& a, const std::string& b, int depth = 0);
     std::string hashOf(Type* t, const std::string& v, int depth = 0);
+    void emitUnionBody(MethodDecl* m);  // uniones: ToString, GetHashCode y == (Unions.cpp)
     // ---- orden de evaluación de C# (EvalOrder.cpp)
     // C no fija el orden de los operandos ni de los argumentos; C# los evalúa de izquierda a
     // derecha. Cuando un operando posterior tiene efectos que un operando anterior vería (o al

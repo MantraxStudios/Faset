@@ -256,7 +256,14 @@ Pattern* Parser::parsePrimaryPattern() {
     if (cur().kind == TokKind::Ident || isPrimitiveKw()) {
         size_t save = p_;
         TypeRef* tr = tryParseType();
+        if (tr && !halfGt_ && !tr->typeArgs.empty() && tr->ptrDepth == 0 && isDot() &&
+            peekTok().kind == TokKind::Ident) {  // Arbol<int>.Hoja(...): caso de una unión genérica
+            p_++;
+            tr->parts.push_back(expectIdent());
+        }
         if (tr && !halfGt_) {
+            if (isP("(") &&!tr->parts.empty() && tr->ptrDepth == 0 && !tr->nullable)
+                return parseCasePattern(tr, loc);  // Forma.Circulo(var r) (ParserUnions.cpp)
             if (cur().kind == TokKind::Ident && !isIdentText("and") && !isIdentText("or") && !isIdentText("when")) {
                 auto* p = new Pattern(PK::Type, loc);
                 p->tref = tr;

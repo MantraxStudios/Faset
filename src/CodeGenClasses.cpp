@@ -284,6 +284,10 @@ std::string CodeGen::hashOf(Type* t, const std::string& v, int depth) {
 
 // Cuerpos generados de un 'record': ToString, GetHashCode y operator==.
 void CodeGen::emitRecordBody(MethodDecl* m) {
+    if (m->recordGen >= 4) {  // uniones (Unions.cpp)
+        emitUnionBody(m);
+        return;
+    }
     ClassDecl* c = m->owner;
     bool isClass = c->kind == ClassKind::Class;
     std::vector<FieldDecl*> fields;  // de la base hacia la derivada (sin object)

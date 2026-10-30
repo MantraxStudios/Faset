@@ -399,4 +399,35 @@ private:
     MethodDecl* iterExplicitImpl(ClassDecl* c, MethodDecl* im);
     void iterExtensionFallback(MemberExpr* me, std::vector<Expr*>& args, SourceLoc loc,
                                const std::vector<TypeRef*>& typeArgs);
+private:
+    // ---- uniones (tipos algebraicos), Option/Result y '?' (Unions.cpp); defer y |> (Flow.cpp)
+    int propagateCount_ = 0;                // '?' comprobados (la sentencia se reescribe como con 'await')
+    int deferCounter_ = 0;
+    std::vector<PropagateExpr*> propagates_;  // para avisar de los '?' en posiciones no admitidas
+    ClassDecl* unionTemplateOf(Expr* obj);
+    ClassDecl* preludeUnion(const std::string& name);
+    Type* unionCaseRef(Expr* e, ClassDecl* tmpl, const std::string& cas);
+    Type* unionMemberHook(MemberExpr* e);   // Option.None / Result.Ok(...) sin argumentos de tipo
+    Type* unionNameHook(NameExpr* e);       // Some / None / Ok / Err sin calificar
+    Type* unionCallHook(CallExpr* e);
+    Expr* unionBuild(ClassDecl* inst, UnionCaseExpr* u, SourceLoc loc);
+    int unionPendingCost(Expr* e, Type* to);
+    bool unionConvertPending(Expr*& e, Type* to);
+    bool unionNaturalType(Expr* e);
+    Type* unionCondOperand(Expr* e);         // brazo de '?:' (puede quedar pendiente)
+    bool unionInferReturn(Expr* e, TypeRef* ret, MethodDecl* tmpl, std::map<std::string, Type*>& b);
+    Expr* unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st);
+    void unionExhaustive(Type* st, const std::vector<std::pair<Pattern*, Expr*>>& arms, SourceLoc loc, bool isExpr);
+    void unionBinary(BinaryExpr* e, Type*& L, Type*& R);
+    Type* checkPropagate(PropagateExpr* e);
+    Type* propagateCondAccess(CondAccessExpr* e, Type* O);
+    Expr* propagateSpill(PropagateExpr* e, std::vector<Stmt*>& pre);
+    void propagateValidate();
+    Type* checkPipe(PipeExpr* e);
+    void lowerDefers(std::vector<Stmt*>& stmts);
+    std::map<Expr*, UnionCaseExpr*> unionInferred_;  // Some(5): construido con el tipo inferido
+    bool unionRetarget(Expr*& e, Type* to, bool apply);  // ... y reconstruido para otro destino
+public:
+    static std::string unionDescription(ClassDecl* c);
+    static bool unionStd(Type* t, const char* name);  // std.Option<T> / std.Result<T, E>
 };
