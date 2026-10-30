@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#include "Frontend.h"  // nativeToUtf8
+
 Diagnostics diag;
 
 void Diagnostics::error(const SourceLoc& loc, const std::string& msg) {
@@ -10,8 +12,9 @@ void Diagnostics::error(const SourceLoc& loc, const std::string& msg) {
         captured.push_back({Severity::Error, loc, true, msg});
         return;
     }
-    const char* f = (loc.file >= 0 && loc.file < (int)files.size()) ? files[loc.file].c_str() : "?";
-    std::fprintf(stderr, "%s:%d:%d: error: %s\n", f, loc.line, loc.col, msg.c_str());
+    // En Windows el nombre está en la página ANSI y el mensaje en UTF-8: todo sale en UTF-8.
+    std::string f = (loc.file >= 0 && loc.file < (int)files.size()) ? nativeToUtf8(files[loc.file]) : "?";
+    std::fprintf(stderr, "%s:%d:%d: error: %s\n", f.c_str(), loc.line, loc.col, msg.c_str());
 }
 
 void Diagnostics::fatal(const std::string& msg) {
@@ -28,6 +31,7 @@ void Diagnostics::note(const SourceLoc& loc, const std::string& msg) {
         captured.push_back({Severity::Note, loc, true, msg});
         return;
     }
-    const char* f = (loc.file >= 0 && loc.file < (int)files.size()) ? files[loc.file].c_str() : "?";
-    std::fprintf(stderr, "%s:%d:%d: nota: %s\n", f, loc.line, loc.col, msg.c_str());
+    // En Windows el nombre está en la página ANSI y el mensaje en UTF-8: todo sale en UTF-8.
+    std::string f = (loc.file >= 0 && loc.file < (int)files.size()) ? nativeToUtf8(files[loc.file]) : "?";
+    std::fprintf(stderr, "%s:%d:%d: nota: %s\n", f.c_str(), loc.line, loc.col, msg.c_str());
 }

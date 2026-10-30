@@ -1,6 +1,7 @@
 <Project>
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <!-- WinExe: en Windows es una aplicación de ventana (sin consola); en Linux no cambia nada. -->
+    <OutputType>WinExe</OutputType>
     <AssemblyName>FasetStudio</AssemblyName>
     <RootNamespace>FasetStudio</RootNamespace>
     <TargetPlatform>native</TargetPlatform>
@@ -8,9 +9,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="pruebas/**" />
-    <NativeLibrary Include="X11" />
-    <NativeLibrary Include="freetype" />
+    <NativeLibrary Include="X11" Platform="linux" />
+    <NativeLibrary Include="freetype" Platform="linux" />
     <!-- Solo existe libvulkan.so.1 (sin el paquete de desarrollo): se enlaza por nombre exacto. -->
-    <NativeLibrary Include=":libvulkan.so.1" />
+    <NativeLibrary Include=":libvulkan.so.1" Platform="linux" />
+    <!-- Windows: Win32 + vulkan-1.dll cargada al arrancar + fuentes con stb_truetype. -->
+    <NativeLibrary Include="user32" Platform="windows" />
+    <NativeLibrary Include="gdi32" Platform="windows" />
+    <NativeSource Include="native/windows/vulkan_loader.c" Platform="windows" />
+    <NativeSource Include="native/windows/stb_font.c" Platform="windows" />
   </ItemGroup>
 </Project>

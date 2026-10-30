@@ -1,14 +1,14 @@
 export const metadata = {
   title: "FasetStudio",
-  description: "El IDE de Faset, escrito en Faset: Vulkan, X11, FreeType, IntelliSense del compilador real, diseñador visual y paneles acoplables.",
+  description: "El IDE de Faset, escrito en Faset: Vulkan, X11 o Win32, FreeType, IntelliSense del compilador real, diseñador visual y paneles acoplables.",
 };
 
 # FasetStudio
 
 <p className="lead">
   FasetStudio es un entorno de desarrollo al estilo de Visual Studio, <strong>escrito en Faset</strong>.
-  Dibuja con <strong>Vulkan</strong>, usa la ventana nativa de X11, rasteriza el texto con FreeType y
-  obtiene el IntelliSense del propio compilador.
+  Dibuja con <strong>Vulkan</strong>, usa la ventana nativa de X11 (Linux) o Win32 (Windows), rasteriza
+  el texto con FreeType (stb_truetype en Windows) y obtiene el IntelliSense del propio compilador.
 </p>
 
 <Screenshot src="/screenshots/studio-editor.png" width={1440} height={880} alt="FasetStudio con el explorador de soluciones, una clase parcial abierta en el editor y el panel de salida" caption="FasetStudio editando docs/samples/Galeria (captura real con --screenshot, interfaz en español)." />
@@ -24,6 +24,12 @@ make studio                       # desde la raíz del repositorio (= ./faset bu
 Se le puede pasar una carpeta, un `.fstproj` o un archivo `.fst`. Necesita X11 (o XWayland),
 FreeType y el cargador de Vulkan (`libvulkan.so.1`). La GPU se elige automáticamente (prefiere la
 dedicada); `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
+
+En **Windows**, `FasetStudio.exe` viene en el zip de descarga junto a `faset.exe` y el instalador crea
+su acceso directo en el menú Inicio (ver [Instalación](/empezar/instalacion/#fasetstudio-en-windows)).
+Para generarlo desde Linux: `faset build studio --target windows`
+(→ `studio/bin/Release/windows-x86_64/FasetStudio.exe`). Necesita Windows 10 o posterior x64 y un
+controlador de la GPU con Vulkan (`vulkan-1.dll`).
 
 ## Funciones
 
@@ -61,9 +67,10 @@ dedicada); `FASET_STUDIO_GPU=cpu` fuerza lavapipe (Vulkan por software).
 |---|---|
 | `src/Gfx/Vk.fst` | Bindings de Vulkan escritos en Faset (structs con la disposición de C). |
 | `src/Gfx/Renderer.fst` | Renderizador 2D: swapchain, pipeline, atlas, lotes con recorte y capturas. |
-| `src/Gfx/Font.fst` | FreeType → atlas de glifos bajo demanda. |
+| `src/Gfx/Font.fst` | FreeType (Linux) o stb_truetype (Windows) → atlas de glifos bajo demanda. |
 | `src/Gfx/Shaders.fst` | SPIR-V generado desde `shaders/ui.vert` y `shaders/ui.frag`. |
 | `src/Platform/X11.fst` | Ventana, teclado, ratón y portapapeles con Xlib. |
+| `src/Platform/Win32.fst` | Lo mismo en Windows, con Win32. |
 | `src/Ide/Android.fst` | Dispositivos y emuladores (`faset android`), espejo de pantalla y entrada con `adb`. |
 | `src/Ide/*.fst` | Búfer de texto, resaltado, editor, explorador, IntelliSense, diseñador y la aplicación. |
 
@@ -97,6 +104,9 @@ FasetStudio carpeta --screenshot captura.ppm --size 1400x860 \
 
 ## Limitaciones
 
-- Solo Linux (X11/XWayland) por ahora. La versión de Windows necesita un backend Win32 para la ventana.
+- Linux (X11/XWayland) y Windows. La versión de Windows está **compilada pero aún sin probar en un
+  Windows real**: se ha probado con Wine 10 (ventana, Vulkan, editor, IntelliSense, crear y abrir
+  proyectos), pero no compilar y ejecutar desde el IDE, el depurador ni las herramientas de Android.
+- La interfaz aún no se escala: en pantallas de DPI alto (150 % o más) se dibuja a 1:1 píxeles.
 - Los programas que se ejecutan con `F5` no reciben entrada por teclado: la salida va al panel *Salida*.
 - No hay depurador ni refactorizaciones (renombrar, buscar referencias).

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Genera los paquetes de distribución en dist/:
 #   faset-linux-x86_64.tar.gz    faset + FasetStudio + lib/ + lang/ + install.sh
-#   faset-windows-x86_64.zip     faset.exe + lib/ + install.ps1 (MinGW-w64 o el llvm-mingw de 'faset setup windows')
+#   faset-windows-x86_64.zip     faset.exe + FasetStudio.exe + lib/ + lang/ + install.ps1
+#                                (MinGW-w64 o el llvm-mingw de 'faset setup windows')
 # Los nombres no llevan la versión: así .../releases/latest/download/<nombre> siempre funciona.
 #
 # Uso: scripts/dist.sh [linux|windows|all]   (por defecto: all)
@@ -55,10 +56,31 @@ windows() {
     rm -rf "$OUT/stage" && mkdir -p "$stage"
     "$cxx" "${CXXFLAGS[@]}" -static "${SRCS[@]}" -o "$stage/faset.exe"
     "$strip" "$stage/faset.exe"
+    # FasetStudio.exe (aplicación de ventana), compilado de forma cruzada con un faset para Linux.
+    local host="$ROOT/faset"
+    [ -x "$host" ] || { echo "== $name: falta ./faset para compilar FasetStudio (make)" >&2; return 1; }
+    FASET_LIB="$ROOT/lib" "$host" build studio -c Release --target windows > /dev/null
+    install -m755 studio/bin/Release/windows-x86_64/FasetStudio.exe "$stage/FasetStudio.exe"
+    "$strip" "$stage/FasetStudio.exe"
+    # Solo DLL que trae Windows 10 o posterior (el CRT universal 'api-ms-win-crt-*' incluido):
+    # el zip no lleva DLL propias, así que cualquier otra dependencia sería un error al arrancar.
+    local objdump="${strip%strip}objdump" exe dll bad=""
+    for exe in "$stage/faset.exe" "$stage/FasetStudio.exe"; do
+        for dll in $("$objdump" -p "$exe" | sed -n 's/^\s*DLL Name: //p'); do
+            echo "$dll" | grep -qiE '^(kernel32|user32|gdi32|advapi32|shell32|ole32|ws2_32|secur32|winmm|api-ms-win-crt-[a-z0-9-]+)\.dll$' \
+                || bad="$bad $(basename "$exe"):$dll"
+        done
+    done
+    if [ -n "$bad" ]; then
+        echo "== $name: dependencias que no trae Windows:$bad" >&2
+        return 1
+    fi
     cp -r lib "$stage/lib"
+    cp -r studio/lang "$stage/lang"
+    install -m644 studio/assets/faset.ico "$stage/faset.ico"
     install -m644 scripts/install-windows.ps1 "$stage/install.ps1"
     cp LICENSE "$stage/" 2>/dev/null || true
-    printf 'Faset %s para Windows x86_64\r\n\r\n  powershell -ExecutionPolicy Bypass -File install.ps1\r\n\r\nInstala en %%LOCALAPPDATA%%\\Faset, lo añade al PATH del usuario y ejecuta\r\n"faset setup windows" (descarga el compilador de C llvm-mingw).\r\nOpciones: -Android (también el SDK/NDK de Android), -Yes, -NoSetup.\r\nFasetStudio todavía no existe para Windows.\r\n' "$VERSION" > "$stage/LEEME.txt"
+    printf 'Faset %s para Windows x86_64\r\n\r\n  powershell -ExecutionPolicy Bypass -File install.ps1\r\n\r\nInstala en %%LOCALAPPDATA%%\\Faset, lo añade al PATH del usuario y ejecuta\r\n"faset setup windows" (descarga el compilador de C llvm-mingw).\r\nCrea el acceso directo de FasetStudio en el menú Inicio (y en el escritorio con -Desktop).\r\nOpciones: -Desktop, -Android (también el SDK/NDK de Android), -Yes, -NoSetup, -Uninstall.\r\n\r\nFasetStudio.exe: compilado pero aún sin probar en un Windows real (probado con Wine).\r\nNecesita Windows 10 o posterior y un controlador de la tarjeta gráfica con Vulkan.\r\n' "$VERSION" > "$stage/LEEME.txt"
     (cd "$OUT/stage" && rm -f "$OUT/$name.zip" && zip -qr "$OUT/$name.zip" faset)
     rm -rf "$OUT/stage"
     echo "   $OUT/$name.zip ($(du -h "$OUT/$name.zip" | cut -f1))"

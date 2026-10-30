@@ -188,6 +188,42 @@ if command -v gst-inspect-1.0 > /dev/null && gst-inspect-1.0 playbin > /dev/null
     fi
 fi
 
+# Windows (si está el llvm-mingw de 'faset setup windows'): solo compila, no hay un Windows donde
+# ejecutarlo. faset.exe, FasetStudio.exe (aplicación de ventana) y programas de prueba con
+# --target windows. Con FASET_TEST_WINE=1 y Wine instalado, además ejecuta los de consola en Wine.
+WINTC="${XDG_DATA_HOME:-$HOME/.local/share}/faset/toolchains/llvm-mingw/bin"
+if [ -x "$WINTC/x86_64-w64-mingw32-clang++" ]; then
+    if ! "$WINTC/x86_64-w64-mingw32-clang++" -std=c++17 -O0 -Wno-unused-parameter -static src/*.cpp -o "$TMP/faset.exe" 2> "$TMP/fasetexe.err"; then
+        echo "FALLO  windows: faset.exe (no compila)"; cat "$TMP/fasetexe.err"; fail=$((fail+1))
+    else
+        echo "ok     windows: faset.exe"; pass=$((pass+1))
+    fi
+    if ! $FASET build studio --target windows -o "$TMP/FasetStudio.exe" > "$TMP/studiowin.err" 2>&1; then
+        echo "FALLO  windows: FasetStudio.exe (no compila)"; cat "$TMP/studiowin.err"; fail=$((fail+1))
+    elif ! "$WINTC/x86_64-w64-mingw32-objdump" -p "$TMP/FasetStudio.exe" | grep -q "Subsystem.*(Windows GUI)"; then
+        echo "FALLO  windows: FasetStudio.exe no es una aplicación de ventana (subsistema GUI)"; fail=$((fail+1))
+    elif "$WINTC/x86_64-w64-mingw32-objdump" -p "$TMP/FasetStudio.exe" | grep -qi "DLL Name: vulkan-1.dll"; then
+        echo "FALLO  windows: FasetStudio.exe importa vulkan-1.dll (debe cargarla al arrancar)"; fail=$((fail+1))
+    else
+        echo "ok     windows: FasetStudio.exe"; pass=$((pass+1))
+    fi
+    wbad=""
+    for name in hola archivos hilos excepciones_hilos excepciones_finally async_basico async_tareas; do
+        if ! $FASET build "tests/cases/$name.fst" --target windows -o "$TMP/win_$name.exe" > /dev/null 2> "$TMP/win_$name.err"; then
+            wbad="$wbad\n  $name: $(head -n 3 "$TMP/win_$name.err")"
+        elif [ "${FASET_TEST_WINE:-0}" = 1 ] && [ "$name" != archivos ] && command -v wine > /dev/null; then
+            # Wine con un prefijo propio y temporal; los finales de línea \r\n se comparan sin '\r'.
+            # ('archivos' no: su salida esperada es la de Linux, con '/' y permisos Unix.)
+            WINEPREFIX="$TMP/wine" WINEDEBUG=-all timeout 120 wine "$TMP/win_$name.exe" 2> /dev/null | tr -d '\r' > "$TMP/win_$name.out"
+            diff -q "tests/cases/$name.expected" "$TMP/win_$name.out" > /dev/null || wbad="$wbad\n  $name: salida distinta en Wine"
+        fi
+    done
+    if ! $FASET build tests/async_ui/MainWindow.fstui tests/async_ui/Main.fst --target windows -o "$TMP/win_async_ui.exe" > /dev/null 2> "$TMP/win_ui.err"; then
+        wbad="$wbad\n  async_ui (std.ui): $(head -n 3 "$TMP/win_ui.err")"
+    fi
+    if [ -z "$wbad" ]; then echo "ok     windows: programas de prueba"; pass=$((pass+1)); else echo -e "FALLO  windows: programas de prueba:$wbad"; fail=$((fail+1)); fi
+fi
+
 echo
 echo "$pass correctos, $fail fallidos"
 [ "$fail" = 0 ]

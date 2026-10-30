@@ -313,16 +313,17 @@ namespace FasetStudio.Ide
         // adb: $ANDROID_HOME, $ANDROID_SDK_ROOT o ~/Android/Sdk (platform-tools), o el PATH.
         void FindAdb()
         {
-            string exe = OS.Name() == "windows" ? "adb.exe" : "adb";
-            string home = Environment.GetVariable("HOME");
-            if (home.Length == 0)
-            {
-                String.Free(home);
-                home = Environment.GetVariable("USERPROFILE");
-            }
+            string exe = OS.IsWindows ? "adb.exe" : "adb";
+            string home = Settings.HomeFolder();
             List<string> roots = new List<string>();
             roots.Add(Environment.GetVariable("ANDROID_HOME"));
             roots.Add(Environment.GetVariable("ANDROID_SDK_ROOT"));
+#if WINDOWS
+            // Donde lo instalan 'faset setup android' y Android Studio: %LOCALAPPDATA%\Android\Sdk.
+            string local = Environment.GetVariable("LOCALAPPDATA");
+            roots.Add(local.Length > 0 ? Path.Combine(local, "Android/Sdk") : String.Copy(""));
+            String.Free(local);
+#endif
             roots.Add(Path.Combine(home, "Android/Sdk"));
             roots.Add(Path.Combine(home, "AppData/Local/Android/Sdk"));
             roots.Add(Path.Combine(home, "Library/Android/sdk"));
@@ -345,10 +346,14 @@ namespace FasetStudio.Ide
             delete roots;
             String.Free(home);
             string found;
-            if (adb.Length == 0 && Process.Capture(OS.Name() == "windows" ? "where adb" : "command -v adb", out found) == 0)
+            if (adb.Length == 0 && Process.Capture(OS.IsWindows ? "where adb.exe" : "command -v adb", out found) == 0)
             {
+                // 'where' (Windows) puede listar varias coincidencias: vale la primera línea.
+                string first = found.Trim();
+                int nl = first.IndexOf("\n");
+                if (nl > 0) first = first.Substring(0, nl).Trim();
                 String.Free(adb);
-                adb = String.Copy(found.Trim());
+                adb = String.Copy(first);
             }
         }
 
@@ -433,10 +438,10 @@ namespace FasetStudio.Ide
             long now = Environment.TickCount64();
             if (listProc != null && listProc.IsRunning)
             {
-                listProc.ReadAvailable(listOut);
+                Analyzer.ReadChild(listProc, listOut);
                 if (listProc.HasExited)
                 {
-                    listProc.ReadAvailable(listOut);
+                    Analyzer.ReadChild(listProc, listOut);
                     if (listStage == 0) ParseDevices();
                     else ParseAvds();
                     if (listStage == 0)
@@ -450,10 +455,10 @@ namespace FasetStudio.Ide
             }
             if (emuProc != null && StartingAvd.Length > 0)
             {
-                emuProc.ReadAvailable(emuOut);
+                Analyzer.ReadChild(emuProc, emuOut);
                 if (emuProc.HasExited)
                 {
-                    emuProc.ReadAvailable(emuOut);
+                    Analyzer.ReadChild(emuProc, emuOut);
                     // La salida estándar termina con el serial del emulador listo.
                     List<string> lines = Text.Split(emuOut.View(), "\n");
                     string serial = "";

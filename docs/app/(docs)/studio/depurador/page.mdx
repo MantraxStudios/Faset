@@ -45,7 +45,8 @@ la derecha. Las mismas órdenes están en el menú **Compilar**.
   una raya blanca.
 - Si la línea no tiene código (una línea en blanco, una llave), gdb lo mueve a la siguiente línea
   ejecutable y el punto se mueve con él.
-- Se guardan **por proyecto** (en `~/.config/fasetstudio/settings.ini`) y siguen a su línea cuando
+- Se guardan **por proyecto** (en `~/.config/fasetstudio/settings.ini`; en Windows,
+  `%APPDATA%\FasetStudio\settings.ini`) y siguen a su línea cuando
   insertas o borras líneas por encima.
 - *Compilar → Eliminar todos los puntos de interrupción* los quita de una vez.
 
@@ -139,7 +140,9 @@ FasetStudio lanza `gdb --interpreter=mi3` y traduce de vuelta los nombres del C:
 - **Linux** con **gdb** 9 o posterior (`sudo apt install gdb`). Si no está instalado, FasetStudio lo
   indica en la barra de estado y en *Salida*; <Kbd>Ctrl+F5</Kbd> sigue funcionando.
 - **Android y la depuración remota no están soportados**: con un dispositivo Android como destino,
-  <Kbd>F5</Kbd> lo avisa. Windows tampoco por ahora.
+  <Kbd>F5</Kbd> lo avisa.
+- **Windows:** necesita un `gdb` de Windows en el `PATH` (por ejemplo, el de MSYS2 o WinLibs); si no
+  lo encuentra, FasetStudio lo avisa. El depurador aún no se ha probado en Windows.
 - El programa depurado no recibe entrada por teclado (su entrada estándar es `/dev/null`).
 - Las expresiones de inspección se traducen a C de forma sencilla: variables, miembros (`a.b.c`),
   índices de `List<T>` y de `string`, `Count`, `Length` y operadores aritméticos y de comparación.

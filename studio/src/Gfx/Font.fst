@@ -1,16 +1,24 @@
 // =============================================================================
-//  Fuentes: FreeType rasteriza los glifos bajo demanda y se empaquetan en un atlas
-//  (textura de un canal) que el renderizador sube a la GPU cuando cambia.
+//  Fuentes: FreeType (Linux) o stb_truetype (Windows, native/windows/stb_font.c)
+//  rasterizan los glifos bajo demanda y se empaquetan en un atlas (textura de un
+//  canal) que el renderizador sube a la GPU cuando cambia.
 // =============================================================================
 using std.collections;
 using std.io;
 
 namespace FasetStudio.Gfx
 {
+#if WINDOWS
+    static extern void* faset_stb_open(byte* path, int px, float* ascent, float* descent);
+    static extern int faset_stb_has(void* font, uint cp);
+    static extern int faset_stb_glyph(void* font, uint cp, byte** coverage, int* w, int* h, int* left, int* top, float* advance);
+    static extern void faset_stb_free(void* p);
+#else
     static extern int FT_Init_FreeType(void** library);
     static extern int FT_New_Face(void* library, byte* path, long faceIndex, void** face);
     static extern int FT_Set_Pixel_Sizes(void* face, uint width, uint height);
     static extern int FT_Load_Char(void* face, ulong charcode, int flags);
+#endif
 
     // Desplazamientos en FT_FaceRec / FT_SizeRec / FT_GlyphSlotRec (Linux 64 bits).
     static class FT
@@ -110,6 +118,35 @@ namespace FasetStudio.Gfx
 
         ~Font() { delete glyphs; }
 
+#if WINDOWS
+        void* fallback;   // fuente de símbolos para los caracteres que no tiene 'face'
+
+        // Fuente de símbolos de respaldo (Windows: Segoe UI Symbol), "" si no hay.
+        public static string FallbackPath = "";
+
+        public bool Load(string path, int pixelSize, Atlas target)
+        {
+            string p = path.ToCString();
+            float asc = 0, desc = 0;
+            face = faset_stb_open(p.Ptr, pixelSize, &asc, &desc);
+            String.Free(p);
+            if (face == null) return false;
+            if (FallbackPath.Length > 0 && FallbackPath != path)
+            {
+                string fp = FallbackPath.ToCString();
+                float a2 = 0, d2 = 0;
+                fallback = faset_stb_open(fp.Ptr, pixelSize, &a2, &d2);
+                String.Free(fp);
+            }
+            atlas = target;
+            PixelSize = pixelSize;
+            Ascent = asc;
+            Descent = desc;
+            LineHeight = (float)Math.Ceiling(Ascent + Descent) + 3;
+            CharWidth = Get('M').Advance;
+            return true;
+        }
+#else
         public bool Load(string path, int pixelSize, Atlas target)
         {
             if (library == null && FT_Init_FreeType(&library) != 0) return false;
@@ -127,6 +164,7 @@ namespace FasetStudio.Gfx
             CharWidth = Get('M').Advance;
             return true;
         }
+#endif
 
         // Primera fuente existente de la lista (separada por ';').
         public static string FindFile(string candidates)
@@ -155,6 +193,23 @@ namespace FasetStudio.Gfx
         Glyph Render(char c)
         {
             Glyph g = new Glyph();
+#if WINDOWS
+            void* font = face;
+            if (fallback != null && faset_stb_has(face, (uint)c) == 0 && faset_stb_has(fallback, (uint)c) != 0) font = fallback;
+            byte* buffer = null;
+            int width = 0, rows = 0, left = 0, top = 0;
+            float advance = 0;
+            if (faset_stb_glyph(font, (uint)c, &buffer, &width, &rows, &left, &top, &advance) == 0) return g;
+            int pitch = width;
+            g.Advance = advance;
+            g.Left = left;
+            g.Top = top;
+            g.Width = width;
+            g.Height = rows;
+            g = Place(g, buffer, pitch);
+            faset_stb_free(buffer);
+            return g;
+#else
             if (FT_Load_Char(face, c, FT.LoadRender | FT.LoadTargetLight) != 0) return g;
             byte* slot = *(byte**)((byte*)face + FT.FaceGlyph);
             g.Advance = *(long*)(slot + FT.GlyphAdvanceX) / 64.0f;
@@ -166,6 +221,14 @@ namespace FasetStudio.Gfx
             g.Top = *(int*)(slot + FT.BitmapTop);
             g.Width = width;
             g.Height = rows;
+            return Place(g, buffer, pitch);
+#endif
+        }
+
+        // Copia la cobertura del glifo al atlas y calcula sus coordenadas de textura.
+        Glyph Place(Glyph g, byte* buffer, int pitch)
+        {
+            int width = g.Width, rows = g.Height;
             if (width == 0 || rows == 0) return g;
             int ax = 0, ay = 0;
             if (!atlas.Allocate(width, rows, out ax, out ay))

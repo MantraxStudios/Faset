@@ -42,3 +42,18 @@ std::string findProgram(const std::string& name);
 std::string selfExePath(const std::string& argv0);
 // Carpeta de la biblioteca estándar, o "" si no se encuentra.
 std::string findLibDir(const std::string& argv0);
+
+// Rutas del sistema <-> UTF-8. En Windows las cadenas estrechas de std::filesystem, argv y getenv
+// están en la página de códigos ANSI (cp1252...), no en UTF-8; en el resto no cambian.
+std::string nativeToUtf8(const std::string& s);
+std::string utf8ToNative(const std::string& s);
+
+#if defined(_WIN32)
+// Entrecomilla un argumento según las reglas del CRT de Windows (CommandLineToArgvW): las '\'
+// antes de una comilla se duplican y las comillas internas se escapan.
+std::string windowsQuote(const std::string& arg);
+// Ejecuta un programa con argumentos (CreateProcessW, sin cmd.exe: sin el límite de 8191
+// caracteres ni la expansión de %VAR%), heredando la consola. Devuelve el código de salida, o -1
+// si no arranca. Las cadenas están en la página de códigos ANSI, como las de std::filesystem.
+int runProgramWindows(const std::vector<std::string>& args);
+#endif

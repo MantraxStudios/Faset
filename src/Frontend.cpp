@@ -82,6 +82,79 @@ std::string findLibDir(const std::string& argv0) {
     return "";
 }
 
+#if defined(_WIN32)
+static std::string convertCodePage(const std::string& s, UINT from, UINT to) {
+    if (s.empty() || from == to) return s;
+    int n = MultiByteToWideChar(from, 0, s.data(), (int)s.size(), nullptr, 0);
+    if (n <= 0) return s;
+    std::wstring w((size_t)n, L'\0');
+    MultiByteToWideChar(from, 0, s.data(), (int)s.size(), &w[0], n);
+    int m = WideCharToMultiByte(to, 0, w.data(), n, nullptr, 0, nullptr, nullptr);
+    if (m <= 0) return s;
+    std::string r((size_t)m, '\0');
+    WideCharToMultiByte(to, 0, w.data(), n, &r[0], m, nullptr, nullptr);
+    return r;
+}
+std::string nativeToUtf8(const std::string& s) { return convertCodePage(s, GetACP(), CP_UTF8); }
+std::string utf8ToNative(const std::string& s) { return convertCodePage(s, CP_UTF8, GetACP()); }
+#else
+std::string nativeToUtf8(const std::string& s) { return s; }
+std::string utf8ToNative(const std::string& s) { return s; }
+#endif
+
+#if defined(_WIN32)
+std::string windowsQuote(const std::string& arg) {
+    if (!arg.empty() && arg.find_first_of(" \t\n\v\"") == std::string::npos) return arg;
+    std::string r = "\"";
+    size_t slashes = 0;
+    for (char c : arg) {
+        if (c == '\\') {
+            slashes++;
+            continue;
+        }
+        r.append(c == '"' ? slashes * 2 + 1 : slashes, '\\');
+        slashes = 0;
+        r += c;
+    }
+    r.append(slashes * 2, '\\');  // antes de la comilla final
+    return r + "\"";
+}
+
+static std::wstring acpToWide(const std::string& s) {
+    if (s.empty()) return L"";
+    int n = MultiByteToWideChar(CP_ACP, 0, s.data(), (int)s.size(), nullptr, 0);
+    std::wstring w((size_t)(n > 0 ? n : 0), L'\0');
+    if (n > 0) MultiByteToWideChar(CP_ACP, 0, s.data(), (int)s.size(), &w[0], n);
+    return w;
+}
+
+int runProgramWindows(const std::vector<std::string>& args) {
+    if (args.empty()) return -1;
+    // El programa (argv[0]) no admite escapes: solo comillas si tiene espacios.
+    std::string line = args[0].find_first_of(" \t") != std::string::npos ? "\"" + args[0] + "\"" : args[0];
+    for (size_t i = 1; i < args.size(); i++) line += " " + windowsQuote(args[i]);
+    std::wstring wline = acpToWide(line);
+    std::fflush(stdout);
+    std::fflush(stderr);
+    STARTUPINFOW si;
+    ZeroMemory(&si, sizeof si);
+    si.cb = sizeof si;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof pi);
+    if (!CreateProcessW(nullptr, &wline[0], nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) return -1;
+    CloseHandle(pi.hThread);
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD code = (DWORD)-1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess);
+    return (int)code;
+}
+#endif
+
 static bool readFile(const std::string& path, std::string& out) {
     std::ifstream f(path, std::ios::binary);
     if (!f) return false;

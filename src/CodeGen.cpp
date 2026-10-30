@@ -2,6 +2,7 @@
 
 #include <cstdio>
 
+#include "Frontend.h"  // nativeToUtf8
 #include "Runtime.h"
 
 namespace {
@@ -167,9 +168,10 @@ std::string CodeGen::generate(bool shared) {
     if (lineDirectives) out_ << "#define FASET_DEBUG_INFO 1\n";
     out_ << kRuntimeHeader << kRuntimeExcHeader << kRuntimeSugarHeader << "\n";
     out_ << kDelegateRuntime << "\n";
-    // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea).
+    // Nombres de archivo para los mensajes de 'panic' (Faset panic: ... at archivo.fst:línea), en
+    // UTF-8 como el resto de la salida del programa (en Windows diag.files está en la página ANSI).
     for (size_t i = 0; i < diag.files.size(); i++)
-        out_ << "static const char fs__f" << i << "[] = " << cstring(diag.files[i]) << ";\n";
+        out_ << "static const char fs__f" << i << "[] = " << cstring(nativeToUtf8(diag.files[i])) << ";\n";
     out_ << "\n";
 
     for (ClassDecl* c : sema_.structOrder) out_ << "typedef struct " << c->cname << " " << c->cname << ";\n";
@@ -379,6 +381,8 @@ void CodeGen::emitMethod(MethodDecl* m) {
     std::vector<VarInfo*> params;
     for (Param& p : m->params) params.push_back(p.var);
     boxParams(params);  // parámetros capturados por lambdas
+    for (Param& p : m->params)  // ver emitLocalDecl: 'volatile' y pasados por 'ref' dentro de un 'try'
+        if (p.var && p.var->isVolatile && !p.var->captured && !p.isRef()) line("FASET_ESCAPE(&p_" + p.name + ");");
     if (m->kind == MethodKind::Ctor) emitCtorPrologue(m);
     for (Stmt* s : m->body->stmts) emitStmt(s);
     if (std::string clean = usingCleanup(0); !clean.empty()) line(clean);

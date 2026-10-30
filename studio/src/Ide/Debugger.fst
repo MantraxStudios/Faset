@@ -322,7 +322,14 @@ namespace FasetStudio.Ide
             {
                 searched = true;
                 string found;
-                if (Process.Capture("command -v gdb", out found) == 0 && found.Trim().Length > 0) gdbPath = String.Copy(found.Trim());
+                if (Process.Capture(OS.IsWindows ? "where gdb.exe" : "command -v gdb", out found) == 0 && found.Trim().Length > 0)
+                {
+                    // 'where' (Windows) puede listar varias coincidencias: vale la primera línea.
+                    string first = found.Trim();
+                    int nl = first.IndexOf("\n");
+                    if (nl > 0) first = first.Substring(0, nl).Trim();
+                    gdbPath = String.Copy(first);
+                }
             }
             return gdbPath;
         }
@@ -391,7 +398,9 @@ namespace FasetStudio.Ide
             File.WriteAllText(outFile, "");
             outOffset = 0;
             cmd.Clear();
-            cmd.Append("-exec-arguments > ").Append(ShellQuote(outFile)).Append(" 2>&1 < /dev/null");
+            // gdb para Windows también entiende estas redirecciones (con NUL en vez de /dev/null).
+            if (OS.IsWindows) cmd.Append("-exec-arguments > ").Append(Q(outFile)).Append(" 2>&1 < NUL");
+            else cmd.Append("-exec-arguments > ").Append(ShellQuote(outFile)).Append(" 2>&1 < /dev/null");
             Request(cmd.View());
             delete cmd;
             for (int i = 0; i < Breakpoints.Count; i++) Insert(Breakpoints[i]);
@@ -442,7 +451,7 @@ namespace FasetStudio.Ide
                         if (pid > 0)
                         {
                             string ignored;
-                            Process.Capture(String.Concat("kill -9 ", String.FromInt(pid)), out ignored);
+                            Process.Capture(String.Concat(OS.IsWindows ? "taskkill /F /T /PID " : "kill -9 ", String.FromInt(pid)), out ignored);
                         }
                         gdb.Kill();
                         gdb.WaitForExit(500);

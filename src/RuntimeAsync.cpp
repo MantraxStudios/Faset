@@ -87,7 +87,9 @@ void faset_loop_wake(void) { SetEvent(faset_wake_event()); }
 /* Espera mensajes de la ventana, el evento de despertar o el plazo. */
 void faset_loop_wait_msgs(int32_t ms) {
     HANDLE h = faset_wake_event();
-    MsgWaitForMultipleObjects(1, &h, FALSE, (DWORD)(ms > 0 ? ms : 0), 0x04FF);
+    /* MWMO_INPUTAVAILABLE: vuelve también si quedan mensajes que un PeekMessage ya vio pero no sacó
+       (sin la bandera solo cuentan los mensajes nuevos y se esperaría el plazo entero). */
+    MsgWaitForMultipleObjectsEx(1, &h, (DWORD)(ms > 0 ? ms : 0), QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 }
 _Bool faset_wait_fd_wake(int32_t fd, int32_t ms) {
     (void)fd;

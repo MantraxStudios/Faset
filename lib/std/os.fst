@@ -190,6 +190,27 @@ namespace std.os
             return r;
         }
 
+        // Entrecomilla SIEMPRE para una línea de cmd.exe (Process.Run / Capture / ChildProcess en
+        // Windows): dentro de comillas cmd no interpreta & | < > ^ ( ), y el programa recibe el
+        // argumento según las reglas de CommandLineToArgvW. Limitación de cmd: '%VAR%' se expande
+        // incluso entre comillas. Copia.
+        public static string QuoteCmd(string arg)
+        {
+            if (arg.Length == 0) return String.Copy("\"\"");
+            bool needs = false;
+            for (int i = 0; i < arg.Length && !needs; i++)
+                if (arg[i] == ' ' || arg[i] == '\t' || arg[i] == '"') needs = true;
+            if (needs) return QuoteWindows(arg);
+            // Sin espacios QuoteWindows no pone comillas: se añaden (y las '\' finales se duplican).
+            int slashes = 0;
+            while (slashes < arg.Length && arg[arg.Length - 1 - slashes] == '\\') slashes++;
+            StringBuilder sb = new StringBuilder(arg.Length + slashes + 2);
+            sb.Append("\"").Append(arg).AppendRepeat("\\", slashes).Append("\"");
+            string r = sb.ToString();
+            delete sb;
+            return r;
+        }
+
         // Une argumentos en una línea de órdenes de Windows. Copia.
         public static string JoinWindows(List<string> args)
         {

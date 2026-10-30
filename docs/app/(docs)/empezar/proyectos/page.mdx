@@ -25,6 +25,7 @@ export const metadata = {
     <Compile Include="../compartido/*.fst" />                    <!-- añadir archivos -->
     <ProjectReference Include="../Utilidades/Utilidades.fstproj" />
     <NativeLibrary Include="user32" Platform="windows" />        <!-- -luser32 solo en Windows -->
+    <NativeSource Include="native/ayuda.c" Platform="windows" /> <!-- tu código C, compilado y enlazado -->
     <LibraryPath Include="libs" />                               <!-- -Llibs -->
     <Asset Include="sonidos/**" />                               <!-- recursos junto al ejecutable / en el APK -->
     <PackageReference Include="Json5" Git="https://github.com/usuario/json5-faset" Version="^1.2" />
@@ -64,6 +65,7 @@ desapercibida.
 | `Compile` | `Include`, `Remove` | Añade o excluye archivos. Admite comodines (`*`, `**`) y listas separadas por `;`. |
 | `ProjectReference` | `Include` | Referencia a otro proyecto, que debe ser `Library`. Sus archivos se compilan junto con el tuyo. |
 | `NativeLibrary` | `Include`, `Platform` (opcional) | Biblioteca nativa a enlazar (`-l`). Con `Platform` solo se usa para ese objetivo. |
+| `NativeSource` | `Include`, `Platform` (opcional) | Archivo de código C propio (relativo al proyecto) que se compila y se enlaza con el programa. `Platform` (`linux`, `windows`, `android`) lo limita a ese objetivo; sin él, se usa en todas las plataformas. |
 | `LibraryPath` | `Include` | Carpeta de bibliotecas nativas (`-L`), relativa al proyecto. |
 | `AndroidPermission` | `Include` | Permisos de Android (`INTERNET;CAMERA` → `android.permission.*`); se heredan de las bibliotecas referenciadas. |
 | `Asset` | `Include`, `Remove` | Recursos que el programa lee en ejecución (sonidos, imágenes, vídeos, datos). Ver [Recursos](#recursos-asset). |

@@ -107,7 +107,10 @@ El instalador configura el **módulo de tu plataforma** con `faset setup` y ofre
 | `faset setup multimedia` | WebKitGTK, GStreamer y PulseAudio para WebView, VideoPlayer y std.audio |
 
 `faset setup --list` muestra qué hay instalado. La versión de Windows del compilador se genera por
-compilación cruzada y aún no se ha probado en un Windows real; FasetStudio todavía es solo para Linux.
+compilación cruzada y aún no se ha probado en un Windows real. El zip de Windows incluye también
+**FasetStudio** (`FasetStudio.exe`, con acceso directo en el menú Inicio; `install.ps1 -Desktop` añade
+otro en el escritorio): está compilado pero aún sin probar en un Windows real (sí con Wine 10).
+Necesita Windows 10 o posterior x64 y un controlador de la GPU con Vulkan.
 
 Desde el código fuente:
 
@@ -141,7 +144,9 @@ make studio
 FasetStudio es un entorno de desarrollo al estilo de Visual Studio, escrito en Faset y dibujado con
 **Vulkan**: explorador de soluciones, pestañas, vista dividida, resaltado de sintaxis, IntelliSense
 (errores en vivo, autocompletado, información al pasar el ratón, ir a la definición), compilar y
-ejecutar con la salida en vivo, y lista de errores. Detalles en [studio/README.md](studio/README.md).
+ejecutar con la salida en vivo, y lista de errores. Funciona en Linux y en Windows
+(`faset build studio --target windows` genera `studio/bin/Release/windows-x86_64/FasetStudio.exe`;
+compilado pero aún sin probar en un Windows real). Detalles en [studio/README.md](studio/README.md).
 
 ## VS Code
 
