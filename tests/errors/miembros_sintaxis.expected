@@ -1,0 +1,5 @@
+5|'A' ya tiene un constructor estático
+6|un constructor estático no puede tener parámetros
+9|las interfaces no pueden declarar tipos anidados
+13|un constructor estático no puede llamar a 'base\(\.\.\.\)'
+18|el indizador necesita un 'get' o un 'set'

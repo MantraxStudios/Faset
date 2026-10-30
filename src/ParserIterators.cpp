@@ -127,6 +127,7 @@ Stmt* Parser::parseLocalFunction() {
     dc.name = name;
     dc.init = new NullExpr(loc);
     decl->decls.push_back(dc);
+    decl->isLocalFunction = true;  // se puede llamar antes de su declaración (hoistLocalFunctions, ParserMembers.cpp)
     auto* target = new NameExpr(nameLoc);
     target->name = name;
     auto* as = new AssignExpr(loc);

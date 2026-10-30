@@ -221,8 +221,20 @@ static void Main()
 ```
 
 En Faset una función local es una variable delegado (`Func<...>` o `Action<...>`) con una lambda:
-captura las variables por referencia y solo se puede llamar después de su declaración. No puede ser
-genérica ni tener parámetros `ref`/`out`.
+captura las variables por referencia. Como en C#, se puede llamar antes de su declaración y varias
+funciones locales de un mismo bloque pueden llamarse entre sí (recursión mutua): el compilador
+declara la variable al principio del bloque y le asigna la lambda en cuanto existen las variables
+que usa. No puede ser genérica ni tener parámetros `ref`/`out`.
+
+```faset
+int main()
+{
+    println(EsPar(10));      // true
+    bool EsPar(int n) => n == 0 ? true : EsImpar(n - 1);
+    bool EsImpar(int n) => n == 0 ? false : EsPar(n - 1);
+    return 0;
+}
+```
 
 ## IEnumerable&lt;T&gt; e IEnumerator&lt;T&gt;
 

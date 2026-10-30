@@ -202,6 +202,9 @@ public:
     bool hasSideEffects(Expr* e) { return effects(e).hasWrites(); }
 private:
     std::string sequence(std::vector<EvalOp>& ops);  // prefijo "t1 = A, t2 = B, " (o "")
+    // Como 'sequence', pero los argumentos (desde 'first') se ordenan por su posición en el código:
+    // con argumentos con nombre, el orden de los parámetros no es el de evaluación (Members.cpp).
+    std::string sequenceArgs(std::vector<EvalOp>& ops, size_t first);
     static std::string seqWrap(const std::string& pre, const std::string& code);    // (pre, code)
     static std::string seqWrapLv(const std::string& pre, const std::string& code);  // lvalue: (*(pre, &code))
     EvalOp recvOp(Expr* recv, bool arrow);

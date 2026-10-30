@@ -1,6 +1,7 @@
 // Faset - analizador sintáctico (descenso recursivo, sintaxis mixta C# / C++).
 #pragma once
 #include <algorithm>
+#include <functional>
 
 #include "AST.h"
 #include "Lexer.h"
@@ -130,6 +131,17 @@ private:
     void synthesizeRecord(ClassDecl* c, const std::vector<Param>& params, bool positional);
     Expr* parseIsAs(Expr* lhs);
     Expr* parseWith(Expr* operand);
+    // ---- métodos, construcción y organización de tipos (ParserMembers.cpp)
+    int inTemplateType_ = 0;  // dentro del cuerpo de una clase genérica (sus tipos anidados)
+    using FinishFn = std::function<void(MethodDecl*)>;
+    void parseNestedType(ClassDecl* outer, std::vector<Attribute> attrs, Modifiers mods, size_t begin);
+    void finishStaticCtor(ClassDecl* c, MethodDecl* m, const FinishFn& finish);
+    void parseConversionOperator(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, const FinishFn& finish);
+    void parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, TypeRef* type, bool ctxUnsafe,
+                      const FinishFn& finish);
+    ObjInit* parseObjInit();
+    Expr* tryParseOutVar();
+    static void hoistLocalFunctions(BlockStmt* b);
     // uniones (tipos algebraicos), '?' de propagación, defer/errdefer, |> y 'match' (ParserUnions.cpp)
     bool isUnionStart() const;
     void parseUnionBody(ClassDecl* c);

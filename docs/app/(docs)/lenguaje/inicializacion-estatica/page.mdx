@@ -1,0 +1,84 @@
+export const metadata = {
+  title: "Campos y constructores estáticos",
+  description: "Orden de la inicialización de los campos estáticos por dependencias y constructores estáticos static Clase() { }.",
+};
+
+# Campos y constructores estáticos
+
+<p className="lead">
+  Los campos estáticos se inicializan antes de <code>main</code>, en el orden que piden sus
+  dependencias, y un constructor estático <code>static Clase() {"{ }"}</code> prepara la clase
+  después de sus campos.
+</p>
+
+## Orden de inicialización
+
+Un inicializador estático puede leer campos estáticos de otras clases, aunque estén declaradas
+después o en otro módulo: el compilador ordena los inicializadores para que cada uno se ejecute
+después de los campos que lee, directamente o a través de los métodos, propiedades y
+constructores a los que llama. Las constantes van primero.
+
+```faset
+class Primero
+{
+    public static int Valor = Segundo.Base * 2;   // Segundo está declarada después
+}
+
+class Segundo
+{
+    public static int Base = Calcular() + Limite;
+    public const int Limite = 100;
+    static int semilla = 5;
+    static int Calcular() => semilla + 1;
+}
+
+int main()
+{
+    println(Primero.Valor);   // 212
+    return 0;
+}
+```
+
+Así, por ejemplo, un `static Mutex cerrojo = new Mutex();` funciona aunque el constructor de
+`Mutex` use constantes de `std.thread`. Si hay un ciclo (dos campos que se leen el uno al otro), se
+respeta el orden del código entre ellos.
+
+## Constructores estáticos
+
+`static Clase() { ... }` se ejecuta una sola vez, **después** de los inicializadores de los campos
+estáticos de su clase y **antes** de cualquier inicializador que use la clase (sus campos, sus
+métodos estáticos o sus constructores):
+
+```faset
+using std.collections;
+
+class Config
+{
+    public static string Nombre = "app";
+    public static int Ancho;
+    public static List<string> Rutas = new List<string>();
+
+    static Config()
+    {
+        Ancho = Nombre.Length * 100;
+        Rutas.Add("/etc/" + Nombre);
+    }
+}
+
+class Ventana
+{
+    public static int AnchoInicial = Config.Ancho + 20;   // Config ya está preparada
+}
+
+int main()
+{
+    println(Ventana.AnchoInicial);   // 320
+    println(Config.Rutas[0]);        // /etc/app
+    return 0;
+}
+```
+
+- No tiene modificadores de acceso ni parámetros, y no puede llamar a `base(...)` ni a `this(...)`.
+  Cada clase tiene como mucho uno; las interfaces, ninguno.
+- A diferencia de C#, todos los constructores estáticos se ejecutan al arrancar el programa, antes
+  de `main` (en C# se ejecutan en el primer acceso a la clase).

@@ -230,6 +230,7 @@ void CodeGen::emitLambdaBodies() {
         if (needsEnv(l)) line(n + "_env* fs_env = (" + n + "_env*)fs_envp;");
         else line("(void)fs_envp;");
         if (l->usesThis) line(l->ownerClass->cname + "* self = fs_env->self;");
+        for (VarInfo* v : l->fn->patternVars) line(ctype(v->type) + " " + v->cname + " = " + zeroInit(v->type) + ";");  // 'out var x'
         std::vector<VarInfo*> params;
         for (auto& p : l->params) params.push_back(p.var);
         boxParams(params);

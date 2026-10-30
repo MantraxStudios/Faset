@@ -71,3 +71,28 @@ int main()
     return 0;
 }
 ```
+
+### `out var`
+
+Como en C#, la variable se puede declarar en el propio argumento: `out var x` toma el tipo del
+parámetro y `out int x` lo escribe. La variable sigue visible después de la llamada (también fuera
+del `if`):
+
+```faset
+void Dividir(int a, int b, out int cociente, out int resto)
+{
+    cociente = a / b;
+    resto = a % b;
+}
+
+int main()
+{
+    if (int.TryParse("41", out var n)) println(n + 1);   // 42
+    Dividir(17, 5, out int q, out var r);
+    println($"{q} {r}");                                  // 3 2
+    return 0;
+}
+```
+
+Con `out var`, todas las sobrecargas que encajan deben tener el mismo tipo en ese parámetro; si no,
+escribe el tipo (`out int x`).

@@ -1,0 +1,20 @@
+5|los parámetros opcionales deben ir después de todos los obligatorios
+6|el valor por defecto de 'x' debe ser una constante
+7|un parámetro 'ref' u 'out' no puede tener valor por defecto
+8|\[CallerLineNumber\] requiere un parámetro de tipo 'int' o 'long'
+9|\[Caller\.\.\.\] solo se puede aplicar a un parámetro opcional
+10|no se puede convertir implícitamente el tipo 'int' en 'Color'
+11|los valores por defecto no forman parte de un tipo delegado
+18|la propiedad 'Apodo' es de solo inicialización \('init'\)
+28|'F' no tiene un parámetro llamado 'y'
+29|un argumento con nombre que no está en su posición no puede ir seguido de argumentos sin nombre
+30|el parámetro 'x' de 'F' ya recibió un argumento
+31|ninguna sobrecarga de 'F' acepta los argumentos \(int, string, int\)
+33|no se pueden usar argumentos con nombre al invocar un delegado
+34|falta asignar el miembro obligatorio 'Persona.Edad' \('required'\)
+36|la propiedad 'Apodo' es de solo inicialización
+37|'Sin' no contiene una definición para 'B'
+38|el miembro 'A' ya se inicializó en este inicializador
+39|'Sin' no tiene un método 'Add'
+40|'new T\(\.\.\.\)' solo es válido para clases y structs
+47|no se puede inferir el tipo de 'out var x'

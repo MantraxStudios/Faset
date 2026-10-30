@@ -177,6 +177,10 @@ std::vector<MethodDecl*> Sema::findMethods(ClassDecl* c, const std::string& name
 bool Sema::accessible(Access a, ClassDecl* owner) {
     if (a == Access::Public || a == Access::Internal || !owner || owner->isNamespaceScope || owner == ctx_.cls) return true;
     if (owner->templateOf && ctx_.cls && ctx_.cls->templateOf == owner->templateOf) return true;
+    for (ClassDecl* o = ctx_.cls ? ctx_.cls->outer : nullptr; o; o = o->outer)  // tipos anidados (Nested.cpp)
+        if (o == owner || (owner->templateOf && o->templateOf == owner->templateOf) ||
+            (a == Access::Protected && derivesFrom(o, owner)))
+            return true;
     if (a == Access::Protected && ctx_.cls) {
         for (ClassDecl* k = ctx_.cls; k; k = k->base)
             if (k == owner || (owner->templateOf && k->templateOf == owner->templateOf)) return true;
@@ -450,6 +454,7 @@ void Sema::checkCtorInit(MethodDecl* m) {
         } else {
             if (b->ctors.empty()) return;
             target = paramlessCtor(b);
+            if (!target) target = defaultedCtor(b, m->ctorInitArgs, at);  // base(int x = 0) (Members.cpp)
             if (!target) {
                 diag.error(at, "'" + b->displayName + "' no contiene un constructor sin parámetros; llama a uno con ': base(...)'");
                 return;

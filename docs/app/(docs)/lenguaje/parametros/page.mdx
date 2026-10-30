@@ -1,0 +1,164 @@
+export const metadata = {
+  title: "Parámetros opcionales y argumentos con nombre",
+  description: "Valores por defecto en los parámetros, argumentos con nombre, reglas de sobrecarga y [CallerMemberName], [CallerLineNumber] y [CallerFilePath].",
+};
+
+# Parámetros opcionales y argumentos con nombre
+
+<p className="lead">
+  Como en C#, un parámetro puede tener un valor por defecto y una llamada puede nombrar sus
+  argumentos. Funciona en métodos, constructores, métodos de extensión e indizadores, y en las
+  llamadas <code>base(...)</code> y <code>this(...)</code>.
+</p>
+
+## Valores por defecto
+
+```faset
+enum Color { Rojo, Verde, Azul }
+
+void Pintar(int x = 0, string texto = "hola", Color c = Color.Rojo)
+{
+    println($"{x} {texto} {c.ToString()}");
+}
+
+int main()
+{
+    Pintar();                 // 0 hola Rojo
+    Pintar(5);                // 5 hola Rojo
+    Pintar(5, "adiós");       // 5 adiós Rojo
+    return 0;
+}
+```
+
+El valor por defecto debe ser una constante: un literal, una `const`, un miembro de un `enum`,
+`null` o `default`. Los parámetros opcionales van después de todos los obligatorios (salvo un
+`params` final), y un parámetro `ref`/`out` no puede tenerlo.
+
+## Argumentos con nombre
+
+Un argumento se puede pasar por el nombre de su parámetro, en cualquier orden y mezclado con
+argumentos por posición. Así se salta cualquier parámetro opcional:
+
+```faset
+enum Color { Rojo, Verde, Azul }
+
+void Pintar(int x = 0, string texto = "hola", Color c = Color.Rojo)
+{
+    println($"{x} {texto} {c.ToString()}");
+}
+
+int main()
+{
+    Pintar(c: Color.Azul);               // 0 hola Azul
+    Pintar(texto: "b", x: 3);            // 3 b Rojo
+    Pintar(1, c: Color.Verde);           // 1 hola Verde
+    return 0;
+}
+```
+
+Los argumentos se **evalúan en el orden en que están escritos**, aunque se pasen en otro orden:
+
+```faset
+int Leer(string que, int v)
+{
+    println("evalúa " + que);
+    return v;
+}
+
+void Resta(int a, int b) => println(a - b);
+
+int main()
+{
+    Resta(b: Leer("b", 1), a: Leer("a", 10));   // evalúa b, evalúa a, 9
+    return 0;
+}
+```
+
+Un argumento con nombre que no está en su posición no puede ir seguido de argumentos sin nombre
+(`F(b: 1, 2)` es un error), y a los delegados (`Func`, `Action`...) no se les pasan argumentos con
+nombre.
+
+## Constructores, base y this
+
+```faset
+class Ventana
+{
+    public string Titulo;
+    public int Ancho;
+    public Ventana(string titulo = "Sin título", int ancho = 640)
+    {
+        Titulo = titulo;
+        Ancho = ancho;
+    }
+}
+
+class Dialogo : Ventana
+{
+    public Dialogo() : base(ancho: 300) { }
+    public Dialogo(string t) : this() { Titulo = t; }
+}
+
+class Principal : Ventana
+{
+    public Principal() { }   // base() implícito: todos los parámetros de Ventana son opcionales
+}
+
+int main()
+{
+    var d = new Dialogo("Abrir");
+    println($"{d.Titulo} {d.Ancho}");             // Abrir 300
+    var v = new Ventana(ancho: 800);
+    println($"{v.Titulo} {v.Ancho}");             // Sin título 800
+    println(new Principal().Ancho);               // 640
+    return 0;
+}
+```
+
+## Sobrecargas
+
+Las reglas son las de C#: entre las sobrecargas que aceptan la llamada gana la de mejores
+conversiones y, si empatan, la que **no necesita valores por defecto**:
+
+```faset
+int Sumar(int a, int b = 10) => a + b;
+int Sumar(int a, int b, int c = 100) => a + b + c;
+
+int main()
+{
+    println(Sumar(1));          // 11
+    println(Sumar(1, 2));       // 3: la primera no rellena ningún parámetro
+    println(Sumar(1, 2, 3));    // 6
+    return 0;
+}
+```
+
+Los valores por defecto no forman parte de un tipo delegado: `delegate int Op(int x = 1);` es un
+error.
+
+## Información de la llamada
+
+Los atributos `[CallerMemberName]`, `[CallerLineNumber]` y `[CallerFilePath]` en un parámetro
+opcional hacen que reciba el nombre del método que llama, su línea y la ruta de su archivo:
+
+```faset
+void Log(string mensaje, [CallerMemberName] string miembro = "", [CallerLineNumber] int linea = 0)
+{
+    println($"{miembro}:{linea}: {mensaje}");
+}
+
+void Guardar() => Log("guardando");
+
+int main()
+{
+    Guardar();      // Guardar:6: guardando
+    return 0;
+}
+```
+
+En una lambda, el miembro es el método que la contiene. `[CallerLineNumber]` necesita un parámetro
+`int` o `long`, y los otros dos un `string`.
+
+## IntelliSense
+
+Las firmas muestran los valores por defecto (`Pintar(int x = 0, string texto = "hola", ...)`), y
+dentro de los paréntesis de una llamada se sugieren los nombres de los parámetros (`texto:`).

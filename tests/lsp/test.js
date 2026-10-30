@@ -263,6 +263,29 @@ const change = (t) => { text = t; notify('textDocument/didChange', { textDocumen
     const ud = await waitDiag(un.u, (ds) => ds.some((d) => /no es exhaustivo: falta el caso Punto/.test(d.message)), 'switch no exhaustivo');
     assert.ok(ud.length >= 1, 'diagnóstico de exhaustividad');
 
+    // ---- métodos y construcción: valores por defecto, argumentos con nombre, inicializadores y tipos anidados
+    const mb = (() => {
+        const p = path.join(__dirname, 'miembros.fst');
+        const u = 'file://' + p;
+        const t = fs.readFileSync(p, 'utf8');
+        notify('textDocument/didOpen', { textDocument: { uri: u, languageId: 'faset', version: 1, text: t } });
+        return { u, t };
+    })();
+    const mh = await request('textDocument/hover', pos(mb.u, mb.t, 'Saludar(veces', 2));
+    assert.match(mh.contents.value, /Saludar\(string nombre = "mundo", int veces = 1\)/, 'hover con valores por defecto');
+    t = mb.t.replace('Saludar(veces: 2);', 'Saludar(v);');
+    edit(mb.u, t);
+    items = await complete(mb.u, t, 'Saludar(v', 9);
+    assert.ok(labels(items).includes('veces:') && labels(items).includes('nombre:'), 'nombres de los parámetros');
+    t = mb.t.replace('{ Edad = 3 }', '{ E }');
+    edit(mb.u, t);
+    items = await complete(mb.u, t, '{ E }', 3);
+    assert.ok(labels(items).includes('Edad') && labels(items).includes('Nombre'), 'miembros en un inicializador');
+    t = mb.t.replace('new Externa.Interna()', 'Externa.');
+    edit(mb.u, t);
+    items = await complete(mb.u, t, 'Externa.;', 8, '.');
+    assert.ok(labels(items).includes('Interna') && labels(items).includes('Modo'), 'tipos anidados');
+
     await request('shutdown');
     notify('exit');
     console.log('ok');

@@ -1,0 +1,15 @@
+1|'using static' necesita un tipo: 'NoExiste'
+2|'using static' no admite tipos genéricos
+12|no se puede usar el miembro de instancia 'Fuera.instancia' desde el tipo anidado 'Fuera.Usa'
+17|un indizador no puede ser 'static'
+24|la conversión 'implicit operator' debe ser 'public static'
+25|una conversión del usuario debe convertir desde o hacia 'Celsius'
+26|ya existe una conversión de 'double' a 'Celsius'
+36|'Externa.Secreta' no es accesible debido a su nivel de protección
+38|el indizador de 'Solo' para \[int\] es de solo lectura
+39|ninguna sobrecarga de 'Solo\[\]' acepta los argumentos \(string\)
+40|ninguna sobrecarga de 'Solo\[\]' acepta los argumentos \(int, int\)
+41|no se puede convertir implícitamente el tipo 'string' en 'Celsius'
+43|el índice debe ser un entero
+45|no se encontró el tipo 'Fuera.Nada'
+46|no se puede convertir el tipo 'string' en 'Celsius'

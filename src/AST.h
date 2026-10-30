@@ -79,6 +79,7 @@ struct Modifiers {
     // Herencia: virtual / override / abstract / sealed / new (ocultar un miembro heredado).
     bool isVirtual = false, isOverride = false, isAbstract = false, isSealed = false, isNew = false;
     bool isAsync = false;  // modificador contextual 'async' (ver Async.cpp)
+    bool isRequired = false;  // modificador contextual 'required' (ver Members.cpp)
 };
 
 struct Attribute {
@@ -93,6 +94,7 @@ struct UsingDirective {
     std::vector<std::string> path;
     std::string alias;                 // using Alias = X.Y;
     TypeRef* aliasType = nullptr;      // destino del alias si tiene argumentos genéricos
+    bool isStatic = false;             // using static std.Math;  (ver Nested.cpp)
 };
 
 // Contexto de un archivo fuente: sus 'using' (resueltos por Sema).
@@ -104,6 +106,8 @@ struct FileScope {
     std::vector<UsingDirective> usings;
     std::vector<NamespaceSym*> nsUsings;
     bool resolved = false;
+    std::vector<ClassDecl*> staticImports;  // tipos de 'using static' (ver Nested.cpp)
+    bool staticResolved = false;
 };
 
 struct VarInfo {
@@ -138,7 +142,8 @@ enum class EK {
     Is, As, TypeOf, NameOf, With,  // orientación a objetos (ver SemaClasses.cpp)
     Await,                         // async/await (ver Async.cpp)
     Pipe, Propagate, UnionCase,    // |>, '?' de Result/Option y casos de unión (Flow.cpp / Unions.cpp)
-    Collection, FromEnd, Range     // arreglos, índices y rangos (ver Arrays.cpp)
+    Collection, FromEnd, Range,    // arreglos, índices y rangos (ver Arrays.cpp)
+    OutVar                         // F(out var x) / F(out int x): declaración en un argumento (Members.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -154,6 +159,12 @@ struct Expr {
     std::vector<MethodDecl*> group;     // vk == MethodGroup
     // Forma reescrita por Sema (Sugar.cpp): si existe, CodeGen emite esta en su lugar.
     Expr* lowered = nullptr;
+    // Argumentos con nombre (ver Members.cpp): F(nombre: valor). 'argPos' es la posición del
+    // argumento en el código fuente (para evaluarlo en ese orden aunque se reordene); -1 si no es
+    // un argumento escrito (p. ej. un valor por defecto).
+    std::string argName;
+    SourceLoc argNameLoc;
+    int argPos = -1;
     Expr(EK k, SourceLoc l) : kind(k), loc(l) {}
     virtual ~Expr() = default;
 };
@@ -230,6 +241,12 @@ struct IndexExpr : Expr {
     Expr* obj = nullptr;
     Expr* index = nullptr;
     MethodDecl* opMethod = nullptr;  // operator[]
+    // Indizadores (ver Members.cpp): a[i, j] (índices después del primero) y el 'get'/'set' elegidos.
+    std::vector<Expr*> moreIndices;
+    bool indexList = false;          // a[i, j]: 'index' es la tupla (i, j) de parseIndexList
+    MethodDecl* idxGetter = nullptr;
+    MethodDecl* idxSetter = nullptr;
+    std::vector<Expr*> idxArgs;      // argumentos ya comprobados (en el orden de los parámetros)
     explicit IndexExpr(SourceLoc l) : Expr(EK::Index, l) {}
 };
 
@@ -280,10 +297,20 @@ struct CastExpr : Expr {
     explicit CastExpr(SourceLoc l) : Expr(EK::Cast, l) {}
 };
 
+// F(out var x) / F(out int x): Sema declara la variable y pone en su lugar una referencia a ella.
+struct OutVarExpr : Expr {
+    TypeRef* tref = nullptr;  // 'var': el tipo sale del parámetro
+    std::string name;
+    explicit OutVarExpr(SourceLoc l) : Expr(EK::OutVar, l) {}
+};
+
+struct ObjInit;
 struct NewExpr : Expr {  // new T(args)
     TypeRef* tref = nullptr;
     std::vector<Expr*> args;
     MethodDecl* ctor = nullptr;
+    ObjInit* init = nullptr;  // new T { A = 1, ... } / new List<int> { 1, 2 } (ver Members.cpp)
+    int initState = 0;        // 1: comprobando la creación sin el inicializador
     explicit NewExpr(SourceLoc l) : Expr(EK::New, l) {}
 };
 
@@ -438,6 +465,7 @@ struct VarDeclStmt : Stmt {
     TypeRef* tref = nullptr;
     bool isConst = false;
     std::vector<Declarator> decls;
+    bool isLocalFunction = false;  // función local reescrita como delegado (ver ParserMembers.cpp)
     explicit VarDeclStmt(SourceLoc l) : Stmt(SK::VarDecl, l) {}
 };
 
@@ -549,6 +577,13 @@ struct Param {
     bool isParams = false;  // 'params List<T> xs' (o 'params T[] xs'): último parámetro
     Type* type = nullptr;
     VarInfo* var = nullptr;
+    // Parámetros opcionales (ver Members.cpp): 'int x = 0'. 'defaultValue' queda comprobado y
+    // convertido al tipo del parámetro; [CallerMemberName] / [CallerLineNumber] / [CallerFilePath]
+    // (callerInfo 1, 2 y 3) reciben el valor del sitio de la llamada.
+    Expr* defaultValue = nullptr;
+    bool defaultChecked = false;
+    std::vector<Attribute> attrs;
+    int callerInfo = 0;
     bool isRef() const { return tref && tref->isRef; }
 };
 
@@ -566,6 +601,7 @@ struct FieldDecl {
     bool unsafeCtx = false;  // su tipo e inicializador están en un contexto memory_unsafe
     bool isEvent = false;    // 'event': fuera de su clase solo admite += y -=
     bool isStatic() const { return mods.isStatic || mods.isConst; }
+    MethodDecl* staticCtor = nullptr;  // pseudo-campo de la inicialización: llamada a 'static Clase()' (StaticInit.cpp)
 };
 
 enum class MethodKind { Normal, Ctor, Dtor, Getter, Setter, Operator };
@@ -629,6 +665,7 @@ struct MethodDecl {
     int recordGen = 0;                 // miembro generado por 'record' (1 ToString, 2 GetHashCode, 3 ==)
     std::vector<VarInfo*> patternVars; // variables de patrones 'is T x' (se declaran al inicio en C)
     struct AsyncInfo* async = nullptr; // método o lambda 'async': máquina de estados (ver Async.cpp)
+    bool isInit = false;               // accesor 'init' (solo en inicializadores de objeto, 'with' y constructores)
     // Implementación explícita de un miembro de interfaz: 'IEnumerator<T> IEnumerable<T>.GetEnumerator()'
     // (ver Iterators.cpp). 'name' queda como "Interfaz.Miembro" para que no se encuentre por nombre.
     TypeRef* explicitIface = nullptr;
@@ -692,6 +729,9 @@ struct ClassDecl {
     bool isRecord = false;
     // Mismo nombre con y sin parámetros de tipo en un namespace (Task y Task<T>): el otro.
     ClassDecl* arityTwin = nullptr;
+    // Tipos anidados (ver Nested.cpp): la clase que lo contiene y los tipos declarados dentro.
+    ClassDecl* outer = nullptr;
+    std::vector<ClassDecl*> nested;
     struct UnionInfo* unionInfo = nullptr;  // 'union' (tipo algebraico): sus casos (Unions.cpp)
     bool isInterface() const { return kind == ClassKind::Interface; }
 
@@ -866,6 +906,22 @@ struct AwaitStmt : Stmt {
     AwaitExpr* aw = nullptr;
     VarInfo* result = nullptr;
     explicit AwaitStmt(SourceLoc l) : Stmt(SK::Await, l) {}
+};
+
+// ---------------------------------------------------------------- inicializadores (ver Members.cpp)
+
+// { Nombre = "Ana", Dir = { Calle = "x" }, ["a"] = 1, 1, { "b", 2 } }
+struct ObjInit {
+    struct Entry {
+        enum Kind { Member, Index, Add } kind = Member;
+        SourceLoc loc;
+        std::string name;           // Member: miembro asignado
+        std::vector<Expr*> args;    // Index: índices; Add: argumentos de Add
+        Expr* value = nullptr;      // Member / Index: valor (nulo si es un inicializador anidado)
+        ObjInit* nested = nullptr;  // Member / Index: '= { ... }'
+    };
+    SourceLoc loc;
+    std::vector<Entry> entries;
 };
 
 // ---------------------------------------------------------------- iteradores (ver Iterators.cpp)

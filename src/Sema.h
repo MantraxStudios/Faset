@@ -374,6 +374,62 @@ private:
     Type* checkIs(IsExpr* e);
     Type* checkAs(AsExpr* e);
     Type* checkWith(WithExpr* e);
+    // ---- métodos y construcción (Members.cpp): parámetros opcionales, argumentos con nombre,
+    // [Caller*], inicializadores de objeto y de colección, 'init', 'required', indizadores y
+    // conversiones del usuario.
+    bool defaultsReady_ = false;               // ya se pueden comprobar los valores por defecto
+    std::vector<MethodDecl*> pendingDefaults_;
+    AssignExpr* initAssign_ = nullptr;         // asignación generada por un inicializador de objeto
+    Expr* indexTarget_ = nullptr;              // a[i] = v: el lado izquierdo que se está comprobando
+    std::set<IndexExpr*> indexerTargets_;      // a[i] de un indizador pendiente de su 'set'
+    int noUserConv_ = 0;                       // > 0: solo conversiones estándar
+public:
+    static std::string paramDefaultText(const Param& p);  // " = 0" para las firmas
+    static bool isConversionOp(const MethodDecl* m);
+private:
+    void resolveParamDefaults(MethodDecl* m);
+    void flushParamDefaults();
+    bool isConstantDefault(Expr* e);
+    bool needsArgBinding(MethodDecl* m, const std::vector<Expr*>& args);
+    bool bindArgs(MethodDecl* m, const std::vector<Expr*>& args, std::vector<Expr*>& out, int& filled, std::string* err,
+                  SourceLoc loc);
+    Expr* callerInfoArg(const Param& p, SourceLoc loc);
+    bool rejectNamedArgs(const std::vector<Expr*>& args, const std::string& what);
+    void completeArgNames(Expr* callee, const std::vector<Expr*>& args);
+    MethodDecl* defaultedCtor(ClassDecl* c, std::vector<Expr*>& args, SourceLoc at);
+    Type* checkNewMembers(NewExpr* e);
+    void declareOutVars(const std::vector<MethodDecl*>& group, std::vector<Expr*>& args);
+    std::map<Expr*, OutVarExpr*> outVarOrigin_;  // referencia que sustituye a cada 'out var x'
+    void applyObjInit(ObjInit* oi, Type* t, const std::function<Expr*()>& target, std::vector<Expr*>& seq,
+                      std::set<std::string>* assigned);
+    void checkRequiredMembers(ClassDecl* c, MethodDecl* ctor, const std::set<std::string>& assigned, SourceLoc loc);
+    void completeInitMembers(Type* t);
+    bool initSetterAllowed(AssignExpr* e, MethodDecl* setter);
+    void checkMemberModifiers(ClassDecl* c);
+    void noteIndexTarget(AssignExpr* e);
+    Type* checkIndexer(IndexExpr* ix, Type* ot);
+    Type* checkIndexerAssign(AssignExpr* e);
+    std::vector<MethodDecl*> conversionOps(Type* from, Type* to, bool allowExplicit);
+    MethodDecl* findUserConversion(Expr* e, Type* from, Type* to, bool allowExplicit, int* cost, bool report);
+    bool userImplicit(Expr* e, Type* from, Type* to);
+    int userConvCost(Expr* e, Type* from, Type* to);
+    bool userCoerce(Expr*& e, Type* to);
+    Type* userCast(CastExpr* c, Type* from, Type* to);
+    Expr* applyUserConversion(Expr* e, MethodDecl* op, Type* to, bool explicitCast);
+    void checkConversionOps(ClassDecl* c);
+    // ---- organización de tipos (Nested.cpp): tipos anidados, 'using static' y alias.
+    void registerNested(ClassDecl* c);
+    void instantiateNested(ClassDecl* inst, ClassDecl* tmpl);
+    bool nestedVisible(ClassDecl* n);
+    Sym nestedLookup(ClassDecl* scope, const std::string& name, bool outers);
+    Sym nestedMember(const Sym& s, const std::string& name, SourceLoc loc);
+    Type* nestedTypeMember(MemberExpr* e, Type* T);
+    Type* outerMemberName(NameExpr* e);
+    Type* usingStaticName(NameExpr* e);
+    void resolveStaticImports(FileScope* f);
+    void completeNested(ClassDecl* c, bool outers);
+    // ---- inicialización estática (StaticInit.cpp): orden por dependencias y 'static Clase()'.
+    void orderStaticInits();
     // ---- iteradores (Iterators.cpp): yield return / yield break con la máquina de estados de
     // Async.cpp, IEnumerable<T> / IEnumerator<T>, flujos asíncronos (await foreach) e
     // implementaciones explícitas de interfaces.

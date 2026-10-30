@@ -1,0 +1,149 @@
+export const metadata = {
+  title: "Inicializadores, init y required",
+  description: "Inicializadores de objeto y de colección (new T { X = 1 }, new List<int> { 1, 2 }), accesores init y miembros required.",
+};
+
+# Inicializadores, `init` y `required`
+
+<p className="lead">
+  Un inicializador asigna campos y propiedades, o añade elementos, justo después de crear el objeto:
+  <code>new Persona {"{"} Nombre = "Ana" {"}"}</code>. Los accesores <code>init</code> y los miembros
+  <code>required</code> permiten crear objetos inmutables y obligar a rellenarlos.
+</p>
+
+## Inicializadores de objeto
+
+Detrás de `new T(...)` (los paréntesis son opcionales si no hay argumentos) se asignan campos y
+propiedades accesibles. Equivale a crear el objeto y hacer las asignaciones en orden:
+
+```faset
+class Direccion
+{
+    public string Calle = "";
+    public int Numero;
+}
+
+class Persona
+{
+    public string Nombre { get; set; } = "";
+    public int Edad;
+    public Direccion Dir = new Direccion();
+}
+
+struct Punto
+{
+    public int X, Y;
+}
+
+int main()
+{
+    var p = new Persona { Nombre = "Ana", Edad = 30 };
+    println($"{p.Nombre} {p.Edad}");               // Ana 30
+
+    // Inicializador anidado: modifica el objeto que ya tiene el miembro
+    var q = new Persona { Nombre = "Luis", Dir = { Calle = "Mayor", Numero = 5 } };
+    println($"{q.Dir.Calle} {q.Dir.Numero}");      // Mayor 5
+
+    var pt = new Punto { X = 1, Y = 2 };           // también en structs
+    println(pt.X + pt.Y);                          // 3
+    return 0;
+}
+```
+
+Cada miembro solo puede aparecer una vez. Un inicializador anidado (`Dir = { ... }`) no crea un
+objeto nuevo: modifica el que ya existe, así que el miembro no puede ser una propiedad de tipo
+struct (se modificaría una copia).
+
+## Inicializadores de colección
+
+Cualquier tipo con un método `Add` admite una lista de elementos: cada uno se convierte en una
+llamada a `Add`. Con llaves, `{ a, b }` llama a `Add(a, b)`, y `[clave] = valor` usa el
+indizador:
+
+```faset
+using std.collections;
+
+class Bolsa
+{
+    public List<int> Items = new List<int>();
+    public void Add(int a) => Items.Add(a);
+    public void Add(int a, int veces) { for (int i = 0; i < veces; i++) Items.Add(a); }
+}
+
+int main()
+{
+    var numeros = new List<int> { 1, 2, 3 };
+    println(numeros.Count);                         // 3
+
+    var edades = new Dictionary<string, int> { ["Ana"] = 30, { "Luis", 25 } };
+    println(edades["Ana"] + edades["Luis"]);        // 55
+
+    var b = new Bolsa { 7, { 1, 3 } };
+    println(b.Items.Count);                         // 4
+
+    var tabla = new List<List<int>> { new List<int> { 1, 2 }, new List<int> { 3 } };
+    println(tabla[0][1] + tabla[1][0]);             // 5
+    return 0;
+}
+```
+
+Las asignaciones de miembros (`X = ...`) y los elementos de colección no se mezclan en un mismo
+inicializador.
+
+## Accesores `init`
+
+Una propiedad `{ get; init; }` solo se puede asignar en un inicializador de objeto, en una
+expresión [`with`](/lenguaje/registros/) o en un constructor de la clase. Después es de solo
+lectura:
+
+```faset
+record Config
+{
+    public string Nombre { get; init; } = "por defecto";
+    public int Ancho { get; init; }
+}
+
+int main()
+{
+    var c = new Config { Ancho = 800 };
+    var d = c with { Nombre = "grande" };
+    println($"{c.Nombre} {d.Nombre} {d.Ancho}");   // por defecto grande 800
+    // c.Ancho = 1;   error: la propiedad 'Ancho' es de solo inicialización ('init')
+    return 0;
+}
+```
+
+## Miembros `required`
+
+Un campo o propiedad `required` debe asignarse en el inicializador de **cada** `new`; si falta, es
+un error de compilación. Un constructor con el atributo `[SetsRequiredMembers]` indica que ya los
+asigna él:
+
+```faset
+class Usuario
+{
+    public required string Login;
+    public required int Id { get; init; }
+    public string Correo = "";
+
+    public Usuario() { }
+
+    [SetsRequiredMembers]
+    public Usuario(string login, int id) { Login = login; Id = id; }
+}
+
+int main()
+{
+    var a = new Usuario { Login = "ana", Id = 1 };
+    var b = new Usuario("bea", 2);
+    println($"{a.Login} {b.Id}");    // ana 2
+    // new Usuario { Login = "x" };  error: falta asignar el miembro obligatorio 'Usuario.Id'
+    return 0;
+}
+```
+
+Un miembro `required` no puede ser `static`, `const` ni `readonly`, y debe ser `public` o
+`internal`.
+
+En el editor, dentro de las llaves de un inicializador se sugieren los miembros que se pueden asignar
+(los obligatorios aparecen marcados).

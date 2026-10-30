@@ -291,6 +291,7 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
     fn->name = "<lambda>";
     fn->loc = l->loc;
     fn->owner = ctx_.cls;
+    fn->usedBy = ctx_.method;  // método que la contiene ([CallerMemberName], Members.cpp)
     fn->file = ctx_.file;
     fn->mods.isStatic = ctx_.isStatic;
     fn->unsafeBody = unsafeCtx();

@@ -286,6 +286,11 @@
           "match": "\\basync\\b(?=\\s+[A-Za-z_(]|\\s*\\()"
         },
         {
+          "comment": "Palabras contextuales de miembros: required, implicit/explicit operator, accesor init",
+          "name": "storage.modifier.faset",
+          "match": "\\b(required(?=\\s+[A-Za-z_])|implicit(?=\\s+operator\\b)|explicit(?=\\s+operator\\b)|init(?=\\s*[;{]|\\s*=>))\\b"
+        },
+        {
           "comment": "Filtro de excepciones: catch (Exception e) when (condición)",
           "name": "keyword.control.faset",
           "match": "\\bwhen\\b(?=\\s*\\()"

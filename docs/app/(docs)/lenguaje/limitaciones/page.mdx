@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Limitaciones actuales",
-  description: "Qué no admite todavía Faset: herencia múltiple, boxing, valores por defecto en parámetros…",
+  description: "Qué no admite todavía Faset: herencia múltiple, boxing, expresiones throw…",
 };
 
 # Limitaciones actuales
@@ -15,24 +15,25 @@ export const metadata = {
 | Herencia de varias clases | Una clase base y [varias interfaces](/lenguaje/interfaces/) |
 | *Boxing* (convertir `int`, `string` o un struct a `object` o a una interfaz) | Un tipo envoltorio o un [registro](/lenguaje/registros/) `record class` |
 | Expresiones `throw` (`x ?? throw ...`) | Una instrucción `throw` (las [excepciones](/lenguaje/excepciones/) sí existen) |
-| Parámetros con valor por defecto | Sobrecargas (o [`params`](/lenguaje/comodidades/#params)) |
 | `Console.WriteLine(tupla)` (no hay *boxing*) | `Console.WriteLine($"{tupla}")` |
-| Inicializadores de objeto `new T { X = 1 }` | Constructores |
-| Tipos anidados | Tipos en el mismo namespace |
-| `using static` | Nombre de la clase delante (`Math.Sqrt`) |
 | `goto`, `stackalloc`, `fixed` | — |
 | Covarianza de arreglos (`string[]` como `object[]`) y arreglos de más de 3 dimensiones | Un [arreglo](/lenguaje/arreglos/) nuevo (`Array.ConvertAll`) o un arreglo escalonado |
 | Operadores compuestos sobre la propiedad de un struct temporal (`F().X += 1`) | Guardar el struct en una variable |
 | `await` en la condición o el incremento de un `for`, en la condición de un `do`-`while`, dentro de `?.`/`??=` o en un filtro `when` | `var x = await ...;` antes (ver [async y await](/lenguaje/async/)) |
 | `ValueTask`, métodos `async` o iteradores en un `struct` o con parámetros `ref`/`out` | `Task<T>`, una clase o un método estático |
 | `IEnumerable`/`IEnumerator` no genéricos, `Reset()`, `IDisposable`, `[EnumeratorCancellation]` | `IEnumerable<T>`; `Dispose()` está en `IEnumerator<T>`; el token como argumento |
-| `yield` en una lambda sin tipo de delegado conocido; funciones locales genéricas, con `ref`/`out` o llamadas antes de declararse | Una [función local](/lenguaje/iteradores/#funciones-locales) declarada antes de usarla |
+| `yield` en una lambda sin tipo de delegado conocido; funciones locales genéricas o con `ref`/`out` | Una [función local](/lenguaje/iteradores/#funciones-locales) sin parámetros de tipo |
 
 ## Otras notas
 
 - Lambdas y delegados: los delegados son estructurales (`Predicate<int>` y `Func<int, bool>` son el
-  mismo tipo); un `delegate` declarado dentro de una clase se usa por su nombre simple (no
-  `Clase.Delegado`) y no puede usar los parámetros de tipo de una clase genérica. Los métodos LINQ
+  mismo tipo); un `delegate` declarado dentro de una clase se usa por su nombre simple o como
+  `Clase.Delegado`, y no puede usar los parámetros de tipo de una clase genérica.
+- Los [constructores estáticos](/lenguaje/inicializacion-estatica/) se ejecutan al arrancar el
+  programa (antes de `main`, en el orden de las dependencias), no en el primer acceso como en C#.
+- Los tipos anidados de una clase genérica solo se pueden nombrar dentro de ella (`Caja<int>.Nodo`
+  no existe fuera). Las conversiones del usuario no se encadenan (como en C#: una sola por
+  conversión) ni existen hacia o desde interfaces u `object`. Los métodos LINQ
   propios de `List<T>` (`lista.Where(...)`) son inmediatos; los de `IEnumerable<T>` son perezosos
   como en C# (ver [LINQ](/lenguaje/linq/#dos-versiones-inmediata-en-listt-perezosa-en-ienumerablet)).
   `Distinct`/`GroupBy`/`ToDictionary` necesitan claves con `Hash.Of` (números, `char`, `bool`,

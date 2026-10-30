@@ -89,6 +89,8 @@ std::string mangleName(const std::string& name) {
         {"operator>", "op_gt"}, {"operator<=", "op_le"}, {"operator>=", "op_ge"}, {"operator&", "op_and"},
         {"operator|", "op_or"}, {"operator^", "op_xor"}, {"operator<<", "op_shl"}, {"operator>>", "op_shr"},
         {"operator!", "op_not"}, {"operator~", "op_inv"}, {"operator[]", "op_index"},
+        {"operator implicit", "op_implicit"}, {"operator explicit", "op_explicit"}, {"this[]", "indexer"},
+        {".cctor", "cctor"},
     };
     auto it = ops.find(name);
     if (it == ops.end() && name.find('.') != std::string::npos) {  // implementación explícita: 'IEnumerable.GetEnumerator'
@@ -144,12 +146,14 @@ bool Sema::run() {
     // para ofrecer información de símbolos y autocompletado mientras se escribe.
     if (diag.errorCount && !ideMode) return false;
     for (FileScope* f : prog_.files) resolveUsings(f);
+    for (FileScope* f : prog_.files) resolveStaticImports(f);  // 'using static' (Nested.cpp)
     initObjectModel();
     excSetupHierarchy();  // [ExceptionBase]: campos heredados de la excepción base (Exceptions.cpp)
     size_t initial = prog_.types.size();
     for (size_t i = 0; i < initial; i++)
         if (!prog_.types[i]->isTemplate()) resolveClassSignatures(prog_.types[i]);
     assignFunctionNames();
+    flushParamDefaults();  // valores por defecto de los parámetros (Members.cpp)
 
     for (size_t i = 0; i < initial; i++) {
         ClassDecl* c = prog_.types[i];
@@ -162,6 +166,7 @@ bool Sema::run() {
     }
     processWork();
     while (checkPendingConstraints()) processWork();
+    orderStaticInits();  // orden de la inicialización estática por dependencias (StaticInit.cpp)
     propagateValidate();  // '?' en posiciones no admitidas (Unions.cpp)
     orderStructs();
     findEntry();
@@ -237,6 +242,10 @@ void Sema::mergePartials() {
             }
         }
         for (Attribute& a : c->attrs) d->attrs.push_back(a);
+        for (ClassDecl* n : c->nested) {  // tipos anidados de esta parte (Nested.cpp)
+            n->outer = d;
+            d->nested.push_back(n);
+        }
         for (TypeRef* r : c->baseRefs) d->baseRefs.push_back(r);  // ": Base, I1" en cualquier parte
         for (TypeConstraint& tc : c->constraints) d->constraints.push_back(tc);
     }
@@ -250,6 +259,10 @@ void Sema::buildNamespaces() {
         ClassDecl* c = prog_.types[i];
         NamespaceSym* ns = getNs(c->ns, true);
         c->nsSym = ns;
+        if (c->outer) {  // tipo anidado: no es miembro del namespace (Nested.cpp)
+            registerNested(c);
+            continue;
+        }
         std::string prefix = mangleNs(c->ns);
         if (c->isNamespaceScope) {
             c->cname = prefix + "global";
@@ -325,7 +338,7 @@ void Sema::resolveUsings(FileScope* f) {
     };
     if (NamespaceSym* stdNs = findNs({"std"})) add(stdNs);  // 'using std;' implícito
     for (UsingDirective& u : f->usings) {
-        if (!u.alias.empty()) continue;
+        if (!u.alias.empty() || u.isStatic) continue;  // 'using static' (Nested.cpp)
         NamespaceSym* ns = findNs(u.path);
         if (!ns) diag.error(u.loc, "el namespace '" + join(u.path, ".") + "' no existe (¿falta un módulo o un archivo?)");
         else add(ns);
@@ -369,6 +382,10 @@ Sym Sema::lookupIn(NamespaceSym* ns, const std::string& name, bool includeChildr
 }
 
 Sym Sema::lookupUnqualified(const std::string& name, SourceLoc loc) {
+    if (ctx_.cls) {  // tipos anidados de la clase, de sus bases y de las clases que la contienen (Nested.cpp)
+        Sym n = nestedLookup(ctx_.cls, name, true);
+        if (n.kind != Sym::None) return n;
+    }
     for (NamespaceSym* ns = ctx_.ns; ns; ns = ns->parent) {
         Sym s = lookupIn(ns, name);
         if (s.kind != Sym::None) return s;
@@ -386,8 +403,10 @@ Sym Sema::lookupUnqualified(const std::string& name, SourceLoc loc) {
             }
             // Alias a un tipo por su ruta completa (también clases estáticas).
             Sym t = lookupIn(global_, u.path[0]);
-            for (size_t i = 1; i < u.path.size() && t.kind == Sym::Ns; i++) t = lookupIn(t.ns, u.path[i]);
-            if (t.kind == Sym::TypeK && t.decl && !t.decl->isTemplate()) return t;
+            size_t i = 1;
+            for (; i < u.path.size() && (t.kind == Sym::Ns || t.kind == Sym::TypeK); i++)  // también Externa.Interna (Nested.cpp)
+                t = t.kind == Sym::Ns ? lookupIn(t.ns, u.path[i]) : nestedMember(t, u.path[i], u.loc);
+            if (i == u.path.size() && t.kind == Sym::TypeK && t.decl && !t.decl->isTemplate()) return t;
         }
         res.kind = Sym::TypeK;
         res.type = resolveType(u.aliasType);
@@ -513,7 +532,8 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
             return tc_.error();
         }
         Sym s = lookupUnqualified(tr->parts[0], tr->loc);
-        for (size_t i = 1; i < tr->parts.size() && s.kind == Sym::Ns; i++) s = lookupIn(s.ns, tr->parts[i]);
+        for (size_t i = 1; i < tr->parts.size() && (s.kind == Sym::Ns || s.kind == Sym::TypeK); i++)
+            s = s.kind == Sym::Ns ? lookupIn(s.ns, tr->parts[i]) : nestedMember(s, tr->parts[i], tr->loc);  // Externa.Interna
         if (s.kind != Sym::TypeK) {
             if (Type* d = builtinDelegateType(tr)) {  // Func<...> / Action<...>
                 if (d->isError()) return d;
@@ -559,6 +579,8 @@ void Sema::resolveMethodSignature(MethodDecl* m) {
     }
     if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "solo los métodos 'extern' pueden ser variádicos (...)");
     checkParamsSignature(m);  // 'params' (Sugar.cpp)
+    if (defaultsReady_) resolveParamDefaults(m);  // parámetros opcionales (Members.cpp)
+    else pendingDefaults_.push_back(m);
     iterResolveExplicit(m);   // 'T IInterfaz.Miembro()' (Iterators.cpp)
 }
 
@@ -634,9 +656,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         if (!c->isNamespaceScope && c->isStaticClass() && !m->isStatic())
             diag.error(m->loc, "las clases estáticas solo pueden tener miembros estáticos");
         if (m->isExtension() && !m->isStatic()) diag.error(m->loc, "los métodos de extensión deben ser 'static'");
-        if (m->kind == MethodKind::Getter && !m->params.empty())
+        if (m->kind == MethodKind::Getter && !m->params.empty() && m->name != "this[]")  // indizadores (Members.cpp)
             diag.error(m->loc, "una propiedad no puede tener parámetros");
-        if (m->kind == MethodKind::Operator) {
+        if (m->kind == MethodKind::Operator && !isConversionOp(m)) {
             bool index = m->name == "operator[]";
             if (index) {
                 if (m->isStatic() || m->params.size() != 1)
@@ -668,6 +690,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
                 for (size_t j = 0; j < i; j++) {
                     MethodDecl* o = group[j];
                     if (o->isTemplate() || o->params.size() != m->params.size()) continue;
+                    if (isConversionOp(m) && o->ret != m->ret) continue;  // conversiones a tipos distintos
                     bool same = true;
                     for (size_t k = 0; k < m->params.size(); k++) same &= o->params[k].type == m->params[k].type;
                     if (same) diag.error(m->loc, "ya existe un método '" + name + "' con los mismos tipos de parámetros");
@@ -698,6 +721,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         c->dtor->cname = c->cname + "__dtor";
         if (c->isStaticClass()) diag.error(c->dtor->loc, "una clase estática no puede tener destructor");
     }
+    checkMemberModifiers(c);  // required, init, indizadores y conversiones (Members.cpp)
     finishClassLayout(c);
 }
 
@@ -767,6 +791,7 @@ ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, So
     tmpl->instances[key] = c;
     prog_.types.push_back(c);
 
+    instantiateNested(c, tmpl);  // tipos anidados de la instancia (Nested.cpp)
     instDepth_++;
     resolveClassSignatures(c);
     instDepth_--;
@@ -1326,6 +1351,7 @@ bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     int64_t v;
     if (e && from->is(TK::Int) && to->isIntegral() && !to->is(TK::Char) && constEval(e, v) && fits(v, to)) return true;
     if (e && to->isEnum() && e->kind == EK::IntLit && static_cast<IntLitExpr*>(e)->value == 0) return true;
+    if (userImplicit(e, from, to)) return true;  // implicit operator (Members.cpp)
     return false;
 }
 
@@ -1345,6 +1371,7 @@ int Sema::convCost(Expr* e, Type* to) {
     if (from == to) return 0;
     if (from->isPending()) return pendingCost(e, to);
     if (!canImplicit(e, from, to)) return -1;
+    if (int uc = userConvCost(e, from, to); uc >= 0) return uc;  // implicit operator (Members.cpp)
     if (from->isNumeric() && to->isNumeric()) {
         // Una constante que se estrecha (p. ej. 42 -> byte) es peor que cualquier ensanchamiento.
         if (!implicitNumeric(from, to)) return 30 + numRank(from->kind) - numRank(to->kind);
@@ -1365,6 +1392,7 @@ void Sema::coerce(Expr*& e, Type* to) {
     }
     if (sugarCoerce(e, to)) return;  // T?, tuplas, 'default' (Sugar.cpp)
     if (arrayCoerce(e, to)) return;  // T[] -> Span<T>, new T[n] -> T* (Arrays.cpp)
+    if (userCoerce(e, to)) return;   // implicit operator (Members.cpp)
     if (!canImplicit(e, from, to)) {
         std::string msg = "no se puede convertir implícitamente el tipo '" + from->str() + "' en '" + to->str() + "'";
         if (canExplicit(from, to)) msg += " (existe una conversión explícita; ¿falta un cast?)";
@@ -1630,6 +1658,10 @@ void Sema::checkAccess(Access a, ClassDecl* owner, const std::string& what, Sour
 Type* Sema::checkInner(Expr* e) {
     if (isSugarExpr(e->kind)) return checkSugar(e);  // Sugar.cpp
     if (isArrayExprKind(e->kind)) return checkArrayExpr(e);  // [1, 2], ^i, a..b (Arrays.cpp)
+    if (e->kind == EK::OutVar) {  // fuera de los argumentos de una llamada (Members.cpp)
+        diag.error(e->loc, "'out " + static_cast<OutVarExpr*>(e)->name + "': solo se puede declarar una variable en un argumento 'out' de una llamada a un método o constructor");
+        return tc_.error();
+    }
     switch (e->kind) {
         case EK::IntLit: {
             auto* l = static_cast<IntLitExpr*>(e);
@@ -1688,6 +1720,7 @@ Type* Sema::checkInner(Expr* e) {
                 coerce(c->operand, to);
                 return to;
             }
+            if (Type* t = userCast(c, from, to)) return t;  // implicit/explicit operator (Members.cpp)
             if (!canExplicit(from, to)) {
                 diag.error(c->loc, "no se puede convertir el tipo '" + from->str() + "' en '" + to->str() + "'");
                 return tc_.error();
@@ -1919,6 +1952,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
             e->vk = ValKind::MethodGroup;
             return tc_.get(TK::Void);
         }
+        if (Type* t = outerMemberName(e)) return t;  // miembros estáticos de la clase contenedora (Nested.cpp)
     }
     if (e->typeArgs.empty()) {
         Type* gen = nullptr;
@@ -1939,6 +1973,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
         return s.global->type;
     }
     if (s.kind != Sym::None) return fromSym(e, s, e->typeArgs);
+    if (Type* t = usingStaticName(e)) return t;  // using static std.Math; (Nested.cpp)
     if (Type* t = unionNameHook(e)) return t;  // Some / None / Ok / Err (Unions.cpp)
     diag.error(e->loc, "el nombre '" + e->name + "' no existe en el contexto actual");
     return tc_.error();
@@ -2049,6 +2084,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
                 return tc_.get(TK::Void);
             }
         }
+        if (Type* r = nestedTypeMember(e, T)) return r;  // Externa.Interna, Clase.Delegado (Nested.cpp)
         if (Type* r = primitiveStaticMember(e, T)) return r;  // int.Parse, char.IsDigit... (Exceptions.cpp)
         diag.error(e->loc, "'" + T->str() + "' no contiene una definición para '" + e->name + "'");
         return tc_.error();
@@ -2148,27 +2184,44 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
         MethodDecl* m;
         int cost;
         bool generic;
+        int filled = 0;               // parámetros opcionales que toman su valor por defecto
+        bool binds = false;           // los argumentos se reordenaron/completaron (Members.cpp)
+        std::vector<Expr*> bound;
     };
     std::vector<Cand> viable;
+    std::string bindError;  // con un solo candidato: por qué no encajan los argumentos con nombre
+    for (Expr* a : args)    // posición en el código de los argumentos con nombre (orden de evaluación)
+        if (!a->argName.empty()) {
+            for (size_t i = 0; i < args.size(); i++) args[i]->argPos = (int)i;
+            break;
+        }
     for (MethodDecl* m0 : cands) {
         MethodDecl* m = m0;
         bool generic = false;
+        // Argumentos con nombre y parámetros opcionales: 'use' son los argumentos en el orden de
+        // los parámetros, con los valores por defecto (Members.cpp).
+        std::vector<Expr*> bound;
+        int filled = 0;
+        bool binds = needsArgBinding(m0, args);
+        if (binds && !bindArgs(m0, args, bound, filled, cands.size() == 1 ? &bindError : nullptr, loc)) continue;
+        std::vector<Expr*>& use = binds ? bound : args;
         if (m0->isTemplate()) {
             std::vector<Type*> ta;
-            if (!inferTypeArgs(m0, args, typeArgs, ta)) continue;
+            if (!inferTypeArgs(m0, use, typeArgs, ta)) continue;
             m = instantiateMethod(m0, ta, loc);
             if (!m) continue;
             generic = true;
+            if (binds && !bindArgs(m, args, bound, filled, nullptr, loc)) continue;  // valores por defecto de la instancia
         } else if (!typeArgs.empty()) {
             continue;
         }
         if (paramsMethod(m)) {  // forma normal o expandida de 'params' (Sugar.cpp)
-            int c = paramsCost(m, args);
-            if (c >= 0) viable.push_back({m, c, generic});
+            int c = paramsCost(m, use);
+            if (c >= 0) viable.push_back({m, c, generic, filled, binds, bound});
             continue;
         }
         size_t n = m->params.size();
-        if (args.size() < n || (args.size() > n && !m->variadic)) continue;
+        if (use.size() < n || (use.size() > n && !m->variadic)) continue;
         int cost = 0;
         bool ok = true;
         for (size_t i = 0; i < n && ok; i++) {
@@ -2176,25 +2229,32 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
             if (!p.type || p.type->isError()) {
                 ok = false;
             } else if (p.isRef()) {
-                ok = args[i]->type == p.type && isLValue(args[i]) && !isConstTarget(args[i]);
+                ok = use[i]->type == p.type && isLValue(use[i]) && !isConstTarget(use[i]);
             } else {
-                int c = convCost(args[i], p.type);
+                int c = convCost(use[i], p.type);
                 if (c < 0) ok = false;
                 else cost += c;
             }
         }
-        if (ok) viable.push_back({m, cost, generic});
+        if (ok) viable.push_back({m, cost, generic, filled, binds, bound});
     }
     if (viable.empty()) {
-        if (report && !constraintError_.empty()) diag.error(loc, constraintError_);
+        if (report && !bindError.empty()) diag.error(loc, bindError);
+        else if (report && !constraintError_.empty()) diag.error(loc, constraintError_);
         else if (report) diag.error(loc, "ninguna sobrecarga de '" + what + "' acepta los argumentos " + typeList(args));
         constraintError_.clear();
         return nullptr;
     }
     constraintError_.clear();
+    // Entre candidatos igual de buenos, mejor el que no necesita valores por defecto (como en C#).
     std::stable_sort(viable.begin(), viable.end(), [](const Cand& a, const Cand& b) {
-        return a.cost != b.cost ? a.cost < b.cost : (!a.generic && b.generic);
+        return a.cost != b.cost ? a.cost < b.cost : a.filled != b.filled ? a.filled < b.filled : (!a.generic && b.generic);
     });
+    auto pick = [&](const Cand& c) {  // el elegido: sus argumentos quedan en el orden de los parámetros
+        if (c.binds) args = c.bound;
+        return c.m;
+    };
+    auto same = [&](const Cand& a, const Cand& b) { return a.cost == b.cost && a.filled == b.filled && a.generic == b.generic; };
     // Desempates de C#: el miembro de la clase más derivada (Task<T>.ContinueWith frente a
     // Task.ContinueWith) y, entre genéricos, la plantilla más específica (Run<T>(Func<Task<T>>) frente
     // a Run<T>(Func<T>) para una lambda async que devuelve Task<int>).
@@ -2210,26 +2270,24 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
             if (p.tref) s += depth(p.tref);
         return s;
     };
-    if (viable.size() > 1 && viable[0].cost == viable[1].cost && viable[0].generic == viable[1].generic &&
-        viable[0].m != viable[1].m) {
+    if (viable.size() > 1 && same(viable[0], viable[1]) && viable[0].m != viable[1].m) {
         MethodDecl* a = viable[0].m;
         MethodDecl* b = viable[1].m;
-        bool tie3 = viable.size() > 2 && viable[2].cost == viable[0].cost && viable[2].generic == viable[0].generic;
+        bool tie3 = viable.size() > 2 && same(viable[2], viable[0]);
         if (!tie3 && a->owner && b->owner && a->owner != b->owner) {
-            if (derivesFrom(a->owner, b->owner)) return a;
-            if (derivesFrom(b->owner, a->owner)) return b;
+            if (derivesFrom(a->owner, b->owner)) return pick(viable[0]);
+            if (derivesFrom(b->owner, a->owner)) return pick(viable[1]);
         }
         if (!tie3 && viable[0].generic) {
             int sa = specificity(a), sb = specificity(b);
-            if (sa != sb) return sa > sb ? a : b;
+            if (sa != sb) return pick(sa > sb ? viable[0] : viable[1]);
         }
     }
-    if (viable.size() > 1 && viable[0].cost == viable[1].cost && viable[0].generic == viable[1].generic &&
-        viable[0].m != viable[1].m) {
+    if (viable.size() > 1 && same(viable[0], viable[1]) && viable[0].m != viable[1].m) {
         if (report) diag.error(loc, "la llamada a '" + what + "' es ambigua para los argumentos " + typeList(args));
         return nullptr;
     }
-    return viable[0].m;
+    return pick(viable[0]);
 }
 
 void Sema::coerceArgs(MethodDecl* m, std::vector<Expr*>& args) {
@@ -2265,10 +2323,13 @@ Type* Sema::checkCall(CallExpr* e) {
     calleeExpr_ = e->callee;
     check(e->callee);
     calleeExpr_ = nullptr;
+    completeArgNames(e->callee, e->args);  // IntelliSense: 'nombre:' (Members.cpp)
+    declareOutVars(e->callee->vk == ValKind::MethodGroup ? e->callee->group : std::vector<MethodDecl*>{}, e->args);  // out var x
     for (Expr* a : e->args) checkOperand(a);
     if (Type* t = unionCallHook(e)) return t;  // Option.Some(5), Ok(x) (Unions.cpp)
     Expr* callee = e->callee;
     if (callee->type->isError()) return tc_.error();
+    if (callee->vk == ValKind::Value && rejectNamedArgs(e->args, "al invocar un delegado")) return tc_.error();
     if (callee->vk == ValKind::Value && callee->type->isDelegate()) return checkDelegateCall(e);
 
     if (callee->vk == ValKind::Value && callee->type->isFuncPtr()) {
@@ -2355,6 +2416,7 @@ Type* Sema::checkCall(CallExpr* e) {
 Type* Sema::checkIndex(IndexExpr* ix) {
     Type* ot = checkValue(ix->obj);
     Type* it = checkValue(ix->index);
+    if (Type* t = checkIndexer(ix, ot)) return t;  // this[...] y a[i, j] (Members.cpp)
     if (ot->isError() || it->isError()) return tc_.error();
     if (Type* t = arrayIndexHook(ix, ot, it)) return t;  // s[^1], s[1..3] (Arrays.cpp)
     if (ot->isAggregate()) {
@@ -2676,8 +2738,10 @@ Type* Sema::checkAssign(AssignExpr* e) {
     eventLhs_ = e->op == "+=" || e->op == "-=" ? e->lhs : nullptr;  // evento += manejador
     if (e->op == "?\?=") return checkCoalesceAssign(e);                      // Sugar.cpp
     if (e->lhs->kind == EK::Tuple) return checkDeconstructAssign(e);         // (a, b) = (b, a)
+    noteIndexTarget(e);  // a[i] = v con un indizador (Members.cpp)
     Type* L = checkValue(e->lhs);
     eventLhs_ = nullptr;
+    if (Type* t = checkIndexerAssign(e)) return t;
     if (e->op != "=" && !L->isError()) {  // p += v sobre una propiedad: antes de comprobar 'v' (EvalOrder.cpp)
         bool prop = (e->lhs->kind == EK::Name && static_cast<NameExpr*>(e->lhs)->getter) ||
                     (e->lhs->kind == EK::Member && static_cast<MemberExpr*>(e->lhs)->getter);
@@ -2697,6 +2761,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
             diag.error(e->lhs->loc, "la propiedad '" + getter->name + "' es de solo lectura (no tiene 'set')");
             return tc_.error();
         }
+        if (setter->isInit && !initSetterAllowed(e, setter)) return tc_.error();  // accesor 'init' (Members.cpp)
         if (e->op != "=") {
             diag.error(e->loc, "'" + e->op + "' no se puede usar con propiedades; escribe 'p = p " + e->op.substr(0, e->op.size() - 1) + " valor'");
             return tc_.error();
@@ -2791,7 +2856,9 @@ Type* Sema::checkCond(CondExpr* e) {
 }
 
 Type* Sema::checkNew(NewExpr* e) {
+    if (e->initState == 0) return checkNewMembers(e);  // inicializadores y 'required' (Members.cpp)
     Type* T = resolveType(e->tref);
+    declareOutVars(T->isAggregate() ? T->decl->ctors : std::vector<MethodDecl*>{}, e->args);  // out var x (Members.cpp)
     for (Expr* a : e->args) checkOperand(a);
     if (T->isError()) return T;
     if (!T->isAggregate()) {
@@ -2886,7 +2953,7 @@ std::string Sema::methodSignature(MethodDecl* m) {
         if (i) s += ", ";
         if (p.isThis) s += "this ";
         s += p.type ? p.type->str() + (p.isRef() ? "&" : "") : p.tref->str();
-        s += " " + p.name;
+        s += " " + p.name + paramDefaultText(p);  // " = 0" (Members.cpp)
     }
     if (m->variadic) s += m->params.empty() ? "..." : ", ...";
     return s + ")" + (m->kind == MethodKind::Normal ? awaitNote(m->ret) : "");
@@ -2906,6 +2973,7 @@ void Sema::addRef(SourceLoc loc, int length, const std::string& hover, const Sou
 
 void Sema::addCompletion(const std::string& label, int kind, const std::string& detail) {
     if (label.empty() || label == kCompletionMarker || label[0] == '<') return;
+    if (label.find_first_of("[ ") != std::string::npos) return;  // "this[]", "operator implicit" (Members.cpp)
     if (label.rfind("__", 0) == 0) return;  // miembros internos generados (uniones: __caso, __Caso_Campo)
     if (label.find('.') != std::string::npos) return;  // implementación explícita 'IEnumerable.GetEnumerator'
     if (!completionSeen_.insert(label + "#" + std::to_string(kind)).second) return;
@@ -2951,6 +3019,7 @@ void Sema::completeScope() {
             }
         }
         if (cls->base && !ctx_.isStatic) addCompletion("base", kKeyword, "base: " + typeDescription(cls->base));
+        completeNested(cls, true);  // tipos anidados visibles (Nested.cpp)
         for (auto& [name, t] : cls->typeArgMap) addCompletion(name, kTypeParam, t->str());
     }
     if (ctx_.method)
@@ -2988,6 +3057,7 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
             for (EnumMember& m : T->decl->enumMembers)
                 addCompletion(m.name, kEnumMember, T->str() + "." + m.name + " = " + std::to_string(m.val));
         if (T->isAggregate()) {
+            completeNested(T->decl, false);  // Externa.Interna (Nested.cpp)
             for (ClassDecl* c : lookupChain(T->decl)) {
                 for (FieldDecl* f : c->fields)
                     if (f->isStatic() && visible(f->mods.access, c)) addCompletion(f->name, kField, describeField(f));

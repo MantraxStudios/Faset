@@ -278,7 +278,8 @@ std::string CodeGen::generate(bool shared) {
     pushHoist();
     for (FieldDecl* f : sema_.staticInits) {
         curClass_ = f->owner;
-        line(f->cname + " = " + expr(f->init) + ";");
+        if (f->staticCtor) line(expr(f->init) + ";");  // static Clase() (StaticInit.cpp)
+        else line(f->cname + " = " + expr(f->init) + ";");
     }
     popHoist();
     indent_ = 0;
@@ -372,7 +373,7 @@ void CodeGen::emitMethod(MethodDecl* m) {
     usings_.push_back({});  // objetos de 'using var' del cuerpo
     if (m->objSelf) line(m->owner->cname + "* self = (" + m->owner->cname + "*)faset_self;");
     if (!m->isStatic()) line("(void)self;");
-    for (VarInfo* v : m->patternVars) line(ctype(v->type) + " " + v->cname + " = 0;");  // 'is T x'
+    for (VarInfo* v : m->patternVars) line(ctype(v->type) + " " + v->cname + " = " + zeroInit(v->type) + ";");  // 'is T x', 'out var x'
     if (m->recordGen) {
         emitRecordBody(m);
         usings_.pop_back();
@@ -573,7 +574,7 @@ std::string CodeGen::call(MethodDecl* m, const std::string& self, const std::vec
         op.addr = i < m->params.size() && m->params[i].isRef();
         ops.push_back(op);
     }
-    std::string pre = sequence(ops);
+    std::string pre = sequenceArgs(ops, recv ? 1 : 0);  // en el orden del código (argumentos con nombre)
     std::string selfCode = recv ? recvCode(ops[0], recv, recvArrow) : self;
     std::vector<std::string> codes;
     for (size_t i = recv ? 1 : 0; i < ops.size(); i++) codes.push_back(ops[i].addr ? "(&" + ops[i].code + ")" : ops[i].code);
@@ -809,7 +810,7 @@ std::string CodeGen::expr(Expr* e) {
                 op.addr = n->ctor->params[i].isRef();
                 ops.push_back(op);
             }
-            std::string pre = sequence(ops);
+            std::string pre = sequenceArgs(ops, 0);
             std::string s = fn + std::to_string(idx) + "(";
             for (size_t i = 0; i < ops.size(); i++) s += (i ? ", " : "") + (ops[i].addr ? "(&" + ops[i].code + ")" : ops[i].code);
             return seqWrap(pre, s + ")");

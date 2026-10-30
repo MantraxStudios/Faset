@@ -1,0 +1,119 @@
+export const metadata = {
+  title: "Indizadores y conversiones",
+  description: "Indizadores this[...] con uno o varios índices, claves string y sobrecargas, y conversiones del usuario implicit / explicit operator.",
+};
+
+# Indizadores y conversiones
+
+<p className="lead">
+  Un indizador permite usar <code>objeto[i]</code> con tus tipos, y una conversión del usuario
+  permite escribir <code>Celsius c = 25.0;</code> o <code>(double)c</code>.
+</p>
+
+## Indizadores
+
+Se declaran como una propiedad llamada `this` con parámetros entre corchetes. Pueden tener varios
+índices, de cualquier tipo, y varias sobrecargas:
+
+```faset
+using std.collections;
+
+class Matriz
+{
+    List<double> datos = new List<double>();
+    public int Columnas;
+
+    public Matriz(int filas, int columnas)
+    {
+        Columnas = columnas;
+        for (int i = 0; i < filas * columnas; i++) datos.Add(0);
+    }
+
+    public double this[int fila, int columna]
+    {
+        get => datos[fila * Columnas + columna];
+        set { datos[fila * Columnas + columna] = value; }
+    }
+
+    public double this[int i] => datos[i];   // solo lectura
+}
+
+class Agenda
+{
+    Dictionary<string, string> telefonos = new Dictionary<string, string>();
+    public string this[string nombre]
+    {
+        get { return telefonos.ContainsKey(nombre) ? telefonos[nombre] : "?"; }
+        set { telefonos[nombre] = value; }
+    }
+}
+
+int main()
+{
+    var m = new Matriz(2, 3);
+    m[1, 2] = 5.5;
+    m[0, 0] += 2;                    // get, después set
+    println(m[1, 2] + m[0, 0]);      // 7.5
+    println(m[5]);                   // 5.5
+
+    var a = new Agenda();
+    a["Ana"] = "555-1234";
+    println(a["Ana"] + " " + a["Luis"]);   // 555-1234 ?
+    return 0;
+}
+```
+
+- Los indizadores también pueden declararse en interfaces (`int this[int i] { get; }`), ser
+  genéricos con la clase y usarse en un [inicializador](/lenguaje/inicializadores/)
+  (`new Agenda { ["Ana"] = "1" }`).
+- `[index]` sigue funcionando con `T& operator[](int i)` (ver
+  [operadores](/lenguaje/operadores/)); un indizador `this[...]` es la forma de C# y admite varios
+  índices y un `set` con lógica propia.
+- No pueden ser `static` ni tener parámetros `ref`/`out`.
+
+## Conversiones del usuario
+
+`public static implicit operator Destino(Origen x)` define una conversión que se aplica sola; con
+`explicit` hace falta un cast. Uno de los dos tipos debe ser la clase que la declara:
+
+```faset
+struct Celsius
+{
+    public double Grados;
+    public Celsius(double g) { Grados = g; }
+    public static implicit operator Celsius(double d) => new Celsius(d);
+    public static explicit operator double(Celsius c) => c.Grados;
+    public static implicit operator Fahrenheit(Celsius c) => new Fahrenheit(c.Grados * 9 / 5 + 32);
+}
+
+struct Fahrenheit
+{
+    public double Grados;
+    public Fahrenheit(double g) { Grados = g; }
+}
+
+void Mostrar(Fahrenheit f) => println($"{f.Grados} °F");
+void Tipo(int x) => println("int");
+void Tipo(Celsius c) => println("Celsius");
+
+int main()
+{
+    Celsius c = 25.0;            // implícita
+    Celsius tibio = 30;          // int -> double -> Celsius
+    double d = (double)c;        // explícita
+    println(d + tibio.Grados);   // 55
+    Mostrar(c);                  // 77 °F (también en argumentos)
+    Tipo(3);                     // int: las conversiones estándar ganan
+    Tipo(3.5);                   // Celsius
+    return 0;
+}
+```
+
+Como en C#:
+
+- Antes y después de la conversión del usuario puede haber una conversión estándar implícita
+  (`int` a `double`), pero nunca dos conversiones del usuario seguidas.
+- En la resolución de sobrecargas una conversión del usuario es peor que cualquier conversión
+  estándar.
+- No se permiten conversiones a o desde una interfaz, `object` o una clase base o derivada, ni
+  definir a la vez `implicit` y `explicit` para los mismos tipos.

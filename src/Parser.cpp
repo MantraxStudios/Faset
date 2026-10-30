@@ -119,7 +119,7 @@ void Parser::parseUsing(bool isImport) {
         return;
     }
     acceptK("namespace");
-    if (isK("static")) fail("'using static' aún no está soportado");
+    if (acceptK("static")) u.isStatic = true;  // using static std.Math; (Nested.cpp)
     if (cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct && peekTok().text == "=") {
         u.alias = expectIdent();
         p_++;
@@ -269,6 +269,9 @@ Modifiers Parser::parseModifiers() {
             p_++, m.isAsync = true;  // async/await (Async.cpp): la biblioteca std.task hace falta
             requestModule({"std", "task"});
         }
+        else if (cur().kind == TokKind::Ident && cur().text == "required" &&
+                 (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword || peekTok().text == "("))
+            p_++, m.isRequired = true;  // miembros obligatorios (Members.cpp)
         else if (acceptK("virtual")) m.isVirtual = true;
         else if (acceptK("override")) m.isOverride = true;
         else if (acceptK("abstract")) m.isAbstract = true;
@@ -350,7 +353,8 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         }
     }
     parseWhereClauses(c->constraints);
-    if (!reparse_) prog_.types.push_back(c);
+    // Los tipos anidados en una clase genérica se crean con cada instancia (Nested.cpp).
+    if (!reparse_ && !inTemplateType_) prog_.types.push_back(c);
     if (c->isRecord && acceptP(";")) {
         synthesizeRecord(c, recordParams, positional);
         return c;
@@ -364,6 +368,7 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         bool savedHas = hasSection_;
         Access savedSec = section_;
         hasSection_ = false;
+        if (c->isTemplate()) inTemplateType_++;
         while (!atEnd() && !isP("}")) {
             try {
                 size_t mb = p_;
@@ -374,6 +379,7 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
                 skipTo(";");
             }
         }
+        if (c->isTemplate()) inTemplateType_--;
         hasSection_ = savedHas;
         section_ = savedSec;
         if (c->isRecord) synthesizeRecord(c, recordParams, positional);
@@ -403,6 +409,7 @@ void Parser::parseParams(MethodDecl* m) {
                 break;
             }
             Param prm;
+            if (isP("[")) prm.attrs = parseAttributes();  // [CallerMemberName] ... (Members.cpp)
             prm.loc = cur().loc;
             if (acceptK("this")) prm.isThis = true;
             bool byRef = false;
@@ -416,7 +423,7 @@ void Parser::parseParams(MethodDecl* m) {
             allowArraySuffix_ = false;
             if (byRef) prm.tref->isRef = true;
             prm.name = expectIdent();
-            if (isP("=")) fail("los parámetros con valor por defecto aún no están soportados");
+            if (acceptP("=")) prm.defaultValue = parseExpr();  // parámetro opcional (Members.cpp)
             m->params.push_back(prm);
         } while (acceptP(","));
     }
@@ -451,7 +458,10 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         return m;
     };
 
-    if (isK("class") || isK("struct") || isK("enum")) fail("los tipos anidados aún no están soportados");
+    if (isK("class") || isK("struct") || isK("enum") || isK("interface") || isRecordStart()) {
+        parseNestedType(c, attrs, mods, begin);  // tipos anidados (ParserMembers.cpp)
+        return;
+    }
     if (isK("delegate") && !(peekTok().kind == TokKind::Punct && peekTok().text == "*")) {
         parseDelegateDecl(c, attrs, mods);
         return;
@@ -520,6 +530,10 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         stamp(m);
         m->name = c->name;
         parseParams(m);
+        if (mods.isStatic) {  // static Clase() { ... } (StaticInit.cpp)
+            finishStaticCtor(c, m, [&](MethodDecl* x) { finishMethod(x); });
+            return;
+        }
         if (acceptP(":")) {  // : base(...) / : this(...)
             m->ctorInitLoc = cur().loc;
             if (cur().kind == TokKind::Ident && cur().text == "base") p_++, m->ctorInit = 1;
@@ -532,7 +546,20 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         return;
     }
 
+    // Conversiones del usuario: public static implicit operator Celsius(double d) (ParserMembers.cpp)
+    if (cur().kind == TokKind::Ident && (cur().text == "implicit" || cur().text == "explicit") &&
+        peekTok().kind == TokKind::Keyword && peekTok().text == "operator") {
+        parseConversionOperator(c, attrs, mods, [&](MethodDecl* x) { finishMethod(stamp(x)); });
+        return;
+    }
+
     TypeRef* type = parseType();
+
+    // Indizadores: public T this[int i] { get { ... } set { ... } } (ParserMembers.cpp)
+    if (isK("this") && peekTok().kind == TokKind::Punct && peekTok().text == "[") {
+        parseIndexer(c, attrs, mods, type, ctxUnsafe, [&](MethodDecl* x) { finishMethod(stamp(x)); });
+        return;
+    }
 
     // Sobrecarga de operadores: static T operator+(T a, T b)  /  T& operator[](int i)
     if (acceptK("operator")) {
@@ -655,10 +682,12 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                     } else {
                         finishMethod(m);
                     }
-                } else if (cur().kind == TokKind::Ident && cur().text == "set") {
+                } else if (cur().kind == TokKind::Ident && (cur().text == "set" || cur().text == "init")) {
+                    bool initOnly = cur().text == "init";  // accesor 'init' (Members.cpp)
                     p_++;
                     if (setter) fail("la propiedad ya tiene 'set'");
                     setter = new MethodDecl();
+                    setter->isInit = initOnly;
                     setter->loc = al;
                     setter->mods = mods;
                     if (accessorMods.hasAccess) setter->mods.access = accessorMods.access;
@@ -694,7 +723,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                         finishMethod(setter);
                     }
                 } else {
-                    fail("se esperaba 'get' o 'set'");
+                    fail("se esperaba 'get', 'set' o 'init'");
                 }
             }
             expectP("}");
@@ -907,6 +936,7 @@ BlockStmt* Parser::parseBlock() {
     }
     b->endLoc = cur().loc;
     expectP("}");
+    hoistLocalFunctions(b);  // funciones locales (ParserMembers.cpp)
     return b;
 }
 
@@ -1239,8 +1269,19 @@ std::vector<Expr*> Parser::parseArgs() {
     expectP("(");
     if (!isP(")")) {
         do {
-            if (!acceptK("ref")) acceptK("out");  // C#: f(ref x) -> parámetro T&
-            args.push_back(parseExpr());
+            // Argumento con nombre: F(nombre: valor) (Members.cpp)
+            std::string argName;
+            SourceLoc argNameLoc = cur().loc;
+            if (cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct && peekTok().text == ":") {
+                argName = cur().text;
+                p_ += 2;
+            }
+            bool isOut = false;
+            if (!acceptK("ref")) isOut = acceptK("out");  // C#: f(ref x) -> parámetro T&
+            if (Expr* ov = isOut ? tryParseOutVar() : nullptr) args.push_back(ov);  // out var x (ParserMembers.cpp)
+            else args.push_back(parseExpr());
+            args.back()->argName = argName;
+            args.back()->argNameLoc = argNameLoc;
         } while (acceptP(","));
     }
     expectP(")");
@@ -1272,7 +1313,10 @@ Expr* Parser::parsePostfix(Expr* e) {
             auto* ix = new IndexExpr(loc);
             ix->obj = e;
             ix->index = parseExpr();
-            if (isP(",")) ix->index = parseIndexList(ix->index);  // a[i, j] (ParserArrays.cpp)
+            if (isP(",")) {  // a[i, j] (ParserArrays.cpp); con un indizador this[int x, int y], ver Members.cpp
+                ix->index = parseIndexList(ix->index);
+                ix->indexList = true;
+            }
             expectP("]");
             e = ix;
         } else if (isP("?") && peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "[")) {
@@ -1375,14 +1419,14 @@ Expr* Parser::parsePrimary() {
                 TypeRef* tr = tryParseType();
                 if (!tr || halfGt_) fail("se esperaba un tipo después de 'new'");
                 if (isP("[") || (tr->arrayRank && isP("{"))) return parseNewArray(loc, tr);
-                if (isP("(")) {
+                if (isP("(") || isP("{")) {
                     auto* e = new NewExpr(loc);
                     e->tref = tr;
-                    e->args = parseArgs();
-                    if (isP("{")) fail("los inicializadores de objeto aún no están soportados");
+                    if (isP("(")) e->args = parseArgs();
+                    if (isP("{")) e->init = parseObjInit();  // inicializadores (ParserMembers.cpp)
                     return e;
                 }
-                fail("se esperaba '(' o '[' después de 'new " + tr->str() + "'");
+                fail("se esperaba '(', '{' o '[' después de 'new " + tr->str() + "'");
             }
             if (isPrimitiveKw()) {  // int.MaxValue, int::MaxValue
                 auto* e = new NameExpr(loc);

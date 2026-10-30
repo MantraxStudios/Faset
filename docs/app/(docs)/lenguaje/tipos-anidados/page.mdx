@@ -1,0 +1,133 @@
+export const metadata = {
+  title: "Tipos anidados, using static y alias",
+  description: "Clases, structs, enums, interfaces, records y delegados dentro de una clase (Externa.Interna), using static y alias de using.",
+};
+
+# Tipos anidados, `using static` y alias
+
+<p className="lead">
+  Una clase puede declarar otros tipos dentro. Se nombran como <code>Externa.Interna</code> y, como
+  en C#, son privados salvo que digas otra cosa.
+</p>
+
+## Tipos anidados
+
+Dentro de una clase o struct se pueden declarar clases, structs, enums, interfaces, records y
+delegados. Desde dentro de la clase (y de sus derivadas) se usan por su nombre simple; desde fuera,
+con el nombre de la clase delante:
+
+```faset
+class Pedido
+{
+    public enum Estado { Nuevo, Enviado, Entregado }
+
+    public class Linea
+    {
+        public string Producto;
+        public int Cantidad;
+        public Linea(string p, int c) { Producto = p; Cantidad = c; totalLineas++; }
+    }
+
+    public delegate void Aviso(Estado nuevo);
+
+    static int totalLineas = 0;   // privado, pero visible para Linea
+    public Estado Actual = Estado.Nuevo;
+    public static int TotalLineas => totalLineas;
+}
+
+int main()
+{
+    var l = new Pedido.Linea("libro", 2);
+    Pedido.Estado e = Pedido.Estado.Enviado;
+    Pedido.Aviso aviso = s => println("ahora: " + s.ToString());
+    aviso(e);                                  // ahora: Enviado
+    println(Pedido.TotalLineas);               // 1
+    return 0;
+}
+```
+
+- Sin modificador, un tipo anidado es `private`: solo se puede usar dentro de la clase que lo
+  contiene. `public`, `internal` y `protected` funcionan como en los miembros.
+- Desde un tipo anidado se usan por su nombre los miembros **estáticos** de las clases que lo
+  contienen, también los privados. Los de instancia necesitan un objeto.
+- Las interfaces no pueden declarar tipos anidados.
+
+### En clases genéricas
+
+En una clase genérica, cada instancia tiene sus propios tipos anidados, que pueden usar los
+parámetros de tipo de la clase:
+
+```faset
+class Pila<T>
+{
+    class Nodo
+    {
+        public T Valor;
+        public Nodo Debajo;
+        public Nodo(T v, Nodo d) { Valor = v; Debajo = d; }
+    }
+
+    Nodo cima;
+    public void Push(T v) => cima = new Nodo(v, cima);
+    public T Pop()
+    {
+        T v = cima.Valor;
+        cima = cima.Debajo;
+        return v;
+    }
+}
+
+int main()
+{
+    var p = new Pila<string>();
+    p.Push("a");
+    p.Push("b");
+    println(p.Pop() + p.Pop());   // ba
+    return 0;
+}
+```
+
+## `using static`
+
+`using static Tipo;` permite usar los miembros estáticos de un tipo (métodos, campos, propiedades y
+los miembros de un enum) sin escribir su nombre:
+
+```faset
+using static std.Math;
+
+enum Dia { Lunes, Martes }
+using static Dia;
+
+int main()
+{
+    println(Sqrt(16.0) + Max(3, 7));   // 11
+    println(Martes.ToString());        // Martes
+    return 0;
+}
+```
+
+Los nombres del propio ámbito y de los namespaces importados tienen prioridad. `using static` no
+admite tipos genéricos.
+
+## Alias
+
+`using Alias = Ruta.Del.Tipo;` da otro nombre a un tipo (también a uno anidado) o a un namespace:
+
+```faset
+using Texto = std.text.StringBuilder;
+using Linea = Pedido.Linea;
+
+class Pedido
+{
+    public class Linea { public string Producto = "?"; }
+}
+
+int main()
+{
+    var sb = new Texto();
+    sb.Append("hola");
+    println(sb.ToString());          // hola
+    println(new Linea().Producto);   // ?
+    return 0;
+}
+```
