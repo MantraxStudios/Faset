@@ -1,0 +1,286 @@
+export const metadata = {
+  title: "Arreglos, rangos y colecciones",
+  description: "Arreglos T[] con comprobación de límites, arreglos multidimensionales y escalonados, índices ^n y rangos a..b, Span<T>, expresiones de colección [1, 2, ..otra] y patrones de lista en Faset.",
+};
+
+# Arreglos, rangos y colecciones
+
+<p className="lead">
+  Un arreglo <code>T[]</code> es un objeto del recolector con una longitud fija. Cada acceso
+  comprueba los límites, igual que en C#; en un bucle el compilador lo traduce a una comparación y
+  un acceso directo a memoria, sin llamadas.
+</p>
+
+```faset
+using std;
+
+void main()
+{
+    int[] a = new int[5];             // cinco ceros
+    int[] b = new int[] { 1, 2, 3 };
+    int[] c = { 4, 5, 6 };            // inicializador en la declaración
+    var d = new[] { 1.5, 2.5 };       // double[]: el tipo sale de los elementos
+    int[] e = [7, 8, 9];              // expresión de colección (C# 12)
+
+    a[2] = 7;
+    println(a.Length);                // 5
+    println(b[0] + c[1] + e[2]);      // 15
+    println(d[1]);                    // 2.5
+
+    foreach (int x in c) print(x + " ");
+    println("");                      // 4 5 6
+
+    try
+    {
+        println(a[10]);
+    }
+    catch (IndexOutOfRangeException ex)
+    {
+        println(ex.Message);          // índice fuera de rango: 10 (longitud 5)
+    }
+}
+```
+
+Fuera de un `try`, un índice fuera de rango termina el programa con un `Faset panic` que indica
+la línea. Los arreglos admiten elementos de cualquier tipo: números, `string`, clases, structs,
+tuplas u otros arreglos; funcionan en genéricos, lambdas, métodos `async` y excepciones, y se
+pueden guardar en un `object` y recuperar con `is int[] a`.
+
+## La clase Array
+
+Los métodos estáticos de `Array` trabajan sobre arreglos de una dimensión:
+
+```faset
+using std;
+
+void main()
+{
+    int[] z = { 5, 3, 9, 1 };
+    Array.Sort(z);                         // 1 3 5 9
+    println(Array.BinarySearch(z, 5));     // 2
+    Array.Reverse(z);                      // 9 5 3 1
+    println(Array.IndexOf(z, 3));          // 2
+    Array.Resize(ref z, 6);                // 9 5 3 1 0 0
+    println(z.Length);                     // 6
+    Array.Fill(z, 2);
+    int[] copia = new int[6];
+    Array.Copy(z, copia, 6);
+    println(copia[5]);                     // 2
+    Array.Clear(z);
+    println(z[0]);                         // 0
+
+    string[] palabras = ["pera", "uva", "kiwi"];
+    Array.Sort(palabras, (x, y) => x.Length - y.Length);   // estable
+    println(palabras[0]);                  // uva
+}
+```
+
+Además están `Exists`, `TrueForAll`, `Find`, `FindIndex`, `FindLast`, `FindAll`, `ConvertAll`,
+`LastIndexOf` y `Array.Empty<T>()`. Cada arreglo tiene `Clone()`, `CopyTo`, `Fill`, `IndexOf`,
+`Contains`, `SequenceEqual`, `ToList()`, `AsSpan()` y los operadores de
+[LINQ](/lenguaje/linq/): `Where`, `Select`, `OrderBy`, `Sum`, `Max`… Como en `List<T>`, son
+inmediatos y devuelven una `List<T>`; con `.ToArray()` se vuelve a un arreglo. Un arreglo es
+también un `IEnumerable<T>`, así que acepta los operadores perezosos y cualquier parámetro
+`IEnumerable<T>`.
+
+```faset
+using std;
+using std.collections;
+
+void main()
+{
+    int[] b = { 1, 2, 3 };
+    List<int> mayores = b.Where(x => x > 1).ToList();
+    int[] cuadrados = b.Select(x => x * x).ToArray();
+    println(mayores.Count);              // 2
+    println(cuadrados[2]);               // 9
+    int[] lista = mayores.ToArray();     // List<T> -> T[]
+    println(lista[0]);                   // 2
+}
+```
+
+### Sin covarianza
+
+En C# un `string[]` se puede usar como `object[]`, y escribir en él un número falla al ejecutar.
+Faset no tiene esa conversión: `object[] o = new string[2];` es un error de compilación
+(*los arreglos no son covariantes*). Para cambiar el tipo de los elementos, crea un arreglo nuevo
+(`Array.ConvertAll`, un bucle o `Select(...).ToArray()`).
+
+## Multidimensionales y escalonados
+
+`T[,]` y `T[,,]` son arreglos rectangulares (los elementos van seguidos, por filas). `GetLength(d)`
+da el tamaño de cada dimensión, `Rank` el número de dimensiones y `Length` el total. `T[][]` es un
+arreglo de arreglos, cada uno con su longitud.
+
+```faset
+void main()
+{
+    int[,] m = new int[2, 3];
+    m[1, 2] = 5;
+    println(m.GetLength(0) + " x " + m.GetLength(1));   // 2 x 3
+    println(m.Rank);                                    // 2
+
+    int[,] m2 = { { 1, 2 }, { 3, 4 } };
+    int suma = 0;
+    foreach (int v in m2) suma += v;                    // por filas
+    println(suma);                                      // 10
+
+    int[][] filas = new int[2][];
+    filas[0] = [1];
+    filas[1] = [1, 2, 3];
+    println(filas[1].Length);                           // 3
+}
+```
+
+## Índices y rangos
+
+`^n` cuenta desde el final (`^1` es el último) y `a..b` es el tramo desde `a` hasta `b` sin
+incluirlo; cualquiera de los extremos se puede omitir. Funcionan con arreglos (copian el tramo),
+`string` (subcadena), `List<T>` (como `GetRange`) y `Span<T>` (sin copiar). Los tipos son
+`Index` y `Range`, y se pueden guardar en variables.
+
+```faset
+using std.collections;
+
+void main()
+{
+    int[] a = [10, 20, 30, 40];
+    println(a[^1]);                // 40
+    int[] medio = a[1..^1];        // copia: 20 30
+    println(medio.Length);         // 2
+    println(a[2..][0]);            // 30
+    println(a[..2].Length);        // 2
+
+    string s = "abcdef";
+    println(s[1..^1]);             // bcde
+    println(s[..2] + s[4..]);      // abef
+
+    List<int> l = [1, 2, 3, 4];
+    println(l[^2]);                // 3
+    println(l[1..3].Count);        // 2
+
+    Range r = 1..^1;
+    Index i = ^2;
+    println(r.ToString() + " " + i.ToString());   // 1..^1 ^2
+}
+```
+
+A diferencia de C#, los extremos de un rango son expresiones completas: `1..n-1` es `1..(n-1)`.
+
+## Span&lt;T&gt; y ReadOnlySpan&lt;T&gt;
+
+`Span<T>` es una vista de un tramo de un arreglo o de una lista: no copia, comprueba los límites
+en cada acceso y mantiene vivo el arreglo, así que es segura y se usa sin `memory_unsafe`. Un
+`T[]` se convierte implícitamente en `Span<T>` y un `Span<T>` en `ReadOnlySpan<T>`, que no permite
+escribir.
+
+```faset
+using std;
+
+void main()
+{
+    int[] datos = [1, 2, 3, 4, 5];
+    Span<int> tramo = datos.AsSpan(1, 3);    // 2 3 4, sin copiar
+    tramo[0] = 100;
+    println(datos[1]);                       // 100
+
+    Span<int> todo = datos;
+    ReadOnlySpan<int> cola = todo[2..];      // 3 4 5
+    int suma = 0;
+    foreach (int x in cola) suma += x;
+    println(suma);                           // 12
+}
+```
+
+`Span` tiene `Slice`, `Fill`, `Clear`, `CopyTo`, `IndexOf`, `Contains`, `Reverse`, `Sort`,
+`ToArray` y `ToList`. No hay que confundirla con `std.mem.Span<T>`, la vista de bajo nivel sobre
+un puntero (solo en `memory_unsafe`): si un archivo hace `using std.mem;`, `Span` se refiere a esa.
+
+## Expresiones de colección
+
+`[e1, e2, ...]` crea la colección que pida el destino: un arreglo, `List<T>`, `HashSet<T>`,
+`Span<T>`, `ReadOnlySpan<T>`, `Dictionary<K, V>` o cualquier clase con un constructor sin
+parámetros y un método `Add`. `..otra` inserta todos los elementos de un arreglo, una lista, un
+conjunto o un `Span`, y `[]` es la colección vacía. Los elementos se evalúan en orden.
+
+```faset
+using std;
+using std.collections;
+
+int Contar(params int[] xs) => xs.Length;
+int[] Primos() => [2, 3, 5];
+
+void main()
+{
+    int[] a = [1, 2, 3];
+    List<int> l = [0, ..a, 4];               // 0 1 2 3 4
+    HashSet<int> h = [1, 1, 2];
+    Dictionary<string, int> d = ["uno": 1, "dos": 2];
+    Dictionary<string, int> d2 = [["tres"] = 3];
+    int[] vacio = [];
+
+    println(l.Count + " " + h.Count);         // 5 2
+    println(d["dos"] + d2["tres"]);           // 5
+    println(vacio.Length);                    // 0
+    println(Contar([..Primos(), 7]));         // 4
+    println(Contar(1, 2));                    // 2
+}
+```
+
+Una expresión de colección no tiene tipo propio: `var x = [1, 2];` es un error, porque no se sabe
+qué colección crear. Si hay sobrecargas, se prefiere `ReadOnlySpan<T>`, después `Span<T>`, `T[]`
+y `List<T>`.
+
+## params T[]
+
+`params T[]` recibe los argumentos sueltos en un arreglo nuevo; también se le puede pasar un
+arreglo directamente. `params List<T>` sigue funcionando como antes (consulta
+[params](/lenguaje/comodidades/#params)).
+
+## Patrones de lista
+
+Un patrón de lista comprueba la longitud y los elementos de un arreglo, una lista, un `Span` o una
+cadena. `..` captura el resto (como mucho uno por patrón) y puede llevar su propio patrón:
+
+```faset
+string Describe(int[] a) => a switch
+{
+    [] => "vacío",
+    [var x] => "uno: " + x,
+    [1, 2, ..] => "empieza por 1, 2",
+    [.., var u] when u > 50 => "termina en " + u,
+    [_, .. var medio, _] => "en medio hay " + medio.Length,
+};
+
+void main()
+{
+    println(Describe([]));             // vacío
+    println(Describe([9]));            // uno: 9
+    println(Describe([1, 2, 3]));      // empieza por 1, 2
+    println(Describe([5, 99]));        // termina en 99
+    println(Describe([5, 6, 7, 8]));   // en medio hay 2
+
+    int[] e = [7, 8, 9];
+    if (e is [7, .., var ultimo]) println(ultimo);   // 9
+}
+```
+
+## Arreglos crudos en memory_unsafe
+
+Dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/), `new T[n]` asignado a un
+puntero `T*` sigue reservando memoria sin cabecera ni comprobación de límites, como antes de que
+existiera `T[]`. En cualquier otro destino, `new T[n]` crea un arreglo `T[]`.
+
+```faset
+void main()
+{
+    memory_unsafe
+    {
+        double* crudo = new double[5];   // puntero: sin comprobación de límites
+        crudo[4] = 2.0;
+        println(crudo[4]);               // 2
+    }
+    double[] seguro = new double[5];     // arreglo administrado
+    println(seguro.Length);              // 5
+}
+```

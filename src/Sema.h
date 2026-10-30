@@ -430,4 +430,38 @@ private:
 public:
     static std::string unionDescription(ClassDecl* c);
     static bool unionStd(Type* t, const char* name);  // std.Option<T> / std.Result<T, E>
+    // ---- arreglos, índices, rangos, expresiones de colección y patrones de lista (Arrays.cpp).
+    // T[] es std.Array<T> (clase de arrays.fst); casi todo se reescribe ('lowered') en llamadas,
+    // 'new' y temporales que el resto del compilador ya sabe comprobar y emitir.
+    ClassDecl* arrayTmpl_[3] = {nullptr, nullptr, nullptr};
+    ClassDecl* arrayTemplate(int rank);
+    ClassDecl* stdTemplate(const char* ns, const char* name);
+    Type* stdType(const char* name);  // std.Index, std.Range
+    Type* arrayOf(Type* elem, int rank, SourceLoc loc);
+    Type* instanceOf(const char* ns, const char* name, const std::vector<Type*>& args, SourceLoc loc);
+    void arrayInstantiated(ClassDecl* c);
+    bool isArrayExprKind(EK k) const { return k == EK::Collection || k == EK::FromEnd || k == EK::Range; }
+    Type* checkArrayExpr(Expr* e);
+    Type* checkNewArray(NewArrayExpr* e);
+    Type* checkRange(RangeExpr* e);
+    Type* checkCollection(CollectionExpr* c);
+    Type* arrayIndexHook(IndexExpr* ix, Type* ot, Type* it);
+    int arrayImplicit(Expr* e, Type* from, Type* to);  // -1: sin opinión, 0/1: resultado
+    bool arrayCoerce(Expr*& e, Type* to);
+    struct CollTarget {
+        int kind = 0;  // 0 ninguno, 1 arreglo, 2 List, 3 HashSet, 4 Span, 5 ReadOnlySpan, 6 Dictionary, 7 clase con Add
+        Type* elem = nullptr;
+        Type* key = nullptr;
+        int rank = 1;
+    };
+    CollTarget collTarget(Type* to);
+    Type* spreadElem(Type* t);
+    int collectionCost(CollectionExpr* c, Type* to);
+    int rectCost(CollectionExpr* c, Type* elem, int rank, std::vector<int>& dims, size_t level);
+    void convertCollection(Expr*& e, Type* to);
+    Expr* buildCollection(CollectionExpr* c, Type* to);
+    Type* collectionNaturalType(Expr*& e);
+    bool arrayForeach(ForeachStmt* s, Type* ct);
+    Expr* listPatternTest(Pattern* p, const SubjectFn& subj, Type* st);
+    void packParamsArray(MethodDecl* m, std::vector<Expr*>& args);
 };

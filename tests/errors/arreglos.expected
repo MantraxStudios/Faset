@@ -1,0 +1,17 @@
+10|los arreglos no son covariantes en Faset: 'string\[\]' no se convierte en 'object\[\]'
+11|los arreglos no son covariantes en Faset: 'Gato\[\]'
+12|no se puede convertir implícitamente el tipo 'int\[\]' en 'string\[\]'
+13|una expresión de colección no tiene tipo propio
+14|no se puede convertir implícitamente el tipo 'string' en 'int'
+15|el inicializador de un arreglo de 2 dimensiones
+16|el tamaño indicado \(3\) no coincide con el número de elementos \(2\)
+18|'\.\.' solo puede expandir
+20|el lado izquierdo de una asignación
+21|un patrón de lista necesita
+22|un patrón de lista admite un solo '\.\.'
+23|no se puede inferir el tipo de los elementos de 'new\[\]'
+24|un inicializador \{ \.\.\. \} solo sirve para arreglos
+25|el tamaño del arreglo debe ser un entero
+26|ninguna sobrecarga de 'operator\[\]'
+27|los extremos de un rango deben ser
+28|el índice debe ser un entero

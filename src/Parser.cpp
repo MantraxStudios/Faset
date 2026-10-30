@@ -722,7 +722,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         f->name = name;
         f->unsafeCtx = ctxUnsafe;
         f->isEvent = mods.isEvent;
-        if (acceptP("=")) f->init = parseExpr();
+        if (acceptP("=")) f->init = isP("{") ? parseBraceInit() : parseExpr();
         c->fields.push_back(f);
         if (!acceptP(",")) break;
         nameLoc = cur().loc;
@@ -871,16 +871,7 @@ TypeRef* Parser::tryParseType() {
         tr->isRef = true;
         p_++;
     }
-    if (isP("[") && peekTok().kind == TokKind::Punct && peekTok().text == "]") {
-        if (!allowArraySuffix_) return failType();
-        p_ += 2;  // params T[] xs: se representa como List<T>
-        auto* list = new TypeRef();
-        list->loc = tr->loc;
-        list->parts = {"std", "collections", "List"};
-        list->typeArgs = {tr};
-        requestModule({"std", "collections"});
-        return list;
-    }
+    if (isP("[")) return parseArraySuffix(tr);  // T[], T[,], T[][] (ParserArrays.cpp)
     return tr;
 }
 
@@ -947,7 +938,7 @@ VarDeclStmt* Parser::parseVarDecl(bool requireSemicolon) {
         VarDeclStmt::Declarator dc;
         dc.loc = cur().loc;
         dc.name = expectIdent();
-        if (acceptP("=")) dc.init = parseExpr();
+        if (acceptP("=")) dc.init = isP("{") ? parseBraceInit() : parseExpr();  // int[] a = { 1, 2 };
         d->decls.push_back(dc);
     } while (acceptP(","));
     if (requireSemicolon) expectP(";");
@@ -1116,7 +1107,9 @@ Expr* Parser::parseAssign() {
 }
 
 Expr* Parser::parseConditional() {
+    if (isP("..")) return parseRangeTail(nullptr);  // ..b (ParserArrays.cpp)
     Expr* c = parseBinary(1);
+    if (isP("..")) return parseRangeTail(c);        // a..b
     if (isP("??")) c = parseCoalesce(c);  // a ?? b (ParserSugar.cpp)
     if (isP("|>")) c = parsePipe(c);      // a |> f (ParserUnions.cpp)
     if (isP("?")) {
@@ -1179,6 +1172,7 @@ Expr* Parser::parseBinary(int minPrec) {
 
 Expr* Parser::parseUnary() {
     SourceLoc loc = cur().loc;
+    if (isP("^")) return parseFromEnd();  // ^1: índice desde el final (ParserArrays.cpp)
     static const char* const ops[] = {"-", "+", "!", "~", "++", "--", "*", "&"};
     for (const char* op : ops) {
         if (isP(op)) {
@@ -1278,6 +1272,7 @@ Expr* Parser::parsePostfix(Expr* e) {
             auto* ix = new IndexExpr(loc);
             ix->obj = e;
             ix->index = parseExpr();
+            if (isP(",")) ix->index = parseIndexList(ix->index);  // a[i, j] (ParserArrays.cpp)
             expectP("]");
             e = ix;
         } else if (isP("?") && peekTok().kind == TokKind::Punct && (peekTok().text == "." || peekTok().text == "[")) {
@@ -1376,15 +1371,10 @@ Expr* Parser::parsePrimary() {
                 return e;
             }
             if (acceptK("new")) {
+                if (isP("[")) return parseImplicitNewArray(loc);  // new[] { ... } (ParserArrays.cpp)
                 TypeRef* tr = tryParseType();
                 if (!tr || halfGt_) fail("se esperaba un tipo después de 'new'");
-                if (acceptP("[")) {
-                    auto* e = new NewArrayExpr(loc);
-                    e->elemRef = tr;
-                    e->count = parseExpr();
-                    expectP("]");
-                    return e;
-                }
+                if (isP("[") || (tr->arrayRank && isP("{"))) return parseNewArray(loc, tr);
                 if (isP("(")) {
                     auto* e = new NewExpr(loc);
                     e->tref = tr;
@@ -1413,6 +1403,7 @@ Expr* Parser::parsePrimary() {
         }
         case TokKind::Punct:
             if (acceptP("(")) return parseParenOrTuple(loc);  // (e) o tupla (1, "a")
+            if (isP("[")) return parseCollectionExpr();      // [1, 2, ..otra] (ParserArrays.cpp)
             break;
         default:
             break;

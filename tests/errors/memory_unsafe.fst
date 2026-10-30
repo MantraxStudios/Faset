@@ -30,7 +30,7 @@ void main()
     auto r = p + 1;                                       // 30: aritmética de punteros
     Punto* pp = null;                                     // 31: variable puntero
     pp->X = 1;                                            // 32: '->'
-    auto arr = new long[4];                               // 33: new T[n]
+    long* arr = new long[4];                              // 33: new T[n] como puntero
     auto s = "hola".Ptr;                                  // 34: .Ptr
     Nodo n = new Nodo();
     Otra o = (Otra)n;                                     // 36: reinterpretar una referencia

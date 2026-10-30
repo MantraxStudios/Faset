@@ -188,7 +188,7 @@ cualquier valor que apunte a un bloque del heap. Los bloques no marcados se recu
 
 - **Cuándo recolecta**: cuando los bytes reservados desde la última recolección superan
   `max(16 MB, bytes vivos)`. Un programa que no reserva no paga nada.
-- **Bloques sin punteros**: las cadenas, los arreglos `new T[n]` de tipos sin referencias (números,
+- **Bloques sin punteros**: las cadenas, los elementos de los arreglos (`T[]` y `new T[n]`) de tipos sin referencias (números,
   structs de números) y los bloques de `Memory.AllocBytes(n)` no se recorren, lo que abarata el
   marcado con búferes grandes.
 - **Pausas**: unos pocos milisegundos con un heap de 10–25 MB. En una prueba de estrés con 3 millones

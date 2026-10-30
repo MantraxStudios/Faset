@@ -14,6 +14,7 @@
 //   (a, b) = (b, a)             ->  (<t> = (b, a), a = <t>.Item1, b = <t>.Item2)
 #include <algorithm>
 
+#include "Arrays.h"
 #include "Sema.h"
 
 namespace {
@@ -740,6 +741,7 @@ Expr* Sema::patternTest(Pattern* p, const SubjectFn& subj, Type* st) {
             if (!p->name.empty()) t = mkBin("&&", t, bindPatternVar(p, p->name, it, inner()), l);
             return t;
         }
+        case PK::List: case PK::Slice: return listPatternTest(p, subj, st);  // [1, .., x] (Arrays.cpp)
         case PK::Positional: {
             if (!isTupleType(st) || st->decl->fields.size() != p->elems.size()) {
                 diag.error(l, "el patrón posicional de " + std::to_string(p->elems.size()) +
@@ -1004,6 +1006,7 @@ bool Sema::checkSugarStmt(Stmt* s) {
 
 void Sema::checkForeach(ForeachStmt* s) {
     Type* ct = checkValue(s->coll);
+    if (arrayForeach(s, ct)) return;  // T[]: bucle de índices (Arrays.cpp)
     SourceLoc loc = s->loc;
     ctx_.scopes.emplace_back();
     auto fallback = [&]() {  // sigue comprobando el cuerpo para informar de más errores
@@ -1178,8 +1181,8 @@ void Sema::checkParamsSignature(MethodDecl* m) {
         if (!p.isParams) continue;
         if (i + 1 != m->params.size()) diag.error(p.loc, "'params' solo se puede usar en el último parámetro");
         if (p.isRef()) diag.error(p.loc, "un parámetro 'params' no puede ser ref ni out");
-        if (p.type && !p.type->isError() && !listElem(p.type))
-            diag.error(p.loc, "un parámetro 'params' debe ser List<T> (o T[], que en Faset equivale a List<T>)");
+        if (p.type && !p.type->isError() && !listElem(p.type) && !vectorElemOf(p.type))
+            diag.error(p.loc, "un parámetro 'params' debe ser un arreglo T[] o List<T>");
     }
 }
 
@@ -1188,7 +1191,7 @@ void Sema::inferParamsTypeArgs(MethodDecl* tmpl, const std::vector<Expr*>& args,
     size_t n = tmpl->params.size();
     TypeRef* tr = tmpl->params.back().tref;
     if (tr->typeArgs.size() != 1 || args.size() + 1 < n) return;
-    if (args.size() == n && listElem(args[n - 1]->type)) return;  // forma normal: ya unificado
+    if (args.size() == n && (listElem(args[n - 1]->type) || vectorElemOf(args[n - 1]->type))) return;  // forma normal
     for (size_t j = n - 1; j < args.size(); j++) unify(tr->typeArgs[0], args[j]->type, tmpl, b);
 }
 
@@ -1214,6 +1217,7 @@ int Sema::paramsCost(MethodDecl* m, std::vector<Expr*>& args) {
         if (c >= 0) return cost + c;
     }
     Type* el = listElem(last.type);
+    if (!el) el = vectorElemOf(last.type);  // params T[] (Arrays.cpp)
     if (!el) return -1;
     for (size_t j = n - 1; j < args.size(); j++) {
         int c = convCost(args[j], el);
@@ -1228,6 +1232,7 @@ void Sema::packParams(MethodDecl* m, std::vector<Expr*>& args) {
     Param& last = m->params.back();
     if (args.size() + 1 < n || !last.type || last.type->isError()) return;
     if (args.size() == n && args[n - 1]->type && canImplicit(args[n - 1], args[n - 1]->type, last.type)) return;
+    if (vectorElemOf(last.type)) return packParamsArray(m, args);  // params T[] (Arrays.cpp)
     Type* el = listElem(last.type);
     if (!el) return;
     auto* pl = new ParamsListExpr(args.size() >= n ? args[n - 1]->loc : m->loc);

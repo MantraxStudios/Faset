@@ -96,18 +96,19 @@ int main()
 
 ## Arreglos
 
-No hay un tipo arreglo propio: en código seguro se usa `List<T>`, que comprueba los índices
-siempre. Los arreglos crudos `new T[n]` (memoria a cero, del recolector) son punteros y
-solo se permiten dentro de un contexto [`memory_unsafe`](/lenguaje/seguridad-de-memoria/).
+`T[]` es un arreglo con longitud fija y comprobación de límites en cada acceso (consulta
+[Arreglos, rangos y colecciones](/lenguaje/arreglos/)). Dentro de un contexto
+[`memory_unsafe`](/lenguaje/seguridad-de-memoria/), `new T[n]` asignado a un puntero `T*` sigue
+dando memoria cruda sin comprobaciones.
 
 ```faset
-using std.collections;
-
 int main()
 {
-    auto v = new List<double>(5);
-    for (int i = 0; i < 5; i++) v.Add(i * 0.5);
+    double[] v = new double[5];
+    for (int i = 0; i < v.Length; i++) v[i] = i * 0.5;
     println(v[4]);                   // 2
+    int[] primos = [2, 3, 5, 7];
+    println(primos[^1]);             // 7
 
     memory_unsafe
     {

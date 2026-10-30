@@ -1,5 +1,5 @@
 15|'params' solo se puede usar en el último parámetro
-15|'params' debe ser List<T>
+15|'params' debe ser un arreglo T\[\] o List<T>
 20|'foreach' no puede recorrer un valor de tipo 'int'
 22|el operador '\?\?' necesita a la izquierda un valor que admita null
 24|el operador '\?\.' necesita un valor que admita null

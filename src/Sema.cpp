@@ -393,13 +393,18 @@ Sym Sema::lookupUnqualified(const std::string& name, SourceLoc loc) {
         res.type = resolveType(u.aliasType);
         return res;
     }
+    bool resStd = false;  // 'res' viene del 'using std;' implícito
     for (NamespaceSym* ns : f->nsUsings) {
         Sym s = lookupIn(ns, name, false);
         if (s.kind == Sym::None) continue;
         if (res.kind == Sym::None) {
             res = s;
+            resStd = ns == f->nsUsings[0] && s.kind == Sym::TypeK;
         } else if (res.kind == Sym::Funcs && s.kind == Sym::Funcs) {
             res.funcs.insert(res.funcs.end(), s.funcs.begin(), s.funcs.end());
+        } else if (resStd && s.kind == Sym::TypeK) {
+            res = s;  // un 'using' explícito gana al 'using std;' implícito (std.mem.Span frente a std.Span)
+            resStd = false;
         } else {
             diag.error(loc, "'" + name + "' es ambiguo: existe en varios namespaces importados con 'using'");
             return res;
@@ -472,6 +477,7 @@ Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
 }
 
 Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
+    if (tr->preset) return tr->preset;  // tipo ya resuelto (formas reescritas; Arrays.cpp)
     if (tr->isTuple || tr->nullable) return resolveSugarType(tr, allowVoid);  // (int, string), T? (Sugar.cpp)
     Type* base = nullptr;
     if (tr->isFuncPtr) {
@@ -518,7 +524,7 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
             diag.error(tr->loc, "no se encontró el tipo '" + tr->str() + "'");
             return tc_.error();
         }
-        if (s.decl && s.decl->isStaticClass() && !(s.decl->arityTwin && !tr->typeArgs.empty())) {  // Result y Result<T, E>
+        if (s.decl && s.decl->isStaticClass() && !(s.decl->arityTwin && !tr->typeArgs.empty())) {  // Result<T, E>, Array<T>
             diag.error(tr->loc, "no se puede usar la clase estática '" + s.decl->name + "' como tipo");
             return tc_.error();
         }
@@ -744,6 +750,7 @@ ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, So
         disp += (i ? ", " : "") + args[i]->str();
     }
     c->displayName = disp + ">";
+    arrayInstantiated(c);  // int[] en vez de Array<int> (Arrays.cpp)
     c->file = tmpl->file;
     c->ns = tmpl->ns;
     c->nsSym = tmpl->nsSym;
@@ -1310,6 +1317,7 @@ bool Sema::canImplicit(Expr* e, Type* from, Type* to) {
     if (from == to || from->isError() || to->isError()) return true;
     if (from->isPending()) return e && pendingCost(e, to) >= 0;
     if (int r = sugarImplicit(e, from, to); r >= 0) return r == 1;  // T?, tuplas, 'default' (Sugar.cpp)
+    if (int r = arrayImplicit(e, from, to); r >= 0) return r == 1;  // T[] -> Span<T>, new T[n] -> T* (Arrays.cpp)
     if (from->isClass() && to->isClass() && derivesFrom(from->decl, to->decl)) return true;  // conversión a la base
     if (from->is(TK::Null)) return to->isPointer() || to->isClass() || to->isFuncPtr() || to->isDelegate();
     if (to->isVoidPointer() && from->isPointer()) return true;
@@ -1356,6 +1364,7 @@ void Sema::coerce(Expr*& e, Type* to) {
         return;
     }
     if (sugarCoerce(e, to)) return;  // T?, tuplas, 'default' (Sugar.cpp)
+    if (arrayCoerce(e, to)) return;  // T[] -> Span<T>, new T[n] -> T* (Arrays.cpp)
     if (!canImplicit(e, from, to)) {
         std::string msg = "no se puede convertir implícitamente el tipo '" + from->str() + "' en '" + to->str() + "'";
         if (canExplicit(from, to)) msg += " (existe una conversión explícita; ¿falta un cast?)";
@@ -1620,6 +1629,7 @@ void Sema::checkAccess(Access a, ClassDecl* owner, const std::string& what, Sour
 
 Type* Sema::checkInner(Expr* e) {
     if (isSugarExpr(e->kind)) return checkSugar(e);  // Sugar.cpp
+    if (isArrayExprKind(e->kind)) return checkArrayExpr(e);  // [1, 2], ^i, a..b (Arrays.cpp)
     switch (e->kind) {
         case EK::IntLit: {
             auto* l = static_cast<IntLitExpr*>(e);
@@ -1693,18 +1703,7 @@ Type* Sema::checkInner(Expr* e) {
             return to;
         }
         case EK::New: return checkNew(static_cast<NewExpr*>(e));
-        case EK::NewArray: {
-            auto* na = static_cast<NewArrayExpr*>(e);
-            Type* elem = resolveType(na->elemRef);
-            Type* ct = checkValue(na->count);
-            if (elem->isError() || ct->isError()) return tc_.error();
-            if (!ct->isIntegral()) {
-                diag.error(na->count->loc, "el tamaño del arreglo debe ser un entero");
-                return tc_.error();
-            }
-            if (!ct->is(TK::ULong)) coerce(na->count, tc_.get(TK::Long));
-            return tc_.pointerTo(elem);
-        }
+        case EK::NewArray: return checkNewArray(static_cast<NewArrayExpr*>(e));  // T[] o T* (Arrays.cpp)
         case EK::SizeOf: {
             auto* so = static_cast<SizeOfExpr*>(e);
             so->target = resolveType(so->tref);
@@ -2357,6 +2356,7 @@ Type* Sema::checkIndex(IndexExpr* ix) {
     Type* ot = checkValue(ix->obj);
     Type* it = checkValue(ix->index);
     if (ot->isError() || it->isError()) return tc_.error();
+    if (Type* t = arrayIndexHook(ix, ot, it)) return t;  // s[^1], s[1..3] (Arrays.cpp)
     if (ot->isAggregate()) {
         std::vector<MethodDecl*> cands = findMethods(ot->decl, "operator[]", MethodKind::Operator);
         if (cands.empty()) {

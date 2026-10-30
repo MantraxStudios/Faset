@@ -194,6 +194,7 @@ Pattern* Parser::parseNotPattern() {
 
 Pattern* Parser::parsePrimaryPattern() {
     SourceLoc loc = cur().loc;
+    if (isP("[")) return parseListPattern();  // [1, .., var x] (ParserArrays.cpp)
     // Relacional: > 5, <= 0, < "m"
     for (const char* op : {"<=", ">=", "<", ">"}) {
         if (isP(op)) {
@@ -275,6 +276,11 @@ Pattern* Parser::parsePrimaryPattern() {
                 auto* p = new Pattern(PK::Property, loc);
                 p->tref = tr;
                 propertyList(p);
+                return p;
+            }
+            if (tr->arrayRank) {  // x is int[] (sin designación)
+                auto* p = new Pattern(PK::Type, loc);
+                p->tref = tr;
                 return p;
             }
         }

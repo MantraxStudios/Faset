@@ -669,6 +669,7 @@ std::string CodeGen::expr(Expr* e) {
                 case MemberExpr::Ref::StrLength: return "((int32_t)" + memberAccess(m->obj, m->arrow, "len") + ")";
                 case MemberExpr::Ref::StrPtr: return "((uint8_t*)" + memberAccess(m->obj, m->arrow, "ptr") + ")";
                 case MemberExpr::Ref::Property:
+                    if (std::string s; arrayLengthCode(m, s)) return s;  // a.Length (CodeGenArrays.cpp)
                     return call(m->getter, m->getter->isStatic() ? "" : receiverPtr(m->obj, m->arrow), {}, m->loc,
                                 m->nonVirtual);
                 case MemberExpr::Ref::DelegateInvoke: return expr(m->obj);
@@ -696,6 +697,7 @@ std::string CodeGen::expr(Expr* e) {
         }
         case EK::Index: {
             auto* ix = static_cast<IndexExpr*>(e);
+            if (std::string s; arrayIndexCode(ix, s)) return s;  // T[]: límites + acceso directo (CodeGenArrays.cpp)
             if (ix->opMethod) return call(ix->opMethod, "", {ix->index}, ix->loc, false, ix->obj, false);
             std::vector<EvalOp> ops = {{ix->obj, expr(ix->obj), ctype(ix->obj->type)},
                                        {ix->index, expr(ix->index), ctype(ix->index->type)}};

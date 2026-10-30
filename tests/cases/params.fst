@@ -1,4 +1,4 @@
-// params: argumentos variables empaquetados en una List<T> (también con la sintaxis T[]).
+// params: argumentos variables empaquetados en un arreglo T[] o en una List<T>.
 using std.collections;
 
 int Sumar(params int[] xs)
@@ -47,7 +47,7 @@ void main()
     List<int> lista = new List<int>();
     lista.Add(10);
     lista.Add(20);
-    println(Sumar(lista));  // forma normal: se pasa la lista tal cual
+    println(Sumar(lista.ToArray()));  // forma normal: se pasa el arreglo tal cual
 
     Log("vacío");
     Log("uno", "a");

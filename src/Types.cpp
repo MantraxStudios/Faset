@@ -56,7 +56,7 @@ std::string Type::str() const {
             for (Type* p : params) s += p->str() + ", ";
             return s + ret->str() + ">";
         }
-        case TK::Pending: return id == 0 ? "expresión lambda" : id == 2 ? "caso de unión sin tipo" : "grupo de métodos";
+        case TK::Pending: return id == 0 ? "expresión lambda" : id == 2 ? "caso de unión sin tipo" : id == 3 ? "expresión de colección" : "grupo de métodos";
     }
     return "?";
 }
@@ -65,6 +65,7 @@ TypeCtx::TypeCtx() {
     for (int k = 0; k <= (int)TK::Error; k++) prims_[k] = new Type((TK)k);
     pendingGroup_.id = 1;
     pendingCase_.id = 2;
+    pendingCollection_.id = 3;
 }
 
 Type* TypeCtx::pointerTo(Type* t) {

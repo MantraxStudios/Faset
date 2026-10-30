@@ -139,4 +139,17 @@ private:
     bool isMatchKw() const;
     Stmt* tryParseDefer();
     Expr* parsePipe(Expr* lhs);
+    // arreglos, índices, rangos, expresiones de colección y patrones de lista (ParserArrays.cpp)
+    TypeRef* parseArraySuffix(TypeRef* tr);               // T[], T[,], T[][] (después del tipo base)
+    std::vector<int> parseArrayRanks();                   // [] [,] ... (puede no haber ninguno)
+    static TypeRef* arrayTypeRef(TypeRef* elem, int rank);
+    Expr* parseNewArray(SourceLoc loc, TypeRef* tr);      // new T[n], new T[] { ... }, new T[a, b]
+    Expr* parseImplicitNewArray(SourceLoc loc);           // new[] { ... }
+    Expr* parseCollectionExpr();                          // [1, 2, ..otra]
+    Expr* parseBraceInit();                               // { 1, 2 } / { {1, 2}, {3, 4} }
+    Expr* parseRangeTail(Expr* start);                    // a..b (el cursor está en '..')
+    Expr* parseFromEnd();                                 // ^n
+    Expr* parseIndexList(Expr* first);                    // a[i, j]: índice (i, j)
+    Pattern* parseListPattern();                          // [1, .., var x]
+    bool startsRangeEnd() const;
 };

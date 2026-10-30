@@ -21,6 +21,7 @@ export const metadata = {
 | Tipos anidados | Tipos en el mismo namespace |
 | `using static` | Nombre de la clase delante (`Math.Sqrt`) |
 | `goto`, `stackalloc`, `fixed` | — |
+| Covarianza de arreglos (`string[]` como `object[]`) y arreglos de más de 3 dimensiones | Un [arreglo](/lenguaje/arreglos/) nuevo (`Array.ConvertAll`) o un arreglo escalonado |
 | Operadores compuestos sobre la propiedad de un struct temporal (`F().X += 1`) | Guardar el struct en una variable |
 | `await` en la condición o el incremento de un `for`, en la condición de un `do`-`while`, dentro de `?.`/`??=` o en un filtro `when` | `var x = await ...;` antes (ver [async y await](/lenguaje/async/)) |
 | `ValueTask`, métodos `async` o iteradores en un `struct` o con parámetros `ref`/`out` | `Task<T>`, una clase o un método estático |

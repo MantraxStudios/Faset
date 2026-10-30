@@ -466,6 +466,7 @@ int Sema::groupCost(Expr* e, Type* d) {
 
 int Sema::pendingCost(Expr* e, Type* to) {
     if (e->type == tc_.pendingCase()) return unionPendingCost(e, to);  // Unions.cpp
+    if (e->kind == EK::Collection) return collectionCost(static_cast<CollectionExpr*>(e), to);  // Arrays.cpp
     if (e->kind == EK::Lambda) return lambdaCost(static_cast<LambdaExpr*>(e), to);
     if (e->vk == ValKind::MethodGroup) return groupCost(e, to);
     return -1;
@@ -474,6 +475,7 @@ int Sema::pendingCost(Expr* e, Type* to) {
 // Convierte una lambda o un grupo de métodos al delegado 'to' (comprobación definitiva).
 void Sema::convertPending(Expr*& e, Type* to) {
     if (unionConvertPending(e, to)) return;  // caso de unión sin tipo: Option.None (Unions.cpp)
+    if (e->kind == EK::Collection) return convertCollection(e, to);  // [1, 2, 3] (Arrays.cpp)
     if (e->kind == EK::Lambda) {
         auto* l = static_cast<LambdaExpr*>(e);
         auto ideFallback = [&]() {  // IntelliSense dentro de una lambda sin delegado válido
@@ -574,6 +576,7 @@ void Sema::convertPending(Expr*& e, Type* to) {
 // 'var f = ...' con una lambda de parámetros tipados o un grupo con un solo método.
 Type* Sema::naturalType(Expr*& e) {
     if (unionNaturalType(e)) return tc_.error();  // var x = None; (Unions.cpp)
+    if (e->kind == EK::Collection) return collectionNaturalType(e);  // Arrays.cpp
     if (e->kind == EK::Lambda) {
         auto* l = static_cast<LambdaExpr*>(e);
         for (Type* t : l->paramTypes)

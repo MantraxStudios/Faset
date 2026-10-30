@@ -246,6 +246,12 @@ private:
                          const std::string& selfInit, const std::vector<VarInfo*>& params, BlockStmt* body);
     void emitYield(YieldStmt* y);
     void emitYieldBreak();
+    // ---- arreglos (CodeGenArrays.cpp): a[i] y a.Length de un T[] sin llamada (comprobación de
+    // límites en línea y acceso directo a los elementos).
+    std::set<ClassDecl*> arrayHelpers_;
+    bool arrayIndexCode(IndexExpr* ix, std::string& out);
+    bool arrayLengthCode(MemberExpr* m, std::string& out);
+    std::string arrayHelper(ClassDecl* c);
 };
 
 // Runtime de los delegados (se añade al C generado tras la cabecera del runtime).

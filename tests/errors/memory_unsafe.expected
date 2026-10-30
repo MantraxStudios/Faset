@@ -8,7 +8,7 @@
 30|la aritmética de punteros
 31|el tipo puntero 'Punto\*'
 32|a través de un puntero
-33|new T\[n\]
+33|puntero
 34|obtener el puntero de una cadena
 36|reinterpretar 'Nodo' como 'Otra'
 37|llamar a la función nativa 'Nativo.abs' \(extern\)

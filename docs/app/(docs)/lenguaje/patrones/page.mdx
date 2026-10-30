@@ -75,6 +75,7 @@ alcanzar porque otro anterior ya cubre todos los valores es un error de compilac
 | propiedades | `{ Edad: >= 18, Nombre: "Ana" }` | no es `null` y cada propiedad encaja |
 | posicional | `(0, _)`, `(> 0, > 0)` | cada elemento de la tupla encaja |
 | tipo | `int v` (sobre un `int?`) | tiene valor; lo guarda en `v` |
+| lista | `[1, .., var u]`, `[]` | arreglo, lista, `Span` o cadena con esa forma ([patrones de lista](/lenguaje/arreglos/#patrones-de-lista)) |
 
 Los patrones se anidan: `{ Pareja: { Nombre: var n } }`.
 

@@ -11,9 +11,9 @@ export const metadata = {
 
 ## params
 
-Un último parámetro `params List<T>` (o `params T[]`, que en Faset es lo mismo: no hay arreglos
-administrados) acepta cualquier número de argumentos, que llegan empaquetados en una `List<T>`
-nueva. También se le puede pasar una lista directamente.
+Un último parámetro `params T[]` (o `params List<T>`) acepta cualquier número de argumentos, que
+llegan empaquetados en un [arreglo](/lenguaje/arreglos/) (o una `List<T>`) nuevo. También se le
+puede pasar un arreglo (o una lista) directamente.
 
 ```faset
 using std.collections;
@@ -37,9 +37,8 @@ void main()
 {
     println(Sumar());               // 0
     println(Sumar(1, 2, 3));        // 6
-    List<int> l = new List<int>();
-    l.Add(10);
-    println(Sumar(l));              // 10
+    int[] a = [10];
+    println(Sumar(a));              // 10
     println(Mayor(3, 9, 4));        // 9
 }
 ```

@@ -37,12 +37,19 @@ struct TypeRef {
     bool isTuple = false;
     std::vector<std::string> tupleNames;
     bool nullable = false;
+    // Arreglos (Arrays.cpp): T[] / T[,] se representan como std.Array<T> / std.Array2D<T>;
+    // arrayRank solo sirve para mostrarlo como en el código. 'preset': tipo ya resuelto (lo
+    // usan las formas reescritas por Sema, que no tienen texto propio).
+    int arrayRank = 0;
+    Type* preset = nullptr;
     bool isVar() const {
         return parts.size() == 1 && (parts[0] == "var" || parts[0] == "auto") && ptrDepth == 0 && typeArgs.empty() &&
                !isFuncPtr;
     }
     std::string str() const {
         std::string s;
+        if (arrayRank > 0 && typeArgs.size() == 1)
+            return typeArgs[0]->str() + "[" + std::string(arrayRank - 1, ',') + "]" + (nullable ? "?" : "");
         if (isFuncPtr) s = "delegate*";
         if (isTuple) {
             s = "(";
@@ -130,7 +137,8 @@ enum class EK {
     Interp, CondAccess, CondRecv, Tuple, Let, SwitchExpr, IsPattern, ParamsList, MatchFail, CoalesceAssign,
     Is, As, TypeOf, NameOf, With,  // orientación a objetos (ver SemaClasses.cpp)
     Await,                         // async/await (ver Async.cpp)
-    Pipe, Propagate, UnionCase     // |>, '?' de Result/Option y casos de unión (Flow.cpp / Unions.cpp)
+    Pipe, Propagate, UnionCase,    // |>, '?' de Result/Option y casos de unión (Flow.cpp / Unions.cpp)
+    Collection, FromEnd, Range     // arreglos, índices y rangos (ver Arrays.cpp)
 };
 
 // Qué denota una expresión tras el análisis semántico.
@@ -279,9 +287,14 @@ struct NewExpr : Expr {  // new T(args)
     explicit NewExpr(SourceLoc l) : Expr(EK::New, l) {}
 };
 
-struct NewArrayExpr : Expr {  // new T[n]  ->  T*
+struct CollectionExpr;
+struct NewArrayExpr : Expr {  // new T[n]: arreglo T[] (o T* en memory_unsafe si el destino es un puntero)
     TypeRef* elemRef = nullptr;
     Expr* count = nullptr;
+    // Arrays.cpp: new T[a, b] (más dimensiones), new T[n] { ... } (inicializador) y modo puntero.
+    std::vector<Expr*> moreCounts;
+    CollectionExpr* init = nullptr;
+    bool rawPointer = false;
     explicit NewArrayExpr(SourceLoc l) : Expr(EK::NewArray, l) {}
 };
 
@@ -735,7 +748,8 @@ struct LetExpr : Expr {
 };
 
 enum class PK { Constant, Relational, And, Or, Not, Discard, Var, Property, Positional, Type,
-    Case };  // caso de una unión: Forma.Circulo(var r) (Unions.cpp)
+    Case,  // caso de una unión: Forma.Circulo(var r) (Unions.cpp)
+    List, Slice };  // patrones de lista [1, .., var x] (Arrays.cpp)
 
 // Patrones de 'switch', 'case' e 'is'.
 struct Pattern {
@@ -920,6 +934,38 @@ struct DeferStmt : Stmt {
     Stmt* body = nullptr;
     bool onError = false;  // errdefer: solo al salir por una excepción o por un Err/None de '?'
     explicit DeferStmt(SourceLoc l) : Stmt(SK::Defer, l) {}
+};
+
+// ---------------------------------------------------------------- arreglos, índices y rangos (Arrays.cpp)
+
+// Expresión de colección [1, 2, ..otra] (y [k] = v), inicializador { 1, 2 } y new T[] { ... }.
+// Sin 'new' no tiene tipo propio: lo recibe del destino (T[], List<T>, HashSet<T>, Span<T>...).
+struct CollectionExpr : Expr {
+    struct Elem {
+        SourceLoc loc;
+        Expr* value = nullptr;
+        Expr* key = nullptr;  // [k] = v (diccionarios)
+        bool spread = false;  // ..otra
+    };
+    std::vector<Elem> elems;
+    bool braces = false;          // { ... }: inicializador de arreglo (admite { {1, 2}, {3, 4} })
+    TypeRef* arrayRef = nullptr;  // new int[] { ... } / new int[,] { ... }: tipo del arreglo
+    bool implicitNew = false;     // new[] { ... }: el tipo sale de los elementos
+    std::vector<Expr*> sizes;     // new int[3] { ... }: tamaños indicados (se comprueban)
+    explicit CollectionExpr(SourceLoc l) : Expr(EK::Collection, l) {}
+};
+
+// ^n: índice desde el final (std.Index)
+struct FromEndExpr : Expr {
+    Expr* operand = nullptr;
+    explicit FromEndExpr(SourceLoc l) : Expr(EK::FromEnd, l) {}
+};
+
+// a..b, a.., ..b, .. (std.Range)
+struct RangeExpr : Expr {
+    Expr* start = nullptr;
+    Expr* end = nullptr;
+    explicit RangeExpr(SourceLoc l) : Expr(EK::Range, l) {}
 };
 
 struct Program {

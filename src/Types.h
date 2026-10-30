@@ -70,6 +70,7 @@ public:
     Type* pendingLambda() { return &pendingLambda_; }
     Type* pendingGroup() { return &pendingGroup_; }
     Type* pendingCase() { return &pendingCase_; }  // caso de unión genérica sin tipo (Unions.cpp)
+    Type* pendingCollection() { return &pendingCollection_; }  // [1, 2, 3] sin tipo de destino (Arrays.cpp)
     // Tipo primitivo a partir de su palabra clave, o nullptr.
     Type* fromKeyword(const std::string& kw);
 
@@ -81,4 +82,5 @@ private:
     std::vector<Type*> delegates_;
     Type pendingLambda_{TK::Pending}, pendingGroup_{TK::Pending};
     Type pendingCase_{TK::Pending};
+    Type pendingCollection_{TK::Pending};
 };

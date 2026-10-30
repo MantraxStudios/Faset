@@ -38,6 +38,7 @@ export const nav: NavSection[] = [
       { title: "Cadenas interpoladas", href: "/lenguaje/cadenas-interpoladas/" },
       { title: "null: ??, ?. y T?", href: "/lenguaje/nulos/" },
       { title: "Tuplas", href: "/lenguaje/tuplas/" },
+      { title: "Arreglos, rangos y colecciones", href: "/lenguaje/arreglos/" },
       { title: "params, using y más", href: "/lenguaje/comodidades/" },
       { title: "Clases y structs", href: "/lenguaje/clases-y-structs/" },
       { title: "Herencia y polimorfismo", href: "/lenguaje/herencia/" },

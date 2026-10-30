@@ -42,6 +42,40 @@ namespace std.collections
             return items[index];
         }
 
+        // ---- arreglos, índices y rangos (ver arrays.fst)
+        [TrackCaller] public T& operator[](Index index) => this[index.GetOffset(count)];
+
+        // lista[1..3]: copia de los elementos del rango (como GetRange).
+        [TrackCaller] public List<T> operator[](Range range)
+        {
+            var (s, n) = range.GetOffsetAndLength(count);
+            return GetRange(s, n);
+        }
+
+        [TrackCaller] public List<T> GetRange(int index, int n)
+        {
+            if (index < 0 || n < 0 || index > count || n > count - index)
+                throw new ArgumentOutOfRangeException("List.GetRange: el tramo se sale de la lista", null);
+            List<T> r = new List<T>(n);
+            for (int i = 0; i < n; i++) r.Add(items[index + i]);
+            return r;
+        }
+
+        public T[] ToArray()
+        {
+            T[] r = new T[count];
+            Memory.CopyItems<T>(r.Data, items, count);
+            return r;
+        }
+
+        public void AddRange(T[] other)
+        {
+            version++;
+            Reserve(count + other.Length);
+            Memory.CopyItems<T>(items + count, other.Data, other.Length);
+            count += other.Length;
+        }
+
         public void Reserve(int n)
         {
             if (n <= capacity) return;
@@ -992,6 +1026,9 @@ namespace std.collections
         public bool Remove(T item) => map.Remove(item);
         public void Clear() { map.Clear(); }
         public List<T> ToList() => map.Keys();
+        public T[] ToArray() => map.Keys().ToArray();
+        public void UnionWith(T[] other) { foreach (T x in other) Add(x); }
+        public void UnionWith(List<T> other) { foreach (T x in other) Add(x); }
         public HashSetEnumerator<T> GetEnumerator() => new HashSetEnumerator<T>(map.GetEnumerator());
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in this) yield return x; }
     }
