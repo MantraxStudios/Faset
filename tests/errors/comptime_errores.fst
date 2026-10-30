@@ -20,6 +20,8 @@ comptime int Crece()
 static_assert(1 + 1 == 3, "la aritmética falla");
 
 struct ConCadena { public string S; }
+comptime int ConArreglo() { int[] a = [1, 2]; return a[0]; }
+comptime int FueraDeRango(List<int> l) => l[5..6][0];
 
 void Main()
 {
@@ -33,4 +35,6 @@ void Main()
     int e = Crece();
     int f = comptime sizeof(ConCadena);
     comptime foreach (var v in 42) { }
+    int g = comptime ConArreglo();
+    int h = comptime FueraDeRango([1, 2]);
 }

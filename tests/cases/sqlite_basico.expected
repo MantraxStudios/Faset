@@ -2,9 +2,9 @@ true
 1
 3
 4 columnas: id, nombre, edad, nota
-4 Zoé ñandú 28 NULL 1
-1 Ana 31 9.5 1
-3 O'Brien'); DROP TABLE gente; -- 45 7.25 1
+4 Zoé ñandú 28 NULL Integer
+1 Ana 31 9.5 Integer
+3 O'Brien'); DROP TABLE gente; -- 45 7.25 Integer
 Ana 31 9.5
 Luis 17 -1
 O'Brien'); DROP TABLE gente; -- 45 7.25
@@ -16,7 +16,7 @@ Luis
 true
 3
 3
-True 256 blob 4
+True 256 blob Blob
 True 0
 False 4
 SqliteTransaction: la transacción ya terminó

@@ -92,7 +92,7 @@ Expr* Parser::tryParseComptimeExpr() {
     const Token& n = peekTok();
     bool operand = n.kind == TokKind::Ident || n.kind == TokKind::Int || n.kind == TokKind::Float ||
                    n.kind == TokKind::Char || n.kind == TokKind::String || n.kind == TokKind::InterpBegin ||
-                   (n.kind == TokKind::Punct && (n.text == "(" || n.text == "-" || n.text == "!")) ||
+                   (n.kind == TokKind::Punct && (n.text == "(" || n.text == "-" || n.text == "!" || n.text == "[")) ||
                    (n.kind == TokKind::Keyword && (n.text == "new" || n.text == "typeof" || n.text == "sizeof" ||
                                                    n.text == "true" || n.text == "false" || n.text == "default" ||
                                                    n.text == "int" || n.text == "long" || n.text == "string" ||

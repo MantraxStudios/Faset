@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Compilación condicional",
-  description: "#if, #elif, #else y #endif con los símbolos LINUX, WINDOWS, ANDROID, DEBUG, RELEASE y FASET.",
+  description: "#if, #elif, #else, #endif, #define y #undef con los símbolos LINUX, WINDOWS, ANDROID, DEBUG, RELEASE y FASET.",
 };
 
 # Compilación condicional
@@ -39,6 +39,27 @@ int main()
 | `MACOS` | objetivo `macos` |
 | `DEBUG` | configuración `Debug` |
 | `RELEASE` | configuración `Release` |
+
+## `#define` y `#undef`
+
+Como en C#, un archivo puede definir o quitar símbolos con `#define` y `#undef` al principio,
+antes de cualquier código (los comentarios sí pueden ir antes). Solo valen en ese archivo:
+
+```faset
+#define TRAZA
+#undef DEBUG
+using std;
+
+void Main()
+{
+#if TRAZA
+    Console.WriteLine("con trazas");
+#endif
+}
+```
+
+Los métodos con [`[Conditional("SÍMBOLO")]`](/lenguaje/atributos/) miran los símbolos del archivo
+de cada *llamada*: la llamada desaparece si en ese archivo el símbolo no está definido.
 
 ## Expresiones
 

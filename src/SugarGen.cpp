@@ -94,6 +94,7 @@ std::string CodeGen::toStrCode(Type* t, const std::string& v) {
     if (t->is(TK::Char)) return "faset_char_to_str(" + v + ")";
     if (t->is(TK::Float)) return "faset_f32_to_str(" + v + ")";
     if (t->is(TK::Double)) return "faset_f64_to_str(" + v + ")";
+    if (t->isEnum() && t->decl) return t->decl->cname + "__name(" + v + ")";  // el nombre del miembro, como en C#
     if (t->isUnsignedInt()) return "faset_u64_to_str((uint64_t)(" + v + "))";
     if (t->isAggregate()) return strFn(t) + "(" + v + ")";
     return "faset_i64_to_str((int64_t)(" + v + "))";

@@ -1,0 +1,8 @@
+Verde   Verde|Verde  |1 Azul []
+color: Verde, nullable: Azul
+Verde 7
+rojo 3, azul 1, verde False
+conjunto 1 True False
+menos tres True 9 True
+0.1 0.3333333333333333 123 -0 1E+15 1E-05 123456789012345 2.5E-300 0.30000000000000004 -42.5 100000000000000 
+0.1 0.33333334 16777216 3.5

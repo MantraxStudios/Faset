@@ -543,6 +543,8 @@ public:
                 auto* ix = static_cast<IndexExpr*>(e);
                 CtValue o = eval(ix->obj);
                 CtValue i = eval(ix->index);
+                CtValue r;
+                if (indexByRange(o, i, ix->loc, r)) return r;
                 return *indexRef(o, i, ix->loc, false);
             }
             case EK::Unary: return evalUnary(static_cast<UnaryExpr*>(e));
@@ -605,6 +607,19 @@ public:
             case EK::Lambda: case EK::DelegateConv:
                 fail(e->loc, "las lambdas y los delegados no se pueden usar en tiempo de compilación");
             case EK::Await: fail(e->loc, "'await' no se puede usar en tiempo de compilación");
+            case EK::Let: {  // (temporales; a; b; resultado): la forma reescrita de [..], a..b, s[^1]...
+                auto* l = static_cast<LetExpr*>(e);
+                env->scopes.emplace_back();
+                for (auto& b : l->binds) env->scopes.back()[b.first->name] = copyStruct(eval(b.second));
+                CtValue r;
+                for (Expr* x : l->seq) r = eval(x);
+                env->scopes.pop_back();
+                return r;
+            }
+            case EK::Collection: case EK::Range: case EK::FromEnd:  // [1, 2, ..xs], a..b, ^n (Arrays.cpp)
+                if (e->lowered) return eval(e->lowered);
+                return evalUnlowered(e);  // en 'comptime expr' llegan sin la forma reescrita
+            case EK::NewArray: arrayUnsupported(e->loc);
             default: break;
         }
         fail(e->loc, "esta expresión no se puede evaluar en tiempo de compilación");
@@ -866,7 +881,105 @@ public:
     }
 
     CtValue scratch_;
+    // ^n, a..b y [a, ..xs] tal como los escribió el parser (sin el tipo de destino ya resuelto).
+    CtValue mkStdIndex(int64_t n, bool fromEnd, SourceLoc loc) {
+        Type* it = S.stdType("Index");
+        if (!it || !it->decl) fail(loc, "'^' necesita std.Index");
+        if (n < 0) fail(loc, "Index: el valor no puede ser negativo (" + std::to_string(n) + ")");
+        CtValue r;
+        r.k = CtValue::Obj;
+        r.obj = std::make_shared<CtObj>();
+        r.obj->cls = it->decl;
+        r.obj->fields["value"] = mkInt(n, T(TK::Int));
+        r.obj->fields["fromEnd"] = CtValue::boolean(fromEnd);
+        return r;
+    }
+    CtValue evalUnlowered(Expr* e) {
+        if (e->kind == EK::FromEnd) return mkStdIndex(asInt(eval(static_cast<FromEndExpr*>(e)->operand), e->loc), true, e->loc);
+        if (e->kind == EK::Range) {
+            auto* r = static_cast<RangeExpr*>(e);
+            Type* rt = S.stdType("Range");
+            if (!rt || !rt->decl) fail(e->loc, "'..' necesita std.Range");
+            auto end = [&](Expr* x, bool isEnd) {
+                if (!x) return mkStdIndex(0, isEnd, e->loc);  // ..b es 0..b; a.. es a..^0
+                CtValue v = eval(x);
+                if (v.k == CtValue::Obj) return v;  // ya es un Index
+                return mkStdIndex(asInt(v, x->loc), false, x->loc);
+            };
+            CtValue v;
+            v.k = CtValue::Obj;
+            v.obj = std::make_shared<CtObj>();
+            v.obj->cls = rt->decl;
+            v.obj->fields["start"] = end(r->start, false);
+            v.obj->fields["end"] = end(r->end, true);
+            return v;
+        }
+        auto* c = static_cast<CollectionExpr*>(e);
+        CtValue l = mkList(nullptr);
+        for (auto& el : c->elems) {
+            if (el.key) fail(el.loc, "los diccionarios no se pueden crear en tiempo de compilación");
+            CtValue v = eval(el.value);
+            if (el.spread) {
+                if (v.k != CtValue::List) fail(el.loc, "'..' en tiempo de compilación solo puede expandir una lista");
+                grow(el.loc, (long long)v.list->size());
+                for (const CtValue& x : *v.list) l.list->push_back(copyStruct(x));
+            } else {
+                grow(el.loc);
+                l.list->push_back(copyStruct(v));
+            }
+        }
+        // Sin destino, el tipo de los elementos sale de ellos si todos son del mismo ([1, 2] es List<int>).
+        for (size_t k = 0; k < l.list->size(); k++) {
+            Type* t = typeOfValue((*l.list)[k]);
+            if (k == 0) l.t = t;
+            else if (t != l.t) l.t = nullptr;
+            if (!l.t) break;
+        }
+        return l;
+    }
+
+    [[noreturn]] void arrayUnsupported(SourceLoc loc) {
+        fail(loc, "los arreglos T[] no se pueden usar en tiempo de compilación; usa List<T> (también con [1, 2, ..otra])");
+    }
+
+    // Un std.Index (^n o n) dentro de una secuencia de 'len' elementos.
+    bool stdIndex(const CtValue& v, int64_t len, int64_t& out, SourceLoc loc) {
+        if (v.k != CtValue::Obj || !v.obj || !isStd(v.obj->cls, "std", "Index")) return false;
+        int64_t n = asInt(v.obj->fields["value"], loc);
+        out = truthy(v.obj->fields["fromEnd"], loc) ? len - n : n;
+        return true;
+    }
+
+    // a[^n] y a[x..y] sobre listas y cadenas (las cadenas, por bytes como al ejecutar).
+    bool indexByRange(CtValue& o, const CtValue& idx, SourceLoc loc, CtValue& out) {
+        if (o.k != CtValue::List && o.k != CtValue::Str) return false;
+        int64_t len = o.k == CtValue::List ? (int64_t)o.list->size() : (int64_t)o.s.size();
+        int64_t i;
+        if (stdIndex(idx, len, i, loc)) {
+            out = *indexRef(o, mkInt(i, T(TK::Int)), loc, false);
+            return true;
+        }
+        if (idx.k != CtValue::Obj || !idx.obj || !isStd(idx.obj->cls, "std", "Range")) return false;
+        int64_t a, b;
+        if (!stdIndex(idx.obj->fields["start"], len, a, loc) || !stdIndex(idx.obj->fields["end"], len, b, loc)) return false;
+        if (a < 0 || b > len || a > b)
+            fail(loc, "el rango " + std::to_string(a) + ".." + std::to_string(b) + " se sale de los límites (longitud " +
+                          std::to_string(len) + ")");
+        if (o.k == CtValue::Str) {
+            out = CtValue::str(o.s.substr((size_t)a, (size_t)(b - a)));
+        } else {
+            out = mkList(o.t);
+            grow(loc, (long long)(b - a));
+            for (int64_t k = a; k < b; k++) out.list->push_back(copyStruct((*o.list)[(size_t)k]));
+        }
+        return true;
+    }
+
     CtValue* indexRef(CtValue& o, const CtValue& idx, SourceLoc loc, bool write) {
+        if (o.k == CtValue::List && write && idx.k == CtValue::Obj) {  // l[^1] = x
+            int64_t i;
+            if (stdIndex(idx, (int64_t)o.list->size(), i, loc)) return indexRef(o, mkInt(i, T(TK::Int)), loc, true);
+        }
         if (o.k == CtValue::List) {
             int64_t i = asInt(idx, loc);
             if (i < 0 || i >= (int64_t)o.list->size())
@@ -1076,6 +1189,7 @@ public:
         for (Expr* a : n->args) args.push_back(eval(a));
         if (t->isAggregate() && t->decl) {
             ClassDecl* c = t->decl;
+            if (isStd(c, "std", "Array") || isStd(c, "std", "Array2D") || isStd(c, "std", "Array3D")) arrayUnsupported(n->loc);
             if (isStd(c, "std.collections", "List")) {
                 CtValue l = mkList(c->typeArgs.empty() ? nullptr : c->typeArgs[0]);
                 if (args.size() == 1 && args[0].k == CtValue::List) *l.list = *args[0].list;
@@ -1423,6 +1537,7 @@ public:
         if (name == "EsClase") return B(t->isClass() && d && d->kind == ClassKind::Class);
         if (name == "EsStruct") return B(t->isStruct() && !(d && isStd(d, "std", "Nullable")) && !(d && d->isTuple));
         if (name == "EsEnum") return B(t->isEnum());
+        if (name == "TieneToString") return B(S.toStringable(t));  // $"{x}" y "a" + x funcionan con ese tipo
         if (name == "EsInterfaz") return B(d && d->isInterface());
         if (name == "EsRegistro") return B(d && d->isRecord);
         if (name == "EsAbstracta") return B(d && (d->mods.isAbstract || d->isInterface()));
@@ -1613,6 +1728,22 @@ public:
         Type* tt;
         ClassDecl* tc;
         if (typeNameOf(m->obj, tt, tc)) return staticMember(tt, tc, m->name, m->loc);
+        // "Color Color" (como en C#): una propiedad o campo con el nombre de su propio tipo; Color.Verde
+        // es el tipo si 'Verde' es un valor del enum o un miembro estático.
+        if (m->obj->kind == EK::Name && S.ctx_.cls && !S.ctx_.cls->isNamespaceScope) {
+            auto* n = static_cast<NameExpr*>(m->obj);
+            FieldDecl* f = findLocal(n->name) ? nullptr : S.findField(S.ctx_.cls, n->name);
+            MethodDecl* g = f || findLocal(n->name) ? nullptr : S.findGetter(S.ctx_.cls, n->name);
+            Type* mt = f ? f->type : g ? g->ret : nullptr;
+            if (mt && mt->decl && mt->decl->name == n->name) {
+                ClassDecl* d = mt->decl;
+                bool isStatic = false;
+                for (EnumMember& em : d->enumMembers) isStatic |= em.name == m->name;
+                if (FieldDecl* sf = S.findField(d, m->name)) isStatic |= sf->isStatic() || sf->mods.isConst;
+                if (MethodDecl* sg = S.findGetter(d, m->name)) isStatic |= sg->isStatic();
+                if (isStatic) return staticMember(mt, d, m->name, m->loc);
+            }
+        }
         CtValue o = eval(m->obj);
         if (o.k == CtValue::Null) fail(m->loc, "acceso a '" + m->name + "' sobre null en tiempo de compilación");
         if (m->name == "Value" && o.k != CtValue::Obj) return o;   // Nullable<T>.Value
@@ -2005,6 +2136,28 @@ public:
             if (recv.k == CtValue::Member && name == "Get") {
                 argc(1);
                 return memberOf(a[0], recv.s, loc);
+            }
+            // c.Parametro("nombre"): el parámetro de ese nombre (sin distinguir mayúsculas, como System.Text.Json
+            // al casar los parámetros de un constructor con las propiedades) o null.
+            if (recv.k == CtValue::Method && name == "Parametro") {
+                argc(1);
+                if (a[0].k != CtValue::Str) fail(loc, "Parametro espera el nombre del parámetro (string)");
+                auto lower = [](std::string x) {
+                    for (char& ch : x) ch = (char)std::tolower((unsigned char)ch);
+                    return x;
+                };
+                for (size_t i = 0; i < recv.method->params.size(); i++)
+                    if (lower(recv.method->params[i].name) == lower(a[0].s)) {
+                        CtValue p;
+                        p.k = CtValue::Param;
+                        p.s = recv.method->params[i].name;
+                        p.t = recv.method->params[i].type;
+                        p.method = recv.method;
+                        p.owner = recv.owner;
+                        p.index = (int)i;
+                        return p;
+                    }
+                return CtValue::null();
             }
         }
         if (recv.k == CtValue::Int && recv.t && recv.t->isEnum() && name == "HasFlag")
@@ -2405,9 +2558,51 @@ public:
             case CtValue::Member:
                 err = "'" + v.s + "' es un miembro de tiempo de compilación: usa " + "f.Nombre, f.Tipo, f.Get(obj) o f.Set(obj, valor)";
                 return nullptr;
-            case CtValue::Obj:
-                err = "un objeto de '" + kindName(v) + "' solo existe en tiempo de compilación (usa sus campos, o a.Crear() en un atributo)";
-                return nullptr;
+            case CtValue::Obj: {
+                // Un objeto de una clase o struct propio: se crea sin constructor con los valores de
+                // todos sus campos (el constructor ya se ejecutó al compilar).
+                ClassDecl* c = v.obj ? v.obj->cls : nullptr;
+                if (!c || v.obj->attr || v.obj->fields.count("__sb") || S.isExceptionClass(c) ||
+                    (c->kind != ClassKind::Class && c->kind != ClassKind::Struct) || isStd(c, "std.collections", "List")) {
+                    err = "un objeto de '" + kindName(v) + "' solo existe en tiempo de compilación (usa sus campos, o a.Crear() en un atributo)";
+                    return nullptr;
+                }
+                static thread_local std::vector<CtObj*> building;  // ciclos: a.Otro = b; b.Otro = a
+                for (CtObj* o : building)
+                    if (o == v.obj.get()) {
+                        err = "el objeto de '" + c->displayName + "' calculado con comptime se refiere a sí mismo (un ciclo): no se puede escribir como constante";
+                        return nullptr;
+                    }
+                building.push_back(v.obj.get());
+                auto* w = new WithExpr(loc);
+                w->blank = true;
+                auto* d = new DefaultExpr(loc);
+                d->tref = presetRef(c->type, loc);
+                w->operand = d;
+                bool ok = true;
+                for (ClassDecl* k : S.lookupChain(c)) {
+                    if (k == S.objectDecl) continue;
+                    for (FieldDecl* f : k->fields) {
+                        if (f->isStatic() || f->mods.isConst || f->staticCtor) continue;
+                        auto it = v.obj->fields.find(f->name);
+                        if (it == v.obj->fields.end()) continue;  // no se tocó: queda a cero (default)
+                        Expr* x = toExpr(S, it->second, loc, err);
+                        if (!x) {
+                            ok = false;
+                            break;
+                        }
+                        WithExpr::Init in;
+                        in.loc = loc;
+                        in.name = f->name;
+                        in.value = x;
+                        in.field = f;
+                        w->inits.push_back(in);
+                    }
+                    if (!ok) break;
+                }
+                building.pop_back();
+                return ok ? w : nullptr;
+            }
             default:
                 err = kindName(v) + " solo existe en tiempo de compilación";
                 return nullptr;

@@ -1,10 +1,12 @@
 7|límite de 20000000 pasos
 10|recursión demasiado profunda
 11|división por cero
-30|el valor de la variable 'x' no se conoce en tiempo de compilación
-31|static_assert falló: dentro de Main
-32|la condición de 'comptime if' debe ser 'bool'
+32|el valor de la variable 'x' no se conoce en tiempo de compilación
+33|static_assert falló: dentro de Main
+34|la condición de 'comptime if' debe ser 'bool'
 20|static_assert falló: la aritmética falla
 16|límite de 1000000 elementos
-34|depende de la plataforma de destino
-35|'comptime foreach' recorre una lista
+36|depende de la plataforma de destino
+37|'comptime foreach' recorre una lista
+23|los arreglos T\[\] no se pueden usar en tiempo de compilación
+24|el rango 5\.\.6 se sale de los límites

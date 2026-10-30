@@ -603,6 +603,16 @@ Type* Sema::checkAs(AsExpr* e) {
 }
 
 Type* Sema::checkWith(WithExpr* e) {
+    if (e->blank) {
+        Type* t = checkValue(e->operand);
+        for (auto& in : e->inits) {
+            checkValue(in.value);
+            coerce(in.value, in.field->type);
+        }
+        e->id = (int)withExprs.size();
+        withExprs.push_back(e);
+        return t;
+    }
     Type* t = checkValue(e->operand);
     for (auto& in : e->inits)
         if (in.value) checkValue(in.value);

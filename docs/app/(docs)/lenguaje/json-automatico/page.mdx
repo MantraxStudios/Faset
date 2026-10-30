@@ -75,8 +75,24 @@ class Programa
 
 Al leer, los miembros que el JSON no trae conservan su valor inicial, los que el tipo no tiene se
 saltan, y las propiedades de solo lectura (`public int Total => ...`) se escriben pero no se leen.
-Para leer un objeto, el tipo necesita un constructor público sin parámetros; los registros
-posicionales (`record Punto(int X, int Y)`) se pueden escribir pero no leer.
+Para leer un objeto, el tipo necesita un constructor público sin parámetros o, como en
+System.Text.Json, **un solo** constructor público con parámetros (los registros posicionales,
+`record Punto(int X, int Y)`, entran aquí). Cada parámetro recibe el miembro del mismo nombre (sin
+distinguir mayúsculas entre el parámetro y el miembro), los que el JSON no trae reciben `default`, y
+los demás miembros escribibles se asignan después de construir el objeto.
+
+```faset
+using std;
+using std.json;
+
+public record Punto(int X, int Y);
+
+void Main()
+{
+    Punto p = Json.Deserialize<Punto>("{\"X\": 3, \"Y\": -4}");
+    Console.WriteLine(p);  // Punto { X = 3, Y = -4 }
+}
+```
 
 Un tipo que no se puede convertir (un delegado, un puntero) es un **error de compilación** que
 señala la llamada a `Serialize` o `Deserialize`, no una excepción al ejecutar.

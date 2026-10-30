@@ -439,6 +439,9 @@ struct WithExpr : Expr {  // registro with { X = 1, Y = 2 }
     Expr* operand = nullptr;
     std::vector<Init> inits;
     int id = -1;  // índice en Sema::withExprs (función auxiliar en C)
+    // Objeto nuevo sin constructor, con los campos indicados: el valor de un objeto calculado con
+    // comptime (Comptime.cpp). 'operand' es default(T) y 'field' de cada Init ya está resuelto.
+    bool blank = false;
     explicit WithExpr(SourceLoc l) : Expr(EK::With, l) {}
 };
 

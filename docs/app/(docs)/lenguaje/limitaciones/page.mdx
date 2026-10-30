@@ -41,10 +41,10 @@ export const metadata = {
 - Un struct no se puede usar como `IEnumerable<T>` (no hay *boxing*); `string` sí (se convierte en un
   `IEnumerable<char>` que recorre sus caracteres).
 
-- [comptime](/lenguaje/comptime/) no puede devolver objetos de clases propias como constantes (sí
-  números, cadenas, enums y listas de ellos), ni usar lambdas, E/S o punteros. `Json.Deserialize`
-  necesita un constructor público sin parámetros (no lee registros posicionales), y la
-  [reflexión al ejecutar](/lenguaje/reflexion/#reflexión-al-ejecutar) solo admite clases.
+- [comptime](/lenguaje/comptime/) no puede usar lambdas, E/S, punteros, arreglos `T[]` ni
+  diccionarios, y sus objetos se copian al ejecutar (dos referencias al mismo objeto pasan a ser dos). `Json.Deserialize`
+  necesita un constructor público sin parámetros o uno solo con parámetros, y la
+  [reflexión al ejecutar](/lenguaje/reflexion/#reflexión-al-ejecutar) admite clases y structs, no enums.
 
 - No hay literales octales: `0777` es decimal (como en C#); usa `0x1FF`.
 - El [orden de evaluación](/lenguaje/operadores/#orden-de-evaluación) es el de C#, salvo en la

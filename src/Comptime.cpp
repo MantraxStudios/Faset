@@ -249,8 +249,10 @@ Type* Sema::ctCall(CallExpr* e) {
         } else if (h.k == CtValue::Method && (me->name == "Invocar" || me->name == "InvocarLista")) {
             // m.Invocar(obj, a, b)  ->  obj.M(a, b);   m.InvocarLista(obj, lista)  ->
             // obj.M(Reflection.Unbox<P0>(lista[0]), ...)  (para la reflexión al ejecutar).
+            // Con un constructor (Tipo<T>.Constructores): c.Invocar(a, b) -> new T(a, b).
             MethodDecl* m = h.method;
-            size_t first = m->isStatic() ? 0 : 1;
+            bool isCtor = m->kind == MethodKind::Ctor;
+            size_t first = m->isStatic() || isCtor ? 0 : 1;
             if (e->args.size() < first) {
                 diag.error(e->loc, "'" + me->name + "' de un método de instancia necesita el objeto: m." + me->name + "(obj, ...)");
                 return tc_.error();
@@ -291,6 +293,13 @@ Type* Sema::ctCall(CallExpr* e) {
                 }
             }
             Expr* target = nullptr;
+            if (isCtor) {
+                auto* nw = new NewExpr(e->loc);
+                nw->tref = presetRef(m->owner->type, e->loc);
+                nw->args = args;
+                e->lowered = nw;
+                return check(nw);
+            }
             if (m->isStatic()) {  // por su nombre completo: ns.Clase.Metodo o ns.funcion
                 std::vector<std::string> path;
                 std::string ns = m->owner->ns;
@@ -377,7 +386,7 @@ Type* Sema::ctAfterCall(CallExpr* e, MethodDecl* m) {
     }
     // [Conditional("DEBUG")]: sin ese símbolo la llamada desaparece (y no se evalúan sus argumentos).
     for (Attribute& a : m->attrs) {
-        if ((a.name == "Conditional" || a.name == "ConditionalAttribute") && a.args.size() == 1 && !isDefinedSymbol(a.args[0])) {
+        if ((a.name == "Conditional" || a.name == "ConditionalAttribute") && a.args.size() == 1 && !isDefinedSymbol(a.args[0], e->loc.file)) {
             if (!m->ret->isVoid()) break;  // error en la declaración (Attributes.cpp)
             auto* z = new IntLitExpr(e->loc);
             auto* c = new CastExpr(e->loc);
@@ -397,12 +406,12 @@ Type* Sema::ctAfterCall(CallExpr* e, MethodDecl* m) {
             while (x->kind == EK::Cast && static_cast<CastExpr*>(x)->implicit) x = static_cast<CastExpr*>(x)->operand;
             if (x->kind == EK::TypeOf) {
                 Type* t = static_cast<TypeOfExpr*>(x)->target;
-                if (t && t->isClass() && t->decl) reflectWant(t->decl, x->loc);
+                if (t && (t->isClass() || t->is(TK::Struct)) && t->decl) reflectWant(t->decl, x->loc);
             }
         }
         if (m->templateOf && m->name == "CreateInstance")
             for (auto& [n, t] : m->typeArgMap)
-                if (t && t->isClass() && t->decl) reflectWant(t->decl, e->loc);
+                if (t && (t->isClass() || t->is(TK::Struct)) && t->decl) reflectWant(t->decl, e->loc);
     }
     // Funciones 'comptime': cada llamada se evalúa al compilar (salvo dentro de otra función comptime,
     // que se comprueba como código normal).

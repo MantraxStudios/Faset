@@ -82,16 +82,41 @@ El intérprete del compilador entiende un subconjunto *puro* del lenguaje:
 - aritmética de enteros (con el desbordamiento de cada tipo), `double`, `char`, `bool` y enums;
 - cadenas (`+`, `$"..."`, `Length`, `Substring`, `ToUpper`, `Replace`, `Split`, `Contains`...) y
   `StringBuilder`;
-- `List<T>` (`Add`, `Count`, índices, `foreach`, `Sort`, `Sum`...);
+- `List<T>` (`Add`, `Count`, índices, `foreach`, `Sort`, `Sum`...), también con expresiones de
+  colección (`[1, 2, ..otra]`), índices desde el final (`l[^1]`) y rangos (`l[1..3]`, `s[1..^1]`);
 - variables, `if`, `switch`, bucles `for`/`while`/`foreach`, `break`/`continue`, patrones;
 - objetos de clases y structs propios (constructores, campos, propiedades y métodos);
 - llamadas a otras funciones, también recursivas;
 - `sizeof` de tipos primitivos y de structs formados por ellos.
 
-Lo que depende del momento de ejecución no se puede: E/S, hilos, `await`, lambdas, punteros o
+Lo que depende del momento de ejecución no se puede: E/S, hilos, `await`, lambdas, punteros,
+arreglos `T[]` (usa `List<T>`), diccionarios o
 leer una variable normal (`int x = 3; comptime x + 1` es un error: el valor de `x` no se conoce al
 compilar). El resultado tiene que poder escribirse como constante: un número, una cadena, un enum,
-un `bool` o una `List` de ellos.
+un `bool`, una `List` de ellos, o un objeto de una clase o struct propio. Un objeto se crea al
+ejecutar **sin volver a llamar a su constructor**, con el valor que calculó el compilador en cada
+campo (también los privados y los heredados): el trabajo del constructor queda hecho al compilar.
+
+```faset
+using std;
+using std.collections;
+
+class Tabla
+{
+    List<int> cuadrados = new List<int>();
+    public Tabla(int n) { for (int i = 0; i < n; i++) cuadrados.Add(i * i); }
+    public int this[int i] => cuadrados[i];
+}
+
+void Main()
+{
+    Tabla t = comptime new Tabla(1000);  // los 1000 cuadrados se calculan al compilar
+    Console.WriteLine(t[999]);           // 998001
+}
+```
+
+Cada `comptime` crea objetos nuevos; si dos campos apuntaban al mismo objeto, al ejecutar son dos
+copias, y un ciclo (`a.Otro = b; b.Otro = a`) es un error.
 
 ### Tablas precalculadas
 

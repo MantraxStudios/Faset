@@ -2766,6 +2766,22 @@ Type* Sema::checkAssign(AssignExpr* e) {
     if (getter) {
         MethodDecl* setter = e->lhs->kind == EK::Name ? static_cast<NameExpr*>(e->lhs)->setter : static_cast<MemberExpr*>(e->lhs)->setter;
         if (!setter) {
+            // Como en C#: en un constructor de su clase, una propiedad automática { get; } se asigna
+            // (va a su campo oculto, que el parser llama 'X__valor').
+            bool selfTarget = e->lhs->kind == EK::Name ||
+                              (e->lhs->kind == EK::Member && static_cast<MemberExpr*>(e->lhs)->obj->kind == EK::This);
+            FieldDecl* backing = getter->owner ? findField(getter->owner, getter->name + "__valor") : nullptr;
+            if (e->op == "=" && selfTarget && backing && backing->owner == getter->owner && ctx_.method &&
+                (ctx_.method->kind == MethodKind::Ctor || ctx_.method->name == ".cctor") && ctx_.cls == getter->owner &&
+                ctx_.method->isStatic() == getter->isStatic()) {
+                auto* f = new NameExpr(e->lhs->loc);
+                f->name = backing->name;
+                e->lhs = f;
+                Type* B = checkValue(f);
+                if (B->isError()) return B;
+                coerce(e->rhs, B);
+                return B;
+            }
             diag.error(e->lhs->loc, "la propiedad '" + getter->name + "' es de solo lectura (no tiene 'set')");
             return tc_.error();
         }

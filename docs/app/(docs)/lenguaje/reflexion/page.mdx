@@ -66,6 +66,7 @@ C++), la misma función genera un código distinto y directo para cada `T`. Así
 | `Valores` | Valores de un enum (`d.Nombre`, `d.Valor`, `d.Entero`) |
 | `Atributos`, `Atributo<A>()`, `TieneAtributo<A>()`, `AtributosDe<A>()` | [Atributos](/lenguaje/atributos/) del tipo |
 | `EsClase`, `EsStruct`, `EsEnum`, `EsInterfaz`, `EsRegistro`, `EsAbstracta`, `EsSellada`, `EsTupla`, `EsGenerico` | Clase de tipo |
+| `TieneToString` | Si `$"{x}"` y `"a" + x` funcionan con el tipo (números, cadenas, enums, tuplas o un `ToString()`) |
 | `EsNumerico`, `EsEntero`, `EsDecimal`, `EsTexto`, `EsBool`, `EsChar`, `EsPrimitivo`, `EsReferencia`, `EsValor`, `EsDelegado`, `EsPuntero` | Tipos primitivos y categorías |
 | `EsArreglo`, `EsLista`, `EsDiccionario`, `EsConjunto`, `EsNullable` | `T[]`, `List<T>`, `Dictionary<K, V>`, `HashSet<T>`, `T?` |
 | `Elemento`, `Clave`, `Valor`, `Subyacente`, `Base` | Tipo del elemento, de la clave, del valor, de un `T?` o un enum, y la clase base |
@@ -80,7 +81,7 @@ tipo: `T.Elemento x = ...;`, `Leer<T.Clave>(...)`.
 | Sobre | Consultas |
 |---|---|
 | Un campo o propiedad `f` | `Nombre`, `Tipo` (un tipo: `f.Tipo.EsLista`...), `EsCampo`, `EsPropiedad`, `PuedeEscribir`, `SoloLectura`, `Indice`, `DeclaradoEn`, atributos; `f.Get(obj)` y `f.Set(obj, valor)` generan el acceso directo |
-| Un método `m` | `Nombre`, `Retorno`, `Parametros`, `EsEstatico`, `EsVirtual`, `DeclaradoEn`, atributos; `m.Invocar(obj, a, b)` genera la llamada `obj.M(a, b)` |
+| Un método `m` | `Nombre`, `Retorno`, `Parametros`, `EsEstatico`, `EsVirtual`, `DeclaradoEn`, atributos; `m.Invocar(obj, a, b)` genera la llamada `obj.M(a, b)`; con un constructor `c` de `Constructores`, `c.Invocar(a, b)` genera `new T(a, b)` y `c.Parametro("nombre")` da ese parámetro (o `null`) |
 | Un parámetro `p` | `Nombre`, `Tipo`, `Indice`, atributos |
 
 `comptime if` elige el código según el tipo, y solo se comprueba la rama elegida:
@@ -186,8 +187,33 @@ buscarlo por nombre. Pedir los campos de un tipo sin metadatos lanza
 
 Como Faset no tiene *boxing*, los valores que no son objetos (`int`, `string`, structs) viajan
 como `object` dentro de un `Boxed<T>`: `Reflection.Box(5)` y `Reflection.Unbox<int>(o)`.
-`SetValue` con un valor del tipo equivocado lanza `InvalidCastException`. La reflexión al ejecutar
-solo admite clases; para structs y enums usa `Tipo<T>`.
+`SetValue` con un valor del tipo equivocado lanza `InvalidCastException`.
+
+Los structs también pueden llevar metadatos (`[Reflectable] struct Punto`). Se pasan en su caja,
+y `SetValue` e `Invoke` cambian el struct *dentro* de ella, como en C# con un struct en una caja:
+
+```faset
+using std;
+using std.reflection;
+
+[Reflectable]
+public struct Punto
+{
+    public int X;
+    public int Y;
+}
+
+void Main()
+{
+    object o = Reflection.Box(new Punto { X = 1, Y = 2 });
+    typeof(Punto).GetField("X").SetValue(o, Reflection.Box(10));
+    Punto p = Reflection.Unbox<Punto>(o);
+    Console.WriteLine($"{p.X} {Reflection.TypeOf(o).Name}");  // 10 Punto
+}
+```
+
+`Reflection.TypeOf(o)` da el tipo del valor (el de dentro de un `Boxed<T>`). Los enums no tienen
+reflexión al ejecutar; para ellos usa `Tipo<T>.Valores`.
 
 ## Frente a C#
 

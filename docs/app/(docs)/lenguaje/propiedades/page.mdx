@@ -89,6 +89,23 @@ int main()
 }
 ```
 
+Una propiedad automática sin `set` (`{ get; }`) es de solo lectura, pero, como en C#, se puede
+asignar en un constructor de su propia clase (en el constructor `static` si es estática):
+
+```faset
+class Persona
+{
+    public string Nombre { get; }
+    public Persona(string nombre) { Nombre = nombre; }
+}
+
+int main()
+{
+    println(new Persona("Ana").Nombre);  // Ana
+    return 0;
+}
+```
+
 ## Propiedades estáticas
 
 ```faset

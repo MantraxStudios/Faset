@@ -2,7 +2,13 @@
 // (static_assert en el código generado, con la cadena "requerido por" hasta esta llamada).
 using std.json;
 
-record Punto(int X, int Y);
+// Dos constructores con parámetros y ninguno vacío: no se sabe cuál usar al leer.
+class Punto
+{
+    public int X;
+    public Punto(int x) { X = x; }
+    public Punto(int x, int y) { X = x + y; }
+}
 class ConFuncion { public Func<int, int> F; }
 
 void Main()

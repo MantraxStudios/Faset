@@ -10,6 +10,9 @@
 //        Console.WriteLine($"{f.Name}: {f.FieldType.Name} = {f.GetValue(p)}");
 //    object o = Activator.CreateInstance(typeof(Persona));
 //
+//  Los structs también ([Reflectable] struct ...): viajan como 'object' en un Boxed<T>, y SetValue
+//  e Invoke cambian el struct dentro de esa caja; Reflection.TypeOf(o) da su tipo.
+//
 //  Solo llevan metadatos las clases marcadas con [Reflectable] (y sus derivadas) y las que el
 //  compilador ve escritas en typeof(X).GetFields()/GetProperties()/GetMethods()/... o en
 //  Activator.CreateInstance: un programa que no usa la reflexión no crece. Los metadatos los genera
@@ -24,11 +27,21 @@ using std.collections;
 namespace std.reflection
 {
     // Un valor que no es un objeto (int, string, un struct...) guardado como 'object'.
-    public sealed class Boxed<T>
+    public abstract class BoxedValue
+    {
+        public abstract Type ValueType { get; }  // typeof(T) de su Boxed<T>
+    }
+
+    public sealed class Boxed<T> : BoxedValue
     {
         public T Value;
         public Boxed(T value) { Value = value; }
-        public override string ToString() => $"{Value}";
+        public override Type ValueType => typeof(T);
+        public override string ToString()
+        {
+            comptime if (Tipo<T>.TieneToString) return $"{Value}";
+            else return Tipo<T>.Nombre;  // un struct sin ToString(): su nombre, como en C#
+        }
     }
 
     // Lo común a campos, propiedades y métodos: nombre, tipo que lo declara y atributos.
@@ -169,6 +182,14 @@ namespace std.reflection
             }
         }
 
+        // Tipo de un valor: el de dentro para un Boxed<T> (typeof(Punto) para un struct Punto en su caja).
+        public static Type TypeOf(object o)
+        {
+            if (o == null) return null;
+            BoxedValue b = o as BoxedValue;
+            return b != null ? b.ValueType : o.GetType();
+        }
+
         // Nombre del tipo de un valor ('int' para un Boxed<int>).
         public static string TypeName(object o)
         {
@@ -199,8 +220,8 @@ namespace std.reflection
         public static void CheckTarget(object obj, Type declaring, string member)
         {
             if (obj == null) throw new ArgumentNullException("obj", $"el objeto de '{declaring.Name}.{member}' es null");
-            if (!declaring.IsInstanceOfType(obj))
-                throw new ArgumentException($"'{declaring.Name}.{member}' no se puede usar sobre un '{obj.GetType().Name}'");
+            if (!declaring.IsInstanceOfType(obj) && TypeOf(obj).FullName != declaring.FullName)  // un struct llega en un Boxed<T>
+                throw new ArgumentException($"'{declaring.Name}.{member}' no se puede usar sobre un '{TypeName(obj)}'");
         }
 
         // Lo llama el compilador (src/Reflection.cpp) una vez por tipo con metadatos, al iniciar.
@@ -209,12 +230,15 @@ namespace std.reflection
             if (tabla == null) tabla = new Dictionary<string, TypeMetadata>();
             TypeMetadata info = new TypeMetadata(typeof(T));
             comptime foreach (var a in Tipo<T>.Atributos) info.Attributes.Add(a.Crear());
-            comptime if (Tipo<T>.TieneConstructorVacio) info.Factory = () => new T();
+            comptime if (Tipo<T>.TieneConstructorVacio) info.Factory = () => Box(new T());
             comptime foreach (var f in Tipo<T>.Miembros)
             {
                 FieldInfo fi = new FieldInfo(f.Nombre, typeof(f.Tipo), typeof(f.DeclaradoEn), f.EsPropiedad);
-                fi.Getter = (object o) => Box(f.Get((T)o));
-                comptime if (f.PuedeEscribir) fi.Setter = (object o, object v) => { f.Set((T)o, Unbox<f.Tipo>(v)); };
+                fi.Getter = (object o) => Box(f.Get(Unbox<T>(o)));
+                // Un struct se cambia dentro de su Boxed<T> (como SetValue sobre un struct en una caja en C#).
+                comptime if (f.PuedeEscribir && Tipo<T>.EsStruct)
+                    fi.Setter = (object o, object v) => { Boxed<T> b = (Boxed<T>)o; f.Set(b.Value, Unbox<f.Tipo>(v)); };
+                else comptime if (f.PuedeEscribir) fi.Setter = (object o, object v) => { f.Set((T)o, Unbox<f.Tipo>(v)); };
                 comptime foreach (var a in f.Atributos) fi.Attributes.Add(a.Crear());
                 comptime if (f.EsPropiedad) info.Properties.Add(fi);
                 else info.Fields.Add(fi);
@@ -228,12 +252,16 @@ namespace std.reflection
                     {
                         mi = new MethodInfo(m.Nombre, null, typeof(m.DeclaradoEn), m.EsEstatico);
                         comptime if (m.EsEstatico) mi.Invoker = (object o, List<object> args) => { m.InvocarLista(args); return null; };
+                        else comptime if (Tipo<T>.EsStruct)
+                            mi.Invoker = (object o, List<object> args) => { Boxed<T> b = (Boxed<T>)o; m.InvocarLista(b.Value, args); return null; };
                         else mi.Invoker = (object o, List<object> args) => { m.InvocarLista((T)o, args); return null; };
                     }
                     else
                     {
                         mi = new MethodInfo(m.Nombre, typeof(m.Retorno), typeof(m.DeclaradoEn), m.EsEstatico);
                         comptime if (m.EsEstatico) mi.Invoker = (object o, List<object> args) => Box(m.InvocarLista(args));
+                        else comptime if (Tipo<T>.EsStruct)
+                            mi.Invoker = (object o, List<object> args) => { Boxed<T> b = (Boxed<T>)o; return Box(m.InvocarLista(b.Value, args)); };
                         else mi.Invoker = (object o, List<object> args) => Box(m.InvocarLista((T)o, args));
                     }
                     comptime foreach (var p in m.Parametros)

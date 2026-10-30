@@ -331,14 +331,21 @@ static void faset_fmt_double(char* buf, size_t cap, double v, int maxPrec) {
     if (v > 1.7976931348623157e308) { snprintf(buf, cap, "\xE2\x88\x9E"); return; }
     if (v < -1.7976931348623157e308) { snprintf(buf, cap, "-\xE2\x88\x9E"); return; }
     if (v == 0) { snprintf(buf, cap, (1.0 / v) < 0 ? "-0" : "0"); return; }
+    /* Enteros exactos por debajo de 1e15: sin decimales ni exponente; es lo que daría la búsqueda. */
+    if (v > -1e15 && v < 1e15 && v == (double)(int64_t)v) { snprintf(buf, cap, "%lld", (long long)v); return; }
+    /* Menor precisión que conserva el valor. Si 'p' dígitos lo conservan, 'p + 1' también (el número
+       de p dígitos es uno de los candidatos con p + 1), así que basta una búsqueda binaria. */
     char tmp[64];
-    int prec = 1;
-    for (; prec <= maxPrec; prec++) {
-        snprintf(tmp, sizeof tmp, "%.*e", prec - 1, v);
+    int lo = 1, hi = maxPrec;
+    while (lo < hi) {
+        int mid = (lo + hi) / 2;
+        snprintf(tmp, sizeof tmp, "%.*e", mid - 1, v);
         double back = strtod(tmp, NULL);
-        if (maxPrec == 9 ? (float)back == (float)v : back == v) break;
+        if (maxPrec == 9 ? (float)back == (float)v : back == v) hi = mid;
+        else lo = mid + 1;
     }
-    if (prec > maxPrec) prec = maxPrec;
+    int prec = lo;
+    snprintf(tmp, sizeof tmp, "%.*e", prec - 1, v);
     const char* e = strchr(tmp, 'e');
     int exp = e ? atoi(e + 1) : 0;
     if (exp > -5 && exp < 15) {

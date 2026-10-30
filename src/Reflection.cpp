@@ -42,7 +42,9 @@ bool Sema::reflectStep() {
     CtState& st = ct();
     for (size_t i = 0; i < prog_.types.size(); i++) {
         ClassDecl* c = prog_.types[i];
-        if (c->isTemplate() || c->isNamespaceScope || c->kind != ClassKind::Class || st.reflectSet.count(c)) continue;
+        if (c->isTemplate() || c->isNamespaceScope || (c->kind != ClassKind::Class && c->kind != ClassKind::Struct) ||
+            st.reflectSet.count(c))
+            continue;
         if (CtReflect::marked(c)) reflectWant(c, c->loc);
     }
     if (st.reflectDone == st.reflectQueue.size()) return false;
@@ -56,9 +58,9 @@ bool Sema::reflectStep() {
     resolveClassSignatures(R);
     while (st.reflectDone < st.reflectQueue.size()) {
         auto [c, loc] = st.reflectQueue[st.reflectDone++];
-        if (c->kind != ClassKind::Class || c->isInterface() || c->isStaticClass()) {
-            diag.error(loc, "la reflexión al ejecutar solo admite clases ('" + c->displayName +
-                                "' no lo es); para structs y enums usa la reflexión de tiempo de compilación (Tipo<T>)");
+        if ((c->kind != ClassKind::Class && c->kind != ClassKind::Struct) || c->isInterface() || c->isStaticClass()) {
+            diag.error(loc, "la reflexión al ejecutar solo admite clases y structs ('" + c->displayName +
+                                "' no lo es); para enums usa la reflexión de tiempo de compilación (Tipo<T>)");
             continue;
         }
         auto* f = new FieldDecl();

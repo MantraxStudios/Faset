@@ -13,6 +13,7 @@
 // =============================================================================
 using std.collections;
 using std.text;
+using std.reflection;
 
 namespace std.json
 {
@@ -987,10 +988,66 @@ namespace std.json
                 }
                 return d;
             }
+            else comptime if ((Tipo<T>.EsClase || Tipo<T>.EsStruct) && !Tipo<T>.TieneConstructorVacio && Tipo<T>.Constructores.Count != 1)
+            {
+                static_assert(false, "Json.Deserialize necesita que '" + Tipo<T>.Nombre + "' tenga un constructor público sin parámetros o uno solo con parámetros");
+                return default;
+            }
             else comptime if ((Tipo<T>.EsClase || Tipo<T>.EsStruct) && !Tipo<T>.TieneConstructorVacio)
             {
-                static_assert(false, "Json.Deserialize necesita que '" + Tipo<T>.Nombre + "' tenga un constructor público sin parámetros");
-                return default;
+                // Un solo constructor con parámetros (p. ej. un record posicional), como System.Text.Json:
+                // cada parámetro recibe el miembro del mismo nombre (sin distinguir mayúsculas); los que no
+                // aparecen en el JSON reciben default. Los demás miembros escribibles se asignan después.
+                comptime var c = Tipo<T>.Constructores[0];
+                comptime if (Tipo<T>.EsClase)
+                {
+                    if (p.TryNull()) return null;
+                }
+                List<object> args = new List<object>();
+                comptime foreach (var prm in c.Parametros) args.Add(Reflection.Box(default(prm.Tipo)));
+                List<object> extra = null;  // por índice de miembro: el valor de los que no son parámetros
+                p.BeginObject();
+                string key;
+                while (p.NextKey(out key))
+                {
+                    comptime foreach (var f in Tipo<T>.Miembros)
+                    {
+                        comptime var prm = c.Parametro(f.Nombre);
+                        comptime if (!f.TieneAtributo<JsonIgnore>() && (prm != null || f.PuedeEscribir))
+                        {
+                            bool match;
+                            comptime if (f.TieneAtributo<JsonName>()) match = p.KeyIs(key, f.Atributo<JsonName>().Name, f.Atributo<JsonName>().Name);
+                            else match = p.KeyIs(key, f.Nombre, Camel(f.Nombre));
+                            if (match)
+                            {
+                                comptime if (prm != null) args[prm.Indice] = Reflection.Box(Read<prm.Tipo>(p));
+                                else
+                                {
+                                    if (extra == null)
+                                    {
+                                        extra = new List<object>();
+                                        for (int i = 0; i < Tipo<T>.Miembros.Count; i++) extra.Add(null);
+                                    }
+                                    extra[f.Indice] = Reflection.Box(Read<f.Tipo>(p));
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                    p.Skip();
+                }
+                T obj = c.InvocarLista(args);
+                if (extra != null)
+                {
+                    comptime foreach (var f in Tipo<T>.Miembros)
+                    {
+                        comptime if (!f.TieneAtributo<JsonIgnore>() && c.Parametro(f.Nombre) == null && f.PuedeEscribir)
+                        {
+                            if (extra[f.Indice] != null) f.Set(obj, Reflection.Unbox<f.Tipo>(extra[f.Indice]));
+                        }
+                    }
+                }
+                return obj;
             }
             else comptime if (Tipo<T>.EsClase || Tipo<T>.EsStruct)
             {

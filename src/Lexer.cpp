@@ -3,6 +3,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <map>
 #include <unordered_set>
 
 static const std::unordered_set<std::string> kKeywords = {
@@ -23,8 +24,17 @@ bool isKeyword(const std::string& s) { return kKeywords.count(s) != 0; }
 
 static std::set<std::string> gDefines = {"FASET", "LINUX", "DEBUG"};
 
-void setDefines(const std::set<std::string>& defines) { gDefines = defines; }
-bool isDefinedSymbol(const std::string& name) { return gDefines.count(name) != 0; }
+// Símbolos de cada archivo que usa #define / #undef (los demás ven solo los de la compilación).
+static std::map<int, std::set<std::string>> gFileDefines;
+
+void setDefines(const std::set<std::string>& defines) {
+    gDefines = defines;
+    gFileDefines.clear();
+}
+bool isDefinedSymbol(const std::string& name, int file) {
+    auto f = gFileDefines.find(file);
+    return (f != gFileDefines.end() ? f->second : gDefines).count(name) != 0;
+}
 
 namespace {
 
@@ -43,6 +53,9 @@ struct Lex {
     size_t limit = std::string::npos;  // fin del rango a analizar (huecos de $"...")
     int line = 1, col = 1;
     std::vector<Token> out;
+
+    std::set<std::string> defines = gDefines;  // con los #define / #undef de este archivo
+    bool ownDefines = false;
 
     Lex(const std::string& src, int f) : s(src), file(f) {}
 
@@ -171,7 +184,7 @@ struct Lex {
                 diag.error(loc, "condición de #if no válida: '" + expr + "'");
                 return false;
             }
-            bool v = name == "true" || (name != "false" && gDefines.count(name));
+            bool v = name == "true" || (name != "false" && defines.count(name));
             if (neg) v = !v;
             term = term && v;
             while (p < expr.size() && isspace((unsigned char)expr[p])) p++;
@@ -228,6 +241,22 @@ struct Lex {
         } else if (word == "endif") {
             if (conds.empty()) diag.error(loc, "#endif sin #if");
             else conds.pop_back();
+        } else if (word == "define" || word == "undef") {
+            if (!active()) return;
+            // Como en C#: antes del primer token del archivo, y valen solo para ese archivo.
+            if (!out.empty()) {
+                diag.error(loc, "#" + word + " tiene que ir al principio del archivo, antes de cualquier código");
+                return;
+            }
+            bool ok = !arg.empty() && (isalpha((unsigned char)arg[0]) || arg[0] == '_') && arg != "true" && arg != "false";
+            for (char ch : arg) ok = ok && (isalnum((unsigned char)ch) || ch == '_');
+            if (!ok) {
+                diag.error(loc, "#" + word + " espera un nombre de símbolo (no '" + arg + "')");
+                return;
+            }
+            if (word == "define") defines.insert(arg);
+            else defines.erase(arg);
+            ownDefines = true;
         } else if (word == "region" || word == "endregion" || word == "pragma") {
             // se ignoran
         } else if (active()) {
@@ -629,6 +658,8 @@ void Lex::lexInterpolated() {
 std::vector<Token> tokenize(const std::string& src, int fileId) {
     Lex l(src, fileId);
     l.run();
+    if (l.ownDefines) gFileDefines[fileId] = l.defines;
+    else gFileDefines.erase(fileId);
     return std::move(l.out);
 }
 

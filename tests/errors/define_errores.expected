@@ -1,0 +1,3 @@
+1|#define espera un nombre de símbolo
+2|#undef espera un nombre de símbolo
+5|#define tiene que ir al principio del archivo

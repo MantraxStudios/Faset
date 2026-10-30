@@ -139,7 +139,7 @@ class Programa
 | Atributo | Efecto |
 |---|---|
 | `[Obsolete("mensaje")]` | Cada llamada da un **aviso** al compilar; con `[Obsolete("mensaje", true)]` es un error. Dentro de otro miembro obsoleto no se avisa. |
-| `[Conditional("SÍMBOLO")]` | Si el [símbolo](/lenguaje/compilacion-condicional/) no está definido (`DEBUG`, `WINDOWS`...), las llamadas al método desaparecen, con sus argumentos (no se evalúan). Solo en métodos `void`. |
+| `[Conditional("SÍMBOLO")]` | Si el [símbolo](/lenguaje/compilacion-condicional/) no está definido (`DEBUG`, `WINDOWS`, o un `#define` del archivo de la llamada), las llamadas al método desaparecen, con sus argumentos (no se evalúan). Solo en métodos `void`. |
 | `[CallerArgumentExpression("param")]` | En un parámetro `string`: si la llamada no lo pasa, el compilador pone el texto del argumento `param`. |
 | `[Reflectable]` | La clase (y sus derivadas) lleva metadatos para la [reflexión al ejecutar](/lenguaje/reflexion/#reflexión-al-ejecutar). |
 | `[JsonName("x")]`, `[JsonIgnore]` | Nombre del miembro en el JSON, o no escribirlo ([JSON automático](/lenguaje/json-automatico/)). |

@@ -1,0 +1,8 @@
+3 -4
+Ana 0 1 2 hola
+{"Nombre":"Ana","Edad":0,"Lugares":[{"X":1,"Y":2}],"Nota":"hola"}
+True
+5 x! rojo
+3
+True
+Punto { X = 1, Y = 0 } Punto { X = 0, Y = 5 }

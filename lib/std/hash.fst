@@ -36,6 +36,22 @@ namespace std.hash
 
         public static ulong Of(string s) => Bytes(s.Ptr, s.Length);
 
+        // Enums: el hash de su valor numérico (permite Dictionary<MiEnum, V> y HashSet<MiEnum>).
+        // Los demás tipos (short, byte, float, T*...) siguen por las conversiones implícitas de Widen,
+        // porque este Of<T> le gana a Of(int) cuando el argumento no es exactamente de un tipo de arriba.
+        public static ulong Of<T>(T v)
+        {
+            comptime if (Tipo<T>.EsEnum) { return Mix((ulong)(long)v); }
+            else { return Widen(v); }
+        }
+
+        static ulong Widen(int v) => Of(v);
+        static ulong Widen(uint v) => Of(v);
+        static ulong Widen(long v) => Of(v);
+        static ulong Widen(ulong v) => Of(v);
+        static ulong Widen(double v) => Of(v);
+        static ulong Widen(void* p) => Of(p);
+
         // FNV-1a sobre un bloque de bytes.
         public static ulong Bytes(byte* data, long length)
         {

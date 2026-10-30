@@ -607,6 +607,7 @@ std::string CodeGen::toStr(Expr* e) {
     if (t->is(TK::Float)) return "faset_f32_to_str(" + v + ")";
     if (t->is(TK::Double)) return "faset_f64_to_str(" + v + ")";
     if (t->isClass()) return strOf(t, v);  // ToString() virtual; null -> ""
+    if (t->isEnum() && t->decl) return t->decl->cname + "__name(" + v + ")";  // "x" + Color.Rojo == "xRojo"
     if (t->isUnsignedInt()) return "faset_u64_to_str((uint64_t)(" + v + "))";
     if (t->isAggregate()) return toStrCode(t, v);  // tuplas, T? y ToString() (SugarGen.cpp)
     return "faset_i64_to_str((int64_t)(" + v + "))";

@@ -68,9 +68,9 @@ namespace std
         public Conditional(string symbol) { Symbol = symbol; }
     }
 
-    // [Reflectable]: la clase (y sus derivadas) lleva metadatos para la reflexión al ejecutar
-    // (std.reflection: GetFields, GetMethods, Activator.CreateInstance...).
-    [AttributeUsage(AttributeTargets.Class)]
+    // [Reflectable]: la clase (y sus derivadas) o el struct lleva metadatos para la reflexión al
+    // ejecutar (std.reflection: GetFields, GetMethods, Activator.CreateInstance...).
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
     public sealed class Reflectable : Attribute { }
 
     // void Comprobar(bool cond, [CallerArgumentExpression("cond")] string texto): si la llamada no

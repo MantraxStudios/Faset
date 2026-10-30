@@ -560,7 +560,8 @@ void CodeGen::emitOO(int phase) {
         if (isClass) {
             out_ << "    " << T << " r = (" << T << ")faset_obj_alloc((int64_t)sizeof(" << c->cname << "), "
                  << (hasDtorChain(c) ? c->cname + "__dtorchain" : std::string("0")) << ");\n";
-            out_ << "    *r = *src;\n";
+            if (w->blank) out_ << "    *(const faset_type**)r = " << tiOf(c) << ";\n";  // sin constructor (comptime)
+            else out_ << "    *r = *src;\n";
         }
         for (size_t i = 0; i < w->inits.size(); i++)
             if (w->inits[i].field)
@@ -617,7 +618,7 @@ std::string CodeGen::ooExpr(Expr* e) {
                 if (in.field) ops.push_back({in.value, expr(in.value), ctype(in.value->type)});
             std::string pre = sequence(ops);
             std::string s = "fs__with" + std::to_string(w->id) + "(" +
-                            (w->type->isClass() ? chkObj(w->operand, ops[0].code) : ops[0].code);
+                            (w->type->isClass() && !w->blank ? chkObj(w->operand, ops[0].code) : ops[0].code);
             for (size_t i = 1; i < ops.size(); i++) s += ", " + ops[i].code;
             return seqWrap(pre, s + ")");
         }
