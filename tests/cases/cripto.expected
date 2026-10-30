@@ -1,0 +1,47 @@
+ok    MD5('')
+ok    MD5(abc)
+ok    SHA1(abc)
+ok    SHA224(abc)
+ok    SHA256(abc)
+ok    SHA256(448 bits)
+ok    SHA384(abc)
+ok    SHA512(abc)
+ok    SHA256(10^6 a)
+ok    SHA256 tras Reset
+32
+ok    IncrementalHash SHA512
+ok    Sha256.HashFile
+FileNotFoundException
+ok    HMAC-SHA256 RFC4231 #1
+ok    HMAC-SHA256 RFC4231 #2
+ok    HMAC-SHA512 RFC4231 #1
+ok    HMAC-SHA1 RFC2202 #2
+ok    HMAC-MD5 RFC2104
+ok    HMAC-SHA256 RFC4231 #6
+ok    HMAC incremental
+ok    Hmac.Compute
+ok    PBKDF2-SHA1 RFC6070 c=1
+ok    PBKDF2-SHA1 RFC6070 c=4096
+ok    PBKDF2-SHA1 RFC6070 25 bytes
+ok    PBKDF2-SHA256 RFC7914
+true
+true
+false
+false
+ok    AES-128-GCM #2
+ok    AES-128-GCM #4
+ok    AES-128-GCM #4 descifrado
+ok    AES-256-GCM #16
+ok    AES-256-GCM #16 etiqueta
+manipulación detectada
+43
+mensaje secreto
+true
+AesGcm: la clave debe tener 16, 24 o 32 bytes (tiene 5) (Parámetro 'key')
+true
+true
+7
+0
+true
+false
+false

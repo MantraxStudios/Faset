@@ -1,0 +1,9 @@
+miniz 3.1.2 (versión de la biblioteca: MZ_VERSION "11.3.2"), para std.compression.
+
+Origen:   https://github.com/richgel999/miniz/releases/download/3.1.2/miniz-3.1.2.zip
+          (SHA-256 del zip: f0446d863f9c19926ad9483c523fdc42e42b8d4a6a431d27e09d49c79a140d9a)
+Archivos: miniz.c y miniz.h (la versión de un solo archivo del paquete), sin cambios.
+Licencia: MIT (ver LICENSE).
+
+Se compila con MINIZ_NO_STDIO, MINIZ_NO_TIME y MINIZ_NO_ARCHIVE_APIS: Faset solo usa
+Deflate/Inflate y CRC-32; el formato .zip está escrito en Faset (lib/std/compression.fst).

@@ -17,3 +17,48 @@ int main()
     return 0;
 }
 ```
+
+## Base64, hexadecimal y codificaciones
+
+Las cadenas de Faset son UTF-8, pero también sirven para datos binarios (pueden contener cualquier
+byte, incluido el cero). `Base64` y `Hex` los pasan a texto y de vuelta; `Encoding` convierte entre
+UTF-8 y otras codificaciones (`Latin1`, `ASCII`, `Unicode` = UTF-16LE, `BigEndianUnicode`), como
+`System.Text.Encoding`.
+
+```faset
+using std.text;
+
+int main()
+{
+    println(Base64.Encode("¡Hola!"));                 // wqFIb2xhIQ==
+    println(Base64.Decode("wqFIb2xhIQ=="));           // ¡Hola!
+    println(Hex.Encode("AB\n"));                      // 41420a
+
+    string latin1 = Encoding.Latin1.GetBytes("año");
+    println(latin1.Length);                           // 3 (en UTF-8 son 4 bytes)
+    println(Encoding.Latin1.GetString(latin1));       // año
+    println(Encoding.Unicode.GetBytes("hi").Length);  // 4
+    return 0;
+}
+```
+
+## CSV
+
+`Csv.Parse` y `Csv.Write` leen y escriben CSV según RFC 4180: los campos con el separador, comillas
+o saltos de línea van entre comillas, y una comilla dentro se escribe `""`. `CsvReader` lee fila a
+fila y `CsvWriter` escribe; el separador puede ser otro (`';'`, `'\t'`).
+
+```faset
+using std.text;
+
+int main()
+{
+    var filas = Csv.Parse("nombre,ciudad\n\"Pérez, Ana\",Madrid\n");
+    println(filas[1][0]);                            // Pérez, Ana
+    print(Csv.Write(filas));                         // nombre,ciudad / "Pérez, Ana",Madrid
+
+    var tabla = Csv.ParseWithHeader("a;b\n1;2\n", ';');
+    println(tabla[0]["b"]);                          // 2
+    return 0;
+}
+```

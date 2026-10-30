@@ -1,0 +1,75 @@
+ok    30!
+ok    2^200
+ok    suma con acarreo
+ok    resta negativa
+ok    producto de signos
+ok    long.MinValue
+ok    ToInt64
+OverflowException: BigInteger: el valor no cabe en un long
+ok    7 / -2
+ok    -7 % 2
+ok    DivRem
+ok    q*d+r
+DivideByZeroException
+true
+ok    cifras de a*b
+ok    a*b (Python)
+ok    Parse(ToString)
+ok    cuadrado
+ok    Fermat
+ok    ModPow
+ok    ModPow negativo
+ok    Gcd
+ok    Gcd(0, -5)
+ok    Sqrt
+True True False True
+ok    <<
+ok    >>
+ok    -7 >> 1
+ok    hex
+True False 11 -1 0
+1.2345678901234567E+19
+42
+False False False
+0 True 5
+-2 7 30 100000000000000000000
+ok    0.1 + 0.2
+true
+ok    escala
+ok    producto
+ok    producto de escalas
+ok    1/3
+ok    2/3
+ok    10/4
+ok    1/8
+ok    4.00/2
+ok    1/0.5
+ok    100/3
+ok    resto
+ok    MaxValue
+ok    MinValue
+OverflowException: Decimal: el resultado es demasiado grande para un Decimal
+DivideByZeroException: Decimal: división por cero
+ok    Parse largo
+ok    Parse empate al par
+ok    Parse empate con resto
+ok    Parse exponente
+ok    Parse 28 decimales
+FormatException: Decimal.Parse: '1,5' no es un número
+OverflowException: Decimal.Parse: '1e30' es demasiado grande para un Decimal
+False True -3.25
+ok    Round al par
+ok    Round(2.345, 2)
+ok    Round(2.355, 2)
+ok    AwayFromZero
+ok    Floor/Ceiling/Truncate
+ok    Normalize
+ok    F2
+ok    N2
+ok    double
+2.75
+-2 99
+True True True True
+19.99 -5 0 -1 2
+0 1.5
+100.00 False

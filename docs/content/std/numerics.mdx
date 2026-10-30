@@ -1,0 +1,76 @@
+Números que no caben en los tipos de la máquina: `BigInteger`, un entero con signo de cualquier
+tamaño, y `Decimal`, el decimal exacto de 128 bits de .NET para dinero. Los dos son structs inmutables
+con operadores (`+ - * / %`, comparaciones) y se mezclan con `long` en cualquier lado: `f * i`,
+`1 + x`, `precio * 3`.
+
+```faset
+using std.numerics;
+
+int main()
+{
+    BigInteger f = BigInteger.One;
+    for (int i = 2; i <= 30; i++) f = f * i;
+    println($"{f}");                                      // 265252859812191058636308480000000
+
+    BigInteger p = BigInteger.Parse("170141183460469231731687303715884105727");   // 2^127 - 1
+    println($"{BigInteger.ModPow(new BigInteger(3), p - 1, p)}");                      // 1 (p es primo)
+    println($"{BigInteger.Pow(new BigInteger(2), 100)}");  // 1267650600228229401496703205376
+    println($"{BigInteger.Gcd(new BigInteger(84), new BigInteger(-36))}");            // 12
+    println($"{new BigInteger(-7) / 2}");                 // -3 (trunca hacia cero, como C#)
+    return 0;
+}
+```
+
+## BigInteger
+
+- Aritmética exacta con cualquier número de cifras: suma y resta lineales, multiplicación de
+  **Karatsuba** para números grandes (multiplicar dos números de 475 000 cifras tarda unas décimas de
+  segundo) y división de Knuth. `ToString` y `Parse` son cuadráticos: un número de un millón de cifras
+  tarda unos segundos en escribirse.
+- `/` trunca hacia cero y `%` lleva el signo del dividendo; `DivRem` da los dos a la vez. `<<` y `>>`
+  multiplican y dividen por potencias de 2 (`>>` redondea hacia abajo, como en C#).
+- `Pow`, `ModPow`, `Gcd` (`GreatestCommonDivisor`), `Sqrt` (raíz entera), `Abs`, `Min`, `Max`,
+  `Sign`, `IsEven`, `IsPowerOfTwo`, `GetBitLength`, `ToHexString`.
+- Conversiones: `new BigInteger(long)`, `Parse` / `TryParse` (base 10), `ToInt64` y `ToInt32` (lanzan
+  `OverflowException` si no cabe) y `ToDouble`.
+
+## Decimal
+
+`Decimal` guarda una mantisa entera de 96 bits y de 0 a 28 cifras decimales, como el `decimal` de C#:
+`0.1 + 0.2` es exactamente `0.3`, y los importes conservan sus decimales (`1.50 + 1.50` es `3.00`).
+Cuando un resultado tiene más cifras de las que caben (`1 / 3`) se redondea al par; si no cabe ni sin
+decimales (más de unos 7,9·10²⁸), lanza `OverflowException`. Dividir por cero lanza
+`DivideByZeroException`.
+
+```faset
+using std.numerics;
+
+int main()
+{
+    Decimal precio = Decimal.Parse("19.99");
+    Decimal total = precio * 3 + Decimal.Parse("0.03");
+    println($"{total}");                                       // 60.00
+    println(Decimal.Parse("0.1") + Decimal.Parse("0.2") == Decimal.Parse("0.3"));   // true
+    println($"{Decimal.One / 3}");                             // 0.3333333333333333333333333333
+
+    // Math.Round de C# redondea al par ("banker's rounding"); AwayFromZero es el redondeo escolar.
+    println($"{Decimal.Round(Decimal.Parse("2.345"), 2)}");    // 2.34
+    println($"{Decimal.Round(Decimal.Parse("2.345"), 2, MidpointRounding.AwayFromZero)}");   // 2.35
+    println(Decimal.Parse("1234567.891").ToString("N2")); // 1,234,567.89
+    println($"{new Decimal(1999, 2)}");                        // 19.99 (1999 · 10^-2)
+    return 0;
+}
+```
+
+<Callout type="nota">
+En Faset `decimal` todavía no es una palabra clave y no hay literales `1.5m`: el tipo se llama
+`Decimal` y los valores se crean con `Decimal.Parse("1.5")`, `new Decimal(15, 1)` o
+`new Decimal(15L)`. Se eligió un struct de la biblioteca en lugar de un tipo del compilador para
+no tocar el analizador; el comportamiento (28 cifras, escala, redondeo al par) es el de C#.
+Tampoco hay conversiones implícitas definidas por el usuario, así que pasar a `double` o `long` se
+hace con `ToDouble()`, `ToInt64()` o `ToInt32()`. `new Decimal(double)` redondea a 15 cifras
+significativas, como .NET.
+</Callout>
+
+También: `Floor`, `Ceiling`, `Truncate`, `Abs`, `Normalize` (quita los ceros finales), `Scale`,
+`Sign`, `Remainder` (`%`), `MaxValue` / `MinValue`, `TryParse`, y `ToString("F2")` / `ToString("N0")`.

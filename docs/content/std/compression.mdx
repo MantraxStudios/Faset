@@ -1,0 +1,60 @@
+Compresión Deflate en sus tres envoltorios (`Deflate` crudo, `ZLib` y `GZip`, compatibles con zlib y
+la herramienta `gzip`), sumas `Crc32` y `Adler32`, y archivos `.zip` con `ZipArchive` y `ZipFile`.
+La compresión es la de [miniz](https://github.com/richgel999/miniz) (licencia MIT, incluida en
+`lib/compression/miniz`); el formato `.zip` está escrito en Faset. Los datos son cadenas de bytes,
+así que sirven para texto y para binarios.
+
+```faset
+using std.compression;
+using std.text;
+
+int main()
+{
+    string texto = Text.Repeat("Faset comprime con Deflate. ", 200);
+    string gz = GZip.Compress(texto);
+    println($"{texto.Length} -> {gz.Length} bytes");    // 5600 -> 80 bytes
+    println(GZip.Decompress(gz) == texto);               // true
+
+    string z = ZLib.Compress("abc", CompressionLevel.Fastest);
+    println(ZLib.Decompress(z));                         // abc
+    println(Crc32.Compute("123456789"));                 // 3421780262 (0xCBF43926)
+
+    try { GZip.Decompress("esto no es gzip"); }
+    catch (InvalidDataException e) { println("datos no válidos"); }   // datos no válidos
+    return 0;
+}
+```
+
+## Archivos `.zip`
+
+`ZipArchive` se crea vacío o se abre desde un archivo (`ZipArchive.Open`) o desde bytes
+(`FromBytes`). Las entradas se añaden con `AddEntry` (bytes o texto), `AddFile` (un archivo del disco)
+y `AddDirectory`, y se guardan con `Save` o `ToBytes`. Al extraer, las rutas que intentan salir de la
+carpeta de destino (`../`) se rechazan con `IOException`.
+
+```faset
+using std.compression;
+using std.io;
+
+int main()
+{
+    var zip = new ZipArchive();
+    zip.AddEntry("leeme.txt", "¡Hola desde un zip!");
+    zip.AddEntry("datos/numeros.csv", "1,2,3\n4,5,6\n");
+    zip.AddDirectory("vacia");
+    string bytes = zip.ToBytes();                    // o zip.Save("archivo.zip")
+
+    var leido = ZipArchive.FromBytes(bytes);
+    foreach (var e in leido.Entries) println($"{e.FullName} {e.Length}");
+    // leeme.txt 20
+    // datos/numeros.csv 12
+    // vacia/ 0
+    println(leido.GetEntry("leeme.txt").ReadAllText());   // ¡Hola desde un zip!
+    return 0;
+}
+```
+
+`ZipFile.CreateFromDirectory(carpeta, "a.zip")` y `ZipFile.ExtractToDirectory("a.zip", carpeta)`
+comprimen y extraen carpetas enteras. Se leen los `.zip` de `zip`, de Windows y de otros programas
+(Deflate o sin comprimir, con descriptores de datos y comentarios); no se admiten el cifrado ni
+ZIP64 (archivos de más de 4 GB).

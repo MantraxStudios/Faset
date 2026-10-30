@@ -637,7 +637,7 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 |-------------------|-----------|
 | `std` (siempre)   | excepciones (`Exception`, `FormatException`…), `print`, `println`, `panic`, `assert`, `Console`, `Math` (trig., log, `Gcd`, `IsPrime`, `IPow`…), `Memory` (`Alloc`, `New<T>`, `Resize<T>`…; `memory_unsafe`), `String`, `Char`, `Convert` (`ToInt32`, `TryToDouble`…), `Environment` (`GetVariable`, `TryGetVariable`, argumentos…), `Utf16` (`Encode`, `Decode`), extensiones de `string` (`Trim`, `Substring`, `IndexOf`, `StartsWith`, `Contains`, `ToUpper`, `ToInt`…), comparación de cadenas con `< > ==` |
 | `std.collections` | `List<T>` (`Add`, `Insert`, `Remove`, `Sort`, `Where`, `Select`, `Any`, `Sum`, `Min`, `Max`…), `Stack<T>`, `Queue<T>`, `Dictionary<K,V>` (con `dict[k]` al estilo de C++), `HashSet<T>`, `Algorithms` (`Sort`, `BinarySearch`, `Swap`, `Reverse`, `Fill`) |
-| `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight` |
+| `std.text`        | `StringBuilder`, `Text.Split`, `Join`, `Replace`, `Repeat`, `PadLeft`, `PadRight`, `Base64`, `Hex`, `Encoding` (`UTF8`, `Latin1`, `ASCII`, `Unicode`/UTF-16), `Csv` (`Parse`, `Write`, `ParseWithHeader`), `CsvReader`, `CsvWriter` |
 | `std.io`          | `File` (texto, bytes y líneas; `Copy`/`Move` con `overwrite`, `Delete`, `GetSize`, `GetLastWriteTime`, permisos, `OpenRead`/`OpenWrite`/`OpenAppend`), `FileStream` (búfer, `ReadLine`, `Write`, `Seek`, `Position`, `Length`), `Directory` (`Create` recursivo, `Delete`, `GetFiles`/`GetDirectories` con patrón y recursión, `Move`, `GetCurrent`/`SetCurrent`, `CreateTemp`), `Path` (`Combine`, `GetFileName`, `GetExtension`, `ChangeExtension`, `Normalize`, `GetFullPath`, `GetRelativePath`, `IsRooted`, `GetTempPath`, `GetTempFileName`, `MatchesPattern`), `FileInfo`, `FileWatcher` |
 | `std.time`        | `Time` (`TickMs`, `TickNs`, `NowUnixMs`, `Sleep`), `DateTime`, `TimeSpan`, `TimeZone`, `Stopwatch` (alta resolución) |
 | `std.thread`      | `Thread`, `Mutex`, `RecursiveMutex`, `ConditionVariable`, `Semaphore`, `Atomic`, `AtomicInt`/`AtomicLong`, `ThreadPool`, `Parallel.For`, `Channel<T>` |
@@ -652,6 +652,11 @@ memory_unsafe { LibC.printf("%d\n".Ptr, 42); }
 | `std.ui`          | `Window`, `Widget`, `Application`: ventanas descritas en `.fstui` y dibujadas por software (X11, Win32, Android). Controles básicos, `PictureBox`/`Image`, `TabControl`, `TreeView`, `MenuBar`/`ContextMenu`, `Timer`, `Canvas` (`Graphics`), `WebView` (ver abajo) |
 | `std.video`       | `VideoPlayer` para std.ui (GStreamer en Linux, MediaCodec en Android), `VideoTime` |
 | `std.audio`       | `Sound`, `Music`, `Voice`, `Audio` (WAV, OGG Vorbis y MP3; mezclador propio; ver abajo) |
+| `std.regex`       | `Regex` con sintaxis de .NET (`IsMatch`, `Match`, `Matches`, `Replace` con `$1` o lambda, `Split`, `Escape`), grupos con nombre, `RegexOptions`, búsquedas alrededor; motor Pike VM de tiempo lineal y retroceso con límite (`RegexMatchTimeoutException`) |
+| `std.sqlite`      | SQLite 3 incluido: `SqliteConnection` (`Execute`, `Query`, `Query<T>` con mapeo, escalares, `ExecuteAsync`/`QueryAsync`), `SqliteParameters` (`@nombre`, `?`), `SqliteDataReader` tipado, `BeginTransaction`/`Commit`/`Rollback`, `SqliteException` |
+| `std.crypto`      | `Sha256`, `Sha512`, `Sha384`, `Sha224`, `Sha1`, `Md5`, `HmacSha256`…, `IncrementalHash`, `Pbkdf2`, `PasswordHasher`, `AesGcm`, `RandomNumberGenerator` (del sistema), `CryptographicOperations.FixedTimeEquals` (con BearSSL) |
+| `std.compression` | `Deflate`, `ZLib`, `GZip` (con miniz), `Crc32`, `Adler32`, `ZipArchive`/`ZipFile` (crear, leer y extraer `.zip`) |
+| `std.numerics`    | `BigInteger` (precisión arbitraria, Karatsuba, `Pow`, `ModPow`, `Gcd`, `Sqrt`, `Parse`), `Decimal` (128 bits como el `decimal` de C#: 28 cifras, redondeo al par, `Round`, `ToString("N2")`), `MidpointRounding` |
 
 Toda la biblioteca está escrita en Faset: puedes leerla y ampliarla en `lib/std/`.
 Para añadir tu propio módulo, crea `lib/<raiz>/<modulo>.fst`; `using raiz.modulo;` lo cargará.

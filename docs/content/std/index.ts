@@ -18,6 +18,11 @@ import thread from "./thread.mdx";
 import audio from "./audio.mdx";
 import video from "./video.mdx";
 import task from "./task.mdx";
+import regex from "./regex.mdx";
+import sqlite from "./sqlite.mdx";
+import crypto from "./crypto.mdx";
+import compression from "./compression.mdx";
+import numerics from "./numerics.mdx";
 
 export const intros: Record<string, ComponentType> = {
   core,
@@ -37,4 +42,9 @@ export const intros: Record<string, ComponentType> = {
   audio,
   video,
   task,
+  regex,
+  sqlite,
+  crypto,
+  compression,
+  numerics,
 };

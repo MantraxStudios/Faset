@@ -1,0 +1,99 @@
+Criptografía con las implementaciones de BearSSL (incluida en `lib/net/bearssl`, licencia MIT):
+hashes SHA-1/SHA-2 y MD5, HMAC, PBKDF2, cifrado autenticado AES-GCM, números aleatorios del sistema
+operativo y comparación en tiempo constante. Los datos binarios (claves, hashes, textos cifrados) son
+cadenas de bytes; `Hex` y `Base64` (de [`std.text`](/std/text/)) los pasan a texto.
+
+```faset
+using std.crypto;
+using std.text;
+
+int main()
+{
+    println(Sha256.HashHex("abc"));          // ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    println(Hex.Encode(Sha1.Hash("abc")));   // a9993e364706816aba3e25717850c26c9cd0d89d
+
+    // Por partes (archivos grandes, flujos...).
+    var h = new Sha512();
+    h.AppendData("ab");
+    h.AppendData("c");
+    println(h.FinalHex().Substring(0, 16));  // ddaf35a193617aba
+
+    // HMAC: firma de un mensaje con una clave secreta.
+    println(HmacSha256.HashHex("Jefe", "what do ya want for nothing?"));
+    // 5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+    return 0;
+}
+```
+
+`Md5` y `Sha1` están por compatibilidad (sumas de comprobación, protocolos antiguos): **no son
+seguros** contra colisiones; usa SHA-256 o SHA-512 para todo lo nuevo.
+
+## Contraseñas
+
+Nunca guardes contraseñas ni su hash simple. `PasswordHasher` usa PBKDF2-HMAC-SHA256 con sal
+aleatoria y 600 000 iteraciones (recomendación de OWASP) y lo guarda todo en un único texto;
+`Verify` lo comprueba en tiempo constante. `Pbkdf2.DeriveKey` da la derivación directa.
+
+```faset
+using std.crypto;
+using std.text;
+
+int main()
+{
+    string guardado = PasswordHasher.Hash("caballo correcto", 10000);   // menos iteraciones solo para el ejemplo
+    println(guardado.StartsWith("pbkdf2-sha256$10000$"));             // true
+    println(PasswordHasher.Verify("caballo correcto", guardado));     // true
+    println(PasswordHasher.Verify("caballo incorrecto", guardado));   // false
+
+    string clave = Pbkdf2.DeriveKey("password", "salt", 4096, 20, HashAlgorithm.SHA1);
+    println(Hex.Encode(clave));   // 4b007901b765489abead49d926f721d065a429c1
+    return 0;
+}
+```
+
+## Cifrado con AES-GCM
+
+`AesGcm` cifra y autentica: si alguien cambia un solo bit del texto cifrado (o de los datos
+asociados), `Decrypt` lanza `CryptographicException` en lugar de devolver basura. La clave tiene 16,
+24 o 32 bytes, y el *nonce* 12 bytes que **no deben repetirse nunca** con la misma clave. `Seal` y
+`Open` se ocupan del nonce: generan uno aleatorio y lo guardan delante del resultado.
+
+```faset
+using std.crypto;
+
+int main()
+{
+    var aes = new AesGcm(AesGcm.GenerateKey());        // 32 bytes aleatorios: AES-256
+    string sellado = aes.Seal("mensaje secreto");
+    println(sellado.Length);                           // 43: nonce (12) + datos (15) + etiqueta (16)
+    println(aes.Open(sellado));                        // mensaje secreto
+
+    string manipulado = sellado.Substring(0, 20) + "X" + sellado.Substring(21);
+    try { aes.Open(manipulado); }
+    catch (CryptographicException e) { println("manipulado"); }   // manipulado
+    return 0;
+}
+```
+
+## Aleatoriedad y comparaciones
+
+`RandomNumberGenerator` lee del generador del sistema (`getrandom` en Linux, `/dev/urandom` en Android,
+`BCryptGenRandom` en Windows): úsalo para claves, sales, tokens y contraseñas, no `std.random`.
+`CryptographicOperations.FixedTimeEquals` compara sin revelar por el tiempo dónde está la primera
+diferencia (para comprobar firmas y tokens).
+
+```faset
+using std.crypto;
+using std.text;
+
+int main()
+{
+    string token = RandomNumberGenerator.GetHexString(32);
+    println(token.Length);                                         // 32
+    int dado = RandomNumberGenerator.GetInt32(1, 7);
+    println(dado >= 1 && dado <= 6);                               // true
+    println(Base64.EncodeUrl(RandomNumberGenerator.GetBytes(16)).Length);   // 22
+    println(CryptographicOperations.FixedTimeEquals("abc", "abc"));        // true
+    return 0;
+}
+```

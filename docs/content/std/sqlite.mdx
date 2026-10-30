@@ -1,0 +1,94 @@
+Bases de datos SQLite sin instalar nada: la amalgamación de SQLite 3 (dominio público) va incluida
+en `lib/sqlite` y el compilador la compila la primera vez que un programa usa `std.sqlite` (una vez
+por compilador y arquitectura, también para Windows y Android). Los valores van **siempre como
+parámetros** (`@nombre`, `:nombre`, `$nombre` o `?`), nunca pegados al SQL: así no hay inyección de
+SQL y los textos pueden llevar comillas.
+
+```faset
+using std.sqlite;
+using std.collections;
+
+record class Persona(string Nombre, int Edad);
+
+int main()
+{
+    using var db = new SqliteConnection(":memory:");   // o "datos.db" para un archivo
+    db.Execute("CREATE TABLE gente (id INTEGER PRIMARY KEY, nombre TEXT NOT NULL, edad INT)");
+
+    string ins = "INSERT INTO gente (nombre, edad) VALUES (@nombre, @edad)";
+    db.Execute(ins, new SqliteParameters().Add("@nombre", "Ana").Add("@edad", 31));
+    db.Execute(ins, new SqliteParameters().Add("@nombre", "O'Brien").Add("@edad", 17));
+    println(db.LastInsertRowId);                                       // 2
+
+    // Lector tipado: por índice o por nombre de columna.
+    using (var r = db.Query("SELECT nombre, edad FROM gente WHERE edad > ?", new SqliteParameters().Add(18)))
+        while (r.Read()) println($"{r.GetString("nombre")}: {r.GetInt(1)}");   // Ana: 31
+
+    // Cada fila convertida en un objeto.
+    List<Persona> todas = db.Query<Persona>("SELECT nombre, edad FROM gente ORDER BY edad",
+                                            f => new Persona(f.GetString(0), f.GetInt(1)));
+    println(todas[0].Nombre);                                          // O'Brien
+    println(db.ExecuteScalarInt64("SELECT COUNT(*) FROM gente"));       // 2
+    return 0;
+}
+```
+
+## Transacciones
+
+`BeginTransaction` devuelve un `SqliteTransaction`: con `using var`, si el bloque termina sin
+`Commit` (por ejemplo, por una excepción) los cambios se deshacen. `RunInTransaction` hace lo mismo
+con una lambda.
+
+```faset
+using std.sqlite;
+
+int main()
+{
+    using var db = new SqliteConnection(":memory:");
+    db.Execute("CREATE TABLE cuentas (nombre TEXT PRIMARY KEY, saldo INT); " +
+               "INSERT INTO cuentas VALUES ('ana', 100), ('luis', 0)");
+    {
+        using var tx = db.BeginTransaction();
+        db.Execute("UPDATE cuentas SET saldo = saldo - 30 WHERE nombre = 'ana'");
+        db.Execute("UPDATE cuentas SET saldo = saldo + 30 WHERE nombre = 'luis'");
+        tx.Commit();
+    }
+    try
+    {
+        db.RunInTransaction(() =>
+        {
+            db.Execute("DELETE FROM cuentas");
+            throw new InvalidOperationException("me arrepiento");
+        });
+    }
+    catch (InvalidOperationException e) { println(e.Message); }       // me arrepiento
+    println(db.ExecuteScalarInt64("SELECT saldo FROM cuentas WHERE nombre = 'luis'"));   // 30
+    return 0;
+}
+```
+
+## Tipos, errores y tareas
+
+- Cada celda tiene su tipo (`GetFieldType`: `Integer`, `Real`, `Text`, `Blob` o `Null`). Para los
+  NULL están `IsNull`, `GetNullableInt64` y `GetNullableDouble`; los BLOB se leen y escriben como
+  cadenas de bytes (`AddBlob`, `GetBlob`).
+- Los errores de SQLite (sintaxis, `UNIQUE`, `NOT NULL`, base de datos bloqueada...) lanzan
+  `SqliteException`, con el código extendido de SQLite en `ErrorCode` y el principal en `PrimaryCode`.
+  Un parámetro que sobra o que falta lanza `ArgumentException`.
+- La conexión es segura entre hilos (modo serializado): `ExecuteAsync`, `QueryAsync` y
+  `ExecuteScalarInt64Async` ejecutan la consulta en otra tarea.
+
+```faset
+using std.sqlite;
+
+int main()
+{
+    using var db = new SqliteConnection(":memory:");
+    db.Execute("CREATE TABLE t (email TEXT UNIQUE)");
+    db.Execute("INSERT INTO t VALUES ('a@b.c')");
+    try { db.Execute("INSERT INTO t VALUES (@e)", new SqliteParameters().Add("@e", "a@b.c")); }
+    catch (SqliteException e) { println(e.PrimaryCode); }             // 19 (SQLITE_CONSTRAINT)
+    println(db.ExecuteAsync("INSERT INTO t VALUES ('x@y.z')").Result);  // 1
+    return 0;
+}
+```

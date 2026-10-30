@@ -89,6 +89,7 @@ struct Options {
     std::vector<std::string> extraSources;  // C de la biblioteca estándar (p. ej. el WebView de std.ui)
     bool video = false;      // el programa usa std.video (VideoPlayer): se compila su runtime
     std::vector<std::string> cSources;  // fuentes C de la biblioteca estándar (p. ej. lib/audio/faset_audio.c)
+    std::vector<std::string> vendored;  // bibliotecas de C incluidas que se enlazan precompiladas (bearssl, sqlite, miniz)
     std::vector<std::pair<std::string, std::string>> assets;  // <Asset Include="..."/>: (ruta relativa, archivo)
     bool singleFile = false;
     Project* project = nullptr;
@@ -373,6 +374,15 @@ static bool usesWebView(const std::vector<std::string>& inputs) {
     return false;
 }
 
+
+static void addCSource(Options& o, const std::string& c) {
+    if (std::find(o.cSources.begin(), o.cSources.end(), c) == o.cSources.end()) o.cSources.push_back(c);
+}
+
+static void addVendored(Options& o, const std::string& name) {
+    if (std::find(o.vendored.begin(), o.vendored.end(), name) == o.vendored.end()) o.vendored.push_back(name);
+}
+
 static bool frontEnd(Options& o, std::string* csrc) {
     FrontendOptions fo;
     fo.inputs = o.inputs;
@@ -409,6 +419,28 @@ static bool frontEnd(Options& o, std::string* csrc) {
                                          : std::vector<std::string>{"dl"};
             std::string c = (fs::path(fo.libDir) / "net" / "faset_tls.c").string();
             if (std::find(o.cSources.begin(), o.cSources.end(), c) == o.cSources.end()) o.cSources.push_back(c);
+            if (o.target == "android") addVendored(o, "bearssl");
+        }
+        // Módulos con código C propio y, a veces, una biblioteca de C incluida en lib/ (que se
+        // compila una sola vez por compilador y arquitectura: ver vendorArchive).
+        else if (mod == "std.crypto") {
+            addCSource(o, (fs::path(fo.libDir) / "crypto" / "faset_crypto.c").string());
+            addVendored(o, "bearssl");  // SHA-*, MD5, HMAC, AES-GCM
+            if (o.target == "windows") need = {"bcrypt"};  // BCryptGenRandom
+        }
+        else if (mod == "std.compression") {
+            addCSource(o, (fs::path(fo.libDir) / "compression" / "faset_compression.c").string());
+            addVendored(o, "miniz");
+        }
+        else if (mod == "std.sqlite") {
+            addCSource(o, (fs::path(fo.libDir) / "sqlite" / "faset_sqlite.c").string());
+            addVendored(o, "sqlite");
+        }
+        else if (mod == "std.regex")
+            addCSource(o, (fs::path(fo.libDir) / "regex" / "faset_regex.c").string());
+        else if (mod == "std.numerics") {
+            addCSource(o, (fs::path(fo.libDir) / "numerics" / "faset_numerics.c").string());
+            if (o.target != "windows") need = {"m"};  // pow
         }
         else if (mod == "std.video") {
             o.video = true;  // GStreamer / libmediandk se cargan con dlopen
@@ -484,56 +516,110 @@ static std::string defaultOutput(const Options& o) {
     return dir.empty() ? name : (dir / name).string();
 }
 
-// std.net en Android: TLS con BearSSL (lib/net/bearssl). Se compila una sola vez por compilador
-// y arquitectura en <datos de faset>/cache/bearssl/ y se enlaza como biblioteca estática ("" si falla).
-static std::string bearsslArchive(const Options& o, const std::string& cc) {
-    fs::path root = fs::path(findLibDir(o.argv0)) / "net" / "bearssl";
+// 'ar' que acompaña al compilador de C: llvm-ar junto a clang (NDK, llvm-mingw), <triple>-ar
+// para compiladores cruzados de GNU y, si no, el 'ar' (o 'llvm-ar') del sistema.
+static std::string archiverFor(const std::string& cc) {
     std::error_code ec;
-    if (!fs::is_directory(root / "src", ec)) {
-        diag.fatal("falta " + (root / "src").string() + " (BearSSL, para TLS en Android)");
+    fs::path dir = fs::path(cc).parent_path();
+#if defined(_WIN32)
+    const std::string exe = ".exe";
+#else
+    const std::string exe = "";
+#endif
+    if (!dir.empty() && fs::exists(dir / ("llvm-ar" + exe), ec)) return (dir / ("llvm-ar" + exe)).string();
+    std::string name = fs::path(cc).filename().string();
+    for (const char* suffix : {"-gcc", "-clang", "-cc"}) {
+        size_t p = name.rfind(suffix);
+        if (p == std::string::npos || p == 0) continue;
+        std::string triple = name.substr(0, p);
+        for (const std::string& c : {triple + "-ar", triple + "-gcc-ar"}) {
+            if (!dir.empty() && fs::exists(dir / (c + exe), ec)) return (dir / (c + exe)).string();
+            if (!findProgram(c).empty()) return c;
+        }
+    }
+    for (const char* c : {"ar", "llvm-ar", "gcc-ar"})
+        if (!findProgram(c).empty()) return c;
+    return "ar";
+}
+
+// Bibliotecas de C incluidas en lib/ (BearSSL, SQLite, miniz): se compilan una sola vez por
+// compilador y arquitectura en <datos de faset>/cache/<nombre>/ y se enlazan como biblioteca
+// estática (el enlazador solo toma los objetos que se usan). Devuelve "" si falla.
+static std::string vendorArchive(const Options& o, const std::string& cc, const std::string& name) {
+    fs::path lib0 = fs::path(findLibDir(o.argv0));
+    fs::path root;
+    std::vector<std::string> args = {"-std=gnu11", "-O2", "-w"};
+    if (o.target != "windows") args.push_back("-fPIC");
+    std::vector<std::string> sources;
+    std::string what;
+    std::error_code ec;
+    if (name == "bearssl") {
+        root = lib0 / "net" / "bearssl";
+        what = "BearSSL (TLS y criptografía)";
+        args.push_back("-I" + (root / "inc").generic_string());
+        args.push_back("-I" + (root / "src").generic_string());
+        for (auto it = fs::recursive_directory_iterator(root / "src", ec); it != fs::recursive_directory_iterator(); it.increment(ec))
+            if (it->is_regular_file(ec) && it->path().extension() == ".c") sources.push_back(it->path().generic_string());
+    } else if (name == "sqlite") {
+        root = lib0 / "sqlite";
+        what = "SQLite";
+        // Sin extensiones cargables (no hace falta libdl) y seguro con hilos (modo serializado).
+        for (const char* d : {"-DSQLITE_OMIT_LOAD_EXTENSION=1", "-DSQLITE_THREADSAFE=1", "-DSQLITE_DQS=0",
+                              "-DSQLITE_DEFAULT_FOREIGN_KEYS=1", "-DSQLITE_ENABLE_FTS5=1", "-DSQLITE_ENABLE_MATH_FUNCTIONS=1"})
+            args.push_back(d);
+        sources.push_back((root / "sqlite3.c").generic_string());
+    } else if (name == "miniz") {
+        root = lib0 / "compression" / "miniz";
+        what = "miniz (Deflate)";
+        args.push_back("-DMINIZ_NO_STDIO=1");
+        args.push_back("-DMINIZ_NO_TIME=1");
+        args.push_back("-DMINIZ_NO_ARCHIVE_APIS=1");
+        sources.push_back((root / "miniz.c").generic_string());
+    } else {
+        diag.fatal("biblioteca incluida desconocida: " + name);
         return "";
     }
+    if (sources.empty() || !fs::exists(sources[0], ec)) {
+        diag.fatal("falta " + root.string() + " (" + what + ")");
+        return "";
+    }
+    std::sort(sources.begin(), sources.end());
+    std::string flags;
+    for (const std::string& a : args) flags += a + " ";
     char key[32];
     std::snprintf(key, sizeof key, "%016llx",
-                  (unsigned long long)std::hash<std::string>{}(cc + "|" + o.arch + "|" + fs::absolute(root).string()));
-    fs::path dir = fs::path(fasetDataDir()) / "cache" / "bearssl" / key;
-    fs::path lib = dir / "libfaset_bearssl.a";
+                  (unsigned long long)std::hash<std::string>{}(cc + "|" + o.target + "|" + o.arch + "|" + flags + fs::absolute(root).string()));
+    fs::path dir = fs::path(fasetDataDir()) / "cache" / name / key;
+    fs::path lib = dir / ("libfaset_" + name + ".a");
     if (fs::exists(lib, ec)) return lib.string();
-    std::vector<std::string> sources;
-    for (auto it = fs::recursive_directory_iterator(root / "src", ec); it != fs::recursive_directory_iterator(); it.increment(ec))
-        if (it->is_regular_file(ec) && it->path().extension() == ".c") sources.push_back(it->path().generic_string());
-    std::sort(sources.begin(), sources.end());
     fs::path obj = dir / "obj";
     fs::remove_all(obj, ec);
     fs::create_directories(obj, ec);
-    std::fprintf(stderr, "faset: compilando BearSSL para TLS (%s, solo la primera vez)...\n", o.arch.c_str());
+    std::fprintf(stderr, "faset: compilando %s (%s-%s, solo la primera vez)...\n", what.c_str(), o.target.c_str(), o.arch.c_str());
     // Archivos de respuesta (@archivo): la lista no cabe en la línea de órdenes de Windows.
-    auto rsp = [](const fs::path& f, const std::vector<std::string>& args) {
+    auto rsp = [](const fs::path& f, const std::vector<std::string>& list) {
         std::string t;
-        for (const std::string& a : args) t += "\"" + a + "\"\n";
+        for (const std::string& a : list) t += "\"" + a + "\"\n";
         return writeFile(f, t);
     };
-    std::vector<std::string> args = {"-std=gnu11", "-O2", "-w", "-fPIC", "-I" + (root / "inc").generic_string(),
-                                     "-I" + (root / "src").generic_string(), "-c"};
+    args.push_back("-c");
     args.insert(args.end(), sources.begin(), sources.end());
     std::vector<std::string> objs;
     for (const std::string& s : sources) objs.push_back((obj / fs::path(s).filename().replace_extension(".o")).generic_string());
-    fs::path ar = fs::path(cc).parent_path() / "llvm-ar";
-#if defined(_WIN32)
-    ar += ".exe";
-#endif
-    fs::path tmpLib = dir / "libfaset_bearssl.tmp.a";
+    std::string ar = archiverFor(cc);
+    fs::path tmpLib = dir / ("libfaset_" + name + ".tmp.a");
     if (!rsp(dir / "cc.rsp", args) || !rsp(dir / "ar.rsp", objs)) {
         diag.fatal("no se pudo escribir en " + dir.string());
         return "";
     }
     fs::path old = fs::current_path(ec);
-    fs::current_path(obj, ec);  // 'clang -c' deja los .o en la carpeta actual
+    fs::current_path(obj, ec);  // 'cc -c' deja los .o en la carpeta actual
     int r = runCommand({cc, "@" + (dir / "cc.rsp").string()}, o.verbose);
     fs::current_path(old, ec);
-    if (r == 0) r = runCommand({ar.string(), "rcs", tmpLib.string(), "@" + (dir / "ar.rsp").string()}, o.verbose);
+    fs::remove(tmpLib, ec);
+    if (r == 0) r = runCommand({ar, "rcs", tmpLib.string(), "@" + (dir / "ar.rsp").string()}, o.verbose);
     if (r != 0) {
-        diag.fatal("no se pudo compilar BearSSL (código " + std::to_string(r) + "); usa -v para ver el comando");
+        diag.fatal("no se pudo compilar " + what + " (código " + std::to_string(r) + "); usa -v para ver el comando");
         return "";
     }
     fs::rename(tmpLib, lib, ec);
@@ -605,12 +691,10 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.insert(cmd.end(), o.extraSources.begin(), o.extraSources.end());
     cmd.insert(cmd.end(), o.cSources.begin(), o.cSources.end());
     cmd.insert(cmd.end(), o.extraC.begin(), o.extraC.end());
-    if (o.target == "android" && std::any_of(o.cSources.begin(), o.cSources.end(), [](const std::string& f) {
-            return fs::path(f).filename() == "faset_tls.c";
-        })) {
-        std::string bear = bearsslArchive(o, cc);
-        if (bear.empty()) return 1;
-        cmd.push_back(bear);
+    for (const std::string& v : o.vendored) {
+        std::string a = vendorArchive(o, cc, v);
+        if (a.empty()) return 1;
+        cmd.push_back(a);
     }
     cmd.push_back("-o");
     cmd.push_back(outPath);

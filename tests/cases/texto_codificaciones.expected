@@ -1,0 +1,49 @@
+"" -> "" -> ""
+"f" -> "Zg==" -> "f"
+"fo" -> "Zm8=" -> "fo"
+"foo" -> "Zm9v" -> "foo"
+"foob" -> "Zm9vYg==" -> "foob"
+"fooba" -> "Zm9vYmE=" -> "fooba"
+"foobar" -> "Zm9vYmFy" -> "foobar"
+w7vDvw
+true
+true
+false
+false
+Base64.Decode: el texto no es Base64 válido
+016162
+C3B1
+hello
+Hex.Decode: el texto no es hexadecimal válido
+61f16f203f
+año ?
+613f6f
+6800e9003dd800de
+hé😀
+006800e9
+¡Hola!
+4
+x�y
+utf-16
+iso-8859-1
+fffe efbbbf
+BOM
+Encoding.GetEncoding: codificación desconocida 'ebcdic' (Parámetro 'name')
+4
+nombre | ciudad | nota (3)
+Pérez, Ana | Madrid | 9.5 (3)
+Dice "hola" | Línea 1
+Línea 2 |  (3)
+ |  |  (3)
+nombre,ciudad,nota⏎"Pérez, Ana",Madrid,9.5⏎"Dice ""hola""","Línea 1
+Línea 2",⏎,,⏎
+true
+4
+x;"1;2";" espacio"
+2: uno
+1: tres
+CSV: comillas sin cerrar en el campo que empieza en la línea 1
+CSV: texto después de las comillas de cierre en la línea 1
+h0la mund0
+mund0 5 m
+0201d0c0b0a00100000000000000

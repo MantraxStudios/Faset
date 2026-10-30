@@ -1,0 +1,77 @@
+true
+false
+True 7 10 2024-05-17 2024/05/17 grupos=4
+false
+0
+2023 11 dia=False
+2024 02 29 dia
+[0|anio|mes|dia]
+2 -1 False
+[0=2024-02-29|anio=2024|mes=02|dia=29]
+voraz: <a><b>
+perezoso: <a>
+{2,3}: [0:aaa|3:aaa]
+{2,3}?: [0:aa|2:aa]
+vacías: [0:|1:|2:|3:]
+a*: [0:|1:aaa|4:|5:]
+alternancia: [0:gato|5:perro|11:pe]
+\w+: [0:año_2024|11:niño|17:ÑU]
+\d: [1:1|3:٣]
+\s: a_b_c
+\b: [0:el]
+[^aeiou ]: .u..i..a.o
+rango: [0:A-|4:09|7:_]
+\p{Lu}: [0:Á|10:É]
+resta: [1:bcd|5:fg]
+punto UTF-8: €
+true
+true
+Multiline: [0:uno|4:dos|8:tres]
+sin Multiline: []
+$ antes de \n final: fin
+false
+true
+2
+combinadas: [0:Ab|3:aB]
+x: 555-1234
+ExplicitCapture: 2
+(?=): [8:100|20:300]
+(?!): [10:bar3]
+(?<=): [1:5|9:9]
+(?<!): [4:2]
+\1: [0:hola hola|10:mundo mundo]
+\k<n>: abcabc
+(?>): False True
+$2, $1: Pérez, Juan
+${n}: 05/2024
+$$ $& $0: x=[$ 5 5]
+$` $': a<a|c>c
+$9 sin grupo: $9-ab
+evaluador: 10 20 30
+count: bbaa
+vacío: -a-b-c-
+Result: 31 años: Ana
+Split: [a|b|c|d]
+Split grupos: [1|+|2|-|3]
+Split vacío: [|a|b|c|]
+Split sin coincidencias: [abc]
+Split count: [a|b,c,d]
+1\+1=2\?\ \(sí\)\ \[a]\ \$5\.00\ \#x
+true
+1+1=2? (sí) [a] $5.00 #x
+a	bAé
+startat: [0:x] 2
+\G: False 2
+error: patrón no válido '(abc': falta ')' (posición 4)
+error: patrón no válido 'a)': ')' sin '(' que la abra (posición 1)
+error: patrón no válido '[a-': falta ']' al final de la clase de caracteres (posición 3)
+error: patrón no válido 'a{2,1}': cuantificador {n,m} con m < n (posición 6)
+error: patrón no válido '*a': cuantificador sin nada que repetir (posición 1)
+error: patrón no válido '\k<x>': referencia a un grupo con nombre que no existe: 'x'
+error: patrón no válido '(?<n>a)(?<n': nombre de grupo vacío o sin cerrar (posición 11)
+error: patrón no válido '\p{Nada}': categoría Unicode no admitida en \p{...} (se admiten L, Lu, Ll, N, Nd, P, Z, Zs) (posición 8)
+como ArgumentException: pattern
+false
+true
+tiempo agotado: True
+NonBacktracking: patrón no válido '(a)\1': RegexOptions.NonBacktracking no admite referencias hacia atrás, búsquedas alrededor ni grupos atómicos (posición 5)

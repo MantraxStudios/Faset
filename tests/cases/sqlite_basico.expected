@@ -1,0 +1,43 @@
+true
+1
+3
+4 columnas: id, nombre, edad, nota
+4 Zoé ñandú 28 NULL 1
+1 Ana 31 9.5 1
+3 O'Brien'); DROP TABLE gente; -- 45 7.25 1
+Ana 31 9.5
+Luis 17 -1
+O'Brien'); DROP TABLE gente; -- 45 7.25
+Zoé ñandú 28 -1
+Luis
+4
+Luis
+30.25
+true
+3
+3
+True 256 blob 4
+True 0
+False 4
+SqliteTransaction: la transacción ya terminó
+5
+excepción: algo falló
+false
+1
+1
+anidada: InvalidOperationException
+2067 19 SQLite (ejecutar): UNIQUE constraint failed: gente.nombre
+SQLite (preparar): near "SELEC": syntax error
+SQLite (preparar): no such table: no_existe
+SQLite: la consulta no tiene el parámetro '@b' (Parámetro 'parameters')
+SQLite: sobra el parámetro por posición número 2 (la sentencia tiene 1) (Parámetro 'parameters')
+sin Read: InvalidOperationException
+columna 5: IndexOutOfRangeException
+SqliteDataReader: no hay ninguna columna 'x'
+false
+6
+Ana y Luis
+42
+solo lectura: 8
+no se abre: SqliteException
+SqliteConnection: la conexión está cerrada

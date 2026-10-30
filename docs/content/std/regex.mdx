@@ -1,0 +1,106 @@
+Expresiones regulares con la sintaxis de .NET (`System.Text.RegularExpressions`): `Regex` con
+`IsMatch`, `Match`, `Matches`, `Replace` (con `$1`, `${nombre}` o una lambda), `Split`, grupos con
+nombre y opciones. Las posiciones (`Index`, `Length`) son de bytes en el texto UTF-8, como el resto
+de cadenas de Faset; `.`, las clases y `\w` trabajan con caracteres completos.
+
+```faset
+using std.regex;
+
+int main()
+{
+    var fecha = new Regex(@"(?<anio>\d{4})-(?<mes>\d\d)-(?<dia>\d\d)");
+    Match m = fecha.Match("Entrega: 2024-05-17");
+    if (m.Success)
+        println($"{m.Groups["dia"].Value}/{m.Groups["mes"].Value}/{m.Groups["anio"].Value} en {m.Index}");   // 17/05/2024 en 9
+
+    foreach (Match x in Regex.Matches("a1 b22 c333", @"\d+")) println(x.Value);   // 1, 22, 333
+
+    println(Regex.IsMatch("HOLA", "^hola$", RegexOptions.IgnoreCase));            // true
+    println(Regex.Replace("Juan Pérez", @"(\w+) (\w+)", "$2, $1"));               // Pérez, Juan
+    println(Regex.Replace("1 2 3", @"\d", d => $"{int.Parse(d.Value) * 10}"));    // 10 20 30
+    println(Regex.Split("a, b;c", @"[,;]\s*").Count);                              // 3
+    println(Regex.Escape("1+1=2?"));                                               // 1\+1=2\?
+    return 0;
+}
+```
+
+## Sintaxis
+
+| Construcción | Significado |
+|---|---|
+| `.` `\d` `\w` `\s` (y `\D` `\W` `\S`) | cualquier carácter (salvo `\n` sin `Singleline`), dígito, letra/dígito/`_`, espacio; Unicode: `\w` reconoce `ñ`, `é`, griego, cirílico... |
+| `[a-z]` `[^0-9]` `[a-z-[aeiou]]` | clases, negadas y con resta |
+| `\p{L}` `\p{Lu}` `\p{Ll}` `\p{N}` `\p{Nd}` `\p{P}` `\p{Z}` | categorías Unicode (y `\P{...}` para la negación) |
+| `*` `+` `?` `{n}` `{n,}` `{n,m}` | cuantificadores voraces; con `?` detrás (`*?`, `{2,5}?`) son perezosos |
+| `^` `$` `\A` `\z` `\Z` `\b` `\B` `\G` | anclas (`^` y `$` por línea con `Multiline`) |
+| `(...)` `(?<nombre>...)` `(?:...)` | grupo con captura, con nombre y sin captura |
+| `\1` `\k<nombre>` | referencias hacia atrás |
+| `(?=...)` `(?!...)` `(?<=...)` `(?<!...)` | búsquedas hacia delante y hacia atrás |
+| `(?>...)` | grupo atómico |
+| `(?i)` `(?m)` `(?s)` `(?n)` `(?x)` `(?i:...)` | opciones en línea |
+
+Las opciones de `RegexOptions` se combinan con `|`: `IgnoreCase`, `Multiline`, `Singleline`,
+`ExplicitCapture`, `IgnorePatternWhitespace` y `NonBacktracking`. No están `RightToLeft` ni los
+grupos de balanceo de .NET (`(?<a-b>...)`).
+
+## Grupos, `Replace` y `Split`
+
+El grupo 0 es la coincidencia entera; los grupos sin nombre se numeran primero y después los que
+tienen nombre, como en .NET. Un grupo que no participó tiene `Success == false` y `Value == ""`.
+
+```faset
+using std.regex;
+
+int main()
+{
+    var r = new Regex(@"(\w+)@(?<dominio>[\w.]+)");
+    Match m = r.Match("escribe a ana@faset.dev o a luis@ejemplo.org");
+    while (m.Success)
+    {
+        println($"{m.Groups[1].Value} en {m.Groups["dominio"].Value}");   // ana en faset.dev, luis en ejemplo.org
+        m = m.NextMatch();
+    }
+
+    // $0 o $& (todo), $1, ${nombre}, $` (antes), $' (después), $$ (un '$').
+    println(r.Replace("ana@faset.dev", "${dominio} <- $1"));   // faset.dev <- ana
+
+    // Split incluye los grupos capturados, como en .NET.
+    var partes = Regex.Split("1+2-3", "([+-])");
+    println(partes.Count);                                     // 5: 1 + 2 - 3
+    return 0;
+}
+```
+
+## Errores y rendimiento
+
+Un patrón mal escrito lanza `RegexParseException` (un `ArgumentException`) con la posición del
+error. El motor (en C, `lib/regex/faset_regex.c`) es una **Pike VM** de tiempo lineal: la mayoría
+de patrones, incluso los que hacen explotar a los motores de retroceso como `(a+)+b`, se buscan en
+tiempo proporcional al texto. Solo las referencias hacia atrás, las búsquedas alrededor y los grupos
+atómicos necesitan retroceso; ese motor tiene un presupuesto de pasos y, si se lo pasas al
+constructor, un tiempo límite. Al agotarse se lanza `RegexMatchTimeoutException` en lugar de colgar
+el programa.
+
+```faset
+using std.regex;
+using std.text;
+using std.time;
+
+int main()
+{
+    try { new Regex("(abc"); }
+    catch (RegexParseException e) { println(e.Message); }   // patrón no válido '(abc': falta ')' (posición 4)
+
+    string muchas = Text.Repeat("a", 100000);
+    println(Regex.IsMatch(muchas, "(a+)+b"));                  // false, al instante
+
+    var lenta = new Regex(@"^(\w+\s?)*\1$", RegexOptions.None, TimeSpan.FromMilliseconds(100));
+    try { lenta.IsMatch(Text.Repeat("palabra ", 40) + "!"); }
+    catch (RegexMatchTimeoutException e) { println("demasiado lenta"); }   // demasiado lenta
+    return 0;
+}
+```
+
+`Regex` es inmutable y se puede usar desde varios hilos a la vez. Los métodos estáticos
+(`Regex.IsMatch(texto, patrón)`) compilan el patrón en cada llamada: en un bucle, crea el `Regex`
+una vez fuera.

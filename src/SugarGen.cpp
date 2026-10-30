@@ -300,9 +300,12 @@ bool CodeGen::emitSugarStmt(Stmt* s) {
             }
             if (u->decl) emitStmt(u->decl);
             if (usings_.empty()) usings_.push_back({});
-            for (VarInfo* v : u->vars)
-                usings_.back().objs.push_back("if (" + v->cname + ") faset_obj_delete((void*)" + v->cname + ", " +
+            for (VarInfo* v : u->vars) {
+                // localRef: la variable puede estar en una caja si una lambda la captura.
+                std::string ref = localRef(v);
+                usings_.back().objs.push_back("if (" + ref + ") faset_obj_delete((void*)" + ref + ", " +
                                               callerLoc(u->loc) + "); ");
+            }
             if (u->body) {
                 emitBody(u->body);
                 std::string clean = usingCleanup(0);

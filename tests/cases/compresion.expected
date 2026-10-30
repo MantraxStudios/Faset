@@ -1,0 +1,44 @@
+Optimal: True True
+Fastest: True True
+NoCompression: True True
+SmallestSize: True True
+true
+true
+true
+0
+789c ... 024d0127
+1f8b08 ... c241243503000000
+Hola
+uno dos
+00 3421780262 300286872
+true
+GZip.Decompress: los datos comprimidos no son válidos o están incompletos
+GZip.Decompress: la suma de comprobación no coincide (datos dañados)
+zlib truncado: InvalidDataException
+deflate truncado: InvalidDataException
+True False
+creado por Faset
+hola.txt (hola.txt) 16 False False
+datos/texto.txt (texto.txt) 198890 False True
+datos/binario.bin (binario.bin) 70000 False True
+vacia/ () 0 True False
+¡Hola de nuevo!
+true
+true
+true
+true
+¡Hola de nuevo!
+true
+true
+ya existe: IOException
+ZipArchive: la entrada '../fuera.txt' saldría de la carpeta de destino
+ZipArchive: no es un archivo .zip (falta el directorio central)
+entrada dañada: InvalidDataException
+datos/binario.bin, datos/texto.txt, hola.txt, vacia/
+true
+gzip lee el nuestro: True
+leemos el de gzip: True
+binario por gzip: True
+unzip -t: True
+unzip -p: ¡Hola de nuevo!
+zip -r: True por tuberia
