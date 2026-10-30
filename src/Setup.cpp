@@ -253,6 +253,8 @@ std::string pkgFor(const std::string& pm, const std::string& what) {
         {"webkit", "libwebkit2gtk-4.1-0", "webkit2gtk4.1", "webkit2gtk-4.1", "libwebkit2gtk-4_1-0", "webkit2gtk-4.1"},
         {"gstreamer", "gstreamer1.0-plugins-good", "gstreamer1-plugins-good", "gst-plugins-good", "gstreamer-plugins-good",
          "gst-plugins-good"},
+        {"gst-bad", "gstreamer1.0-plugins-bad", "gstreamer1-plugins-bad-free", "gst-plugins-bad", "gstreamer-plugins-bad",
+         "gst-plugins-bad"},
         {"gst-libav", "gstreamer1.0-libav", "gstreamer1-plugin-libav", "gst-libav", "gstreamer-plugins-libav", "gst-libav"},
         {"pulse", "libpulse0", "pulseaudio-libs", "libpulse", "libpulse0", "libpulse"},
     };
@@ -361,6 +363,17 @@ bool setupMultimedia(const Opts& o, bool listOnly) {
             miss(it.label);
             if (std::find(needs.begin(), needs.end(), it.pkg) == needs.end()) needs.push_back(it.pkg);
         }
+    }
+    // WebKitGTK 2.44+ cierra el proceso de la página si GStreamer no tiene vp9parse/h264parse
+    // (gst-plugins-bad): una página con video "cierra el navegador".
+    bool parsers = false;
+    for (const char* dir : {"/usr/lib/x86_64-linux-gnu/gstreamer-1.0", "/usr/lib64/gstreamer-1.0", "/usr/lib/gstreamer-1.0",
+                            "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"})
+        parsers = parsers || pathOk(fs::path(dir) / "libgstvideoparsersbad.so");
+    if (parsers) ok("WebView: video (vp9parse y h264parse de GStreamer)");
+    else {
+        miss("WebView: video (vp9parse y h264parse de GStreamer, gst-plugins-bad)");
+        needs.push_back("gst-bad");
     }
     if (needs.empty()) return true;
     if (listOnly) return false;

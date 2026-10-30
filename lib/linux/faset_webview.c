@@ -333,6 +333,41 @@ void faset_wv_release_focus(void) {
     F.XFlush(xdisplay());
 }
 
+/* ------------------------------------------------------------------ video de GStreamer
+
+   WebKitGTK reproduce el video con GStreamer y, desde la 2.44, cierra el proceso de la página si le
+   falta un elemento que necesita (vp9parse, h264parse... de gst-plugins-bad): la vista se quedaba
+   vacía sin explicación. Se avisa al crear el primer WebView y, si el proceso se cae, se muestra una
+   página que dice qué pasó y cómo arreglarlo. */
+
+static const char* g_missingGst;  /* elemento de GStreamer que falta (o NULL) */
+
+static void check_gstreamer(void) {
+    static int done;
+    if (done) return;
+    done = 1;
+    void* gst = dlopen("libgstreamer-1.0.so.0", RTLD_NOW | RTLD_GLOBAL);
+    if (!gst) return;
+    int (*init_check)(int*, char***, void**) = (int (*)(int*, char***, void**))dlsym(gst, "gst_init_check");
+    void* (*find)(const char*) = (void* (*)(const char*))dlsym(gst, "gst_element_factory_find");
+    void (*unref)(void*) = (void (*)(void*))dlsym(gst, "gst_object_unref");
+    if (!init_check || !find || !init_check(NULL, NULL, NULL)) return;
+    static const char* const needed[] = {"vp9parse", "h264parse"};
+    for (size_t i = 0; i < sizeof needed / sizeof needed[0]; i++) {
+        void* f = find(needed[i]);
+        if (!f) {
+            g_missingGst = needed[i];
+            fprintf(stderr,
+                    "std.ui: WebView: falta el elemento '%s' de GStreamer (paquete gst-plugins-bad): una página con "
+                    "video cerrará el navegador. Instálalo con 'faset setup multimedia' (en Debian/Ubuntu: "
+                    "sudo apt install gstreamer1.0-plugins-bad)\n",
+                    needed[i]);
+            return;
+        }
+        if (unref) unref(f);
+    }
+}
+
 /* ------------------------------------------------------------------ señales */
 
 static void on_load_changed(void* web, int event, void* data) {
@@ -340,6 +375,30 @@ static void on_load_changed(void* web, int event, void* data) {
     (void)web;
     if (event == 0) push_event(v->id, WV_STARTED, F.webkit_web_view_get_uri(v->web));
     else if (event == 3) push_event(v->id, WV_NAVIGATED, F.webkit_web_view_get_uri(v->web));
+}
+
+/* WebKitWebProcessTerminationReason: 0 fallo, 1 sin memoria, 2 cerrado desde el programa. */
+static void on_terminated(void* web, int reason, void* data) {
+    wv_view* v = (wv_view*)data;
+    (void)web;
+    if (reason == 2) return;
+    const char* why = reason == 1 ? "se quedó sin memoria" : "se cerró de forma inesperada";
+    fprintf(stderr, "std.ui: WebView: el proceso de la página %s%s%s%s\n", why,
+            g_missingGst ? " (falta el elemento '" : "", g_missingGst ? g_missingGst : "",
+            g_missingGst ? "' de GStreamer: instala gst-plugins-bad)" : "");
+    char html[2048];
+    snprintf(html, sizeof html,
+             "<!DOCTYPE html><meta charset='utf-8'><body style='font:14px system-ui,sans-serif;margin:24px;color:#333'>"
+             "<h3 style='margin:0 0 8px'>La página se cerró</h3><p>El proceso del navegador (WebKitGTK) %s.</p>%s%s%s",
+             why,
+             g_missingGst ? "<p>Falta el elemento <code>" : "",
+             g_missingGst ? g_missingGst : "",
+             g_missingGst ? "</code> de GStreamer, que WebKit necesita para reproducir video. Instálalo con:</p>"
+                            "<pre style='background:#f2f2f4;padding:8px'>faset setup multimedia</pre>"
+                            "<p>o con el paquete de tu distribución: <code>gstreamer1.0-plugins-bad</code> (Debian/Ubuntu), "
+                            "<code>gstreamer1-plugins-bad-free</code> (Fedora), <code>gst-plugins-bad</code> (Arch).</p>"
+                          : "");
+    F.webkit_web_view_load_html(v->web, html, NULL);
 }
 
 static void on_title(void* obj, void* pspec, void* data) {
@@ -393,6 +452,7 @@ int32_t faset_wv_create(uint64_t parent) {
             break;
         }
     if (slot < 0) return 0;
+    check_gstreamer();
     wv_view* v = (wv_view*)calloc(1, sizeof *v);
     if (!v) return 0;
     v->id = g_next_id++;
@@ -412,6 +472,7 @@ int32_t faset_wv_create(uint64_t parent) {
     v->web = F.webkit_web_view_new_with_user_content_manager(v->ucm);
     F.g_signal_connect_data(v->web, "load-changed", (GCallback)on_load_changed, v, NULL, 0);
     F.g_signal_connect_data(v->web, "notify::title", (GCallback)on_title, v, NULL, 0);
+    F.g_signal_connect_data(v->web, "web-process-terminated", (GCallback)on_terminated, v, NULL, 0);
     F.g_signal_connect_data(v->web, "notify::uri", (GCallback)on_uri, v, NULL, 0);
     F.g_signal_connect_data(v->web, "button-press-event", (GCallback)on_button_press, v, NULL, 0);
     v->plug = F.gtk_plug_new((unsigned long)parent);
