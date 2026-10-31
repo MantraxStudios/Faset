@@ -14,7 +14,8 @@ bool Parser::nullableMarkFollows() const {
                                             n2.text == "=>" || n2.text == "{" || n2.text == "(");
     }
     return n.kind == TokKind::Punct && (n.text == ")" || n.text == ">" || n.text == ">>" || n.text == "," ||
-                                        n.text == "*" || n.text == "&" || n.text == "]");
+                                        n.text == "*" || n.text == "&" || n.text == "]" ||
+                                        n.text == "{" || n.text == "=>");  // trailing-return nullable: func f() -> T? { / =>
 }
 
 // (int, string)  /  (int x, int y): al menos dos elementos.
