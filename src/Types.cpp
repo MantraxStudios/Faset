@@ -56,7 +56,7 @@ std::string Type::str() const {
             for (Type* p : params) s += p->str() + ", ";
             return s + ret->str() + ">";
         }
-        case TK::Pending: return id == 0 ? "expresión lambda" : id == 2 ? "caso de unión sin tipo" : id == 3 ? "expresión de colección" : "grupo de métodos";
+        case TK::Pending: return id == 0 ? "lambda expression" : id == 2 ? "untyped union case" : id == 3 ? "collection expression" : "method group";
     }
     return "?";
 }

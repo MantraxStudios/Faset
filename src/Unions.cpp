@@ -175,7 +175,7 @@ Type* Sema::unionCaseRef(Expr* e, ClassDecl* tmpl, const std::string& cas) {
     if (ideMode) {
         int k = tmpl->unionInfo->find(cas);
         SourceLoc at = e->kind == EK::Member ? static_cast<MemberExpr*>(e)->nameLoc : e->loc;
-        addRef(at, (int)cas.size(), "(caso de " + baseName(tmpl) + ") " + caseShape(tmpl->unionInfo->cases[k], true),
+        addRef(at, (int)cas.size(), "(case of " + baseName(tmpl) + ") " + caseShape(tmpl->unionInfo->cases[k], true),
                &tmpl->unionInfo->cases[k].loc);
     }
     return tc_.pendingCase();
@@ -502,7 +502,7 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
     if (ideMode) {
         std::string shown;
         for (const std::string& s : path) shown += (shown.empty() ? "" : ".") + s;
-        addRef(l, (int)shown.size(), "(caso de " + baseName(c) + ") " + caseShape(uc, true), &uc.loc);
+        addRef(l, (int)shown.size(), "(case of " + baseName(c) + ") " + caseShape(uc, true), &uc.loc);
     }
     SourceLoc hid = l;  // miembros internos: sin hover ni 'ir a la definición'
     hid.file = -1;
@@ -535,7 +535,7 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
                                    (list.empty() ? " (it has no fields)" : " (its fields: " + list + ")"));
                 return mkBool(false, l);
             }
-            if (ideMode) addRef(nl, (int)name.size(), "(campo de " + uc.name + ") " + f->type->str() + " " + name, &uc.loc);
+            if (ideMode) addRef(nl, (int)name.size(), "(field of " + uc.name + ") " + f->type->str() + " " + name, &uc.loc);
             std::string fname = f->name;
             SubjectFn sub = [&, fname, hid]() -> Expr* { return mkMember(subj(), fname, hid); };
             conj(patternTest(p->props[i].second, sub, f->type));
@@ -896,8 +896,8 @@ Type* Sema::checkPropagate(PropagateExpr* e) {
     propagateCount_++;
     if (trialDepth_ == 0) propagates_.push_back(e);
     if (ideMode)
-        addRef(loc, 1, std::string("? : si es ") + (isOpt ? "None" : "Err") + ", devuelve " + (isOpt ? "None" : "el error") +
-                           " desde aquí; si no, da '" + vt->str() + "'", nullptr);
+        addRef(loc, 1, std::string("? : if it is ") + (isOpt ? "None" : "Err") + ", returns " + (isOpt ? "None" : "the error") +
+                           " from here; otherwise gives '" + vt->str() + "'", nullptr);
     return vt;
 }
 

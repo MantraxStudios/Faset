@@ -320,11 +320,11 @@ void wr32(std::string& s, uint32_t v) {
 bool readZip(const fs::path& path, std::vector<ZipEntry>& out, std::string& err) {
     std::string z;
     if (!readBinary(path, z)) {
-        err = "no se puede leer " + path.string();
+        err = "cannot read " + path.string();
         return false;
     }
     if (z.size() < 22) {
-        err = path.string() + " no es un ZIP";
+        err = path.string() + " is not a ZIP";
         return false;
     }
     size_t eocd = std::string::npos;
@@ -334,14 +334,14 @@ bool readZip(const fs::path& path, std::vector<ZipEntry>& out, std::string& err)
             break;
         }
     if (eocd == std::string::npos) {
-        err = path.string() + " no es un ZIP válido";
+        err = path.string() + " is not a valid ZIP";
         return false;
     }
     uint16_t count = rd16(z, eocd + 10);
     size_t p = rd32(z, eocd + 16);
     for (int k = 0; k < count; k++) {
         if (p + 46 > z.size() || rd32(z, p) != 0x02014b50) {
-            err = path.string() + ": directorio central dañado";
+            err = path.string() + ": corrupt central directory";
             return false;
         }
         ZipEntry e;
@@ -355,12 +355,12 @@ bool readZip(const fs::path& path, std::vector<ZipEntry>& out, std::string& err)
         size_t lho = rd32(z, p + 42);
         e.name = z.substr(p + 46, nlen);
         if (lho + 30 > z.size()) {
-            err = path.string() + ": entrada dañada";
+            err = path.string() + ": corrupt entry";
             return false;
         }
         size_t data = lho + 30 + rd16(z, lho + 26) + rd16(z, lho + 28);
         if (data + e.csize > z.size()) {
-            err = path.string() + ": entrada dañada";
+            err = path.string() + ": corrupt entry";
             return false;
         }
         e.data = z.substr(data, e.csize);
@@ -501,7 +501,7 @@ std::string adbShell(const std::string& serial, const std::vector<std::string>& 
 // Dispositivo a usar: el indicado, ANDROID_SERIAL o el primero conectado.
 bool pickDevice(std::string& serial, std::string& err) {
     if (androidTools().adb.empty()) {
-        err = "no se encontró adb (instala 'platform-tools' del SDK de Android)";
+        err = "adb not found (install 'platform-tools' from the Android SDK)";
         return false;
     }
     if (serial.empty()) serial = env("ANDROID_SERIAL");
@@ -510,12 +510,12 @@ bool pickDevice(std::string& serial, std::string& err) {
         for (const Device& d : devs)
             if (d.serial == serial) {
                 if (d.state != "device") {
-                    err = "el dispositivo '" + serial + "' está en estado '" + d.state + "'";
+                    err = "device '" + serial + "' is in state '" + d.state + "'";
                     return false;
                 }
                 return true;
             }
-        err = "no está conectado el dispositivo '" + serial + "' (mira 'faset android devices')";
+        err = "device '" + serial + "' is not connected (see 'faset android devices')";
         return false;
     }
     for (const Device& d : devs)
@@ -523,10 +523,10 @@ bool pickDevice(std::string& serial, std::string& err) {
             serial = d.serial;
             int n = 0;
             for (const Device& o : devs) n += o.state == "device";
-            if (n > 1) std::fprintf(stderr, "faset: hay %d dispositivos; se usa %s (elige otro con --device)\n", n, serial.c_str());
+            if (n > 1) std::fprintf(stderr, "faset: %d devices connected; using %s (choose another with --device)\n", n, serial.c_str());
             return true;
         }
-    err = "no hay ningún dispositivo Android conectado; conecta uno o arranca un emulador con 'faset android emulator <avd>'";
+    err = "no Android device connected; connect one or start an emulator with 'faset android emulator <avd>'";
     return false;
 }
 
@@ -644,19 +644,19 @@ std::string androidArchToAbi(const std::string& arch) {
 bool androidPackageApk(const ApkSpec& s, std::string& error) {
     const AndroidTools& t = androidTools();
     if (t.sdk.empty()) {
-        error = "no se encontró el SDK de Android (define ANDROID_HOME)";
+        error = "Android SDK not found (set ANDROID_HOME)";
         return false;
     }
     if (t.aapt2.empty() || t.zipalign.empty() || t.apksigner.empty()) {
-        error = "faltan las build-tools del SDK (aapt2, zipalign, apksigner): instala 'build-tools;<versión>' con sdkmanager";
+        error = "the SDK build-tools are missing (aapt2, zipalign, apksigner): install 'build-tools;<version>' with sdkmanager";
         return false;
     }
     if (t.androidJar.empty()) {
-        error = "no hay ninguna plataforma instalada en " + t.sdk + "/platforms (instala 'platforms;android-<n>')";
+        error = "no platform installed in " + t.sdk + "/platforms (install 'platforms;android-<n>')";
         return false;
     }
     if (t.java.empty()) {
-        error = "apksigner necesita Java: instala un JDK o Android Studio, o define JAVA_HOME";
+        error = "apksigner needs Java: install a JDK or Android Studio, or set JAVA_HOME";
         return false;
     }
     prepareJavaEnv();
@@ -700,7 +700,7 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
          "</manifest>\n";
     fs::path manifest = obj / "AndroidManifest.xml";
     if (!writeText(manifest, m)) {
-        error = "no se pudo escribir " + manifest.string();
+        error = "could not write " + manifest.string();
         return false;
     }
 
@@ -709,7 +709,7 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
                                      "-I", t.androidJar};
     if (!s.icon.empty()) {
         if (!pathExists(s.icon)) {
-            error = "no existe el icono '" + s.icon + "'";
+            error = "icon '" + s.icon + "' does not exist";
             return false;
         }
         fs::path res = obj / "res";
@@ -718,13 +718,13 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
         fs::copy_file(s.icon, res / "mipmap" / "ic_launcher.png", fs::copy_options::overwrite_existing, ec);
         fs::path flat = obj / "res.zip";
         if (run({t.aapt2, "compile", "--dir", res.string(), "-o", flat.string()}, s.verbose) != 0) {
-            error = "aapt2 compile falló con el icono '" + s.icon + "'";
+            error = "aapt2 compile failed with icon '" + s.icon + "'";
             return false;
         }
         link.push_back(flat.string());
     }
     if (run(link, s.verbose) != 0) {
-        error = "aapt2 link falló (usa -v para ver el comando)";
+        error = "aapt2 link failed (use -v to see the command)";
         return false;
     }
 
@@ -735,7 +735,7 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
         ZipEntry e;
         e.name = inApk;
         if (!readBinary(local, e.data)) {
-            error = "no se puede leer " + local;
+            error = "cannot read " + local;
             return false;
         }
         e.method = 0;
@@ -747,13 +747,13 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
     }
     fs::path unaligned = obj / "unaligned.apk", aligned = obj / "aligned.apk";
     if (!writeZip(unaligned, entries)) {
-        error = "no se pudo escribir " + unaligned.string();
+        error = "could not write " + unaligned.string();
         return false;
     }
 
     // 4. Alineación (16 KB para las .so: páginas de 16 KB de Android 15+).
     if (run({t.zipalign, "-f", "-P", "16", "4", unaligned.string(), aligned.string()}, s.verbose) != 0) {
-        error = "zipalign falló";
+        error = "zipalign failed";
         return false;
     }
 
@@ -766,16 +766,16 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
         storePass = keyPass = "android";
         if (!pathExists(ks)) {
             if (t.keytool.empty()) {
-                error = "no se encontró keytool para crear la clave de depuración " + ks;
+                error = "keytool not found to create the debug key " + ks;
                 return false;
             }
             fs::create_directories(dir, ec);
-            std::fprintf(stderr, "faset: creando la clave de depuración %s\n", ks.c_str());
+            std::fprintf(stderr, "faset: creating the debug key %s\n", ks.c_str());
             if (run({t.keytool, "-genkeypair", "-keystore", ks, "-storepass", "android", "-alias", "androiddebugkey",
                      "-keypass", "android", "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000", "-dname",
                      "CN=Android Debug,O=Android,C=US"},
                     s.verbose, !s.verbose) != 0) {
-                error = "keytool no pudo crear " + ks;
+                error = "keytool could not create " + ks;
                 return false;
             }
         }
@@ -789,7 +789,7 @@ bool androidPackageApk(const ApkSpec& s, std::string& error) {
     if (capture({t.apksigner, "sign", "--ks", ks, "--ks-key-alias", alias, "--ks-pass", "pass:" + storePass, "--key-pass",
                  "pass:" + keyPass, "--v4-signing-enabled", "false", "--out", s.output, aligned.string()},
                 signLog, s.verbose) != 0 || !pathExists(s.output)) {
-        error = signLog + "apksigner no pudo firmar el APK con " + ks;
+        error = signLog + "apksigner could not sign the APK with " + ks;
         return false;
     }
     return true;
@@ -806,7 +806,7 @@ int androidRunApk(const std::string& apk, const std::string& package, const std:
     }
     const AndroidTools& t = androidTools();
     std::vector<std::string> base = adbBase(serial);
-    std::fprintf(stderr, "faset: instalando en %s...\n", serial.c_str());
+    std::fprintf(stderr, "faset: installing on %s...\n", serial.c_str());
     auto install = [&](std::string& out) {
         std::vector<std::string> a = base;
         a.insert(a.end(), {"install", "-r", "-t", apk});
@@ -816,14 +816,14 @@ int androidRunApk(const std::string& apk, const std::string& package, const std:
     int r = install(out);
     if (r != 0 && (out.find("INSTALL_FAILED_UPDATE_INCOMPATIBLE") != std::string::npos ||
                    out.find("INSTALL_FAILED_VERSION_DOWNGRADE") != std::string::npos)) {
-        std::fprintf(stderr, "faset: la versión instalada tiene otra firma; se desinstala\n");
+        std::fprintf(stderr, "faset: the installed version has a different signature; uninstalling\n");
         std::vector<std::string> u = base;
         u.insert(u.end(), {"uninstall", package});
         run(u, verbose, true);
         r = install(out);
     }
     if (r != 0) {
-        std::fprintf(stderr, "%sfaset: error: adb install falló\n", out.c_str());
+        std::fprintf(stderr, "%sfaset: error: adb install failed\n", out.c_str());
         return 1;
     }
 
@@ -841,7 +841,7 @@ int androidRunApk(const std::string& apk, const std::string& package, const std:
         "if [ -z \"$PID\" ]; then\n"
         "  logcat -d -v tag -T \"$T\" -s '" + tag + ":*'\n"
         "else\n"
-        "  echo \"[faset] $P en ejecución (pid $PID)\"\n"
+        "  echo \"[faset] $P running (pid $PID)\"\n"
         "  logcat -v tag --pid=$PID " + filter + " & L=$!\n"
         "  while [ -d /proc/$PID ]; do sleep 0.2; done\n"
         "  sleep 0.5; kill $L 2>/dev/null\n"
@@ -850,19 +850,19 @@ int androidRunApk(const std::string& apk, const std::string& package, const std:
     std::error_code ec;
     fs::path local = fs::temp_directory_path() / "faset_android_run.sh";
     if (!writeText(local, script)) {
-        std::fprintf(stderr, "faset: error: no se pudo escribir %s\n", local.string().c_str());
+        std::fprintf(stderr, "faset: error: could not write %s\n", local.string().c_str());
         return 1;
     }
     std::vector<std::string> push = base;
     push.insert(push.end(), {"push", local.string(), "/data/local/tmp/faset_run.sh"});
     if (run(push, verbose, true) != 0) {
-        std::fprintf(stderr, "faset: error: adb push falló\n");
+        std::fprintf(stderr, "faset: error: adb push failed\n");
         return 1;
     }
     fs::remove(local, ec);
-    std::fprintf(stderr, "faset: iniciando %s (Ctrl+C para dejar de seguir el log)\n", package.c_str());
+    std::fprintf(stderr, "faset: starting %s (Ctrl+C to stop following the log)\n", package.c_str());
     int code = 0;
-    const std::string marker = "[faset] fin del programa (código ";
+    const std::string marker = "[faset] program finished (exit code ";
     std::vector<std::string> sh = base;
     sh.insert(sh.end(), {"shell", "sh /data/local/tmp/faset_run.sh"});
     int rs = stream(sh, verbose, [&](const std::string& line) {
@@ -882,16 +882,16 @@ int androidRunApk(const std::string& apk, const std::string& package, const std:
 
 static int androidUsage() {
     std::printf(
-        "Uso: faset android <comando>\n\n"
-        "  devices                         Dispositivos conectados: serie<TAB>estado<TAB>modelo\n"
-        "  avds                            Emuladores (AVD) disponibles, uno por línea\n"
-        "  emulator <avd> [--headless] [--no-wait] [-- opciones del emulador]\n"
-        "                                  Arranca el emulador, espera a que inicie e imprime su serie\n"
-        "                                  (--headless: sin ventana y con la GPU del equipo, '-gpu host')\n"
+        "Usage: faset android <command>\n\n"
+        "  devices                         Connected devices: serial<TAB>state<TAB>model\n"
+        "  avds                            Available emulators (AVD), one per line\n"
+        "  emulator <avd> [--headless] [--no-wait] [-- emulator options]\n"
+        "                                  Starts the emulator, waits for it to boot and prints its serial\n"
+        "                                  (--headless: no window, using the machine's GPU, '-gpu host')\n"
         "  logcat [--device s] [--app] [--clear] [-- args]\n"
-        "                                  Muestra el logcat (--app: solo la app del proyecto)\n"
-        "  stop [--device s]               Detiene la app del proyecto\n"
-        "  uninstall [--device s]          Desinstala la app del proyecto\n");
+        "                                  Shows the logcat (--app: only the project's app)\n"
+        "  stop [--device s]               Stops the project's app\n"
+        "  uninstall [--device s]          Uninstalls the project's app\n");
     return 0;
 }
 
@@ -917,7 +917,7 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
         else extra.push_back(a);
     }
     if (sub != "avds" && sub != "emulator" && t.adb.empty()) {
-        std::fprintf(stderr, "faset: error: no se encontró adb (instala 'platform-tools' del SDK de Android)\n");
+        std::fprintf(stderr, "faset: error: adb not found (install 'platform-tools' from the Android SDK)\n");
         return 1;
     }
 
@@ -931,11 +931,11 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
     }
     if (sub == "emulator") {
         if (avd.empty()) {
-            std::fprintf(stderr, "uso: faset android emulator <avd> [--headless] [--no-wait]\n");
+            std::fprintf(stderr, "usage: faset android emulator <avd> [--headless] [--no-wait]\n");
             return 1;
         }
         if (t.emulator.empty()) {
-            std::fprintf(stderr, "faset: error: no se encontró el emulador (instala 'emulator' con sdkmanager)\n");
+            std::fprintf(stderr, "faset: error: emulator not found (install 'emulator' with sdkmanager)\n");
             return 1;
         }
         std::vector<Device> devs = listDevices();
@@ -946,7 +946,7 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
                 capture({t.adb, "-s", d.serial, "emu", "avd", "name"}, out);
                 if (trim(out.substr(0, out.find('\n'))) == avd) {
                     if (!noWait && !waitForBoot(d.serial, 300)) {
-                        std::fprintf(stderr, "faset: error: %s no terminó de arrancar\n", d.serial.c_str());
+                        std::fprintf(stderr, "faset: error: %s did not finish booting\n", d.serial.c_str());
                         return 1;
                     }
                     std::printf("%s\n", d.serial.c_str());
@@ -977,14 +977,14 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
 #else
         line = "nohup " + line + " >/dev/null 2>&1 &";
 #endif
-        std::fprintf(stderr, "faset: arrancando %s en %s...\n", avd.c_str(), serial.c_str());
-        if (std::system(shellWrap(line).c_str()) != 0) std::fprintf(stderr, "faset: aviso: no se pudo lanzar el emulador\n");
+        std::fprintf(stderr, "faset: starting %s on %s...\n", avd.c_str(), serial.c_str());
+        if (std::system(shellWrap(line).c_str()) != 0) std::fprintf(stderr, "faset: warning: could not launch the emulator\n");
         if (!noWait) {
             if (!waitForBoot(serial, 300)) {
-                std::fprintf(stderr, "faset: error: el emulador no arrancó en 5 minutos\n");
+                std::fprintf(stderr, "faset: error: the emulator did not start within 5 minutes\n");
                 return 1;
             }
-            std::fprintf(stderr, "faset: %s listo\n", serial.c_str());
+            std::fprintf(stderr, "faset: %s ready\n", serial.c_str());
         }
         std::printf("%s\n", serial.c_str());
         return 0;
@@ -997,7 +997,7 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
         }
         std::vector<std::string> base = adbBase(device);
         if ((sub != "logcat" || appOnly) && projectPackage.empty()) {
-            std::fprintf(stderr, "faset: error: '%s' necesita un proyecto (.fstproj) en la carpeta actual\n", sub.c_str());
+            std::fprintf(stderr, "faset: error: '%s' needs a project (.fstproj) in the current folder\n", sub.c_str());
             return 1;
         }
         if (sub == "stop") {
@@ -1018,7 +1018,7 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
         if (appOnly) {
             std::string pid = adbShell(device, {"pidof", projectPackage});
             if (pid.empty()) {
-                std::fprintf(stderr, "faset: error: %s no se está ejecutando\n", projectPackage.c_str());
+                std::fprintf(stderr, "faset: error: %s is not running\n", projectPackage.c_str());
                 return 1;
             }
             cmd.push_back("--pid=" + pid);
@@ -1026,7 +1026,7 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
         cmd.insert(cmd.end(), extra.begin(), extra.end());
         return run(cmd, false);
     }
-    std::fprintf(stderr, "faset: error: comando desconocido 'android %s'\n", sub.c_str());
+    std::fprintf(stderr, "faset: error: unknown command 'android %s'\n", sub.c_str());
     androidUsage();
     return 1;
 }
@@ -1036,19 +1036,19 @@ int androidCommand(const std::vector<std::string>& args, const std::string& proj
 void androidDoctor() {
     const AndroidTools& t = androidTools();
     auto show = [](const std::string& label, const std::string& found, const std::string& hint) {
-        std::printf("  %-26s %s\n", label.c_str(), found.empty() ? ("no encontrado  -> " + hint).c_str() : found.c_str());
+        std::printf("  %-26s %s\n", label.c_str(), found.empty() ? ("not found  -> " + hint).c_str() : found.c_str());
     };
     std::string sdkm = "sdkmanager --install";
-    show("Android SDK", t.sdk, "instala Android Studio o las cmdline-tools y define ANDROID_HOME");
-    show("Android NDK", t.ndk.empty() ? "" : t.ndk + "  (" + t.ndkVersion + ")", sdkm + " \"ndk;<versión>\"");
+    show("Android SDK", t.sdk, "install Android Studio or the cmdline-tools and set ANDROID_HOME");
+    show("Android NDK", t.ndk.empty() ? "" : t.ndk + "  (" + t.ndkVersion + ")", sdkm + " \"ndk;<version>\"");
     show("Android build-tools", t.buildToolsVersion.empty() ? "" : t.buildToolsVersion + "  (aapt2, zipalign, apksigner)",
-         sdkm + " \"build-tools;<versión>\"");
-    show("Android plataforma", t.platformDir.empty() ? "" : fs::path(t.platformDir).filename().string() + "  (targetSdk " + std::to_string(t.platformApi) + ")",
+         sdkm + " \"build-tools;<version>\"");
+    show("Android platform", t.platformDir.empty() ? "" : fs::path(t.platformDir).filename().string() + "  (targetSdk " + std::to_string(t.platformApi) + ")",
          sdkm + " \"platforms;android-<n>\"");
     show("adb", t.adb, sdkm + " platform-tools");
-    show("Emulador", t.emulator, sdkm + " emulator");
-    show("Java (apksigner)", t.java, "instala un JDK 17+ o Android Studio, o define JAVA_HOME");
+    show("Emulator", t.emulator, sdkm + " emulator");
+    show("Java (apksigner)", t.java, "install a JDK 17+ or Android Studio, or set JAVA_HOME");
     std::string avds;
     for (const std::string& a : listAvds()) avds += (avds.empty() ? "" : ", ") + a;
-    show("AVDs", avds, "crea uno con Android Studio (Device Manager) o avdmanager");
+    show("AVDs", avds, "create one with Android Studio (Device Manager) or avdmanager");
 }

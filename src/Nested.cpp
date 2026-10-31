@@ -281,7 +281,7 @@ Type* Sema::usingStaticName(NameExpr* e) {
             checkAccess(fd->mods.access, fd->owner, fd->name, e->loc);
             e->ref = NameExpr::Ref::StaticField;
             e->field = fd;
-            if (ideMode) addRef(e->loc, (int)e->name.size(), "(campo estático) " + fd->type->str() + " " + c->displayName + "." + fd->name, &fd->loc);
+            if (ideMode) addRef(e->loc, (int)e->name.size(), "(static field) " + fd->type->str() + " " + c->displayName + "." + fd->name, &fd->loc);
             return fd->type;
         }
         if (MethodDecl* g = findGetter(c, e->name)) {

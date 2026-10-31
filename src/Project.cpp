@@ -73,7 +73,7 @@ bool Project::boolProp(const std::string& name, bool def) const {
 bool loadProject(const std::string& path, Project& out, std::string& error) {
     std::ifstream f(path, std::ios::binary);
     if (!f) {
-        error = "no se puede leer '" + path + "'";
+        error = "cannot read '" + path + "'";
         return false;
     }
     std::stringstream ss;
@@ -82,11 +82,11 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
     XmlNode root;
     std::string xmlError;
     if (!parseXml(src, root, xmlError)) {
-        error = path + ": XML no válido: " + xmlError;
+        error = path + ": invalid XML: " + xmlError;
         return false;
     }
     if (root.name != "Project") {
-        error = path + ": el elemento raíz debe ser <Project>";
+        error = path + ": the root element must be <Project>";
         return false;
     }
     out.path = fs::absolute(path).lexically_normal().string();
@@ -106,7 +106,7 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
         if (g.name == "PropertyGroup") {
             for (XmlNode& p : g.children) {
                 if (std::find(known.begin(), known.end(), p.name) == known.end()) {
-                    error = path + ": propiedad desconocida <" + p.name + ">";
+                    error = path + ": unknown property <" + p.name + ">";
                     return false;
                 }
                 out.props[p.name] = p.text;
@@ -151,41 +151,41 @@ bool loadProject(const std::string& path, Project& out, std::string& error) {
                     static const std::vector<std::string> attrs = {"Include", "Version", "Git", "Branch", "Commit", "Path", "Folder"};
                     for (const std::string& a : it.attrOrder)
                         if (std::find(attrs.begin(), attrs.end(), a) == attrs.end()) {
-                            error = where + "atributo desconocido '" + a + "'";
+                            error = where + "unknown attribute '" + a + "'";
                             return false;
                         }
                     if (pr.name.empty() || pr.name.find(';') != std::string::npos) {
-                        error = where + "Include debe ser el nombre de un paquete";
+                        error = where + "Include must be a package name";
                         return false;
                     }
                     if (!pr.git.empty() && !pr.path.empty()) {
-                        error = where + "Git y Path no pueden ir juntos";
+                        error = where + "Git and Path cannot be used together";
                         return false;
                     }
                     if (!pr.branch.empty() && !pr.commit.empty()) {
-                        error = where + "Branch y Commit no pueden ir juntos";
+                        error = where + "Branch and Commit cannot be used together";
                         return false;
                     }
                     if (!pr.path.empty() && (!pr.branch.empty() || !pr.commit.empty())) {
-                        error = where + "Branch y Commit solo valen para paquetes git";
+                        error = where + "Branch and Commit are only valid for git packages";
                         return false;
                     }
                     out.packages.push_back(pr);
                 } else if (it.name == "ProjectReference") {
                     for (auto& r : inc) out.references.push_back((fs::path(out.dir) / r).lexically_normal().string());
                 } else {
-                    error = path + ": elemento desconocido <" + it.name + "> en <ItemGroup>";
+                    error = path + ": unknown element <" + it.name + "> in <ItemGroup>";
                     return false;
                 }
             }
         } else {
-            error = path + ": elemento desconocido <" + g.name + "> (se esperaba PropertyGroup o ItemGroup)";
+            error = path + ": unknown element <" + g.name + "> (expected PropertyGroup or ItemGroup)";
             return false;
         }
     }
     std::string ot = out.prop("OutputType", "Exe");
     if (ot != "Exe" && ot != "WinExe" && ot != "Library") {
-        error = path + ": <OutputType> debe ser Exe, WinExe o Library (no '" + ot + "')";
+        error = path + ": <OutputType> must be Exe, WinExe or Library (not '" + ot + "')";
         return false;
     }
     return true;
@@ -332,11 +332,11 @@ std::string newProjectXml(const std::string& name, const std::string& outputType
            "    <Configuration>Debug</Configuration>\n"
            "  </PropertyGroup>\n"
            "\n"
-           "  <!-- Todos los .fst de esta carpeta se compilan automáticamente.\n"
+           "  <!-- All .fst files in this folder are compiled automatically.\n"
            "  <ItemGroup>\n"
-           "    <Compile Remove=\"experimentos/**\" />\n"
+           "    <Compile Remove=\"experiments/**\" />\n"
            "    <NativeLibrary Include=\"user32\" />\n"
-           "    <ProjectReference Include=\"../OtraBiblioteca/OtraBiblioteca.fstproj\" />\n"
+           "    <ProjectReference Include=\"../OtherLibrary/OtherLibrary.fstproj\" />\n"
            "  </ItemGroup>\n"
            "  -->\n"
            "</Project>\n";

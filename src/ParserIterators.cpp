@@ -17,7 +17,7 @@ Stmt* Parser::parseIterStmt() {
             y->isBreak = true;
         } else {
             p_++;  // return
-            if (isP(";")) fail("'yield return' necesita un valor (para terminar el iterador usa 'yield break;')");
+            if (isP(";")) fail("'yield return' needs a value (to end the iterator use 'yield break;')");
             y->value = parseExpr();
         }
         expectP(";");
@@ -78,7 +78,7 @@ Stmt* Parser::parseLocalFunction() {
         p_ = save;
         return nullptr;
     }
-    if (ret->isRef) fail(loc, "una función local no puede devolver una referencia");
+    if (ret->isRef) fail(loc, "a local function cannot return a reference");
     SourceLoc nameLoc = cur().loc;
     std::string name = expectIdent();
     MethodDecl tmp;
@@ -88,7 +88,7 @@ Stmt* Parser::parseLocalFunction() {
     l->isAsync = isAsync;
     for (Param& p : tmp.params) {
         if (p.isRef() || p.isThis || p.isParams)
-            fail(p.loc, "los parámetros de una función local no pueden ser 'ref', 'out', 'this' ni 'params'");
+            fail(p.loc, "the parameters of a local function cannot be 'ref', 'out', 'this' or 'params'");
         LambdaExpr::LParam lp;
         lp.loc = p.loc;
         lp.name = p.name;

@@ -14,6 +14,6 @@
 37|this lambda corresponds to a delegate with no return value \('void'\) and cannot return a value
 38|not all of the lambda's code paths return a value
 39|'Func' cannot return 'void'; use 'Action<\.\.\.>'
-41|no overload of 'Where' accepts the arguments \(expresión lambda\)
+41|no overload of 'Where' accepts the arguments \(lambda expression\)
 41|'int' does not contain a definition for 'Length'
 42|the body of a lambda with no return value must be a call, an assignment, an increment or 'new' \(the delegate is 'Action<int>'\)

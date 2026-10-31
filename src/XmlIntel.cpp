@@ -40,100 +40,100 @@ const std::vector<std::string> kBool = {"true", "false"};
 
 const std::vector<ElemSpec>& projectProps() {
     static const std::vector<ElemSpec> v = {
-        {"OutputType", "Tipo de salida: Exe (consola), WinExe (aplicación de ventana) o Library (biblioteca).", {}, {"Exe", "WinExe", "Library"}},
-        {"AssemblyName", "Nombre del ejecutable o de la biblioteca que se genera (por defecto, el del proyecto).", {}, {}},
-        {"RootNamespace", "Namespace principal del proyecto (lo usan las plantillas y el diseñador).", {}, {}},
-        {"TargetPlatform", "Plataforma de destino: native (la del sistema), linux, windows, android o macos.", {}, {"native", "linux", "windows", "android", "macos"}},
-        {"TargetArch", "Arquitectura de destino: x86_64, x86, arm64 o armv7 (por defecto, la del sistema).", {}, {"x86_64", "x86", "arm64", "armv7"}},
-        {"AndroidApi", "Nivel de API de Android (por defecto 24).", {}, {"24", "26", "28", "29", "30", "31", "33", "34"}},
-        {"Configuration", "Configuración por defecto: Debug (con símbolos de depuración) o Release (optimizada).", {}, {"Debug", "Release"}},
-        {"OutputPath", "Carpeta de salida, relativa al proyecto (por defecto 'bin').", {}, {"bin"}},
-        {"StaticLink", "Enlaza las bibliotecas de C de forma estática (true o false).", {}, kBool, true},
-        {"EnableDefaultCompileItems", "Compila automáticamente todos los .fst y .fstui de la carpeta (true por defecto).", {}, kBool, true},
-        {"Version", "Versión del proyecto (en un paquete, semver: 1.2.0; se publica con la etiqueta git v1.2.0).", {}, {"1.0.0", "0.1.0"}},
-        {"Description", "Descripción del proyecto (informativa).", {}, {}},
-        {"Authors", "Autores del proyecto (en un paquete, los que muestra 'faset pack').", {}, {}},
+        {"OutputType", "Output type: Exe (console), WinExe (windowed app) or Library (library).", {}, {"Exe", "WinExe", "Library"}},
+        {"AssemblyName", "Name of the generated executable or library (defaults to the project name).", {}, {}},
+        {"RootNamespace", "Main namespace of the project (used by templates and the designer).", {}, {}},
+        {"TargetPlatform", "Target platform: native (the system's), linux, windows, android or macos.", {}, {"native", "linux", "windows", "android", "macos"}},
+        {"TargetArch", "Target architecture: x86_64, x86, arm64 or armv7 (defaults to the system's).", {}, {"x86_64", "x86", "arm64", "armv7"}},
+        {"AndroidApi", "Android API level (default 24).", {}, {"24", "26", "28", "29", "30", "31", "33", "34"}},
+        {"Configuration", "Default configuration: Debug (with debug symbols) or Release (optimized).", {}, {"Debug", "Release"}},
+        {"OutputPath", "Output folder, relative to the project (default 'bin').", {}, {"bin"}},
+        {"StaticLink", "Links the C libraries statically (true or false).", {}, kBool, true},
+        {"EnableDefaultCompileItems", "Automatically compiles all .fst and .fstui files in the folder (true by default).", {}, kBool, true},
+        {"Version", "Project version (in a package, semver: 1.2.0; published with the git tag v1.2.0).", {}, {"1.0.0", "0.1.0"}},
+        {"Description", "Project description (informational).", {}, {}},
+        {"Authors", "Project authors (in a package, the ones shown by 'faset pack').", {}, {}},
         // Paquetes (faset pack / faset publish)
-        {"PackageId", "Nombre del paquete: el que se usa en <PackageReference Include=\"...\"> (letras, números, '.', '_' y '-').", {}, {}},
-        {"License", "Licencia del paquete (p. ej. MIT, Apache-2.0).", {}, {"MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0", "LGPL-3.0", "MPL-2.0"}},
-        {"RepositoryUrl", "Repositorio git del paquete: donde se publican las etiquetas vX.Y.Z.", {}, {}},
-        {"PackageIndex", "Índice de paquetes (JSON) donde se buscan los <PackageReference> sin Git ni Path "
-                         "(por defecto https://faset.lat/paquetes/index.json).", {}, {}},
-        {"Optimize", "Fuerza la optimización (true o false).", {}, kBool, true},
-        {"DebugSymbols", "Fuerza los símbolos de depuración (true o false).", {}, kBool, true},
-        {"RuntimeChecks", "Comprobaciones en ejecución (límites, nulos, delete doble...): por defecto en Debug sí y en Release no.", {}, kBool, true},
-        {"AllowUnsafe", "Permite código memory_unsafe en todo el proyecto sin marcarlo (true o false).", {}, kBool, true},
-        {"IsTestProject", "Proyecto de pruebas: sin Main, sus [Test] se ejecutan con 'faset test' (true o false).", {}, kBool, true},
+        {"PackageId", "Package name: the one used in <PackageReference Include=\"...\"> (letters, digits, '.', '_' and '-').", {}, {}},
+        {"License", "Package license (e.g. MIT, Apache-2.0).", {}, {"MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0", "LGPL-3.0", "MPL-2.0"}},
+        {"RepositoryUrl", "Package git repository: where the vX.Y.Z tags are published.", {}, {}},
+        {"PackageIndex", "Package index (JSON) where <PackageReference> entries without Git or Path are looked up "
+                         "(default https://faset.lat/paquetes/index.json).", {}, {}},
+        {"Optimize", "Forces optimization (true or false).", {}, kBool, true},
+        {"DebugSymbols", "Forces debug symbols (true or false).", {}, kBool, true},
+        {"RuntimeChecks", "Runtime checks (bounds, nulls, double delete...): on by default in Debug and off in Release.", {}, kBool, true},
+        {"AllowUnsafe", "Allows memory_unsafe code across the whole project without marking it (true or false).", {}, kBool, true},
+        {"IsTestProject", "Test project: no Main, its [Test] methods run with 'faset test' (true or false).", {}, kBool, true},
         // Android (APK)
-        {"AndroidPackage", "Paquete de la app Android (p. ej. com.empresa.app; por defecto com.faset.<nombre>).", {}, {}},
-        {"AppName", "Nombre visible de la app en Android.", {}, {}},
-        {"VersionCode", "Número de versión interno de Android (entero que crece en cada publicación).", {}, {"1"}},
-        {"VersionName", "Versión visible de la app Android (p. ej. 1.0).", {}, {"1.0"}},
-        {"AndroidAbis", "ABIs del APK separadas por ';' (por defecto arm64-v8a;x86_64).", {},
+        {"AndroidPackage", "Android app package (e.g. com.company.app; default com.faset.<name>).", {}, {}},
+        {"AppName", "Visible app name on Android.", {}, {}},
+        {"VersionCode", "Internal Android version number (integer that increases with each release).", {}, {"1"}},
+        {"VersionName", "Visible version of the Android app (e.g. 1.0).", {}, {"1.0"}},
+        {"AndroidAbis", "APK ABIs separated by ';' (default arm64-v8a;x86_64).", {},
          {"arm64-v8a;x86_64", "arm64-v8a", "x86_64", "armeabi-v7a", "x86"}},
-        {"AndroidTargetSdk", "SDK objetivo de Android (por defecto, la plataforma más nueva instalada).", {}, {"34", "35", "36"}},
-        {"AndroidOrientation", "Orientación de la app Android.", {}, {"portrait", "landscape", "sensor", "unspecified"}},
-        {"AndroidIcon", "Icono de la app Android (PNG, relativo al proyecto).", {}, {"icon.png"}},
-        {"AndroidKeystore", "Almacén de claves para firmar el APK (por defecto ~/.android/debug.keystore).", {}, {}},
-        {"AndroidKeyAlias", "Alias de la clave de firma del APK.", {}, {}},
-        {"AndroidKeystorePassword", "Contraseña del almacén (mejor: variable FASET_ANDROID_KEYSTORE_PASSWORD).", {}, {}},
-        {"AndroidKeyPassword", "Contraseña de la clave (mejor: variable FASET_ANDROID_KEY_PASSWORD).", {}, {}},
+        {"AndroidTargetSdk", "Android target SDK (defaults to the newest installed platform).", {}, {"34", "35", "36"}},
+        {"AndroidOrientation", "Orientation of the Android app.", {}, {"portrait", "landscape", "sensor", "unspecified"}},
+        {"AndroidIcon", "Android app icon (PNG, relative to the project).", {}, {"icon.png"}},
+        {"AndroidKeystore", "Keystore used to sign the APK (default ~/.android/debug.keystore).", {}, {}},
+        {"AndroidKeyAlias", "Alias of the APK signing key.", {}, {}},
+        {"AndroidKeystorePassword", "Keystore password (better: FASET_ANDROID_KEYSTORE_PASSWORD variable).", {}, {}},
+        {"AndroidKeyPassword", "Key password (better: FASET_ANDROID_KEY_PASSWORD variable).", {}, {}},
     };
     return v;
 }
 
 const std::vector<ElemSpec>& projectItems() {
     static const std::vector<ElemSpec> v = {
-        {"Compile", "Archivos que se compilan: Include añade (admite '*' y '**'), Remove excluye.", {"Include", "Remove"}, {}},
-        {"NativeLibrary", "Biblioteca nativa con la que se enlaza (p. ej. 'm', 'user32'); Platform la limita a un sistema.",
+        {"Compile", "Files to compile: Include adds (supports '*' and '**'), Remove excludes.", {"Include", "Remove"}, {}},
+        {"NativeLibrary", "Native library to link against (e.g. 'm', 'user32'); Platform limits it to one system.",
          {"Include", "Platform"}, {}},
-        {"LibraryPath", "Carpeta donde buscar bibliotecas nativas, relativa al proyecto.", {"Include"}, {}},
-        {"ProjectReference", "Otro proyecto Faset (.fstproj) cuyo código se compila junto con este.", {"Include"}, {}},
-        {"PackageReference", "Paquete (una biblioteca Faset) de un repositorio git, de una carpeta o del índice: se "
-                             "descarga con 'faset restore' (o al compilar) y se compila como un ProjectReference.",
+        {"LibraryPath", "Folder to search for native libraries, relative to the project.", {"Include"}, {}},
+        {"ProjectReference", "Another Faset project (.fstproj) whose code is compiled together with this one.", {"Include"}, {}},
+        {"PackageReference", "Package (a Faset library) from a git repository, a folder or the index: "
+                             "downloaded with 'faset restore' (or when building) and compiled as a ProjectReference.",
          {"Include", "Version", "Git", "Branch", "Commit", "Path", "Folder"}, {}},
-        {"AndroidPermission", "Permiso de Android que pide la app (p. ej. INTERNET, CAMERA).", {"Include"}, {}},
-        {"Asset", "Recursos (sonidos, imágenes...): se copian junto al ejecutable o a assets/ del APK con la misma ruta "
-                  "relativa. Include admite '*', '**' y carpetas; Remove excluye.", {"Include", "Remove"}, {}},
+        {"AndroidPermission", "Android permission the app requests (e.g. INTERNET, CAMERA).", {"Include"}, {}},
+        {"Asset", "Resources (sounds, images...): copied next to the executable or into the APK's assets/ with the same "
+                  "relative path. Include supports '*', '**' and folders; Remove excludes.", {"Include", "Remove"}, {}},
     };
     return v;
 }
 
 const std::vector<AttrSpec>& projectAttrs() {
     static const std::vector<AttrSpec> v = {
-        {"Include", "Elementos que se añaden (lista separada por ';').", {}},
-        {"Remove", "Elementos que se excluyen (lista separada por ';', admite '*' y '**').", {}},
-        {"Platform", "Sistema en el que se aplica: linux, windows, android o macos.", {"linux", "windows", "android", "macos"}},
-        {"Version", "Versión del paquete (etiqueta git vX.Y.Z): exacta (1.2.0), ^1.2 (compatible), ~1.2 (parches), 1.x, "
-                    "\">=1.0 <2.0\" o alternativas con ||. Sin Version: la más reciente.", {"^1.0", "~1.0", "1.0.0", ">=1.0 <2.0"}},
-        {"Git", "Repositorio git del paquete (https://..., git@... o una ruta a un repositorio local).", {}},
-        {"Branch", "Usa la punta de esta rama en vez de una versión (paquetes.lock guarda el commit).", {"main", "master"}},
-        {"Commit", "Usa este commit exacto (sha completo o abreviado).", {}},
-        {"Path", "Carpeta local con el proyecto del paquete (relativa a este .fstproj).", {}},
-        {"Folder", "Subcarpeta del repositorio (o de Path) donde está el .fstproj del paquete.", {}},
+        {"Include", "Items to add (';'-separated list).", {}},
+        {"Remove", "Items to exclude (';'-separated list, supports '*' and '**').", {}},
+        {"Platform", "System it applies to: linux, windows, android or macos.", {"linux", "windows", "android", "macos"}},
+        {"Version", "Package version (git tag vX.Y.Z): exact (1.2.0), ^1.2 (compatible), ~1.2 (patches), 1.x, "
+                    "\">=1.0 <2.0\" or alternatives with ||. Without Version: the latest.", {"^1.0", "~1.0", "1.0.0", ">=1.0 <2.0"}},
+        {"Git", "Package git repository (https://..., git@... or a path to a local repository).", {}},
+        {"Branch", "Uses the tip of this branch instead of a version (paquetes.lock stores the commit).", {"main", "master"}},
+        {"Commit", "Uses this exact commit (full or abbreviated sha).", {}},
+        {"Path", "Local folder containing the package project (relative to this .fstproj).", {}},
+        {"Folder", "Subfolder of the repository (or of Path) where the package's .fstproj is.", {}},
     };
     return v;
 }
 
-const ElemSpec kProjectRoot = {"Project", "Proyecto de Faset: grupos <PropertyGroup> con propiedades y <ItemGroup> con archivos y referencias.", {}, {}};
-const ElemSpec kPropertyGroup = {"PropertyGroup", "Propiedades del proyecto (OutputType, AssemblyName, TargetPlatform...).", {}, {}};
-const ElemSpec kItemGroup = {"ItemGroup", "Elementos del proyecto: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference y Asset.", {}, {}};
+const ElemSpec kProjectRoot = {"Project", "Faset project: <PropertyGroup> groups with properties and <ItemGroup> groups with files and references.", {}, {}};
+const ElemSpec kPropertyGroup = {"PropertyGroup", "Project properties (OutputType, AssemblyName, TargetPlatform...).", {}, {}};
+const ElemSpec kItemGroup = {"ItemGroup", "Project items: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference and Asset.", {}, {}};
 
 // ---- .fstp (ver src/Solution.cpp)
 
-const ElemSpec kSolutionRoot = {"Solution", "Solución de Faset: varios proyectos (.fstproj) que se abren y compilan juntos.",
+const ElemSpec kSolutionRoot = {"Solution", "Faset solution: several projects (.fstproj) opened and built together.",
                                 {"Name", "Configuration", "TargetPlatform"}, {}};
-const ElemSpec kSolutionProject = {"Project", "Proyecto de la solución. Path es relativo al .fstp; Startup=\"true\" lo marca como "
-                                   "proyecto de inicio (el que ejecuta 'faset run').", {"Path", "Startup"}, {}};
-const ElemSpec kSolutionFolder = {"Folder", "Carpeta de solución: solo organiza los proyectos en el árbol (puede anidarse).", {"Name"}, {}};
+const ElemSpec kSolutionProject = {"Project", "Solution project. Path is relative to the .fstp; Startup=\"true\" marks it as the "
+                                   "startup project (the one 'faset run' runs).", {"Path", "Startup"}, {}};
+const ElemSpec kSolutionFolder = {"Folder", "Solution folder: only organizes projects in the tree (can be nested).", {"Name"}, {}};
 
 const std::vector<AttrSpec>& solutionAttrs() {
     static const std::vector<AttrSpec> v = {
-        {"Name", "Nombre (de la solución o de la carpeta de solución).", {}},
-        {"Configuration", "Configuración por defecto de todos los proyectos si no se indica -c.", {"Debug", "Release"}},
-        {"TargetPlatform", "Plataforma por defecto de todos los proyectos si no se indica --target.", {"native", "linux", "windows", "android", "macos"}},
-        {"Path", "Ruta del .fstproj, relativa a la carpeta de la solución.", {}},
-        {"Startup", "Proyecto de inicio: el que se ejecuta con 'faset run' y F5 (solo uno).", {"true", "false"}},
+        {"Name", "Name (of the solution or of the solution folder).", {}},
+        {"Configuration", "Default configuration for all projects if -c is not given.", {"Debug", "Release"}},
+        {"TargetPlatform", "Default platform for all projects if --target is not given.", {"native", "linux", "windows", "android", "macos"}},
+        {"Path", "Path to the .fstproj, relative to the solution folder.", {}},
+        {"Startup", "Startup project: the one run with 'faset run' and F5 (only one).", {"true", "false"}},
     };
     return v;
 }
@@ -149,78 +149,78 @@ const ElemSpec* solutionElem(const std::string& n) {
 
 const std::vector<AttrSpec>& uiAttrs() {
     static const std::vector<AttrSpec> v = {
-        {"Class", "Nombre de la clase 'partial' que genera la ventana (el código va en Nombre.fst).", {}},
-        {"Namespace", "Namespace de la clase de la ventana.", {}},
-        {"Title", "Título de la ventana.", {}},
-        {"Theme", "Tema de colores de la ventana.", {"Dark", "Light"}},
-        {"Resizable", "Si el usuario puede cambiar el tamaño de la ventana.", kBool},
-        {"MinWidth", "Ancho mínimo de la ventana, en píxeles.", {}},
-        {"MinHeight", "Alto mínimo de la ventana, en píxeles.", {}},
-        {"Name", "Nombre del control: se genera un campo 'Widget' con este nombre en la clase.", {}},
-        {"X", "Posición horizontal, en píxeles, dentro del contenedor.", {}},
-        {"Y", "Posición vertical, en píxeles, dentro del contenedor.", {}},
-        {"Width", "Ancho en píxeles.", {}},
-        {"Height", "Alto en píxeles.", {}},
-        {"Text", "Texto del control.", {}},
-        {"Placeholder", "Texto de ayuda que se muestra mientras el cuadro está vacío.", {}},
-        {"FontSize", "Tamaño de la letra, en píxeles.", {"11", "12", "13", "14", "16", "18", "20", "24", "32"}},
-        {"Bold", "Texto en negrita.", kBool},
-        {"Enabled", "Si el control responde al usuario.", kBool},
-        {"Visible", "Si el control se muestra.", kBool},
-        {"Checked", "Estado marcado de la casilla o del botón de opción.", kBool},
-        {"CornerRadius", "Radio de las esquinas redondeadas, en píxeles.", {"0", "4", "6", "8", "12"}},
-        {"Style", "Estilo visual del control.", {"Default", "Primary", "Subtle", "Danger"}},
-        {"TextAlign", "Alineación horizontal del texto.", {"Left", "Center", "Right"}},
-        {"Anchor", "Bordes del contenedor a los que se ancla el control al cambiar de tamaño (lista separada por comas).",
+        {"Class", "Name of the 'partial' class the window generates (the code goes in Name.fst).", {}},
+        {"Namespace", "Namespace of the window class.", {}},
+        {"Title", "Window title.", {}},
+        {"Theme", "Window color theme.", {"Dark", "Light"}},
+        {"Resizable", "Whether the user can resize the window.", kBool},
+        {"MinWidth", "Minimum window width, in pixels.", {}},
+        {"MinHeight", "Minimum window height, in pixels.", {}},
+        {"Name", "Control name: a 'Widget' field with this name is generated in the class.", {}},
+        {"X", "Horizontal position, in pixels, within the container.", {}},
+        {"Y", "Vertical position, in pixels, within the container.", {}},
+        {"Width", "Width in pixels.", {}},
+        {"Height", "Height in pixels.", {}},
+        {"Text", "Control text.", {}},
+        {"Placeholder", "Hint text shown while the box is empty.", {}},
+        {"FontSize", "Font size, in pixels.", {"11", "12", "13", "14", "16", "18", "20", "24", "32"}},
+        {"Bold", "Bold text.", kBool},
+        {"Enabled", "Whether the control responds to the user.", kBool},
+        {"Visible", "Whether the control is shown.", kBool},
+        {"Checked", "Checked state of the checkbox or radio button.", kBool},
+        {"CornerRadius", "Radius of the rounded corners, in pixels.", {"0", "4", "6", "8", "12"}},
+        {"Style", "Visual style of the control.", {"Default", "Primary", "Subtle", "Danger"}},
+        {"TextAlign", "Horizontal text alignment.", {"Left", "Center", "Right"}},
+        {"Anchor", "Container edges the control anchors to when resized (comma-separated list).",
          {"Left", "Top", "Right", "Bottom"}, true},
-        {"Value", "Valor actual.", {}},
-        {"Min", "Valor mínimo.", {}},
-        {"Max", "Valor máximo.", {}},
-        {"Group", "Grupo de botones de opción: solo uno de cada grupo puede estar marcado.", {}},
-        {"Items", "Elementos de la lista, separados por ';'.", {}},
-        {"SelectedIndex", "Índice del elemento seleccionado (-1: ninguno).", {"-1", "0"}},
-        {"Background", "Color de fondo ('#RRGGBB' o '#RRGGBBAA').", {}},
-        {"Background2", "Segundo color del degradado de fondo ('#RRGGBB').", {}},
-        {"GradientDirection", "Dirección del degradado entre Background y Background2.", {"Vertical", "Horizontal"}},
-        {"Foreground", "Color del texto ('#RRGGBB').", {}},
-        {"BorderColor", "Color del borde ('#RRGGBB').", {}},
-        {"Accent", "Color de acento: relleno de casillas, barras y deslizadores ('#RRGGBB').", {}},
-        {"Click", "Método que se llama al hacer clic: void Nombre(Widget sender).", {}, false, true},
-        {"Changed", "Método que se llama cuando cambia el valor: void Nombre(Widget sender).", {}, false, true},
-        {"Source", "PictureBox: imagen (PNG, JPEG, BMP o GIF), relativa al proyecto (también junto al ejecutable y, en Android, dentro del APK). WebView: dirección que carga (https://..., file://...). VideoPlayer: vídeo, ruta o URI.", {}},
-        {"Html", "Documento HTML que muestra el WebView (en vez de Source).", {}},
-        {"Navigated", "Método que se llama al terminar de cargar una página: void Nombre(Widget sender).", {}, false, true},
-        {"TitleChanged", "Método que se llama cuando cambia el título de la página: void Nombre(Widget sender).", {}, false, true},
+        {"Value", "Current value.", {}},
+        {"Min", "Minimum value.", {}},
+        {"Max", "Maximum value.", {}},
+        {"Group", "Radio button group: only one in each group can be checked.", {}},
+        {"Items", "List items, separated by ';'.", {}},
+        {"SelectedIndex", "Index of the selected item (-1: none).", {"-1", "0"}},
+        {"Background", "Background color ('#RRGGBB' or '#RRGGBBAA').", {}},
+        {"Background2", "Second color of the background gradient ('#RRGGBB').", {}},
+        {"GradientDirection", "Direction of the gradient between Background and Background2.", {"Vertical", "Horizontal"}},
+        {"Foreground", "Text color ('#RRGGBB').", {}},
+        {"BorderColor", "Border color ('#RRGGBB').", {}},
+        {"Accent", "Accent color: fill of checkboxes, bars and sliders ('#RRGGBB').", {}},
+        {"Click", "Method called on click: void Name(Widget sender).", {}, false, true},
+        {"Changed", "Method called when the value changes: void Name(Widget sender).", {}, false, true},
+        {"Source", "PictureBox: image (PNG, JPEG, BMP or GIF), relative to the project (also next to the executable and, on Android, inside the APK). WebView: address it loads (https://..., file://...). VideoPlayer: video, path or URI.", {}},
+        {"Html", "HTML document the WebView shows (instead of Source).", {}},
+        {"Navigated", "Method called when a page finishes loading: void Name(Widget sender).", {}, false, true},
+        {"TitleChanged", "Method called when the page title changes: void Name(Widget sender).", {}, false, true},
         {"MessageReceived",
-         "Método que se llama cuando la página llama a window.faset.postMessage(texto): void Nombre(Widget sender, string message).",
+         "Method called when the page calls window.faset.postMessage(text): void Name(Widget sender, string message).",
          {}, false, true},
         // VideoPlayer
-        {"AutoPlay", "Empieza a reproducir en cuanto se carga el vídeo.", kBool},
-        {"Loop", "Vuelve a empezar al llegar al final.", kBool},
-        {"ShowControls", "Muestra la barra de controles (reproducir/pausa, posición y tiempo).", kBool},
-        {"Volume", "Volumen, de 0 a 1.", {"0", "0.5", "1"}},
-        {"Stretch", "Cómo se ajusta la imagen: Uniform (sin deformar), Fill (todo el control) o None (tamaño original).",
+        {"AutoPlay", "Starts playing as soon as the video loads.", kBool},
+        {"Loop", "Starts over when it reaches the end.", kBool},
+        {"ShowControls", "Shows the controls bar (play/pause, position and time).", kBool},
+        {"Volume", "Volume, from 0 to 1.", {"0", "0.5", "1"}},
+        {"Stretch", "How the image is fitted: Uniform (without distortion), Fill (the whole control) or None (original size).",
          {"Uniform", "Fill", "None"}},
-        {"Opened", "Método que se llama cuando el vídeo está listo: void Nombre(Widget sender).", {}, false, true},
-        {"Ended", "Método que se llama al terminar el vídeo (sin Loop): void Nombre(Widget sender).", {}, false, true},
-        {"Failed", "Método que se llama si el vídeo no se puede abrir o reproducir: void Nombre(Widget sender).", {}, false, true},
+        {"Opened", "Method called when the video is ready: void Name(Widget sender).", {}, false, true},
+        {"Ended", "Method called when the video ends (without Loop): void Name(Widget sender).", {}, false, true},
+        {"Failed", "Method called if the video cannot be opened or played: void Name(Widget sender).", {}, false, true},
         // Controles de imágenes, pestañas, árbol, menús, temporizador y lienzo
-        {"SizeMode", "Cómo se coloca la imagen: Normal (arriba a la izquierda), Stretch (estirada), Zoom (cabe entera sin deformarse), Center (centrada) o Cover (llena y recorta).",
+        {"SizeMode", "How the image is placed: Normal (top left), Stretch (stretched), Zoom (fits entirely without distortion), Center (centered) or Cover (fills and crops).",
          {"Normal", "Stretch", "Zoom", "Center", "Cover"}},
-        {"Icon", "Icono (PNG, JPEG, BMP o GIF) que se dibuja a la izquierda del texto.", {}},
-        {"Shortcut", "Atajo de teclado del elemento de menú (Ctrl+S, Ctrl+Shift+N, F5, Supr...): funciona aunque el menú esté cerrado.",
+        {"Icon", "Icon (PNG, JPEG, BMP or GIF) drawn to the left of the text.", {}},
+        {"Shortcut", "Keyboard shortcut for the menu item (Ctrl+S, Ctrl+Shift+N, F5, Supr...): works even when the menu is closed.",
          {"Ctrl+N", "Ctrl+O", "Ctrl+S", "Ctrl+Shift+S", "Ctrl+Z", "Ctrl+Y", "Ctrl+Q", "F1", "F5", "Supr"}},
-        {"Interval", "Milisegundos entre dos Tick del temporizador.", {"16", "100", "500", "1000"}},
-        {"Expanded", "Si el nodo muestra sus hijos.", kBool},
-        {"Tag", "Dato libre del nodo (una ruta, un identificador...): TreeNode.Tag.", {}},
-        {"ContextMenu", "Menú contextual (Name de un <ContextMenu> de la ventana) que se abre con el botón derecho.", {}},
-        {"SelectedChanged", "Método que se llama al cambiar la selección (pestaña, nodo o elemento): void Nombre(Widget sender).", {}, false, true},
-        {"NodeActivated", "Método que se llama con doble clic o Enter sobre un nodo: void Nombre(Widget sender).", {}, false, true},
-        {"Tick", "Método que se llama cada Interval milisegundos: void Nombre(Widget sender).", {}, false, true},
-        {"Paint", "Método que dibuja el lienzo: void Nombre(Widget sender, Graphics g).", {}, false, true},
-        {"MouseDown", "Botón del ratón pulsado sobre el lienzo: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
-        {"MouseMove", "Ratón movido sobre el lienzo: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
-        {"MouseUp", "Botón del ratón soltado: void Nombre(Widget sender, MouseArgs e).", {}, false, true},
+        {"Interval", "Milliseconds between two timer Ticks.", {"16", "100", "500", "1000"}},
+        {"Expanded", "Whether the node shows its children.", kBool},
+        {"Tag", "Free-form node data (a path, an identifier...): TreeNode.Tag.", {}},
+        {"ContextMenu", "Context menu (Name of a <ContextMenu> in the window) opened with the right button.", {}},
+        {"SelectedChanged", "Method called when the selection changes (tab, node or item): void Name(Widget sender).", {}, false, true},
+        {"NodeActivated", "Method called on double-click or Enter on a node: void Name(Widget sender).", {}, false, true},
+        {"Tick", "Method called every Interval milliseconds: void Name(Widget sender).", {}, false, true},
+        {"Paint", "Method that draws the canvas: void Name(Widget sender, Graphics g).", {}, false, true},
+        {"MouseDown", "Mouse button pressed on the canvas: void Name(Widget sender, MouseArgs e).", {}, false, true},
+        {"MouseMove", "Mouse moved over the canvas: void Name(Widget sender, MouseArgs e).", {}, false, true},
+        {"MouseUp", "Mouse button released: void Name(Widget sender, MouseArgs e).", {}, false, true},
     };
     return v;
 }
@@ -230,39 +230,39 @@ const std::vector<AttrSpec>& uiAttrs() {
 
 const std::vector<ElemSpec>& uiControls() {
     static const std::vector<ElemSpec> v = {
-        {"Panel", "Contenedor de otros controles.", {FST_COMMON, "Text", "Click"}, {}},
-        {"Label", "Texto estático.", {FST_COMMON, "Text", "TextAlign", "Click"}, {}},
-        {"Button", "Botón: el atributo Click indica el método que se llama al pulsarlo.", {FST_COMMON, "Text", "TextAlign", "Accent", "Click"}, {}},
-        {"TextBox", "Cuadro de texto editable: Changed se llama al escribir.", {FST_COMMON, "Text", "Placeholder", "TextAlign", "Accent", "Changed"}, {}},
-        {"CheckBox", "Casilla de verificación.", {FST_COMMON, "Text", "Checked", "Accent", "Click", "Changed"}, {}},
-        {"Slider", "Deslizador para elegir un número entre Min y Max.", {FST_COMMON, "Value", "Min", "Max", "Accent", "Changed"}, {}},
-        {"ProgressBar", "Barra de progreso entre Min y Max.", {FST_COMMON, "Value", "Min", "Max", "Accent"}, {}},
-        {"RadioButton", "Botón de opción: solo uno de cada Group puede estar marcado.", {FST_COMMON, "Text", "Checked", "Group", "Accent", "Click", "Changed"}, {}},
-        {"ComboBox", "Lista desplegable: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
-        {"ListBox", "Lista de elementos: Items separados por ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed", "SelectedChanged"}, {}},
-        {"WebView", "Navegador web incrustado (WebKitGTK en Linux, android.webkit en Android). Desde JavaScript: window.faset.postMessage(texto).",
+        {"Panel", "Container for other controls.", {FST_COMMON, "Text", "Click"}, {}},
+        {"Label", "Static text.", {FST_COMMON, "Text", "TextAlign", "Click"}, {}},
+        {"Button", "Button: the Click attribute names the method called when pressed.", {FST_COMMON, "Text", "TextAlign", "Accent", "Click"}, {}},
+        {"TextBox", "Editable text box: Changed is called when typing.", {FST_COMMON, "Text", "Placeholder", "TextAlign", "Accent", "Changed"}, {}},
+        {"CheckBox", "Checkbox.", {FST_COMMON, "Text", "Checked", "Accent", "Click", "Changed"}, {}},
+        {"Slider", "Slider to pick a number between Min and Max.", {FST_COMMON, "Value", "Min", "Max", "Accent", "Changed"}, {}},
+        {"ProgressBar", "Progress bar between Min and Max.", {FST_COMMON, "Value", "Min", "Max", "Accent"}, {}},
+        {"RadioButton", "Radio button: only one in each Group can be checked.", {FST_COMMON, "Text", "Checked", "Group", "Accent", "Click", "Changed"}, {}},
+        {"ComboBox", "Drop-down list: Items separated by ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed"}, {}},
+        {"ListBox", "List of items: Items separated by ';'.", {FST_COMMON, "Items", "SelectedIndex", "Accent", "Changed", "SelectedChanged"}, {}},
+        {"WebView", "Embedded web browser (WebKitGTK on Linux, android.webkit on Android). From JavaScript: window.faset.postMessage(text).",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "CornerRadius", "Background", "Foreground", "BorderColor",
           "Source", "Html", "Navigated", "TitleChanged", "MessageReceived"},
          {}},
-        {"VideoPlayer", "Reproductor de vídeo con sonido (el campo generado es un VideoPlayer: Play, Pause, Stop, Seek, Position...).",
+        {"VideoPlayer", "Video player with sound (the generated field is a VideoPlayer: Play, Pause, Stop, Seek, Position...).",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "Background", "BorderColor", "Accent", "Source", "AutoPlay", "Loop",
           "ShowControls", "Volume", "Stretch", "Opened", "Ended", "Failed"},
          {}},
-        {"PictureBox", "Imagen (PNG, JPEG, BMP o GIF) con SizeMode Normal, Stretch, Zoom, Center o Cover.",
+        {"PictureBox", "Image (PNG, JPEG, BMP or GIF) with SizeMode Normal, Stretch, Zoom, Center or Cover.",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "Source", "SizeMode", "CornerRadius", "Background", "Background2",
           "GradientDirection", "BorderColor", "ContextMenu", "Click"}, {}},
-        {"TabControl", "Páginas con pestañas: contiene elementos <TabPage>; Ctrl+Tab cambia de página.",
+        {"TabControl", "Tabbed pages: contains <TabPage> elements; Ctrl+Tab switches page.",
          {FST_COMMON, "SelectedIndex", "Accent", "ContextMenu", "SelectedChanged"}, {}},
-        {"TreeView", "Árbol de nodos que se expanden y contraen: contiene elementos <TreeNode>.",
+        {"TreeView", "Tree of nodes that expand and collapse: contains <TreeNode> elements.",
          {FST_COMMON, "ContextMenu", "SelectedChanged", "NodeActivated"}, {}},
-        {"MenuBar", "Barra de menús (arriba de la ventana): contiene elementos <Menu>.",
+        {"MenuBar", "Menu bar (top of the window): contains <Menu> elements.",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Visible", "FontSize", "Background", "Foreground", "BorderColor"}, {}},
-        {"Canvas", "Lienzo de dibujo libre: Paint recibe un Graphics; MouseDown/MouseMove/MouseUp, un MouseArgs.",
+        {"Canvas", "Free drawing canvas: Paint receives a Graphics; MouseDown/MouseMove/MouseUp, a MouseArgs.",
          {"Name", "X", "Y", "Width", "Height", "Anchor", "Enabled", "Visible", "CornerRadius", "Background", "Background2",
           "GradientDirection", "BorderColor", "ContextMenu", "Paint", "MouseDown", "MouseMove", "MouseUp"}, {}},
-        {"Timer", "Temporizador (componente no visual): lanza Tick cada Interval milisegundos mientras Enabled es true.",
+        {"Timer", "Timer (non-visual component): fires Tick every Interval milliseconds while Enabled is true.",
          {"Name", "Interval", "Enabled", "Tick"}, {}},
-        {"ContextMenu", "Menú contextual (componente no visual): se abre con el botón derecho sobre los controles que lo nombran.",
+        {"ContextMenu", "Context menu (non-visual component): opened with the right button on the controls that name it.",
          {"Name", "FontSize"}, {}},
     };
     return v;
@@ -271,21 +271,21 @@ const std::vector<ElemSpec>& uiControls() {
 // Elementos que solo van dentro de otro (páginas, nodos y menús).
 const std::vector<ElemSpec>& uiParts() {
     static const std::vector<ElemSpec> v = {
-        {"TabPage", "Página de un <TabControl>: contiene los controles que se ven al elegir su pestaña.",
+        {"TabPage", "Page of a <TabControl>: contains the controls shown when its tab is selected.",
          {"Name", "Text", "Enabled", "Background", "Background2", "GradientDirection"}, {}},
-        {"TreeNode", "Nodo de un <TreeView> (puede contener otros nodos). Con Name se genera un campo TreeNode.",
+        {"TreeNode", "Node of a <TreeView> (can contain other nodes). With Name a TreeNode field is generated.",
          {"Name", "Text", "Expanded", "Tag"}, {}},
-        {"Menu", "Menú desplegable de un <MenuBar> o submenú: contiene <MenuItem>, <Menu> y <Separator>.",
+        {"Menu", "Drop-down menu of a <MenuBar> or submenu: contains <MenuItem>, <Menu> and <Separator>.",
          {"Name", "Text", "Enabled", "Visible", "Icon"}, {}},
-        {"MenuItem", "Elemento de un menú: Click se llama al elegirlo; Shortcut es su atajo de teclado.",
+        {"MenuItem", "Menu item: Click is called when chosen; Shortcut is its keyboard shortcut.",
          {"Name", "Text", "Shortcut", "Icon", "Checked", "Enabled", "Visible", "Click"}, {}},
-        {"Separator", "Línea que separa grupos de elementos de un menú.", {"Name", "Visible"}, {}},
+        {"Separator", "Line that separates groups of menu items.", {"Name", "Visible"}, {}},
     };
     return v;
 }
 
 const ElemSpec kUiWindow = {"Window",
-                            "Ventana de la interfaz. Genera una clase 'partial' con un campo por control y el método InitializeComponent().",
+                            "Interface window. Generates a 'partial' class with one field per control and the InitializeComponent() method.",
                             {"Class", "Namespace", "Title", "Width", "Height", "Theme", "Resizable", "MinWidth", "MinHeight", "Background",
                              "Background2", "GradientDirection"},
                             {}};
@@ -301,13 +301,13 @@ const T* findSpec(const std::vector<T>& v, const std::string& name) {
 
 const std::vector<AttrSpec>& audioAttrs() {
     static const std::vector<AttrSpec> v = {
-        {"Source", "Archivo de audio (WAV, OGG o MP3), relativo a la carpeta actual o al ejecutable; en Android, dentro "
-                   "de assets/ (añádelo con <Asset Include=\"...\"/> en el .fstproj).", {}},
-        {"Volume", "Volumen (1 = original, 0 = silencio).", {"0.25", "0.5", "0.8", "1"}},
-        {"Pan", "Panorama: -1 izquierda, 0 centro, 1 derecha.", {"-1", "0", "1"}},
-        {"Speed", "Velocidad de reproducción (también cambia el tono): 1 normal.", {"0.5", "1", "1.5", "2"}},
-        {"Loop", "Repetir al llegar al final.", kBool},
-        {"AutoPlay", "Empezar a sonar al crear la ventana (en InitializeComponent).", kBool},
+        {"Source", "Audio file (WAV, OGG or MP3), relative to the current folder or the executable; on Android, inside "
+                   "assets/ (add it with <Asset Include=\"...\"/> in the .fstproj).", {}},
+        {"Volume", "Volume (1 = original, 0 = silence).", {"0.25", "0.5", "0.8", "1"}},
+        {"Pan", "Pan: -1 left, 0 center, 1 right.", {"-1", "0", "1"}},
+        {"Speed", "Playback speed (also changes the pitch): 1 normal.", {"0.5", "1", "1.5", "2"}},
+        {"Loop", "Repeat when it reaches the end.", kBool},
+        {"AutoPlay", "Start playing when the window is created (in InitializeComponent).", kBool},
     };
     return v;
 }
@@ -316,8 +316,8 @@ const std::vector<AttrSpec>& audioAttrs() {
 
 const std::vector<ElemSpec>& audioComponents() {
     static const std::vector<ElemSpec> v = {
-        {"Sound", "Sonido (std.audio) decodificado en memoria: genera un campo 'Sound'; tócalo con Nombre.Play().", {FST_AUDIO}, {}},
-        {"Music", "Música (std.audio) que se decodifica mientras suena: genera un campo 'Music' con Play, Pause y Stop.", {FST_AUDIO}, {}},
+        {"Sound", "Sound (std.audio) decoded in memory: generates a 'Sound' field; play it with Name.Play().", {FST_AUDIO}, {}},
+        {"Music", "Music (std.audio) decoded while it plays: generates a 'Music' field with Play, Pause and Stop.", {FST_AUDIO}, {}},
     };
     return v;
 }
@@ -342,9 +342,9 @@ bool uiIsMenuOwner(const std::string& n) { return n == "MenuBar" || n == "Menu" 
 // Texto que se inserta al completar el elemento 'name' (etiqueta recién empezada).
 std::string uiSnippet(const std::string& name) {
     if (name == "TabControl")
-        return "TabControl Name=\"$0\" X=\"0\" Y=\"0\" Width=\"400\" Height=\"300\">\n  <TabPage Text=\"Página 1\">\n  </TabPage>\n</TabControl>";
+        return "TabControl Name=\"$0\" X=\"0\" Y=\"0\" Width=\"400\" Height=\"300\">\n  <TabPage Text=\"Page 1\">\n  </TabPage>\n</TabControl>";
     if (name == "TreeView") return "TreeView Name=\"$0\" X=\"0\" Y=\"0\" Width=\"220\" Height=\"260\">\n</TreeView>";
-    if (name == "MenuBar") return "MenuBar Name=\"$0\">\n  <Menu Text=\"Archivo\">\n  </Menu>\n</MenuBar>";
+    if (name == "MenuBar") return "MenuBar Name=\"$0\">\n  <Menu Text=\"File\">\n  </Menu>\n</MenuBar>";
     if (name == "TabPage") return "TabPage Text=\"$0\">\n</TabPage>";
     if (name == "TreeNode") return "TreeNode Text=\"$0\" />";
     if (name == "Menu") return "Menu Text=\"$0\">\n</Menu>";
@@ -380,7 +380,7 @@ std::string joinValues(const std::vector<std::string>& v, const char* sep = ", "
 // "a, b o c"
 std::string joinOr(const std::vector<std::string>& v) {
     std::string r;
-    for (size_t i = 0; i < v.size(); i++) r += (i == 0 ? "" : i + 1 == v.size() ? " o " : ", ") + v[i];
+    for (size_t i = 0; i < v.size(); i++) r += (i == 0 ? "" : i + 1 == v.size() ? " or " : ", ") + v[i];
     return r;
 }
 
@@ -624,27 +624,27 @@ struct ProjectValidator {
         const XAttr* inc = t.attr("Include");
         const XAttr *ver = t.attr("Version"), *gitA = t.attr("Git"), *pathA = t.attr("Path");
         const XAttr *br = t.attr("Branch"), *cm = t.attr("Commit");
-        if (gitA && pathA) at(pathA->nameBeg, "Git y Path no pueden ir juntos");
-        if (br && cm) at(cm->nameBeg, "Branch y Commit no pueden ir juntos");
-        if (pathA && (br || cm)) at((br ? br : cm)->nameBeg, "Branch y Commit solo valen para paquetes git");
+        if (gitA && pathA) at(pathA->nameBeg, "Git and Path cannot be used together");
+        if (br && cm) at(cm->nameBeg, "Branch and Commit cannot be used together");
+        if (pathA && (br || cm)) at((br ? br : cm)->nameBeg, "Branch and Commit only apply to git packages");
         if (ver && ver->closed && !trim(ver->value).empty()) {
             std::string err;
             if (!packageVersionValid(ver->value, err)) at(ver->valBeg, err);
-            if (pathA) at(ver->nameBeg, "con Path no se comprueba la versión (se usa la carpeta tal cual)", 2);
-            else if (br || cm) at(ver->nameBeg, "Branch y Commit mandan sobre Version", 2);
+            if (pathA) at(ver->nameBeg, "with Path the version is not checked (the folder is used as-is)", 2);
+            else if (br || cm) at(ver->nameBeg, "Branch and Commit take precedence over Version", 2);
         }
         if (pathA && pathA->closed && !pathA->value.empty()) {
             std::error_code ec;
             if (!fs::exists(fs::path(path).parent_path() / pathA->value, ec))
-                at(pathA->valBeg, "no existe la carpeta '" + pathA->value + "'", 2);
+                at(pathA->valBeg, "folder '" + pathA->value + "' does not exist", 2);
         }
         if (!inc || !inc->closed || trim(inc->value).empty()) return;
         PackageStatus st = lockedPackageStatus(path, trim(inc->value));
         if (!st.locked)
-            at(inc->valBeg, std::string("el paquete '") + trim(inc->value) + "' no está restaurado" +
-                                (st.lockExists ? " (no aparece en paquetes.lock)" : "") + ": compila o ejecuta 'faset restore'", 2);
+            at(inc->valBeg, std::string("package '") + trim(inc->value) + "' is not restored" +
+                                (st.lockExists ? " (not listed in paquetes.lock)" : "") + ": build or run 'faset restore'", 2);
         else if (st.project.empty())
-            at(inc->valBeg, "el paquete '" + trim(inc->value) + "' no está descargado en la caché: ejecuta 'faset restore'", 2);
+            at(inc->valBeg, "package '" + trim(inc->value) + "' is not downloaded in the cache: run 'faset restore'", 2);
     }
 
     void checkValue(const XTag& t, const ElemSpec& spec) {
@@ -659,15 +659,15 @@ struct ProjectValidator {
         if (spec.isBool) {
             std::string l = lower(v);
             if (l != "true" && l != "false" && l != "1" && l != "0" && l != "yes" && l != "no")
-                at(off, "<" + name + "> debe ser true o false (no '" + v + "')");
+                at(off, "<" + name + "> must be true or false (not '" + v + "')");
             return;
         }
         if (name == "OutputType" || name == "TargetPlatform" || name == "TargetArch" || name == "Configuration") {
             if (std::find(spec.values.begin(), spec.values.end(), v) == spec.values.end())
-                at(off, "<" + name + "> debe ser " + joinOr(spec.values) + " (no '" + v + "')");
+                at(off, "<" + name + "> must be " + joinOr(spec.values) + " (not '" + v + "')");
         } else if (name == "AndroidApi") {
             bool digits = !v.empty() && std::all_of(v.begin(), v.end(), [](char c) { return std::isdigit((unsigned char)c); });
-            if (!digits) at(off, "<AndroidApi> debe ser un número (no '" + v + "')");
+            if (!digits) at(off, "<AndroidApi> must be a number (not '" + v + "')");
         }
     }
 
@@ -675,32 +675,32 @@ struct ProjectValidator {
         // Estructura
         for (const XTag& t : sc.tags) {
             if (t.name.empty()) {
-                at(t.beg, t.closing ? "falta el nombre de la etiqueta de cierre" : "falta el nombre del elemento");
+                at(t.beg, t.closing ? "missing closing tag name" : "missing element name");
                 continue;
             }
-            if (!t.complete) at(t.beg, "falta '>' en la etiqueta <" + std::string(t.closing ? "/" : "") + t.name + ">");
+            if (!t.complete) at(t.beg, "missing '>' in tag <" + std::string(t.closing ? "/" : "") + t.name + ">");
             for (const XAttr& a : t.attrs) {
-                if (!a.hasValue) at(a.nameBeg, "falta el valor del atributo '" + a.name + "' (" + a.name + "=\"...\")");
-                else if (!a.closed) at(a.valBeg, "falta la comilla de cierre en el atributo '" + a.name + "'");
+                if (!a.hasValue) at(a.nameBeg, "missing value for attribute '" + a.name + "' (" + a.name + "=\"...\")");
+                else if (!a.closed) at(a.valBeg, "missing closing quote in attribute '" + a.name + "'");
             }
-            if (t.closing && t.match < 0) at(t.beg, "</" + t.name + "> no cierra ningún elemento abierto");
+            if (t.closing && t.match < 0) at(t.beg, "</" + t.name + "> does not close any open element");
         }
-        for (int k : sc.unclosed) at(sc.tags[k].beg, "falta </" + sc.tags[k].name + "> para cerrar <" + sc.tags[k].name + ">");
+        for (int k : sc.unclosed) at(sc.tags[k].beg, "missing </" + sc.tags[k].name + "> to close <" + sc.tags[k].name + ">");
 
         // Contenido
         std::vector<int> roots = sc.childrenOf(-1);
         if (roots.empty()) {
-            at(0, "el archivo de proyecto necesita un elemento <Project>");
+            at(0, "the project file needs a <Project> element");
             return;
         }
         for (size_t i = 0; i < roots.size(); i++) {
             const XTag& r = sc.tags[roots[i]];
             if (i > 0) {
-                at(r.nameBeg, "solo puede haber un elemento raíz <Project>");
+                at(r.nameBeg, "there can be only one root <Project> element");
                 continue;
             }
             if (r.name != "Project") {
-                at(r.nameBeg, "el elemento raíz debe ser <Project> (no <" + r.name + ">)");
+                at(r.nameBeg, "the root element must be <Project> (not <" + r.name + ">)");
                 continue;
             }
             for (int g : sc.childrenOf(roots[i])) {
@@ -713,12 +713,12 @@ struct ProjectValidator {
                         if (!spec) {
                             std::string known;
                             for (const ElemSpec& e : projectProps()) known += (known.empty() ? "" : ", ") + std::string(e.name);
-                            at(pt.nameBeg, "propiedad desconocida <" + pt.name + "> (válidas: " + known + ")");
+                            at(pt.nameBeg, "unknown property <" + pt.name + "> (valid: " + known + ")");
                             continue;
                         }
-                        if (!seen.insert(pt.name).second) at(pt.nameBeg, "la propiedad <" + pt.name + "> está repetida en este grupo", 2);
-                        for (const XAttr& a : pt.attrs) at(a.nameBeg, "las propiedades no admiten atributos ('" + a.name + "')");
-                        for (int c : sc.childrenOf(p)) at(sc.tags[c].nameBeg, "<" + pt.name + "> no puede contener elementos");
+                        if (!seen.insert(pt.name).second) at(pt.nameBeg, "property <" + pt.name + "> is duplicated in this group", 2);
+                        for (const XAttr& a : pt.attrs) at(a.nameBeg, "properties do not allow attributes ('" + a.name + "')");
+                        for (int c : sc.childrenOf(p)) at(sc.tags[c].nameBeg, "<" + pt.name + "> cannot contain elements");
                         checkValue(pt, *spec);
                     }
                 } else if (gt.name == "ItemGroup") {
@@ -726,23 +726,23 @@ struct ProjectValidator {
                         const XTag& item = sc.tags[it];
                         const ElemSpec* spec = findSpec(projectItems(), item.name);
                         if (!spec) {
-                            at(item.nameBeg, "elemento desconocido <" + item.name +
-                                                 "> en <ItemGroup> (válidos: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference, Asset)");
+                            at(item.nameBeg, "unknown element <" + item.name +
+                                                 "> in <ItemGroup> (valid: Compile, NativeLibrary, LibraryPath, ProjectReference, PackageReference, Asset)");
                             continue;
                         }
                         for (const XAttr& a : item.attrs) {
                             if (std::find(spec->attrs.begin(), spec->attrs.end(), a.name) == spec->attrs.end()) {
-                                at(a.nameBeg, "atributo desconocido '" + a.name + "' en <" + item.name + "> (válidos: " +
+                                at(a.nameBeg, "unknown attribute '" + a.name + "' in <" + item.name + "> (valid: " +
                                                   joinValues(spec->attrs) + ")");
                             } else if (a.name == "Platform" && a.closed) {
                                 const AttrSpec* as = findSpec(projectAttrs(), "Platform");
                                 if (std::find(as->values.begin(), as->values.end(), lower(trim(a.value))) == as->values.end())
-                                    at(a.valBeg, "Platform debe ser " + joinOr(as->values) + " (no '" + a.value + "')");
+                                    at(a.valBeg, "Platform must be " + joinOr(as->values) + " (not '" + a.value + "')");
                             }
                         }
                         const XAttr* inc = item.attr("Include");
                         if (!inc && !(item.name == "Compile" && item.attr("Remove")))
-                            at(item.nameBeg, "<" + item.name + "> necesita el atributo Include");
+                            at(item.nameBeg, "<" + item.name + "> needs the Include attribute");
                         if (item.name == "PackageReference") checkPackage(item);
                         if (inc && inc->closed && item.name == "ProjectReference") {
                             fs::path dir = fs::path(path).parent_path();
@@ -753,14 +753,14 @@ struct ProjectValidator {
                                 std::string ref = trim(v.substr(start, semi == std::string::npos ? std::string::npos : semi - start));
                                 std::error_code ec;
                                 if (!ref.empty() && !fs::exists(dir / ref, ec))
-                                    at(inc->valBeg + start, "no existe el proyecto referenciado '" + ref + "'", 2);
+                                    at(inc->valBeg + start, "referenced project '" + ref + "' does not exist", 2);
                                 if (semi == std::string::npos) break;
                                 start = semi + 1;
                             }
                         }
                     }
                 } else {
-                    at(gt.nameBeg, "elemento desconocido <" + gt.name + "> (se esperaba PropertyGroup o ItemGroup)");
+                    at(gt.nameBeg, "unknown element <" + gt.name + "> (expected PropertyGroup or ItemGroup)");
                 }
             }
         }
@@ -770,8 +770,8 @@ struct ProjectValidator {
             std::string err;
             if (!parseXml(s, root, err)) {
                 XmlDiagnostic d;
-                d.message = "XML no válido: " + err;
-                if (err.rfind("línea ", 0) == 0) d.line = std::atoi(err.c_str() + 7);
+                d.message = "invalid XML: " + err;
+                if (err.rfind("line ", 0) == 0) d.line = std::atoi(err.c_str() + 5);
                 out.push_back(d);
             }
         }
@@ -784,17 +784,17 @@ struct ProjectValidator {
 void structureDiagnostics(const XScan& sc, const std::function<void(size_t, const std::string&)>& at) {
     for (const XTag& t : sc.tags) {
         if (t.name.empty()) {
-            at(t.beg, t.closing ? "falta el nombre de la etiqueta de cierre" : "falta el nombre del elemento");
+            at(t.beg, t.closing ? "missing closing tag name" : "missing element name");
             continue;
         }
-        if (!t.complete) at(t.beg, "falta '>' en la etiqueta <" + std::string(t.closing ? "/" : "") + t.name + ">");
+        if (!t.complete) at(t.beg, "missing '>' in tag <" + std::string(t.closing ? "/" : "") + t.name + ">");
         for (const XAttr& a : t.attrs) {
-            if (!a.hasValue) at(a.nameBeg, "falta el valor del atributo '" + a.name + "' (" + a.name + "=\"...\")");
-            else if (!a.closed) at(a.valBeg, "falta la comilla de cierre en el atributo '" + a.name + "'");
+            if (!a.hasValue) at(a.nameBeg, "missing value for attribute '" + a.name + "' (" + a.name + "=\"...\")");
+            else if (!a.closed) at(a.valBeg, "missing closing quote in attribute '" + a.name + "'");
         }
-        if (t.closing && t.match < 0) at(t.beg, "</" + t.name + "> no cierra ningún elemento abierto");
+        if (t.closing && t.match < 0) at(t.beg, "</" + t.name + "> does not close any open element");
     }
-    for (int k : sc.unclosed) at(sc.tags[k].beg, "falta </" + sc.tags[k].name + "> para cerrar <" + sc.tags[k].name + ">");
+    for (int k : sc.unclosed) at(sc.tags[k].beg, "missing </" + sc.tags[k].name + "> to close <" + sc.tags[k].name + ">");
 }
 
 struct SolutionValidator {
@@ -818,14 +818,14 @@ struct SolutionValidator {
     void checkAttrs(const XTag& t, const ElemSpec& spec) {
         for (const XAttr& a : t.attrs) {
             if (std::find(spec.attrs.begin(), spec.attrs.end(), a.name) == spec.attrs.end()) {
-                at(a.nameBeg, "atributo desconocido '" + a.name + "' en <" + t.name + "> (válidos: " + joinValues(spec.attrs) + ")");
+                at(a.nameBeg, "unknown attribute '" + a.name + "' in <" + t.name + "> (valid: " + joinValues(spec.attrs) + ")");
                 continue;
             }
             const AttrSpec* as = findSpec(solutionAttrs(), a.name);
             if (as && !as->values.empty() && a.closed && a.hasValue) {
                 std::string v = a.name == "Startup" ? lower(trim(a.value)) : trim(a.value);
                 if (std::find(as->values.begin(), as->values.end(), v) == as->values.end())
-                    at(a.valBeg, a.name + " debe ser " + joinOr(as->values) + " (no '" + a.value + "')");
+                    at(a.valBeg, a.name + " must be " + joinOr(as->values) + " (not '" + a.value + "')");
             }
         }
     }
@@ -837,29 +837,29 @@ struct SolutionValidator {
                 checkAttrs(t, kSolutionProject);
                 const XAttr* p = t.attr("Path");
                 if (!p) {
-                    at(t.nameBeg, "<Project> necesita el atributo Path (ruta del .fstproj)");
+                    at(t.nameBeg, "<Project> needs the Path attribute (path to the .fstproj)");
                 } else if (p->closed) {
                     std::string rel = trim(p->value);
                     std::error_code ec;
                     fs::path target = (fs::path(path).parent_path() / rel).lexically_normal();
-                    if (rel.empty()) at(p->valBeg, "Path está vacío");
-                    else if (fs::path(rel).extension() != ".fstproj") at(p->valBeg, "Path debe ser un archivo .fstproj (no '" + rel + "')");
-                    else if (!fs::exists(target, ec)) at(p->valBeg, "no existe el proyecto '" + rel + "'");
+                    if (rel.empty()) at(p->valBeg, "Path is empty");
+                    else if (fs::path(rel).extension() != ".fstproj") at(p->valBeg, "Path must be a .fstproj file (not '" + rel + "')");
+                    else if (!fs::exists(target, ec)) at(p->valBeg, "project '" + rel + "' does not exist");
                     else if (!seen.insert(fs::weakly_canonical(target, ec).string()).second)
-                        at(p->valBeg, "el proyecto '" + rel + "' está repetido en la solución", 2);
+                        at(p->valBeg, "project '" + rel + "' is duplicated in the solution", 2);
                 }
                 if (const XAttr* st = t.attr("Startup"))
                     if (lower(trim(st->value)) == "true" && ++startups > 1)
-                        at(st->nameBeg, "solo un proyecto puede tener Startup=\"true\"");
-                for (int c : sc.childrenOf(k)) at(sc.tags[c].nameBeg, "<Project> no puede contener elementos");
+                        at(st->nameBeg, "only one project can have Startup=\"true\"");
+                for (int c : sc.childrenOf(k)) at(sc.tags[c].nameBeg, "<Project> cannot contain elements");
             } else if (t.name == "Folder") {
                 checkAttrs(t, kSolutionFolder);
                 const XAttr* n = t.attr("Name");
-                if (!n || trim(n->value).empty()) at(t.nameBeg, "<Folder> necesita el atributo Name");
-                else if (n->value.find('/') != std::string::npos) at(n->valBeg, "el nombre de la carpeta no puede contener '/'");
+                if (!n || trim(n->value).empty()) at(t.nameBeg, "<Folder> needs the Name attribute");
+                else if (n->value.find('/') != std::string::npos) at(n->valBeg, "the folder name cannot contain '/'");
                 children(k);
             } else {
-                at(t.nameBeg, "elemento desconocido <" + t.name + "> (se esperaba Project o Folder)");
+                at(t.nameBeg, "unknown element <" + t.name + "> (expected Project or Folder)");
             }
         }
     }
@@ -868,13 +868,13 @@ struct SolutionValidator {
         structureDiagnostics(sc, [&](size_t off, const std::string& msg) { at(off, msg); });
         std::vector<int> roots = sc.childrenOf(-1);
         if (roots.empty()) {
-            at(0, "el archivo de solución necesita un elemento <Solution>");
+            at(0, "the solution file needs a <Solution> element");
             return;
         }
         for (size_t i = 0; i < roots.size(); i++) {
             const XTag& r = sc.tags[roots[i]];
-            if (i > 0) at(r.nameBeg, "solo puede haber un elemento raíz <Solution>");
-            else if (r.name != "Solution") at(r.nameBeg, "el elemento raíz debe ser <Solution> (no <" + r.name + ">)");
+            if (i > 0) at(r.nameBeg, "there can be only one root <Solution> element");
+            else if (r.name != "Solution") at(r.nameBeg, "the root element must be <Solution> (not <" + r.name + ">)");
             else {
                 checkAttrs(r, kSolutionRoot);
                 children(roots[i]);
@@ -885,8 +885,8 @@ struct SolutionValidator {
             std::string err;
             if (!parseXml(s, root, err)) {
                 XmlDiagnostic d;
-                d.message = "XML no válido: " + err;
-                if (err.rfind("línea ", 0) == 0) d.line = std::atoi(err.c_str() + 7);
+                d.message = "invalid XML: " + err;
+                if (err.rfind("line ", 0) == 0) d.line = std::atoi(err.c_str() + 5);
                 out.push_back(d);
             }
         }
@@ -971,7 +971,7 @@ void completeProject(const XScan& sc, const std::string& path, const CursorCtx& 
     if (c.kind == Ctx::ElementName) {
         const XTag& t = sc.tags[c.tag];
         if (t.closing) {
-            if (parent) add(out, pname, kElement, "cierra <" + pname + ">", pname + ">");
+            if (parent) add(out, pname, kElement, "closes <" + pname + ">", pname + ">");
             return;
         }
         bool bare = bareTag(t);
@@ -1020,12 +1020,12 @@ void completeProject(const XScan& sc, const std::string& path, const CursorCtx& 
                 for (auto& f : fs::directory_iterator(e.path(), ec))
                     if (f.path().extension() == ".fstproj") {
                         std::string rel = "../" + e.path().filename().string() + "/" + f.path().filename().string();
-                        add(out, rel, kFile, "proyecto " + f.path().stem().string());
+                        add(out, rel, kFile, "project " + f.path().stem().string());
                     }
             }
         } else if (c.attr->name == "Include" && t.name == "NativeLibrary") {
             for (const char* l : {"m", "pthread", "dl", "X11", "GL", "vulkan", "freetype", "user32", "gdi32", "kernel32", "ws2_32"})
-                add(out, l, kValue, "biblioteca nativa");
+                add(out, l, kValue, "native library");
         }
         return;
     }
@@ -1034,7 +1034,7 @@ void completeProject(const XScan& sc, const std::string& path, const CursorCtx& 
         if (!spec) return;
         if (pname == "AssemblyName" || pname == "RootNamespace") {
             std::string stem = fs::path(path).stem().string();
-            add(out, stem, kValue, "nombre del proyecto");
+            add(out, stem, kValue, "project name");
         }
         for (const std::string& v : spec->values) add(out, v, kValue, spec->doc);
     }
@@ -1046,7 +1046,7 @@ void completeSolution(const XScan& sc, const std::string& path, const CursorCtx&
     if (c.kind == Ctx::ElementName) {
         const XTag& t = sc.tags[c.tag];
         if (t.closing) {
-            if (parent) add(out, pname, kElement, "cierra <" + pname + ">", pname + ">");
+            if (parent) add(out, pname, kElement, "closes <" + pname + ">", pname + ">");
             return;
         }
         bool bare = bareTag(t);
@@ -1092,7 +1092,7 @@ void completeSolution(const XScan& sc, const std::string& path, const CursorCtx&
                 if (it->path().extension() != ".fstproj") continue;
                 std::string rel = fs::relative(it->path(), dir, ec).generic_string();
                 if (present.count(rel)) continue;
-                add(out, rel, kFile, "proyecto " + it->path().stem().string());
+                add(out, rel, kFile, "project " + it->path().stem().string());
                 found++;
             }
             return;
@@ -1109,7 +1109,7 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
     if (c.kind == Ctx::ElementName) {
         const XTag& t = sc.tags[c.tag];
         if (t.closing) {
-            if (parent) add(out, pname, kElement, "cierra <" + pname + ">", pname + ">");
+            if (parent) add(out, pname, kElement, "closes <" + pname + ">", pname + ">");
             return;
         }
         bool bare = bareTag(t);
@@ -1174,7 +1174,7 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
             std::string fresh = "On" + base + a.name;
             bool exists = false;
             for (const XmlUiCodeInfo::Method& m : code->methods) exists |= m.name == fresh;
-            if (!exists) add(out, fresh, kMethod, "nuevo manejador: void " + fresh + "(" + params + ")");
+            if (!exists) add(out, fresh, kMethod, "new handler: void " + fresh + "(" + params + ")");
             return;
         }
         if (a.name == "ContextMenu") {
@@ -1199,13 +1199,13 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
                 }
                 std::string ext = lower(it->path().extension().string());
                 if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".bmp" && ext != ".gif") continue;
-                add(out, fs::relative(it->path(), dir, ec).generic_string(), kFile, "imagen");
+                add(out, fs::relative(it->path(), dir, ec).generic_string(), kFile, "image");
                 seen++;
             }
             return;
         }
         if (a.name == "Class" && t.name == "Window") {
-            add(out, fs::path(path).stem().string(), kValue, "clase de la ventana");
+            add(out, fs::path(path).stem().string(), kValue, "window class");
             return;
         }
         if (a.name == "Source" && isAudioComponent(t.name)) {
@@ -1223,7 +1223,7 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
                 }
                 std::string ext = lower(it->path().extension().string());
                 if (ext == ".wav" || ext == ".ogg" || ext == ".mp3") {
-                    add(out, fs::relative(it->path(), dir).generic_string(), kFile, "archivo de audio");
+                    add(out, fs::relative(it->path(), dir).generic_string(), kFile, "audio file");
                     found++;
                 }
             }
@@ -1237,7 +1237,7 @@ void completeUi(const XScan& sc, const std::string& path, const CursorCtx& c, co
 
 std::string attrHover(const AttrSpec& a) {
     std::string h = a.name + std::string(" — ") + a.doc;
-    if (!a.values.empty() && !a.handler) h += "\nValores: " + joinValues(a.values);
+    if (!a.values.empty() && !a.handler) h += "\nValues: " + joinValues(a.values);
     return h;
 }
 
@@ -1297,7 +1297,7 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
                                                             : uiElem(t.name);
         if (spec) {
             std::string h = "<" + t.name + "> — " + spec->doc;
-            if (!spec->values.empty()) h += "\nValores: " + joinValues(spec->values);
+            if (!spec->values.empty()) h += "\nValues: " + joinValues(spec->values);
             ref(t.nameBeg, t.name.size(), h);
         }
         if (t.closing) continue;
@@ -1309,7 +1309,7 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
                     fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
                     std::error_code ec;
                     bool exists = fs::exists(target, ec);
-                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(), (exists ? "proyecto " : "no existe el proyecto ") + target.string());
+                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(), (exists ? "project " : "missing project ") + target.string());
                     if (exists) {
                         r.defPath = target.string();
                         r.defLine = r.defCol = 1;
@@ -1323,7 +1323,7 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
                     // Información del paquetes.lock e "ir a la definición" abre el .fstproj del paquete.
                     PackageStatus st = lockedPackageStatus(path, trim(a.value));
                     XmlSymbolRef& r = ref(a.valBeg, a.value.size(),
-                                          st.locked ? st.description : "paquete " + trim(a.value) + " (sin restaurar: faset restore)");
+                                          st.locked ? st.description : "package " + trim(a.value) + " (not restored: faset restore)");
                     if (!st.project.empty()) {
                         r.defPath = st.project;
                         r.defLine = r.defCol = 1;
@@ -1331,12 +1331,12 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
                 }
                 if (t.name == "PackageReference" && a.name == "Path" && a.closed && !a.value.empty()) {
                     fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
-                    ref(a.valBeg, a.value.size(), "carpeta " + target.string());
+                    ref(a.valBeg, a.value.size(), "folder " + target.string());
                 }
                 if (t.name == "ProjectReference" && a.name == "Include" && a.closed && !a.value.empty()) {
                     fs::path target = (fs::path(path).parent_path() / a.value).lexically_normal();
                     std::error_code ec;
-                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(), "proyecto " + target.string());
+                    XmlSymbolRef& r = ref(a.valBeg, a.value.size(), "project " + target.string());
                     if (fs::exists(target, ec)) {
                         r.defPath = target.string();
                         r.defLine = r.defCol = 1;
@@ -1348,7 +1348,7 @@ std::vector<XmlSymbolRef> xmlRefs(XmlDocKind kind, const std::string& path, cons
             if (as) ref(a.nameBeg, a.name.size(), attrHover(*as));
             if (!a.hasValue || a.value.empty()) continue;
             if (a.name == "Name" && t.name != "Window" && !cls.empty()) {
-                ref(a.valBeg, a.value.size(), "(campo) " + std::string(isAudioComponent(t.name) ? t.name : "Widget") + " " + cls + "." + a.value);
+                ref(a.valBeg, a.value.size(), "(field) " + std::string(isAudioComponent(t.name) ? t.name : "Widget") + " " + cls + "." + a.value);
             } else if (as && as->handler && code) {
                 for (const XmlUiCodeInfo::Method& m : code->methods)
                     if (m.name == a.value) {
@@ -1393,15 +1393,15 @@ bool xmlUiControlPos(const std::string& text, const std::string& name, int& line
 }
 
 void xmlRefineUiDiagnostic(const std::string& text, const std::string& message, int& line, int& col) {
-    // "XML no válido: línea N: ..."
-    size_t p = message.find("línea ");
-    if (message.rfind("XML no válido", 0) == 0 && p != std::string::npos) {
-        line = std::max(1, std::atoi(message.c_str() + p + 7));
+    // "invalid XML: line N: ..."
+    size_t p = message.find("line ");
+    if (message.rfind("invalid XML", 0) == 0 && p != std::string::npos) {
+        line = std::max(1, std::atoi(message.c_str() + p + 5));
         col = 1;
     }
     XScan sc(text);
     size_t lineOff = offsetOfLine(text, line);
-    if (message.rfind("XML no válido", 0) == 0) {
+    if (message.rfind("invalid XML", 0) == 0) {
         // "... en <Butt>": la última etiqueta con ese nombre que empieza antes del final de la línea.
         size_t lt = message.find(" <");
         size_t gt = lt == std::string::npos ? std::string::npos : message.find('>', lt);

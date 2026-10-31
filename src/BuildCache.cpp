@@ -269,7 +269,7 @@ int compileWithCache(const std::vector<std::string>& cmd, const CompileCacheOpti
         j.object = (dir / name).string();
         j.cached = fs::exists(j.object, ec) && fs::file_size(j.object, ec) > 0;
         if (j.cached) fs::last_write_time(j.object, fs::file_time_type::clock::now(), ec);  // uso reciente
-        if (opts.verbose && j.cached) std::fprintf(stderr, "faset: en caché: %s\n", fs::path(j.source).filename().string().c_str());
+        if (opts.verbose && j.cached) std::fprintf(stderr, "faset: cached: %s\n", fs::path(j.source).filename().string().c_str());
         jobs.push_back(j);
     }
 

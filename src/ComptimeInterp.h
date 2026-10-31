@@ -103,13 +103,13 @@ inline std::string kindName(const CtValue& v) {
         case CtValue::Char: return "char";
         case CtValue::Str: return "string";
         case CtValue::List: return "List<" + (v.t ? v.t->str() : std::string("?")) + ">";
-        case CtValue::TypeV: return "tipo";
-        case CtValue::Member: return "miembro (campo o propiedad)";
-        case CtValue::Method: return "método";
-        case CtValue::Param: return "parámetro";
-        case CtValue::EnumItem: return "valor de enum";
-        case CtValue::Obj: return v.obj && v.obj->cls ? v.obj->cls->displayName : "objeto";
-        case CtValue::Group: return "grupo de métodos";
+        case CtValue::TypeV: return "type";
+        case CtValue::Member: return "member (field or property)";
+        case CtValue::Method: return "method";
+        case CtValue::Param: return "parameter";
+        case CtValue::EnumItem: return "enum value";
+        case CtValue::Obj: return v.obj && v.obj->cls ? v.obj->cls->displayName : "object";
+        case CtValue::Group: return "method group";
     }
     return "?";
 }
@@ -177,18 +177,18 @@ public:
     [[noreturn]] void fail(SourceLoc loc, const std::string& msg) { throw CtError{loc, msg, st.stack}; }
     void step(SourceLoc loc) {
         if (++st.steps > kCtMaxSteps)
-            fail(loc, "se superó el límite de " + std::to_string(kCtMaxSteps) +
-                          " pasos de evaluación en tiempo de compilación (¿bucle infinito?)");
+            fail(loc, "exceeded the limit of " + std::to_string(kCtMaxSteps) +
+                          " evaluation steps at compile time (infinite loop?)");
     }
     // Límite de memoria: el compilador no debe agotar la RAM con un bucle que crece sin fin.
     void grow(SourceLoc loc, long long n = 1) {
         if ((st.cells += n) > kCtMaxCells)
-            fail(loc, "se superó el límite de " + std::to_string(kCtMaxCells) +
-                          " elementos creados en una evaluación de tiempo de compilación (¿una lista que crece sin fin?)");
+            fail(loc, "exceeded the limit of " + std::to_string(kCtMaxCells) +
+                          " elements created in a compile-time evaluation (an endlessly growing list?)");
     }
     const std::string& checkLen(const std::string& s, SourceLoc loc) {
         if (s.size() > kCtMaxString)
-            fail(loc, "una cadena de tiempo de compilación superó el límite de " + std::to_string(kCtMaxString >> 20) + " MB");
+            fail(loc, "a compile-time string exceeded the limit of " + std::to_string(kCtMaxString >> 20) + " MB");
         return s;
     }
     Type* T(TK k) { return S.tc_.get(k); }
@@ -227,7 +227,7 @@ public:
         auto it = st.typeCache.find(tr);
         if (it != st.typeCache.end()) return it->second;
         Type* t = S.resolveType(tr, true);
-        if (t->isError()) fail(tr->loc, "no se encontró el tipo '" + tr->str() + "'");
+        if (t->isError()) fail(tr->loc, "type '" + tr->str() + "' not found");
         st.typeCache[tr] = t;
         return t;
     }
@@ -257,13 +257,13 @@ public:
     }
 
     bool truthy(const CtValue& v, SourceLoc loc) {
-        if (v.k != CtValue::Bool) fail(loc, "se esperaba un valor 'bool' y se obtuvo " + kindName(v));
+        if (v.k != CtValue::Bool) fail(loc, "expected a 'bool' value but got " + kindName(v));
         return v.i != 0;
     }
     int64_t asInt(const CtValue& v, SourceLoc loc) {
         if (v.k == CtValue::Int || v.k == CtValue::Char) return v.i;
         if (v.k == CtValue::Float) return (int64_t)v.f;
-        fail(loc, "se esperaba un número entero y se obtuvo " + kindName(v));
+        fail(loc, "expected an integer but got " + kindName(v));
     }
     double asNum(const CtValue& v, SourceLoc loc) {
         if (v.k == CtValue::Float) return v.f;
@@ -271,10 +271,10 @@ public:
             if (v.t && (v.t->is(TK::ULong))) return (double)(uint64_t)v.i;
             return (double)v.i;
         }
-        fail(loc, "se esperaba un número y se obtuvo " + kindName(v));
+        fail(loc, "expected a number but got " + kindName(v));
     }
     const std::string& asStr(const CtValue& v, SourceLoc loc) {
-        if (v.k != CtValue::Str) fail(loc, "se esperaba un 'string' y se obtuvo " + kindName(v));
+        if (v.k != CtValue::Str) fail(loc, "expected a 'string' but got " + kindName(v));
         return v.s;
     }
 
@@ -334,7 +334,7 @@ public:
                 r.t = r.t ? r.t : t->decl->typeArgs[0];
             return r;
         }
-        fail(loc, "no se puede convertir " + kindName(v) + " en '" + t->str() + "' en tiempo de compilación");
+        fail(loc, "cannot convert " + kindName(v) + " to '" + t->str() + "' at compile time");
     }
 
     // ---------------------------------------------------------------- nombres y tipos
@@ -405,11 +405,11 @@ public:
         if (!c) return false;
         if (c->arityTwin && c->isTemplate() == typeArgs.empty()) c = c->arityTwin;
         if (c->isTemplate()) {
-            if (typeArgs.empty()) fail(loc, "el tipo genérico '" + c->name + "' requiere argumentos de tipo");
+            if (typeArgs.empty()) fail(loc, "generic type '" + c->name + "' requires type arguments");
             std::vector<Type*> args;
             for (TypeRef* a : typeArgs) args.push_back(resolve(a));
             c = S.instantiate(c, args, loc);
-            if (!c) fail(loc, "no se pudo instanciar '" + s.decl->name + "'");
+            if (!c) fail(loc, "could not instantiate '" + s.decl->name + "'");
         }
         S.resolveClassSignatures(c);
         t = c->isStaticClass() ? nullptr : c->type;
@@ -423,7 +423,7 @@ public:
             auto b = st.binds.find(v);
             if (b != st.binds.end()) return b->second;
             if (v->isConst && v->constInit) return eval(v->constInit);
-            fail(n->loc, "el valor de la variable '" + name + "' no se conoce en tiempo de compilación");
+            fail(n->loc, "the value of variable '" + name + "' is not known at compile time");
         }
         if (name == "Tipo" && n->typeArgs.size() == 1 && !isUserTipo("Tipo")) return CtValue::type(resolve(n->typeArgs[0]));
         ClassDecl* cls = S.ctx_.cls;
@@ -435,7 +435,7 @@ public:
         if (cls && !cls->isNamespaceScope) {
             if (FieldDecl* f = S.findField(cls, name)) return staticField(f, n->loc);
             if (MethodDecl* g = S.findGetter(cls, name)) {
-                if (!g->isStatic()) fail(n->loc, "la propiedad de instancia '" + name + "' no tiene objeto en tiempo de compilación");
+                if (!g->isStatic()) fail(n->loc, "instance property '" + name + "' has no object at compile time");
                 return callMethod(g, {}, nullptr, n->loc);
             }
             std::vector<MethodDecl*> grp = S.findMethods(cls, name);
@@ -466,7 +466,7 @@ public:
             ClassDecl* c;
             if (symType(s, n->typeArgs, n->loc, t, c) && t) return CtValue::type(t);
         }
-        fail(n->loc, "el nombre '" + name + "' no existe o no se puede usar en tiempo de compilación");
+        fail(n->loc, "the name '" + name + "' does not exist or cannot be used at compile time");
     }
 
     // Campo estático: 'const' o 'static readonly' con inicializador (su valor no cambia).
@@ -476,11 +476,11 @@ public:
                 auto it = env->self->fields.find(f->name);
                 if (it != env->self->fields.end()) return it->second;
             }
-            fail(loc, "el campo de instancia '" + f->name + "' no tiene objeto en tiempo de compilación");
+            fail(loc, "instance field '" + f->name + "' has no object at compile time");
         }
         if (!(f->mods.isConst || f->mods.isReadonly) || !f->init)
-            fail(loc, "el campo estático '" + f->name + "' puede cambiar al ejecutar: solo se pueden leer 'const' y "
-                      "'static readonly' con valor inicial en tiempo de compilación");
+            fail(loc, "static field '" + f->name + "' can change at runtime: at compile time only 'const' and "
+                      "'static readonly' with an initial value can be read");
         Sema::CtxSave save(S);
         S.enter(f->owner, nullptr);
         if (f->file) S.ctx_.file = f->file;
@@ -528,7 +528,7 @@ public:
                 return defaultOf(resolve(d->tref), e->loc);
             }
             case EK::This:
-                if (!env->self) fail(e->loc, "'this' no existe aquí en tiempo de compilación");
+                if (!env->self) fail(e->loc, "'this' does not exist here at compile time");
                 {
                     CtValue r;
                     r.k = CtValue::Obj;
@@ -574,7 +574,7 @@ public:
                 Expr* o = n->operand;
                 if (o->kind == EK::Name) return CtValue::str(static_cast<NameExpr*>(o)->name);
                 if (o->kind == EK::Member) return CtValue::str(static_cast<MemberExpr*>(o)->name);
-                fail(e->loc, "'nameof' requiere un nombre");
+                fail(e->loc, "'nameof' requires a name");
             }
             case EK::Comptime: return eval(static_cast<ComptimeExpr*>(e)->operand);
             case EK::ParamsList: {
@@ -592,7 +592,7 @@ public:
                 layoutOf(st, e->loc, size, align);
                 layoutOf(st, e->loc, size4, align4, 4);
                 if (size != size4)
-                    fail(e->loc, "sizeof(" + st->str() + ") depende de la plataforma de destino (x86 de 32 bits alinea long y double a 4 bytes)");
+                    fail(e->loc, "sizeof(" + st->str() + ") depends on the target platform (32-bit x86 aligns long and double to 4 bytes)");
                 return mkInt(size, T(TK::Int));
             }
             case EK::As: {
@@ -605,8 +605,8 @@ public:
                 return CtValue::boolean(matches(ip->pat, eval(ip->subject)));
             }
             case EK::Lambda: case EK::DelegateConv:
-                fail(e->loc, "las lambdas y los delegados no se pueden usar en tiempo de compilación");
-            case EK::Await: fail(e->loc, "'await' no se puede usar en tiempo de compilación");
+                fail(e->loc, "lambdas and delegates cannot be used at compile time");
+            case EK::Await: fail(e->loc, "'await' cannot be used at compile time");
             case EK::Let: {  // (temporales; a; b; resultado): la forma reescrita de [..], a..b, s[^1]...
                 auto* l = static_cast<LetExpr*>(e);
                 env->scopes.emplace_back();
@@ -622,7 +622,7 @@ public:
             case EK::NewArray: arrayUnsupported(e->loc);
             default: break;
         }
-        fail(e->loc, "esta expresión no se puede evaluar en tiempo de compilación");
+        fail(e->loc, "this expression cannot be evaluated at compile time");
     }
 
     Type* typeOfValue(const CtValue& v) {
@@ -686,7 +686,7 @@ public:
             store(u->operand, nv);
             return nv;
         }
-        if (u->op == "*" || u->op == "&") fail(u->loc, "los punteros no existen en tiempo de compilación");
+        if (u->op == "*" || u->op == "&") fail(u->loc, "pointers do not exist at compile time");
         CtValue v = eval(u->operand);
         if (u->op == "!") return CtValue::boolean(!truthy(v, u->loc));
         if (u->op == "-") {
@@ -701,7 +701,7 @@ public:
             Type* t = ctRank(v.t) < 4 || v.k == CtValue::Char ? T(TK::Int) : v.t;
             return mkInt(~asInt(v, u->loc), t);
         }
-        fail(u->loc, "operador '" + u->op + "' no admitido en tiempo de compilación");
+        fail(u->loc, "operator '" + u->op + "' not supported at compile time");
     }
 
     bool equal(const CtValue& a, const CtValue& b) {
@@ -741,8 +741,8 @@ public:
         bool numL = L.k == CtValue::Int || L.k == CtValue::Char || L.k == CtValue::Float;
         bool numR = R.k == CtValue::Int || R.k == CtValue::Char || R.k == CtValue::Float;
         if (!numL || !numR)
-            fail(loc, "el operador '" + op + "' no se puede aplicar a " + kindName(L) + " y " + kindName(R) +
-                          " en tiempo de compilación");
+            fail(loc, "operator '" + op + "' cannot be applied to " + kindName(L) + " and " + kindName(R) +
+                          " at compile time");
         bool cmp = op == "<" || op == ">" || op == "<=" || op == ">=";
         if (L.k == CtValue::Float || R.k == CtValue::Float) {
             double x = asNum(L, loc), y = asNum(R, loc);
@@ -753,7 +753,7 @@ public:
             if (op == "*") return mkFloat(x * y, t);
             if (op == "/") return mkFloat(x / y, t);
             if (op == "%") return mkFloat(std::fmod(x, y), t);
-            fail(loc, "el operador '" + op + "' no se puede aplicar a números con decimales");
+            fail(loc, "operator '" + op + "' cannot be applied to floating-point numbers");
         }
         Type* lt = L.k == CtValue::Char ? T(TK::Char) : L.t;
         Type* rt = R.k == CtValue::Char ? T(TK::Char) : R.t;
@@ -783,7 +783,7 @@ public:
         else if (op == "-") r = (int64_t)(ux - uy);
         else if (op == "*") r = (int64_t)(ux * uy);
         else if (op == "/" || op == "%") {
-            if (y == 0) fail(loc, "división por cero en tiempo de compilación");
+            if (y == 0) fail(loc, "division by zero at compile time");
             if (uns) r = (int64_t)(op == "/" ? ux / uy : ux % uy);
             else if (x == INT64_MIN && y == -1) r = op == "/" ? x : 0;
             else r = op == "/" ? x / y : x % y;
@@ -792,7 +792,7 @@ public:
         else if (op == "&") r = x & y;
         else if (op == "|") r = x | y;
         else if (op == "^") r = x ^ y;
-        else fail(loc, "operador '" + op + "' no admitido en tiempo de compilación");
+        else fail(loc, "operator '" + op + "' not supported at compile time");
         return mkInt(r, t);
     }
 
@@ -847,8 +847,8 @@ public:
                     }
                 }
             }
-            if (S.lookupLocal(n->name)) fail(lhs->loc, "no se puede modificar '" + n->name + "' en tiempo de compilación");
-            fail(lhs->loc, "solo se pueden modificar variables locales, campos de objetos y elementos de listas en tiempo de compilación");
+            if (S.lookupLocal(n->name)) fail(lhs->loc, "cannot modify '" + n->name + "' at compile time");
+            fail(lhs->loc, "at compile time only local variables, object fields and list elements can be modified");
         }
         if (lhs->kind == EK::Member) {
             auto* m = static_cast<MemberExpr*>(lhs);
@@ -867,7 +867,7 @@ public:
                     }
                 }
             }
-            fail(lhs->loc, "no se puede asignar '" + m->name + "' en tiempo de compilación");
+            fail(lhs->loc, "cannot assign '" + m->name + "' at compile time");
         }
         if (lhs->kind == EK::Index) {
             auto* ix = static_cast<IndexExpr*>(lhs);
@@ -877,15 +877,15 @@ public:
             *slot = o.t ? convert(v, o.t, lhs->loc) : v;
             return;
         }
-        fail(lhs->loc, "no se puede asignar a esta expresión en tiempo de compilación");
+        fail(lhs->loc, "cannot assign to this expression at compile time");
     }
 
     CtValue scratch_;
     // ^n, a..b y [a, ..xs] tal como los escribió el parser (sin el tipo de destino ya resuelto).
     CtValue mkStdIndex(int64_t n, bool fromEnd, SourceLoc loc) {
         Type* it = S.stdType("Index");
-        if (!it || !it->decl) fail(loc, "'^' necesita std.Index");
-        if (n < 0) fail(loc, "Index: el valor no puede ser negativo (" + std::to_string(n) + ")");
+        if (!it || !it->decl) fail(loc, "'^' needs std.Index");
+        if (n < 0) fail(loc, "Index: value cannot be negative (" + std::to_string(n) + ")");
         CtValue r;
         r.k = CtValue::Obj;
         r.obj = std::make_shared<CtObj>();
@@ -899,7 +899,7 @@ public:
         if (e->kind == EK::Range) {
             auto* r = static_cast<RangeExpr*>(e);
             Type* rt = S.stdType("Range");
-            if (!rt || !rt->decl) fail(e->loc, "'..' necesita std.Range");
+            if (!rt || !rt->decl) fail(e->loc, "'..' needs std.Range");
             auto end = [&](Expr* x, bool isEnd) {
                 if (!x) return mkStdIndex(0, isEnd, e->loc);  // ..b es 0..b; a.. es a..^0
                 CtValue v = eval(x);
@@ -917,10 +917,10 @@ public:
         auto* c = static_cast<CollectionExpr*>(e);
         CtValue l = mkList(nullptr);
         for (auto& el : c->elems) {
-            if (el.key) fail(el.loc, "los diccionarios no se pueden crear en tiempo de compilación");
+            if (el.key) fail(el.loc, "dictionaries cannot be created at compile time");
             CtValue v = eval(el.value);
             if (el.spread) {
-                if (v.k != CtValue::List) fail(el.loc, "'..' en tiempo de compilación solo puede expandir una lista");
+                if (v.k != CtValue::List) fail(el.loc, "'..' at compile time can only expand a list");
                 grow(el.loc, (long long)v.list->size());
                 for (const CtValue& x : *v.list) l.list->push_back(copyStruct(x));
             } else {
@@ -939,7 +939,7 @@ public:
     }
 
     [[noreturn]] void arrayUnsupported(SourceLoc loc) {
-        fail(loc, "los arreglos T[] no se pueden usar en tiempo de compilación; usa List<T> (también con [1, 2, ..otra])");
+        fail(loc, "arrays T[] cannot be used at compile time; use List<T> (also with [1, 2, ..other])");
     }
 
     // Un std.Index (^n o n) dentro de una secuencia de 'len' elementos.
@@ -963,7 +963,7 @@ public:
         int64_t a, b;
         if (!stdIndex(idx.obj->fields["start"], len, a, loc) || !stdIndex(idx.obj->fields["end"], len, b, loc)) return false;
         if (a < 0 || b > len || a > b)
-            fail(loc, "el rango " + std::to_string(a) + ".." + std::to_string(b) + " se sale de los límites (longitud " +
+            fail(loc, "range " + std::to_string(a) + ".." + std::to_string(b) + " is out of bounds (length " +
                           std::to_string(len) + ")");
         if (o.k == CtValue::Str) {
             out = CtValue::str(o.s.substr((size_t)a, (size_t)(b - a)));
@@ -983,17 +983,17 @@ public:
         if (o.k == CtValue::List) {
             int64_t i = asInt(idx, loc);
             if (i < 0 || i >= (int64_t)o.list->size())
-                fail(loc, "índice fuera de rango: " + std::to_string(i) + " (la lista tiene " + std::to_string(o.list->size()) + " elementos)");
+                fail(loc, "index out of range: " + std::to_string(i) + " (the list has " + std::to_string(o.list->size()) + " elements)");
             return &(*o.list)[(size_t)i];
         }
         if (o.k == CtValue::Str && !write) {
             int64_t i = asInt(idx, loc);
             if (i < 0 || i >= (int64_t)o.s.size())
-                fail(loc, "índice fuera de rango: " + std::to_string(i) + " (la cadena tiene " + std::to_string(o.s.size()) + " bytes)");
+                fail(loc, "index out of range: " + std::to_string(i) + " (the string has " + std::to_string(o.s.size()) + " bytes)");
             scratch_ = mkInt((unsigned char)o.s[(size_t)i], T(TK::Byte));
             return &scratch_;
         }
-        fail(loc, "no se puede indexar " + kindName(o) + " en tiempo de compilación");
+        fail(loc, "cannot index " + kindName(o) + " at compile time");
     }
 
     CtValue evalSwitchExpr(SwitchExpr* s) {
@@ -1009,7 +1009,7 @@ public:
             }
             env->scopes.pop_back();
         }
-        fail(s->loc, "ningún brazo del 'switch' coincide con " + toStr(v));
+        fail(s->loc, "no 'switch' arm matches " + toStr(v));
     }
 
     bool matches(Pattern* p, const CtValue& v) {
@@ -1043,7 +1043,7 @@ public:
                 if (!p->name.empty() && p->name != "_") env->scopes.back()[p->name] = v;
                 return true;
             }
-            default: fail(p->loc, "este patrón no se puede evaluar en tiempo de compilación");
+            default: fail(p->loc, "this pattern cannot be evaluated at compile time");
         }
     }
 
@@ -1066,7 +1066,7 @@ public:
     // 'align8': alineación de long y double dentro de un struct (8 en casi todas las plataformas, 4
     // en x86 de 32 bits); si el tamaño depende de ella, sizeof no se puede evaluar al compilar.
     void layoutOf(Type* t, SourceLoc loc, int64_t& size, int64_t& align, int align8 = 8, int depth = 0) {
-        if (depth > 32) fail(loc, "sizeof: tipo anidado demasiado profundo");
+        if (depth > 32) fail(loc, "sizeof: nested type too deep");
         switch (t->kind) {
             case TK::Bool: case TK::SByte: case TK::Byte: size = align = 1; return;
             case TK::Short: case TK::UShort: size = align = 2; return;
@@ -1092,7 +1092,7 @@ public:
             }
             default: break;
         }
-        fail(loc, "sizeof(" + t->str() + ") depende de la plataforma de destino: no se puede evaluar en tiempo de compilación");
+        fail(loc, "sizeof(" + t->str() + ") depends on the target platform: cannot be evaluated at compile time");
     }
 
     CtValue evalIs(IsExpr* e) {
@@ -1142,7 +1142,7 @@ public:
     CtValue construct(ClassDecl* c, std::vector<CtValue> args, SourceLoc loc) {
         S.resolveClassSignatures(c);
         if (c->kind == ClassKind::Interface || c->mods.isAbstract)
-            fail(loc, "no se puede crear una instancia de '" + c->displayName + "'");
+            fail(loc, "cannot create an instance of '" + c->displayName + "'");
         CtValue r;
         r.k = CtValue::Obj;
         grow(loc);
@@ -1150,10 +1150,10 @@ public:
         r.obj->cls = c;
         initFields(r.obj, loc);
         if (c->ctors.empty()) {
-            if (!args.empty()) fail(loc, "'" + c->displayName + "' no tiene un constructor con " + std::to_string(args.size()) + " argumento(s)");
+            if (!args.empty()) fail(loc, "'" + c->displayName + "' has no constructor with " + std::to_string(args.size()) + " argument(s)");
             return r;
         }
-        MethodDecl* ctor = pick(c->ctors, args, loc, "el constructor de '" + c->displayName + "'");
+        MethodDecl* ctor = pick(c->ctors, args, loc, "the constructor of '" + c->displayName + "'");
         runCtor(ctor, args, r.obj, loc);
         return r;
     }
@@ -1178,7 +1178,7 @@ public:
             }
             env = saved;
             ClassDecl* target = ctor->ctorInit == 1 ? ctor->owner->base : ctor->owner;
-            if (target && !target->ctors.empty()) runCtor(pick(target->ctors, ia, ctor->ctorInitLoc, "el constructor"), ia, self, ctor->ctorInitLoc);
+            if (target && !target->ctors.empty()) runCtor(pick(target->ctors, ia, ctor->ctorInitLoc, "the constructor"), ia, self, ctor->ctorInitLoc);
         }
         callMethod(ctor, std::move(args), self, loc);
     }
@@ -1204,11 +1204,11 @@ public:
                 return r;
             }
             if (c->ns.rfind("std", 0) == 0 && c->ns != "std" && !S.derivesFrom(c, attributeBase()))
-                fail(n->loc, "'" + c->displayName + "' de la biblioteca estándar no se puede usar en tiempo de compilación");
+                fail(n->loc, "'" + c->displayName + "' from the standard library cannot be used at compile time");
             return construct(c, std::move(args), n->loc);
         }
         if (args.empty()) return defaultOf(t, n->loc);
-        fail(n->loc, "no se puede crear '" + t->str() + "' en tiempo de compilación");
+        fail(n->loc, "cannot create '" + t->str() + "' at compile time");
     }
 
     ClassDecl* attributeBase() {
@@ -1243,7 +1243,7 @@ public:
         if (!best || bestCost >= 1000) {
             std::string a;
             for (size_t i = 0; i < args.size(); i++) a += (i ? ", " : "") + kindName(args[i]);
-            fail(loc, (what.rfind("el ", 0) == 0 ? "ninguna sobrecarga d" + what : "ninguna sobrecarga de " + what) + " acepta (" + a + ") en tiempo de compilación");
+            fail(loc, "no overload of " + what + " accepts (" + a + ") at compile time");
         }
         if (best->params.size() && best->params.back().isParams && !(args.size() == best->params.size() && args.back().k == CtValue::List)) {
             size_t n = best->params.size();
@@ -1281,16 +1281,16 @@ public:
     }
 
     CtValue callMethod(MethodDecl* m, std::vector<CtValue> args, std::shared_ptr<CtObj> self, SourceLoc loc) {
-        if (m->isTemplate()) fail(loc, "las funciones genéricas no se pueden llamar en tiempo de compilación ('" + m->name + "')");
+        if (m->isTemplate()) fail(loc, "generic functions cannot be called at compile time ('" + m->name + "')");
         if (!m->body)
-            fail(loc, "'" + methodLabel(m) + "' no tiene cuerpo (es nativa, abstracta o externa): no se puede ejecutar en tiempo de compilación");
-        if (m->mods.isAsync) fail(loc, "los métodos 'async' no se pueden ejecutar en tiempo de compilación");
+            fail(loc, "'" + methodLabel(m) + "' has no body (it is native, abstract or external): cannot be executed at compile time");
+        if (m->mods.isAsync) fail(loc, "'async' methods cannot be executed at compile time");
         if ((int)st.stack.size() >= kCtMaxDepth)
-            fail(loc, "recursión demasiado profunda en tiempo de compilación (límite: " + std::to_string(kCtMaxDepth) + " llamadas anidadas)");
+            fail(loc, "recursion too deep at compile time (limit: " + std::to_string(kCtMaxDepth) + " nested calls)");
         S.resolveMethodSignature(m);
         if (!self && !m->isStatic() && m->kind != MethodKind::Ctor) {
             if (env->self && S.derivesFrom(env->self->cls, m->owner)) self = env->self;
-            else fail(loc, "el método de instancia '" + m->name + "' necesita un objeto en tiempo de compilación");
+            else fail(loc, "instance method '" + m->name + "' needs an object at compile time");
         }
         if (self && m->isVirtualish() && self->cls != m->owner) {  // despacho virtual
             for (ClassDecl* k : S.lookupChain(self->cls)) {
@@ -1313,7 +1313,7 @@ public:
         e2.self = self;
         e2.scopes.emplace_back();
         for (size_t i = 0; i < m->params.size(); i++) {
-            if (m->params[i].isRef()) fail(loc, "los parámetros 'ref'/'out' no se admiten en tiempo de compilación");
+            if (m->params[i].isRef()) fail(loc, "'ref'/'out' parameters are not supported at compile time");
             e2.scopes.back()[m->params[i].name] = i < args.size() ? convert(args[i], m->params[i].type, loc) : CtValue();
         }
         Env* saved = env;
@@ -1348,7 +1348,7 @@ public:
         Expr* callee = c->callee;
         if (callee->kind == EK::Name) {
             auto* n = static_cast<NameExpr*>(callee);
-            if (CtValue* v = findLocal(n->name)) fail(c->loc, "'" + n->name + "' no se puede invocar (" + kindName(*v) + ")");
+            if (CtValue* v = findLocal(n->name)) fail(c->loc, "'" + n->name + "' cannot be called (" + kindName(*v) + ")");
             std::vector<CtValue> args = evalArgs(c, 0);
             if (env->self) {
                 std::vector<MethodDecl*> grp = S.findMethods(env->self->cls, n->name);
@@ -1358,12 +1358,12 @@ public:
                 }
             }
             CtValue g = evalName(n);
-            if (g.k != CtValue::Group) fail(c->loc, "'" + n->name + "' no es una función");
+            if (g.k != CtValue::Group) fail(c->loc, "'" + n->name + "' is not a function");
             MethodDecl* m = pick(g.group, args, c->loc, "'" + n->name + "'");
             if (CtValue r; builtinStatic(m->owner, n->name, args, c->loc, r)) return r;
             return callMethod(m, args, nullptr, c->loc);
         }
-        if (callee->kind != EK::Member) fail(c->loc, "esta llamada no se puede evaluar en tiempo de compilación");
+        if (callee->kind != EK::Member) fail(c->loc, "this call cannot be evaluated at compile time");
         auto* me = static_cast<MemberExpr*>(callee);
         // Llamada estática: Tipo.Metodo(...)
         Type* tt;
@@ -1373,9 +1373,9 @@ public:
             ClassDecl* cls = tc ? tc : (tt && tt->decl ? tt->decl : nullptr);
             CtValue r;
             if (builtinStatic(cls, me->name, args, c->loc, r, tt)) return r;
-            if (!cls) fail(c->loc, "'" + (tt ? tt->str() : std::string("?")) + "." + me->name + "' no se puede evaluar en tiempo de compilación");
+            if (!cls) fail(c->loc, "'" + (tt ? tt->str() : std::string("?")) + "." + me->name + "' cannot be evaluated at compile time");
             std::vector<MethodDecl*> grp = S.findMethods(cls, me->name);
-            if (grp.empty()) fail(c->loc, "'" + cls->displayName + "' no tiene un método '" + me->name + "'");
+            if (grp.empty()) fail(c->loc, "'" + cls->displayName + "' has no method '" + me->name + "'");
             MethodDecl* m = pick(grp, args, c->loc, "'" + cls->displayName + "." + me->name + "'");
             return callMethod(m, args, nullptr, c->loc);
         }
@@ -1494,9 +1494,9 @@ public:
     }
 
     ClassDecl* attrFilter(MemberExpr* me, SourceLoc loc) {
-        if (me->typeArgs.size() != 1) fail(loc, "'" + me->name + "' necesita el tipo del atributo: " + me->name + "<MiAtributo>()");
+        if (me->typeArgs.size() != 1) fail(loc, "'" + me->name + "' needs the attribute type: " + me->name + "<MyAttribute>()");
         Type* t = resolve(me->typeArgs[0]);
-        if (!t->decl) fail(loc, "'" + t->str() + "' no es una clase de atributo");
+        if (!t->decl) fail(loc, "'" + t->str() + "' is not an attribute class");
         return t->decl;
     }
 
@@ -1649,7 +1649,7 @@ public:
                 break;
             case CtValue::TypeV:
                 if (typeQuery(v.t, name, loc, r)) return r;
-                fail(loc, "los tipos no tienen '" + name + "' en tiempo de compilación (consultas: Nombre, Campos, "
+                fail(loc, "types do not have '" + name + "' at compile time (queries: Nombre, Campos, "
                           "Propiedades, Miembros, Metodos, Atributos, EsClase, EsStruct, EsEnum, EsLista, EsDiccionario, "
                           "EsNullable, Elemento, Clave, Valor, Base...)");
             case CtValue::Member:
@@ -1721,7 +1721,7 @@ public:
                 break;
             default: break;
         }
-        fail(loc, kindName(v) + " no tiene un miembro '" + name + "' en tiempo de compilación");
+        fail(loc, kindName(v) + " has no member '" + name + "' at compile time");
     }
 
     CtValue evalMember(MemberExpr* m) {
@@ -1745,7 +1745,7 @@ public:
             }
         }
         CtValue o = eval(m->obj);
-        if (o.k == CtValue::Null) fail(m->loc, "acceso a '" + m->name + "' sobre null en tiempo de compilación");
+        if (o.k == CtValue::Null) fail(m->loc, "access to '" + m->name + "' on null at compile time");
         if (m->name == "Value" && o.k != CtValue::Obj) return o;   // Nullable<T>.Value
         if (m->name == "HasValue") return CtValue::boolean(o.k != CtValue::Null);
         return memberOf(o, m->name, m->loc);
@@ -1782,11 +1782,11 @@ public:
             if (c->kind == ClassKind::Enum) {
                 for (EnumMember& m : c->enumMembers)
                     if (m.name == name) return mkInt(m.val, c->type);
-                fail(loc, "el enum '" + c->displayName + "' no tiene el valor '" + name + "'");
+                fail(loc, "enum '" + c->displayName + "' has no value '" + name + "'");
             }
             if (FieldDecl* f = S.findField(c, name)) return staticField(f, loc);
             if (MethodDecl* g = S.findGetter(c, name)) {
-                if (!g->isStatic()) fail(loc, "la propiedad '" + name + "' no es estática");
+                if (!g->isStatic()) fail(loc, "property '" + name + "' is not static");
                 return callMethod(g, {}, nullptr, loc);
             }
         }
@@ -1794,7 +1794,7 @@ public:
             CtValue r;
             if (typeQuery(t, name, loc, r)) return r;
         }
-        fail(loc, "'" + (c ? c->displayName : t ? t->str() : std::string("?")) + "." + name + "' no se puede evaluar en tiempo de compilación");
+        fail(loc, "'" + (c ? c->displayName : t ? t->str() : std::string("?")) + "." + name + "' cannot be evaluated at compile time");
     }
 
     // ---------------------------------------------------------------- funciones integradas
@@ -1809,14 +1809,14 @@ public:
                 if (prim->isIntegral()) {
                     char* end = nullptr;
                     long long v = std::strtoll(s.c_str(), &end, 10);
-                    if (s.empty() || *end) fail(loc, prim->str() + ".Parse: '" + s + "' no es un número entero");
+                    if (s.empty() || *end) fail(loc, prim->str() + ".Parse: '" + s + "' is not an integer");
                     r = mkInt(v, prim);
                     return true;
                 }
                 if (prim->isFloating()) {
                     char* end = nullptr;
                     double v = std::strtod(s.c_str(), &end);
-                    if (s.empty() || *end) fail(loc, prim->str() + ".Parse: '" + s + "' no es un número");
+                    if (s.empty() || *end) fail(loc, prim->str() + ".Parse: '" + s + "' is not a number");
                     r = mkFloat(v, prim);
                     return true;
                 }
@@ -1899,7 +1899,7 @@ public:
                 std::string s = asStr(a[0], loc);
                 size_t w = (size_t)asInt(a[1], loc), len = codepoints(s).size();
                 std::string pad;
-                if (w > kCtMaxString) fail(loc, name + ": ancho demasiado grande en tiempo de compilación");
+                if (w > kCtMaxString) fail(loc, name + ": width too large at compile time");
                 for (size_t i = len; i < w; i++) pad += utf8((uint32_t)a[2].i);
                 return r = CtValue::str(name == "PadLeft" ? pad + s : s + pad), true;
             }
@@ -1965,18 +1965,18 @@ public:
         const std::string& name = me->name;
         SourceLoc loc = c->loc;
         auto argc = [&](size_t n) {
-            if (a.size() != n) fail(loc, "'" + name + "' espera " + std::to_string(n) + " argumento(s)");
+            if (a.size() != n) fail(loc, "'" + name + "' expects " + std::to_string(n) + " argument(s)");
         };
         if (name == "ToString" && a.empty() && recv.k != CtValue::Obj) return CtValue::str(toStr(recv));
         if (name == "Equals" && a.size() == 1 && recv.k != CtValue::Obj) return CtValue::boolean(equal(recv, a[0]));
-        if (name == "GetHashCode" && recv.k != CtValue::Obj) fail(loc, "GetHashCode no está disponible en tiempo de compilación");
-        if (recv.k == CtValue::Null) fail(loc, "llamada a '" + name + "' sobre null en tiempo de compilación");
+        if (name == "GetHashCode" && recv.k != CtValue::Obj) fail(loc, "GetHashCode is not available at compile time");
+        if (recv.k == CtValue::Null) fail(loc, "call to '" + name + "' on null at compile time");
         if (recv.k == CtValue::Str) {
             const std::string& s = recv.s;
             if (name == "Substring") {
                 int64_t st0 = asInt(a.at(0), loc);
                 int64_t n = a.size() > 1 ? asInt(a[1], loc) : (int64_t)s.size() - st0;
-                if (st0 < 0 || n < 0 || st0 + n > (int64_t)s.size()) fail(loc, "Substring fuera de rango");
+                if (st0 < 0 || n < 0 || st0 + n > (int64_t)s.size()) fail(loc, "Substring out of range");
                 return CtValue::str(s.substr((size_t)st0, (size_t)n));
             }
             if (name == "ToUpper" || name == "ToLower") {
@@ -2040,7 +2040,7 @@ public:
             if (name == "Add") return argc(1), grow(loc), l.push_back(recv.t ? convert(a[0], recv.t, loc) : copyStruct(a[0])), CtValue();
             if (name == "AddRange") {
                 argc(1);
-                if (a[0].k != CtValue::List) fail(loc, "AddRange espera una lista");
+                if (a[0].k != CtValue::List) fail(loc, "AddRange expects a list");
                 std::vector<CtValue> items = *a[0].list;
                 grow(loc, (long long)items.size());
                 for (CtValue& v : items) l.push_back(v);
@@ -2050,7 +2050,7 @@ public:
             if (name == "Insert") {
                 argc(2);
                 int64_t i = asInt(a[0], loc);
-                if (i < 0 || i > (int64_t)l.size()) fail(loc, "Insert fuera de rango");
+                if (i < 0 || i > (int64_t)l.size()) fail(loc, "Insert out of range");
                 grow(loc);
                 l.insert(l.begin() + i, a[1]);
                 return CtValue();
@@ -2058,7 +2058,7 @@ public:
             if (name == "RemoveAt") {
                 argc(1);
                 int64_t i = asInt(a[0], loc);
-                if (i < 0 || i >= (int64_t)l.size()) fail(loc, "RemoveAt fuera de rango");
+                if (i < 0 || i >= (int64_t)l.size()) fail(loc, "RemoveAt out of range");
                 l.erase(l.begin() + i);
                 return CtValue();
             }
@@ -2092,7 +2092,7 @@ public:
             if (name == "Sum" || name == "Min" || name == "Max") {
                 if (l.empty()) {
                     if (name == "Sum") return recv.t ? defaultOf(recv.t, loc) : mkInt(0, T(TK::Int));
-                    fail(loc, name + " sobre una lista vacía");
+                    fail(loc, name + " on an empty list");
                 }
                 CtValue acc = l[0];
                 for (size_t i = 1; i < l.size(); i++) {
@@ -2141,7 +2141,7 @@ public:
             // al casar los parámetros de un constructor con las propiedades) o null.
             if (recv.k == CtValue::Method && name == "Parametro") {
                 argc(1);
-                if (a[0].k != CtValue::Str) fail(loc, "Parametro espera el nombre del parámetro (string)");
+                if (a[0].k != CtValue::Str) fail(loc, "Parametro expects the parameter name (string)");
                 auto lower = [](std::string x) {
                     for (char& ch : x) ch = (char)std::tolower((unsigned char)ch);
                     return x;
@@ -2196,7 +2196,7 @@ public:
                 return callMethod(m, all, nullptr, loc);
             }
         }
-        fail(loc, kindName(recv) + " no tiene un método '" + name + "' utilizable en tiempo de compilación");
+        fail(loc, kindName(recv) + " has no method '" + name + "' usable at compile time");
     }
 
     // ---------------------------------------------------------------- sentencias
@@ -2220,7 +2220,7 @@ public:
             case SK::VarDecl: {
                 auto* d = static_cast<VarDeclStmt*>(s);
                 Type* t = d->tref->isVar() ? nullptr : resolve(d->tref);
-                if (d->tref->isRef) fail(s->loc, "las referencias (T&) no se admiten en tiempo de compilación");
+                if (d->tref->isRef) fail(s->loc, "references (T&) are not supported at compile time");
                 for (auto& dc : d->decls) {
                     CtValue v = dc.init ? eval(dc.init) : defaultOf(t, dc.loc);
                     env->scopes.back()[dc.name] = t ? convert(v, t, dc.loc) : copyStruct(v);
@@ -2238,9 +2238,9 @@ public:
                 if (x->kind == EK::Call && static_cast<CallExpr*>(x)->callee->kind == EK::Name &&
                     static_cast<NameExpr*>(static_cast<CallExpr*>(x)->callee)->name == "static_assert") {
                     auto* c = static_cast<CallExpr*>(x);  // en una función que se está evaluando al compilar
-                    if (c->args.empty() || c->args.size() > 2) fail(c->loc, "uso: static_assert(condición, \"mensaje\");");
+                    if (c->args.empty() || c->args.size() > 2) fail(c->loc, "usage: static_assert(condition, \"message\");");
                     if (!truthy(eval(c->args[0]), c->args[0]->loc))
-                        fail(c->loc, "static_assert falló" + (c->args.size() == 2 ? ": " + toStr(eval(c->args[1])) : std::string()));
+                        fail(c->loc, "static_assert failed" + (c->args.size() == 2 ? ": " + toStr(eval(c->args[1])) : std::string()));
                     return FNormal;
                 }
                 eval(x);
@@ -2297,13 +2297,13 @@ public:
             }
             case SK::Foreach: {
                 auto* fe = static_cast<ForeachStmt*>(s);
-                if (fe->name.empty()) fail(s->loc, "'foreach' con deconstrucción no se admite en tiempo de compilación");
+                if (fe->name.empty()) fail(s->loc, "'foreach' with deconstruction is not supported at compile time");
                 CtValue coll = eval(fe->coll);
                 std::vector<CtValue> items;
                 if (coll.k == CtValue::List) items = *coll.list;
                 else if (coll.k == CtValue::Str)
                     for (uint32_t cp : codepoints(coll.s)) items.push_back(mkChar(cp));
-                else fail(fe->coll->loc, "'foreach' en tiempo de compilación solo recorre listas y cadenas (no " + kindName(coll) + ")");
+                else fail(fe->coll->loc, "'foreach' at compile time only iterates lists and strings (not " + kindName(coll) + ")");
                 Type* t = fe->tref && !fe->tref->isVar() ? resolve(fe->tref) : nullptr;
                 for (CtValue& it : items) {
                     step(fe->loc);
@@ -2319,7 +2319,7 @@ public:
             case SK::ComptimeForeach: {
                 auto* fe = static_cast<ComptimeForeachStmt*>(s);
                 CtValue coll = eval(fe->coll);
-                if (coll.k != CtValue::List) fail(fe->coll->loc, "'comptime foreach' recorre listas de tiempo de compilación");
+                if (coll.k != CtValue::List) fail(fe->coll->loc, "'comptime foreach' iterates compile-time lists");
                 std::vector<CtValue> items = *coll.list;
                 for (CtValue& it : items) {
                     env->scopes.emplace_back();
@@ -2375,7 +2375,7 @@ public:
             }
             case SK::Throw: {
                 auto* t = static_cast<ThrowStmt*>(s);
-                std::string msg = "se lanzó una excepción";
+                std::string msg = "an exception was thrown";
                 if (t->value) {
                     CtValue v = eval(t->value);
                     if (v.k == CtValue::Obj && v.obj) {
@@ -2396,7 +2396,7 @@ public:
             default: break;
         }
         if (s->kind == SK::ExprStmt) return FNormal;
-        fail(s->loc, "esta sentencia no se puede ejecutar en tiempo de compilación");
+        fail(s->loc, "this statement cannot be executed at compile time");
     }
 
     // ---------------------------------------------------------------- entrada
@@ -2441,18 +2441,18 @@ public:
     }
 
     void report(const CtError& err, SourceLoc site, const std::string& what) {
-        diag.error(err.loc, (what.empty() ? "en tiempo de compilación: " : what + ": ") + err.msg);
+        diag.error(err.loc, (what.empty() ? "at compile time: " : what + ": ") + err.msg);
         // Pila de llamadas, de la más interna a la más externa (en una recursión larga, solo los extremos).
         size_t n = err.stack.size();
         for (size_t i = n; i-- > 0;) {
             if (n > 12 && i + 6 < n && i >= 4) {
-                if (i + 7 == n) diag.note(err.stack[i].callLoc, "... " + std::to_string(n - 10) + " llamadas más ...");
+                if (i + 7 == n) diag.note(err.stack[i].callLoc, "... " + std::to_string(n - 10) + " more calls ...");
                 continue;
             }
-            diag.note(err.stack[i].callLoc, "en la llamada a '" + err.stack[i].what + "' (tiempo de compilación)");
+            diag.note(err.stack[i].callLoc, "in the call to '" + err.stack[i].what + "' (compile time)");
         }
         if (!err.stack.empty() || err.loc.line != site.line || err.loc.file != site.file)
-            diag.note(site, "evaluado en tiempo de compilación aquí");
+            diag.note(site, "evaluated at compile time here");
     }
 };
 
@@ -2548,8 +2548,8 @@ public:
             }
             case CtValue::List: {
                 if (!v.t) {
-                    err = "una lista de " + (v.list->empty() ? std::string("elementos de tipo desconocido") : kindName((*v.list)[0])) +
-                          " solo existe en tiempo de compilación";
+                    err = "a list of " + (v.list->empty() ? std::string("elements of unknown type") : kindName((*v.list)[0])) +
+                          " only exists at compile time";
                     return nullptr;
                 }
                 auto* tr = new TypeRef();
@@ -2558,7 +2558,7 @@ public:
                 tr->typeArgs = {presetRef(v.t, loc)};
                 Type* lt = S.resolveType(tr);
                 if (lt->isError() || !lt->decl) {
-                    err = "no se pudo crear la lista (¿falta 'using std.collections;'?)";
+                    err = "could not create the list (is 'using std.collections;' missing?)";
                     return nullptr;
                 }
                 auto* pl = new ParamsListExpr(loc);
@@ -2579,7 +2579,7 @@ public:
                 for (MethodDecl* mm : c->methods)
                     if (mm->kind == MethodKind::Normal && mm->name == "Add" && mm->params.size() == 1) pl->add = mm;
                 if (!pl->ctor || !pl->add) {
-                    err = "List<T> no tiene List(int) y Add";
+                    err = "List<T> does not have List(int) and Add";
                     return nullptr;
                 }
                 S.useMethod(pl->ctor);
@@ -2587,7 +2587,7 @@ public:
                 return pl;
             }
             case CtValue::Member:
-                err = "'" + v.s + "' es un miembro de tiempo de compilación: usa " + "f.Nombre, f.Tipo, f.Get(obj) o f.Set(obj, valor)";
+                err = "'" + v.s + "' is a compile-time member: use " + "f.Nombre, f.Tipo, f.Get(obj) or f.Set(obj, value)";
                 return nullptr;
             case CtValue::Obj: {
                 // Un objeto de una clase o struct propio: se crea sin constructor con los valores de
@@ -2595,13 +2595,13 @@ public:
                 ClassDecl* c = v.obj ? v.obj->cls : nullptr;
                 if (!c || v.obj->attr || v.obj->fields.count("__sb") || S.isExceptionClass(c) ||
                     (c->kind != ClassKind::Class && c->kind != ClassKind::Struct) || isStd(c, "std.collections", "List")) {
-                    err = "un objeto de '" + kindName(v) + "' solo existe en tiempo de compilación (usa sus campos, o a.Crear() en un atributo)";
+                    err = "an object of '" + kindName(v) + "' only exists at compile time (use its fields, or a.Crear() in an attribute)";
                     return nullptr;
                 }
                 static thread_local std::vector<CtObj*> building;  // ciclos: a.Otro = b; b.Otro = a
                 for (CtObj* o : building)
                     if (o == v.obj.get()) {
-                        err = "el objeto de '" + c->displayName + "' calculado con comptime se refiere a sí mismo (un ciclo): no se puede escribir como constante";
+                        err = "the object of '" + c->displayName + "' computed with comptime refers to itself (a cycle): it cannot be written as a constant";
                         return nullptr;
                     }
                 building.push_back(v.obj.get());
@@ -2635,7 +2635,7 @@ public:
                 return ok ? w : nullptr;
             }
             default:
-                err = kindName(v) + " solo existe en tiempo de compilación";
+                err = kindName(v) + " only exists at compile time";
                 return nullptr;
         }
     }

@@ -92,7 +92,7 @@ bool locate(const std::string& given, std::string& path) {
     if (!given.empty()) {
         path = given;
         if (!fs::exists(path)) {
-            fail("no existe la solución '" + given + "'");
+            fail("solution '" + given + "' does not exist");
             return false;
         }
         return true;
@@ -104,8 +104,8 @@ bool locate(const std::string& given, std::string& path) {
             count++;
             path = e.path().string();
         }
-    if (count == 0) fail("no hay ninguna solución (.fstp) en la carpeta actual; créala con 'faset new sln'");
-    else if (count > 1) fail("hay varias soluciones (.fstp) en la carpeta actual; indica cuál: faset sln <x.fstp> ...");
+    if (count == 0) fail("there is no solution (.fstp) in the current folder; create one with 'faset new sln'");
+    else if (count > 1) fail("there are multiple solutions (.fstp) in the current folder; specify which: faset sln <x.fstp> ...");
     return count == 1;
 }
 
@@ -143,11 +143,11 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
         return 1;
     }
     if (command == "emit-c") {
-        fail("'emit-c' necesita un proyecto (.fstproj), no una solución");
+        fail("'emit-c' needs a project (.fstproj), not a solution");
         return 1;
     }
     if (s.projects.empty()) {
-        fail("la solución '" + s.name + "' no tiene proyectos (añade uno con 'faset sln add <proyecto.fstproj>')");
+        fail("solution '" + s.name + "' has no projects (add one with 'faset sln add <project.fstproj>')");
         return 1;
     }
     std::vector<int> order;
@@ -174,16 +174,16 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
     }
     int startup = command == "run" || !output.empty() ? solutionStartupProject(s) : -1;
     if (command == "run" && startup < 0) {
-        fail("la solución '" + s.name + "' no tiene un proyecto ejecutable que iniciar (márcalo con 'faset sln startup <proyecto>')");
+        fail("solution '" + s.name + "' has no executable project to run (mark one with 'faset sln startup <project>')");
         return 1;
     }
     if (!output.empty() && startup < 0) {
-        fail("'-o' se aplica al proyecto de inicio, pero la solución no tiene ninguno");
+        fail("'-o' applies to the startup project, but the solution has none");
         return 1;
     }
 
-    const char* verb = command == "check" ? "Comprobando" : command == "clean" ? "Limpiando" : "Compilando";
-    std::fprintf(stderr, "Solución '%s' (%zu proyecto%s)\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s");
+    const char* verb = command == "check" ? "Checking" : command == "clean" ? "Cleaning" : "Building";
+    std::fprintf(stderr, "Solution '%s' (%zu project%s)\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s");
     std::vector<bool> failed(s.projects.size(), false);
     int ok = 0, bad = 0, skipped = 0, step = 0;
     int total = (int)order.size();
@@ -198,7 +198,7 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
         step++;
         std::fprintf(stderr, "\n[%d/%d] %s %s  (%s)\n", step, total, verb, projectName(p).c_str(), p.rel.c_str());
         if (!fs::exists(p.path)) {
-            fail("no existe el proyecto '" + p.rel + "'");
+            fail("project '" + p.rel + "' does not exist");
             failed[i] = true;
             bad++;
             continue;
@@ -206,7 +206,7 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
         std::string sub = command == "run" ? "build" : command;  // 'run': los demás solo se compilan
         std::string blocker = sub == "build" ? blockedBy(i) : "";
         if (!blocker.empty()) {
-            std::fprintf(stderr, "omitido: depende de '%s', que tiene errores\n", blocker.c_str());
+            std::fprintf(stderr, "skipped: depends on '%s', which has errors\n", blocker.c_str());
             failed[i] = true;
             skipped++;
             continue;
@@ -226,12 +226,12 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
     }
     if (command == "run") {
         const SolutionProject& p = s.projects[startup];
-        std::fprintf(stderr, "\n[%d/%d] Compilando y ejecutando %s  (%s, proyecto de inicio)\n", total, total,
+        std::fprintf(stderr, "\n[%d/%d] Building and running %s  (%s, startup project)\n", total, total,
                      projectName(p).c_str(), p.rel.c_str());
         std::string blocker = blockedBy(startup);
         if (bad > 0 || !blocker.empty()) {
-            if (!blocker.empty()) std::fprintf(stderr, "omitido: depende de '%s', que tiene errores\n", blocker.c_str());
-            std::fprintf(stderr, "\nSolución: %d correcto%s, %d con errores; no se ejecuta '%s'.\n", ok, ok == 1 ? "" : "s", bad,
+            if (!blocker.empty()) std::fprintf(stderr, "skipped: depends on '%s', which has errors\n", blocker.c_str());
+            std::fprintf(stderr, "\nSolution: %d succeeded, %d failed; not running '%s'.\n", ok, bad,
                          projectName(p).c_str());
             return 1;
         }
@@ -247,8 +247,8 @@ int buildSolution(const std::string& command, const std::string& slnPath, const 
         }
         return runSelf(self, args, verbose);
     }
-    std::fprintf(stderr, "\nSolución '%s': %d correcto%s, %d con errores", s.name.c_str(), ok, ok == 1 ? "" : "s", bad);
-    if (skipped) std::fprintf(stderr, ", %d omitido%s", skipped, skipped == 1 ? "" : "s");
+    std::fprintf(stderr, "\nSolution '%s': %d succeeded, %d failed", s.name.c_str(), ok, bad);
+    if (skipped) std::fprintf(stderr, ", %d skipped", skipped);
     std::fprintf(stderr, ".\n");
     return bad || skipped ? 1 : 0;
 }
@@ -268,7 +268,7 @@ int newSolution(const std::vector<std::string>& args) {
         s.path = (dir / (s.name + ".fstp")).string();
         s.dir = dir.string();
         if (fs::exists(s.path)) {
-            fail("'" + s.path + "' ya existe");
+            fail("'" + s.path + "' already exists");
             return 1;
         }
         std::error_code ec;
@@ -296,7 +296,7 @@ int newSolution(const std::vector<std::string>& args) {
         fs::path dir(name);
         s.name = dir.filename().string();
         if (fs::exists(dir / (s.name + ".fstp"))) {
-            fail("'" + (dir / (s.name + ".fstp")).string() + "' ya existe");
+            fail("'" + (dir / (s.name + ".fstp")).string() + "' already exists");
             return 1;
         }
         std::error_code ec;
@@ -309,10 +309,10 @@ int newSolution(const std::vector<std::string>& args) {
         fail(err);
         return 1;
     }
-    std::printf("Solución '%s' creada (%zu proyecto%s): %s\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s",
+    std::printf("Solution '%s' created (%zu project%s): %s\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s",
                 relativeSlash(s.path, fs::current_path().string()).c_str());
     if (!name.empty())
-        std::printf("\n  cd %s\n  faset new MiProyecto\n  faset sln add MiProyecto/MiProyecto.fstproj\n", name.c_str());
+        std::printf("\n  cd %s\n  faset new MyProject\n  faset sln add MyProject/MyProject.fstproj\n", name.c_str());
     return 0;
 }
 
@@ -327,13 +327,13 @@ int newWithSolution(const std::vector<std::string>& args, const std::string& sel
         else templ.push_back(args[i]);
     }
     if (name.empty()) {
-        fail("uso: faset new <Nombre> --solution [--console | --lib | --winexe | --ui | --android]");
+        fail("usage: faset new <Name> --solution [--console | --lib | --winexe | --ui | --android]");
         return 1;
     }
     fs::path dir(name);
     std::string stem = dir.filename().string();
     if (fs::exists(dir)) {
-        fail("'" + name + "' ya existe");
+        fail("'" + name + "' already exists");
         return 1;
     }
     std::error_code ec;
@@ -362,7 +362,7 @@ int newWithSolution(const std::vector<std::string>& args, const std::string& sel
         fail(err);
         return 1;
     }
-    std::printf("Solución '%s' creada: %s/%s.fstp\n\n  cd %s\n  faset run\n", stem.c_str(), name.c_str(), stem.c_str(), name.c_str());
+    std::printf("Solution '%s' created: %s/%s.fstp\n\n  cd %s\n  faset run\n", stem.c_str(), name.c_str(), stem.c_str(), name.c_str());
     return 0;
 }
 
@@ -378,16 +378,16 @@ bool addReference(const std::string& projPath, const std::string& libPath, std::
     }
     std::string a = fs::weakly_canonical(projPath).string(), b = fs::weakly_canonical(libPath).string();
     if (a == b) {
-        message = "un proyecto no puede referenciarse a sí mismo";
+        message = "a project cannot reference itself";
         return false;
     }
     if (lib.prop("OutputType", "Exe") != "Library") {
-        message = "'" + fs::path(libPath).stem().string() + "' no es una biblioteca (OutputType debe ser Library)";
+        message = "'" + fs::path(libPath).stem().string() + "' is not a library (OutputType must be Library)";
         return false;
     }
     for (const std::string& r : from.references)
         if (fs::weakly_canonical(r).string() == b) {
-            message = "'" + fs::path(projPath).stem().string() + "' ya referencia a '" + fs::path(libPath).stem().string() + "'";
+            message = "'" + fs::path(projPath).stem().string() + "' already references '" + fs::path(libPath).stem().string() + "'";
             return false;
         }
     // ¿La biblioteca depende (directa o indirectamente) del proyecto? Sería una referencia circular.
@@ -405,7 +405,7 @@ bool addReference(const std::string& projPath, const std::string& libPath, std::
         return false;
     };
     if (reaches(libPath)) {
-        message = "referencia circular: '" + fs::path(libPath).stem().string() + "' ya depende de '" + fs::path(projPath).stem().string() + "'";
+        message = "circular reference: '" + fs::path(libPath).stem().string() + "' already depends on '" + fs::path(projPath).stem().string() + "'";
         return false;
     }
     std::ifstream in(projPath, std::ios::binary);
@@ -450,7 +450,7 @@ bool addReference(const std::string& projPath, const std::string& libPath, std::
     } else {
         size_t end = lastOutside("</Project>");
         if (end == std::string::npos) {
-            message = projPath + ": falta </Project>";
+            message = projPath + ": missing </Project>";
             return false;
         }
         std::string block = "  <ItemGroup>\n    " + item + "\n  </ItemGroup>\n";
@@ -461,26 +461,26 @@ bool addReference(const std::string& projPath, const std::string& libPath, std::
     std::ofstream out(projPath, std::ios::binary);
     out << text;
     if (!out) {
-        message = "no se pudo escribir '" + projPath + "'";
+        message = "could not write '" + projPath + "'";
         return false;
     }
-    message = "'" + fs::path(projPath).stem().string() + "' ahora referencia a '" + fs::path(libPath).stem().string() + "' (" + rel + ")";
+    message = "'" + fs::path(projPath).stem().string() + "' now references '" + fs::path(libPath).stem().string() + "' (" + rel + ")";
     return true;
 }
 
 void slnUsage() {
     std::printf(
-        "Uso: faset sln [solución.fstp] <orden>\n\n"
-        "  add <proyecto.fstproj>... [--folder F]   Añade proyectos (F: carpeta de solución, 'A/B' anidada)\n"
-        "  remove <proyecto>                        Quita un proyecto de la solución (no lo borra)\n"
-        "  list [--json]                            Muestra los proyectos\n"
-        "  startup <proyecto>                       Elige el proyecto de inicio ('faset run')\n"
-        "  folder <Nombre> [--remove]               Crea (o quita) una carpeta de solución\n"
-        "  move <proyecto> [carpeta]                Mueve un proyecto a una carpeta de solución\n"
-        "  rename <Nombre>                          Cambia el nombre de la solución (y del .fstp)\n"
-        "  ref <proyecto> <biblioteca>              Añade <ProjectReference> al .fstproj del proyecto\n\n"
-        "<proyecto> puede ser la ruta del .fstproj, su carpeta o su nombre.\n"
-        "Sin solución.fstp se usa la de la carpeta actual.\n");
+        "Usage: faset sln [solution.fstp] <command>\n\n"
+        "  add <project.fstproj>... [--folder F]    Adds projects (F: solution folder, 'A/B' nested)\n"
+        "  remove <project>                         Removes a project from the solution (does not delete it)\n"
+        "  list [--json]                            Lists the projects\n"
+        "  startup <project>                        Sets the startup project ('faset run')\n"
+        "  folder <Name> [--remove]                 Creates (or removes) a solution folder\n"
+        "  move <project> [folder]                  Moves a project to a solution folder\n"
+        "  rename <Name>                            Renames the solution (and the .fstp)\n"
+        "  ref <project> <library>                  Adds <ProjectReference> to the project's .fstproj\n\n"
+        "<project> can be the .fstproj path, its folder or its name.\n"
+        "Without solution.fstp, the one in the current folder is used.\n");
 }
 
 int cmdSln(const std::vector<std::string>& all) {
@@ -511,7 +511,7 @@ int cmdSln(const std::vector<std::string>& all) {
     };
     auto findOr = [&](const std::string& p) {
         int i = s.find(p);
-        if (i < 0) fail("'" + p + "' no está en la solución '" + s.name + "' (ver 'faset sln list')");
+        if (i < 0) fail("'" + p + "' is not in solution '" + s.name + "' (see 'faset sln list')");
         return i;
     };
 
@@ -523,7 +523,7 @@ int cmdSln(const std::vector<std::string>& all) {
             else paths.push_back(rest[i]);
         }
         if (paths.empty()) {
-            fail("uso: faset sln add <proyecto.fstproj>... [--folder Carpeta]");
+            fail("usage: faset sln add <project.fstproj>... [--folder Folder]");
             return 1;
         }
         int added = 0;
@@ -531,7 +531,7 @@ int cmdSln(const std::vector<std::string>& all) {
             std::string p = projectFileOf(raw);
             if (!fs::exists(p) && fs::exists(fs::path(s.dir) / raw)) p = projectFileOf((fs::path(s.dir) / raw).string());
             if (!hasExt(p, ".fstproj") || !fs::exists(p)) {
-                fail("no existe el proyecto '" + raw + "'");
+                fail("project '" + raw + "' does not exist");
                 return 1;
             }
             Project proj;
@@ -540,7 +540,7 @@ int cmdSln(const std::vector<std::string>& all) {
                 return 1;
             }
             if (s.find(p) >= 0) {
-                std::printf("'%s' ya está en la solución.\n", fs::path(p).stem().string().c_str());
+                std::printf("'%s' is already in the solution.\n", fs::path(p).stem().string().c_str());
                 continue;
             }
             SolutionProject sp;
@@ -550,19 +550,19 @@ int cmdSln(const std::vector<std::string>& all) {
             s.projects.push_back(sp);
             addFolderChain(s, folder);
             added++;
-            std::printf("Añadido '%s' (%s) a la solución '%s'.\n", fs::path(p).stem().string().c_str(), sp.rel.c_str(), s.name.c_str());
+            std::printf("Added '%s' (%s) to solution '%s'.\n", fs::path(p).stem().string().c_str(), sp.rel.c_str(), s.name.c_str());
         }
         return added && !save() ? 1 : 0;
     }
     if (sub == "remove" || sub == "rm") {
         if (rest.empty()) {
-            fail("uso: faset sln remove <proyecto>");
+            fail("usage: faset sln remove <project>");
             return 1;
         }
         for (const std::string& p : rest) {
             int i = findOr(p);
             if (i < 0) return 1;
-            std::printf("Quitado '%s' de la solución '%s' (el proyecto sigue en el disco).\n", projectName(s.projects[i]).c_str(),
+            std::printf("Removed '%s' from solution '%s' (the project remains on disk).\n", projectName(s.projects[i]).c_str(),
                         s.name.c_str());
             s.projects.erase(s.projects.begin() + i);
         }
@@ -605,15 +605,15 @@ int cmdSln(const std::vector<std::string>& all) {
             std::printf("%s\n", j.dump().c_str());
             return 0;
         }
-        std::printf("Solución '%s' (%zu proyecto%s)\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s");
+        std::printf("Solution '%s' (%zu project%s)\n", s.name.c_str(), s.projects.size(), s.projects.size() == 1 ? "" : "s");
         std::function<void(const std::string&, int)> show = [&](const std::string& folder, int depth) {
             std::string pad((size_t)depth * 2, ' ');
             for (size_t i = 0; i < s.projects.size(); i++) {
                 const SolutionProject& p = s.projects[i];
                 if (p.folder != folder) continue;
-                std::string ot = fs::exists(p.path) ? outputTypeOf(p.path) : "no existe";
+                std::string ot = fs::exists(p.path) ? outputTypeOf(p.path) : "missing";
                 std::printf("%s %s%-16s %-32s %s%s\n", (int)i == startup ? "*" : " ", pad.c_str(), projectName(p).c_str(), p.rel.c_str(),
-                            ot.c_str(), (int)i == startup ? "  (inicio)" : "");
+                            ot.c_str(), (int)i == startup ? "  (startup)" : "");
             }
             for (const std::string& f : s.folders) {
                 size_t slash = f.rfind('/');
@@ -627,19 +627,19 @@ int cmdSln(const std::vector<std::string>& all) {
     }
     if (sub == "startup") {
         if (rest.size() != 1) {
-            fail("uso: faset sln startup <proyecto>");
+            fail("usage: faset sln startup <project>");
             return 1;
         }
         int i = findOr(rest[0]);
         if (i < 0) return 1;
         if (outputTypeOf(s.projects[i].path) == "Library") {
-            fail("'" + projectName(s.projects[i]) + "' es una biblioteca: el proyecto de inicio debe ser Exe o WinExe");
+            fail("'" + projectName(s.projects[i]) + "' is a library: the startup project must be Exe or WinExe");
             return 1;
         }
         for (auto& p : s.projects) p.startup = false;
         s.projects[i].startup = true;
         if (!save()) return 1;
-        std::printf("Proyecto de inicio: '%s'.\n", projectName(s.projects[i]).c_str());
+        std::printf("Startup project: '%s'.\n", projectName(s.projects[i]).c_str());
         return 0;
     }
     if (sub == "folder") {
@@ -648,12 +648,12 @@ int cmdSln(const std::vector<std::string>& all) {
         for (const std::string& r : rest)
             if (r != "--remove") name = trimSlashes(r);
         if (name.empty()) {
-            fail("uso: faset sln folder <Nombre> [--remove]");
+            fail("usage: faset sln folder <Name> [--remove]");
             return 1;
         }
         if (remove) {
             if (std::find(s.folders.begin(), s.folders.end(), name) == s.folders.end()) {
-                fail("la solución no tiene la carpeta '" + name + "'");
+                fail("the solution has no folder '" + name + "'");
                 return 1;
             }
             // Sus proyectos (y los de sus subcarpetas) pasan a la carpeta superior.
@@ -664,21 +664,21 @@ int cmdSln(const std::vector<std::string>& all) {
                 if (inside(p.folder)) p.folder = parent;
             s.folders.erase(std::remove_if(s.folders.begin(), s.folders.end(), inside), s.folders.end());
             if (!save()) return 1;
-            std::printf("Carpeta '%s' quitada de la solución.\n", name.c_str());
+            std::printf("Folder '%s' removed from the solution.\n", name.c_str());
             return 0;
         }
         if (std::find(s.folders.begin(), s.folders.end(), name) != s.folders.end()) {
-            std::printf("La carpeta '%s' ya existe.\n", name.c_str());
+            std::printf("Folder '%s' already exists.\n", name.c_str());
             return 0;
         }
         addFolderChain(s, name);
         if (!save()) return 1;
-        std::printf("Carpeta de solución '%s' creada.\n", name.c_str());
+        std::printf("Solution folder '%s' created.\n", name.c_str());
         return 0;
     }
     if (sub == "move") {
         if (rest.empty() || rest.size() > 2) {
-            fail("uso: faset sln move <proyecto> [carpeta]");
+            fail("usage: faset sln move <project> [folder]");
             return 1;
         }
         int i = findOr(rest[0]);
@@ -687,13 +687,13 @@ int cmdSln(const std::vector<std::string>& all) {
         s.projects[i].folder = folder;
         addFolderChain(s, folder);
         if (!save()) return 1;
-        std::printf("'%s' movido a %s.\n", projectName(s.projects[i]).c_str(),
-                    folder.empty() ? "la raíz de la solución" : ("la carpeta '" + folder + "'").c_str());
+        std::printf("'%s' moved to %s.\n", projectName(s.projects[i]).c_str(),
+                    folder.empty() ? "the solution root" : ("folder '" + folder + "'").c_str());
         return 0;
     }
     if (sub == "rename") {
         if (rest.size() != 1 || rest[0].empty() || rest[0].find('/') != std::string::npos || rest[0].find('\\') != std::string::npos) {
-            fail("uso: faset sln rename <NuevoNombre>");
+            fail("usage: faset sln rename <NewName>");
             return 1;
         }
         std::string old = s.path;
@@ -704,12 +704,12 @@ int cmdSln(const std::vector<std::string>& all) {
         if (move) s.path = dest.string();
         if (!save()) return 1;
         if (move) fs::remove(old, ec);
-        std::printf("Solución renombrada a '%s': %s\n", s.name.c_str(), s.path.c_str());
+        std::printf("Solution renamed to '%s': %s\n", s.name.c_str(), s.path.c_str());
         return 0;
     }
     if (sub == "ref" || sub == "reference") {
         if (rest.size() != 2) {
-            fail("uso: faset sln ref <proyecto> <biblioteca>");
+            fail("usage: faset sln ref <project> <library>");
             return 1;
         }
         int a = s.find(rest[0]), b = s.find(rest[1]);
@@ -717,7 +717,7 @@ int cmdSln(const std::vector<std::string>& all) {
         std::string pb = b >= 0 ? s.projects[b].path : projectFileOf(rest[1]);
         for (const std::string& p : {pa, pb})
             if (!fs::exists(p) || !hasExt(p, ".fstproj")) {
-                fail("no existe el proyecto '" + p + "'");
+                fail("project '" + p + "' does not exist");
                 return 1;
             }
         std::string msg;
@@ -728,7 +728,7 @@ int cmdSln(const std::vector<std::string>& all) {
         std::printf("%s.\n", msg.c_str());
         return 0;
     }
-    fail("orden desconocida 'sln " + sub + "' (usa 'faset sln help')");
+    fail("unknown command 'sln " + sub + "' (use 'faset sln help')");
     return 1;
 }
 
@@ -789,7 +789,7 @@ bool solutionCommand(const std::vector<std::string>& args, const std::string& ar
     }
     if (sln.empty()) return false;
     if (!fs::exists(sln)) {
-        fail("no existe la solución '" + sln + "'");
+        fail("solution '" + sln + "' does not exist");
         code = 1;
         return true;
     }

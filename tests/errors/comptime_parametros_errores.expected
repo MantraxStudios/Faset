@@ -3,7 +3,7 @@
 7|a 'comptime' parameter must be a number, bool, char, string, enum or List of those \(not 'object'\); to choose a type use a generic parameter <T>
 8|a 'comptime' parameter cannot be ref, out, params or this
 9|'n' is a compile-time value \(comptime\) and cannot be modified
-21|the argument of comptime parameter 'n' must be known at compile time: el valor de la variable 'k' no se conoce en tiempo de compilación
+21|the argument of comptime parameter 'n' must be known at compile time: the value of variable 'k' is not known at compile time
 22|'F' has 'comptime' parameters and cannot be converted to a delegate; use a lambda
 11|'Q\.G' already has 256 versions from its 'comptime' parameters \(a recursion without a 'comptime if' to end it\?\)
 14|static_assert failed: el exponente no puede ser negativo

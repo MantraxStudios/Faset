@@ -55,7 +55,7 @@ Expr* Parser::parseInterpolated() {
             p_++;
             continue;
         }
-        if (cur().kind != TokKind::InterpHole) fail("cadena interpolada mal formada");
+        if (cur().kind != TokKind::InterpHole) fail("malformed interpolated string");
         InterpExpr::Part part;
         part.format = cur().text;
         part.hasAlign = cur().isLong;
@@ -67,7 +67,7 @@ Expr* Parser::parseInterpolated() {
         }
         part.expr = parseExpr();
         if (cur().kind != TokKind::InterpHoleEnd)
-            fail("se esperaba '}' en el hueco de la cadena interpolada pero se encontró '" + cur().text + "'");
+            fail("expected '}' in the interpolated string hole but found '" + cur().text + "'");
         p_++;
         e->parts.push_back(part);
     }
@@ -89,7 +89,7 @@ Expr* Parser::parseParenOrTuple(SourceLoc loc) {
     Expr* first = element(n0);
     if (!isP(",")) {
         expectP(")");
-        if (!n0.empty()) fail(loc, "una tupla necesita al menos dos elementos");
+        if (!n0.empty()) fail(loc, "a tuple needs at least two elements");
         return first;
     }
     auto* t = new TupleExpr(loc);
@@ -152,7 +152,7 @@ Expr* Parser::parseNameof(SourceLoc loc) {
     auto* s = new StringLitExpr(loc);
     if (e->kind == EK::Name) s->value = static_cast<NameExpr*>(e)->name;
     else if (e->kind == EK::Member) s->value = static_cast<MemberExpr*>(e)->name;
-    else fail(loc, "nameof requiere un nombre (variable, tipo, campo o método)");
+    else fail(loc, "nameof requires a name (variable, type, field or method)");
     return s;
 }
 
@@ -312,7 +312,7 @@ Expr* Parser::parseSwitchExpr(Expr* subject) {
         if (!acceptP(",")) break;
     }
     expectP("}");
-    if (e->arms.empty()) fail(e->loc, "un 'switch' de expresión necesita al menos un brazo");
+    if (e->arms.empty()) fail(e->loc, "a 'switch' expression needs at least one arm");
     return e;
 }
 
@@ -369,7 +369,7 @@ Stmt* Parser::parseForeach() {
         s->nameLoc = cur().loc;
         s->name = expectIdent();
     }
-    if (!acceptK("in")) fail("se esperaba 'in' en 'foreach' pero se encontró '" + cur().text + "'");
+    if (!acceptK("in")) fail("expected 'in' in 'foreach' but found '" + cur().text + "'");
     s->coll = parseExpr();
     expectP(")");
     s->body = parseStatement();
@@ -387,7 +387,7 @@ Stmt* Parser::parseUsingStmt() {
         s->body = parseStatement();
         return s;
     }
-    if (!looksLikeDecl()) fail("se esperaba una declaración después de 'using' (using var x = ...;)");
+    if (!looksLikeDecl()) fail("expected a declaration after 'using' (using var x = ...;)");
     s->decl = parseVarDecl(true);
     return s;
 }

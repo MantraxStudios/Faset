@@ -125,7 +125,7 @@ bool pathOk(const fs::path& p) {
 bool ask(const Opts& o, const std::string& question, bool def) {
     if (o.yes) return true;
     if (!isatty(fileno(stdin))) return def;
-    std::printf("%s %s ", question.c_str(), def ? "[S/n]" : "[s/N]");
+    std::printf("%s %s ", question.c_str(), def ? "[Y/n]" : "[y/N]");
     std::fflush(stdout);
     std::string line;
     if (!std::getline(std::cin, line)) return def;
@@ -142,7 +142,7 @@ bool download(const std::string& url, const fs::path& dest) {
     if (have("curl")) r = run({"curl", "-fL", "--retry", "3", "--progress-bar", "-o", dest.string(), url});
     else if (have("wget")) r = run({"wget", "-q", "--show-progress", "-O", dest.string(), url});
     else {
-        std::fprintf(stderr, "faset: hace falta curl o wget para descargar %s\n", url.c_str());
+        std::fprintf(stderr, "faset: curl or wget is required to download %s\n", url.c_str());
         return false;
     }
     return r == 0 && pathOk(dest);
@@ -178,7 +178,7 @@ bool extract(const fs::path& archive, const fs::path& dest, const std::string& j
         std::string jar = (fs::path(javaHome) / "bin" / "jar").string();
         return run({"sh", "-c", "cd " + quote(dest.string()) + " && " + quote(jar) + " xf " + quote(a)}) == 0;
     }
-    std::fprintf(stderr, "faset: hace falta unzip para descomprimir %s (sudo apt install unzip)\n", a.c_str());
+    std::fprintf(stderr, "faset: unzip is required to extract %s (sudo apt install unzip)\n", a.c_str());
     return false;
 #endif
 }
@@ -211,7 +211,7 @@ bool installArchive(const std::string& url, const fs::path& dest, const std::str
     fs::create_directories(dest.parent_path(), ec);
     fs::rename(root, dest, ec);
     if (ec) {
-        std::fprintf(stderr, "faset: no se pudo mover %s a %s: %s\n", root.string().c_str(), dest.string().c_str(),
+        std::fprintf(stderr, "faset: could not move %s to %s: %s\n", root.string().c_str(), dest.string().c_str(),
                      ec.message().c_str());
         return false;
     }
@@ -287,7 +287,7 @@ bool sharedLibPresent(const std::string& soname) {
 bool installPackages(const Opts& o, const std::vector<std::string>& needs, const std::string& why) {
     PkgManager pm = pkgManager();
     if (pm.name.empty()) {
-        std::printf("  Instala a mano: %s (no se reconoce el gestor de paquetes)\n", why.c_str());
+        std::printf("  Install manually: %s (package manager not recognized)\n", why.c_str());
         return false;
     }
     std::vector<std::string> cmd;
@@ -296,8 +296,8 @@ bool installPackages(const Opts& o, const std::vector<std::string>& needs, const
 #endif
     cmd.insert(cmd.end(), pm.install.begin(), pm.install.end());
     for (const std::string& n : needs) cmd.push_back(pkgFor(pm.name, n));
-    std::printf("  Hace falta %s:\n    %s\n", why.c_str(), join(cmd).c_str());
-    if (!ask(o, "  ¿Instalarlo ahora?", true)) return false;
+    std::printf("  Need %s:\n    %s\n", why.c_str(), join(cmd).c_str());
+    if (!ask(o, "  Install it now?", true)) return false;
     if (pm.name == "apt") {
         std::vector<std::string> upd = cmd;
         upd.resize(upd.size() - needs.size() - 2);  // sudo apt-get
@@ -318,13 +318,13 @@ std::string nativeCC() {
 }
 
 bool setupLinux(const Opts& o, bool listOnly) {
-    title("Linux (programas nativos y FasetStudio)");
+    title("Linux (native programs and FasetStudio)");
     bool good = true;
     std::string cc = nativeCC();
-    if (!cc.empty()) ok("compilador de C: " + cc);
+    if (!cc.empty()) ok("C compiler: " + cc);
     else {
-        miss("compilador de C (gcc o clang)");
-        good = listOnly ? false : installPackages(o, {"cc"}, "un compilador de C") && !nativeCC().empty();
+        miss("C compiler (gcc or clang)");
+        good = listOnly ? false : installPackages(o, {"cc"}, "a C compiler") && !nativeCC().empty();
     }
     std::vector<std::string> needs;
     for (auto [so, pkg] : {std::pair<const char*, const char*>{"libvulkan.so.1", "vulkan"}, {"libX11.so.6", "x11"},
@@ -336,7 +336,7 @@ bool setupLinux(const Opts& o, bool listOnly) {
         if (listOnly) good = false;
         else {
             needs.push_back("vulkan-driver");
-            good = installPackages(o, needs, "las bibliotecas de FasetStudio (Vulkan, X11, FreeType)") && good;
+            good = installPackages(o, needs, "the FasetStudio libraries (Vulkan, X11, FreeType)") && good;
         }
     }
     return good;
@@ -345,11 +345,11 @@ bool setupLinux(const Opts& o, bool listOnly) {
 // ------------------------------------------------------------------ módulo: multimedia (Linux)
 
 bool setupMultimedia(const Opts& o, bool listOnly) {
-    title("Multimedia de std.ui (WebView, VideoPlayer, std.audio) — opcional");
+    title("std.ui multimedia (WebView, VideoPlayer, std.audio) — optional");
 #if defined(_WIN32)
     (void)o;
     (void)listOnly;
-    ok("en Windows se usan las bibliotecas del sistema");
+    ok("on Windows the system libraries are used");
     return true;
 #else
     std::vector<std::string> needs;
@@ -370,15 +370,15 @@ bool setupMultimedia(const Opts& o, bool listOnly) {
     for (const char* dir : {"/usr/lib/x86_64-linux-gnu/gstreamer-1.0", "/usr/lib64/gstreamer-1.0", "/usr/lib/gstreamer-1.0",
                             "/usr/lib/aarch64-linux-gnu/gstreamer-1.0"})
         parsers = parsers || pathOk(fs::path(dir) / "libgstvideoparsersbad.so");
-    if (parsers) ok("WebView: video (vp9parse y h264parse de GStreamer)");
+    if (parsers) ok("WebView: video (vp9parse and h264parse from GStreamer)");
     else {
-        miss("WebView: video (vp9parse y h264parse de GStreamer, gst-plugins-bad)");
+        miss("WebView: video (vp9parse and h264parse from GStreamer, gst-plugins-bad)");
         needs.push_back("gst-bad");
     }
     if (needs.empty()) return true;
     if (listOnly) return false;
     if (std::find(needs.begin(), needs.end(), "gstreamer") != needs.end()) needs.push_back("gst-libav");
-    return installPackages(o, needs, "las bibliotecas multimedia");
+    return installPackages(o, needs, "the multimedia libraries");
 #endif
 }
 
@@ -387,7 +387,7 @@ bool setupMultimedia(const Opts& o, bool listOnly) {
 fs::path mingwDir() { return fs::path(fasetDataDir()) / "toolchains" / "llvm-mingw"; }
 
 bool setupWindows(const Opts& o, bool listOnly) {
-    title(std::string("Windows (") + (std::string(kHost) == "windows" ? "programas nativos" : "compilación cruzada desde Linux") +
+    title(std::string("Windows (") + (std::string(kHost) == "windows" ? "native programs" : "cross-compilation from Linux") +
           ")");
     std::string managed = managedMingwCompiler("x86_64");
     if (!managed.empty()) {
@@ -400,16 +400,16 @@ bool setupWindows(const Opts& o, bool listOnly) {
     std::string sys = findProgram("x86_64-w64-mingw32-gcc");
 #endif
     if (!sys.empty()) {
-        ok("compilador de C: " + sys);
+        ok("C compiler: " + sys);
         return true;
     }
-    miss("toolchain de C para Windows");
+    miss("C toolchain for Windows");
     if (listOnly) return false;
-    std::printf("  Se descargará llvm-mingw (clang + MinGW-w64, ~150 MB) en %s\n", mingwDir().string().c_str());
-    if (!ask(o, "  ¿Continuar?", true)) return false;
+    std::printf("  llvm-mingw (clang + MinGW-w64, ~150 MB) will be downloaded to %s\n", mingwDir().string().c_str());
+    if (!ask(o, "  Continue?", true)) return false;
     std::string json;
     if (!fetchText("https://api.github.com/repos/mstorsjo/llvm-mingw/releases/latest", json)) {
-        std::fprintf(stderr, "faset: no se pudo consultar la última versión de llvm-mingw\n");
+        std::fprintf(stderr, "faset: could not query the latest llvm-mingw version\n");
         return false;
     }
     Json rel;
@@ -431,13 +431,13 @@ bool setupWindows(const Opts& o, bool listOnly) {
         if (!url.empty()) break;
     }
     if (url.empty()) {
-        std::fprintf(stderr, "faset: no hay un paquete de llvm-mingw para este sistema (%s)\n", want.c_str());
+        std::fprintf(stderr, "faset: there is no llvm-mingw package for this system (%s)\n", want.c_str());
         return false;
     }
     if (!installArchive(url, mingwDir())) return false;
     managed = managedMingwCompiler("x86_64");
     if (managed.empty()) return false;
-    ok("llvm-mingw instalado: " + managed);
+    ok("llvm-mingw installed: " + managed);
     return true;
 }
 
@@ -475,10 +475,10 @@ bool ensureJava(const Opts& o, bool listOnly, std::string& javaHome) {
         ok("Java: " + androidTools().java);
         return true;
     }
-    miss("Java (JDK 17 o posterior, para sdkmanager y apksigner)");
+    miss("Java (JDK 17 or later, for sdkmanager and apksigner)");
     if (listOnly) return false;
-    std::printf("  Se descargará Eclipse Temurin JDK 21 (~200 MB) en %s\n", (fs::path(fasetDataDir()) / "jdk").string().c_str());
-    if (!ask(o, "  ¿Continuar?", true)) return false;
+    std::printf("  Eclipse Temurin JDK 21 (~200 MB) will be downloaded to %s\n", (fs::path(fasetDataDir()) / "jdk").string().c_str());
+    if (!ask(o, "  Continue?", true)) return false;
     std::string arch = std::string(kArch) == "arm64" ? "aarch64" : "x64";
     std::string url = "https://api.adoptium.net/v3/binary/latest/21/ga/" + std::string(kHost) + "/" + arch +
                       "/jdk/hotspot/normal/eclipse";
@@ -497,7 +497,7 @@ bool ensureJava(const Opts& o, bool listOnly, std::string& javaHome) {
     fs::remove(dl, ec);
     javaHome = managedJavaHome();
     if (javaHome.empty()) return false;
-    ok("JDK instalado: " + javaHome);
+    ok("JDK installed: " + javaHome);
     return true;
 }
 
@@ -547,21 +547,21 @@ bool versionLess2(const std::string& a, const std::string& b) {
 }
 
 bool setupAndroid(const Opts& o, bool listOnly) {
-    title("Android (APK, NDK y emulador) — opcional");
+    title("Android (APK, NDK and emulator) — optional");
     const AndroidTools& t = androidTools();
     bool complete = !t.sdk.empty() && !t.ndk.empty() && !t.aapt2.empty() && !t.androidJar.empty() && !t.adb.empty() &&
                     (!t.java.empty() || !managedJavaHome().empty());
     if (!t.sdk.empty()) ok("SDK: " + t.sdk);
     if (!t.ndk.empty()) ok("NDK " + t.ndkVersion);
     if (!t.buildToolsVersion.empty()) ok("build-tools " + t.buildToolsVersion);
-    if (t.platformApi) ok("plataforma android-" + std::to_string(t.platformApi));
-    if (!t.emulator.empty()) ok("emulador");
+    if (t.platformApi) ok("platform android-" + std::to_string(t.platformApi));
+    if (!t.emulator.empty()) ok("emulator");
     if (complete && (!o.emulator || !t.emulator.empty())) {
         if (!t.java.empty() || !managedJavaHome().empty()) ok("Java");
         return true;
     }
     if (listOnly) {
-        miss("faltan componentes: ejecuta 'faset setup android'");
+        miss("missing components: run 'faset setup android'");
         return false;
     }
 
@@ -573,11 +573,11 @@ bool setupAndroid(const Opts& o, bool listOnly) {
     std::error_code ec;
     fs::create_directories(sdk, ec);
     if (!pathOk(sdkmanagerPath(sdk))) {
-        std::printf("  Se descargarán las Android cmdline-tools en %s\n", sdk.string().c_str());
-        if (!ask(o, "  ¿Continuar?", true)) return false;
+        std::printf("  The Android cmdline-tools will be downloaded to %s\n", sdk.string().c_str());
+        if (!ask(o, "  Continue?", true)) return false;
         std::string url = cmdlineToolsUrl();
         if (url.empty()) {
-            std::fprintf(stderr, "faset: no se encontró la descarga de cmdline-tools en el repositorio de Google\n");
+            std::fprintf(stderr, "faset: could not find the cmdline-tools download in Google's repository\n");
             return false;
         }
         if (!installArchive(url, sdk / "cmdline-tools" / "latest", javaHome)) return false;
@@ -588,9 +588,9 @@ bool setupAndroid(const Opts& o, bool listOnly) {
     std::string root = "--sdk_root=" + sdk.string();
 
     // Licencias: el usuario las acepta (con --yes se aceptan todas sin preguntar).
-    std::printf("  Licencias del SDK de Android (https://developer.android.com/studio/terms):\n");
+    std::printf("  Android SDK licenses (https://developer.android.com/studio/terms):\n");
     if (o.dryRun) {
-        std::printf("  (--dry-run: no se aceptan)\n");
+        std::printf("  (--dry-run: not accepted)\n");
     } else if (o.yes) {
         fs::path answers = fs::path(fasetDataDir()) / "downloads" / "licencias.txt";
         fs::create_directories(answers.parent_path(), ec);
@@ -642,7 +642,7 @@ bool setupAndroid(const Opts& o, bool listOnly) {
     }
     int sysImgApi = std::atoi(sysImgV.c_str());
     if (bt.empty() || ndk.empty() || plat.empty()) {
-        std::fprintf(stderr, "faset: sdkmanager no devolvió la lista de paquetes (¿sin conexión?)\n");
+        std::fprintf(stderr, "faset: sdkmanager did not return the package list (offline?)\n");
         return false;
     }
     std::vector<std::string> pkgs = {"platform-tools", bt, plat, ndk};
@@ -650,14 +650,14 @@ bool setupAndroid(const Opts& o, bool listOnly) {
         pkgs.push_back("emulator");
         if (!sysImg.empty()) pkgs.push_back(sysImg);
     }
-    std::printf("  Paquetes: ");
+    std::printf("  Packages: ");
     for (const std::string& p : pkgs) std::printf("%s  ", p.c_str());
-    std::printf("\n  (el NDK ocupa ~2 GB y la imagen del emulador ~1,5 GB)\n");
+    std::printf("\n  (the NDK takes ~2 GB and the emulator image ~1.5 GB)\n");
     if (o.dryRun) {
-        std::printf("  --dry-run: no se instala nada más.\n");
+        std::printf("  --dry-run: nothing else is installed.\n");
         return true;
     }
-    if (!ask(o, "  ¿Instalarlos?", true)) return false;
+    if (!ask(o, "  Install them?", true)) return false;
     std::vector<std::string> cmd = {sm, root, "--install"};
     cmd.insert(cmd.end(), pkgs.begin(), pkgs.end());
     if (run(cmd) != 0) return false;
@@ -673,29 +673,29 @@ bool setupAndroid(const Opts& o, bool listOnly) {
             std::ofstream(answers) << "no\n";
             run({avdmanagerPath(sdk).string(), "create", "avd", "-n", name, "-k", sysImg, "-d", "pixel_7"}, "< " + quote(answers.string()));
             fs::remove(answers, ec);
-            ok("emulador " + name + " (faset android emulator " + name + ")");
+            ok("emulator " + name + " (faset android emulator " + name + ")");
         }
     }
-    std::printf("\n  Android listo. Si el SDK no está en %s, define ANDROID_HOME=%s\n", defaultSdk().string().c_str(),
+    std::printf("\n  Android ready. If the SDK is not in %s, set ANDROID_HOME=%s\n", defaultSdk().string().c_str(),
                 sdk.string().c_str());
     return true;
 }
 
 void usage() {
     std::printf(
-        "Uso: faset setup [módulos...] [opciones]\n\n"
-        "Instala lo que necesita cada plataforma. Sin módulos instala el del sistema actual (%s).\n\n"
-        "Módulos:\n"
-        "  linux        compilador de C y bibliotecas de FasetStudio (gestor de paquetes del sistema)\n"
-        "  windows      toolchain llvm-mingw (en Windows: programas nativos; en Linux: compilación cruzada)\n"
-        "  android      JDK, SDK (cmdline-tools, platform-tools, build-tools, plataforma), NDK y emulador\n"
-        "  multimedia   WebKitGTK, GStreamer y PulseAudio para WebView, VideoPlayer y std.audio (Linux)\n"
-        "  all          todos los anteriores que tengan sentido en este sistema\n\n"
-        "Opciones:\n"
-        "  --list         muestra qué está instalado, sin instalar nada\n"
-        "  --yes, -y      no pregunta y acepta las licencias del SDK de Android\n"
-        "  --no-emulator  android: sin emulador ni imagen del sistema\n"
-        "  --dry-run      android: prepara Java y sdkmanager y muestra los paquetes, sin instalarlos\n",
+        "Usage: faset setup [modules...] [options]\n\n"
+        "Install what each platform needs. With no modules, installs the one for the current system (%s).\n\n"
+        "Modules:\n"
+        "  linux        C compiler and FasetStudio libraries (system package manager)\n"
+        "  windows      llvm-mingw toolchain (on Windows: native programs; on Linux: cross-compilation)\n"
+        "  android      JDK, SDK (cmdline-tools, platform-tools, build-tools, platform), NDK and emulator\n"
+        "  multimedia   WebKitGTK, GStreamer and PulseAudio for WebView, VideoPlayer and std.audio (Linux)\n"
+        "  all          all of the above that make sense on this system\n\n"
+        "Options:\n"
+        "  --list         show what is installed, without installing anything\n"
+        "  --yes, -y      do not prompt and accept the Android SDK licenses\n"
+        "  --no-emulator  android: no emulator or system image\n"
+        "  --dry-run      android: set up Java and sdkmanager and show the packages, without installing them\n",
         kHost);
 }
 
@@ -743,7 +743,7 @@ int cmdSetup(const std::vector<std::string>& args) {
             return 0;
         } else if (a == "linux" || a == "windows" || a == "android" || a == "multimedia" || a == "all") mods.push_back(a);
         else {
-            std::fprintf(stderr, "faset setup: módulo u opción desconocida '%s'\n\n", a.c_str());
+            std::fprintf(stderr, "faset setup: unknown module or option '%s'\n\n", a.c_str());
             usage();
             return 2;
         }
@@ -759,7 +759,7 @@ int cmdSetup(const std::vector<std::string>& args) {
         else mods = {kHost};
     }
     if (fasetDataDir().empty()) {
-        std::fprintf(stderr, "faset setup: no se pudo determinar la carpeta del usuario (HOME / LOCALAPPDATA)\n");
+        std::fprintf(stderr, "faset setup: could not determine the user folder (HOME / LOCALAPPDATA)\n");
         return 1;
     }
     std::printf("faset setup (%s-%s)\n", kHost, kArch);
@@ -775,10 +775,10 @@ int cmdSetup(const std::vector<std::string>& args) {
     std::printf("\n");
     if (listOnly) return 0;
     if (failed) {
-        std::printf("Algún módulo no quedó completo (%d). Revisa los mensajes de arriba.\n", failed);
+        std::printf("Some module was not completed (%d). Check the messages above.\n", failed);
         return 1;
     }
-    std::printf("Todo listo. Comprueba con 'faset doctor'.\n");
+    std::printf("All set. Check with 'faset doctor'.\n");
     return 0;
 }
 

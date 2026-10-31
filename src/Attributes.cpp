@@ -124,7 +124,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                 if (label.size() > 9 && label.compare(label.size() - 9, 9, "Attribute") == 0) label.resize(label.size() - 9);
                 addCompletion(label, 7, "(atributo) " + typeDescription(c));
             }
-            for (const Builtin& b : kBuiltins) addCompletion(b.name, 7, "(atributo integrado)");
+            for (const Builtin& b : kBuiltins) addCompletion(b.name, 7, "(builtin attribute)");
             a.state = 2;
             continue;
         }
@@ -143,7 +143,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                             diag.error(a.loc, "attribute [" + a.name + "] is duplicated");
                             break;
                         }
-                if (ideMode) addRef(a.loc, (int)a.name.size(), "(atributo integrado) " + a.name, nullptr);
+                if (ideMode) addRef(a.loc, (int)a.name.size(), "(builtin attribute) " + a.name, nullptr);
             } else {
                 diag.error(a.loc, "unknown attribute '" + a.name + "' (there is no class '" + a.name + "' or '" + a.name +
                                       "Attribute' deriving from Attribute)");
@@ -207,7 +207,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                         diag.error(a.namedLocs[i], "'" + ac->displayName + "' has no writable public field or property '" + n + "'");
                         continue;
                     }
-                    if (ideMode) addRef(a.namedLocs[i], (int)n.size(), "(propiedad del atributo) " + ac->displayName + "." + n,
+                    if (ideMode) addRef(a.namedLocs[i], (int)n.size(), "(attribute property) " + ac->displayName + "." + n,
                                         f ? &f->loc : &g->loc);
                     named.push_back({n, v});
                 }

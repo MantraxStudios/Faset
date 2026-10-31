@@ -48,7 +48,7 @@ bool gOffline = false;  // --offline o FASET_OFFLINE=1: nada de red, solo la cac
 bool gVerbose = false;
 
 void fail(const std::string& msg) { std::fprintf(stderr, "faset: error: %s\n", msg.c_str()); }
-void warn(const std::string& msg) { std::fprintf(stderr, "faset: aviso: %s\n", msg.c_str()); }
+void warn(const std::string& msg) { std::fprintf(stderr, "faset: warning: %s\n", msg.c_str()); }
 void progress(const std::string& msg) {
     std::fprintf(stderr, "  %s\n", msg.c_str());
     std::fflush(stderr);
@@ -173,7 +173,7 @@ std::string gitTail(const std::string& out) {
 bool haveGit(std::string& err) {
     static int known = -1;
     if (known < 0) known = findProgram("git").empty() ? 0 : 1;
-    if (!known) err = "hace falta git para descargar paquetes (instálalo y vuelve a probar)";
+    if (!known) err = "git is required to download packages (install it and try again)";
     return known == 1;
 }
 
@@ -198,7 +198,7 @@ int git(const Strings& args, std::string& out) {
 
 bool offlineError(const std::string& what, std::string& err) {
     if (!gOffline) return false;
-    err = "sin conexión (--offline / FASET_OFFLINE): hace falta " + what + " y no está en la caché";
+    err = "offline (--offline / FASET_OFFLINE): " + what + " is needed and is not in the cache";
     return true;
 }
 
@@ -319,7 +319,7 @@ bool parseRange(const std::string& text, Range& r, std::string& err) {
             Semver v;
             int parts = 0;
             if (!parseSemver(tok.substr(i), v, &parts)) {
-                err = "versión no válida '" + tok + "' (ejemplos: 1.2.0, ^1.2, ~1.2, >=1.0 <2.0)";
+                err = "invalid version '" + tok + "' (examples: 1.2.0, ^1.2, ~1.2, >=1.0 <2.0)";
                 return false;
             }
             Semver lo = v, hi;
@@ -352,7 +352,7 @@ bool parseRange(const std::string& text, Range& r, std::string& err) {
             else if (op == "<") all.push_back({Comparator::Lt, v});
             else if (op == "<=") all.push_back({Comparator::Le, v});
             else {
-                err = "operador desconocido '" + op + "' en la versión '" + r.text + "'";
+                err = "unknown operator '" + op + "' in version '" + r.text + "'";
                 return false;
             }
         }
@@ -397,10 +397,10 @@ bool listTags(const std::string& url, std::vector<Tag>& tags, std::string& err) 
         tags = it->second;
         return true;
     }
-    if (offlineError("consultar las versiones de " + url, err) || !haveGit(err)) return false;
+    if (offlineError("querying the versions of " + url, err) || !haveGit(err)) return false;
     std::string out;
     if (git({"ls-remote", "--tags", url}, out) != 0) {
-        err = "no se pudo consultar el repositorio " + url + gitTail(out);
+        err = "could not query repository " + url + gitTail(out);
         return false;
     }
     std::map<std::string, Tag> byName;
@@ -439,10 +439,10 @@ bool listTags(const std::string& url, std::vector<Tag>& tags, std::string& err) 
 
 // Commit al que apunta una referencia remota (refs/heads/main, HEAD).
 bool remoteRef(const std::string& url, const std::string& ref, std::string& sha, std::string& err) {
-    if (offlineError("consultar " + ref + " de " + url, err) || !haveGit(err)) return false;
+    if (offlineError("querying " + ref + " of " + url, err) || !haveGit(err)) return false;
     std::string out;
     if (git({"ls-remote", url, ref}, out) != 0) {
-        err = "no se pudo consultar el repositorio " + url + gitTail(out);
+        err = "could not query repository " + url + gitTail(out);
         return false;
     }
     std::stringstream ss(out);
@@ -454,7 +454,7 @@ bool remoteRef(const std::string& url, const std::string& ref, std::string& sha,
             return true;
         }
     }
-    err = "el repositorio " + url + " no tiene " + (startsWith(ref, "refs/heads/") ? "la rama '" + ref.substr(11) + "'" : ref);
+    err = "repository " + url + " does not have " + (startsWith(ref, "refs/heads/") ? "branch '" + ref.substr(11) + "'" : ref);
     return false;
 }
 
@@ -487,7 +487,7 @@ bool settle(const std::string& tmp, const std::string& dest, std::string& err) {
     if (ec) {
         fs::remove_all(tmp, ec);
         if (!fs::exists(dest)) {
-            err = "no se pudo crear " + dest;
+            err = "could not create " + dest;
             return false;
         }
     }
@@ -503,7 +503,7 @@ bool cloneTag(const std::string& url, const std::string& tag, const std::string&
     fs::remove_all(tmp, ec);
     if (git({"clone", "-q", "--depth", "1", "--branch", tag, url, tmp}, out) != 0) {
         fs::remove_all(tmp, ec);
-        err = "no se pudo descargar " + url + " (" + tag + ")" + gitTail(out);
+        err = "could not download " + url + " (" + tag + ")" + gitTail(out);
         return false;
     }
     return settle(tmp, dest, err);
@@ -526,7 +526,7 @@ bool cloneCommit(const std::string& url, const std::string& commit, const std::s
         ok = git({"clone", "-q", "--no-checkout", url, tmp}, out) == 0 && git({"-C", tmp, "checkout", "-q", commit}, out) == 0;
         if (!ok) {
             fs::remove_all(tmp, ec);
-            err = "no se pudo descargar " + url + " en el commit " + commit + gitTail(out);
+            err = "could not download " + url + " at commit " + commit + gitTail(out);
             return false;
         }
     }
@@ -540,7 +540,7 @@ std::string cacheRoot(std::string& err) {
     if (over && *over) return over;
     std::string d = fasetDataDir();
     if (d.empty()) {
-        err = "no se encuentra la carpeta de datos del usuario (HOME / LOCALAPPDATA)";
+        err = "cannot find the user data folder (HOME / LOCALAPPDATA)";
         return "";
     }
     return (fs::path(d) / "paquetes").string();
@@ -558,15 +558,15 @@ std::string projectIn(const std::string& dir, std::string& err) {
     std::error_code ec;
     if (fs::path(dir).extension() == ".fstproj" && fs::is_regular_file(dir, ec)) return dir;
     if (!fs::is_directory(dir, ec)) {
-        err = "no existe la carpeta '" + dir + "'";
+        err = "folder '" + dir + "' does not exist";
         return "";
     }
     Strings found;
     for (auto& e : fs::directory_iterator(dir, ec))
         if (e.path().extension() == ".fstproj") found.push_back(e.path().string());
     if (found.size() == 1) return found[0];
-    err = found.empty() ? "no hay ningún .fstproj en '" + dir + "' (¿falta Folder=\"...\"?)"
-                        : "hay varios .fstproj en '" + dir + "'";
+    err = found.empty() ? "no .fstproj in '" + dir + "' (missing Folder=\"...\"?)"
+                        : "multiple .fstproj in '" + dir + "'";
     return "";
 }
 
@@ -627,13 +627,13 @@ const Json* loadIndex(std::string& why) {
         got = true;
     }
     if (!got) {
-        lastWhy = "el índice de paquetes (" + url + ") no está disponible todavía";
+        lastWhy = "the package index (" + url + ") is not available yet";
         why = lastWhy;
         return nullptr;
     }
     std::string perr;
     if (!Json::parse(text, index, &perr) || !index.get("paquetes").isObject()) {
-        lastWhy = "el índice de paquetes (" + url + ") no es válido" + (perr.empty() ? "" : ": " + perr);
+        lastWhy = "the package index (" + url + ") is invalid" + (perr.empty() ? "" : ": " + perr);
         why = lastWhy;
         return nullptr;
     }
@@ -651,12 +651,12 @@ bool indexLookup(const std::string& name, IndexEntry& e, std::string& why) {
         e.description = v.get("descripcion").asString();
         for (const Json& x : v.get("versiones").elements()) e.versions.push_back(x.asString());
         if (e.git.empty()) {
-            why = "el paquete '" + k + "' del índice no tiene \"git\"";
+            why = "package '" + k + "' in the index has no \"git\"";
             return false;
         }
         return true;
     }
-    why = "el paquete '" + name + "' no está en el índice (" + (gIndexUrl.empty() ? kDefaultIndex : gIndexUrl) + ")";
+    why = "package '" + name + "' is not in the index (" + (gIndexUrl.empty() ? kDefaultIndex : gIndexUrl) + ")";
     return false;
 }
 
@@ -678,7 +678,7 @@ bool readLock(const std::string& path, std::vector<Locked>& out) {
     if (!fs::is_regular_file(path, ec)) return false;
     Json j;
     if (!Json::parse(readFile(path), j) || !j.get("paquetes").isArray()) {
-        warn(path + " no es válido; se vuelve a resolver todo");
+        warn(path + " is invalid; resolving everything again");
         return false;
     }
     for (const Json& e : j.get("paquetes").elements()) {
@@ -733,8 +733,8 @@ struct Source {
     bool isPath = false;
     std::string git, folder, path;  // path: carpeta o .fstproj absoluto
     std::string describe() const {
-        if (isPath) return "ruta " + path;
-        return "git " + git + (folder.empty() ? "" : " (carpeta " + folder + ")");
+        if (isPath) return "path " + path;
+        return "git " + git + (folder.empty() ? "" : " (folder " + folder + ")");
     }
 };
 
@@ -790,7 +790,7 @@ struct Resolver {
 
     void say(const std::string& msg) {
         if (!announced) {
-            std::fprintf(stderr, "Restaurando paquetes de %s...\n", fs::path(rootProj).filename().string().c_str());
+            std::fprintf(stderr, "Restoring packages from %s...\n", fs::path(rootProj).filename().string().c_str());
             announced = true;
         }
         progress(msg);
@@ -832,8 +832,8 @@ struct Resolver {
         IndexEntry e;
         std::string why;
         if (!indexLookup(p.name, e, why)) {
-            err = r.by + ": paquete desconocido '" + p.name + "': " + why +
-                  ".\n  Indica de dónde sale: Git=\"https://...\" o Path=\"../carpeta\"";
+            err = r.by + ": unknown package '" + p.name + "': " + why +
+                  ".\n  Specify where it comes from: Git=\"https://...\" or Path=\"../folder\"";
             return false;
         }
         r.src.git = e.git;
@@ -847,16 +847,16 @@ struct Resolver {
         std::string perr;
         n.project = projectIn(base, perr);
         if (n.project.empty()) {
-            err = "paquete '" + n.name + "': " + perr;
+            err = "package '" + n.name + "': " + perr;
             return false;
         }
         Project p;
         if (!loadProject(n.project, p, perr)) {
-            err = "paquete '" + n.name + "': " + perr;
+            err = "package '" + n.name + "': " + perr;
             return false;
         }
         if (p.prop("OutputType", "Exe") != "Library") {
-            err = "paquete '" + n.name + "': " + n.project + " no es una biblioteca (OutputType debe ser Library)";
+            err = "package '" + n.name + "': " + n.project + " is not a library (OutputType must be Library)";
             return false;
         }
         n.children.clear();
@@ -880,7 +880,7 @@ struct Resolver {
         }
         std::string dir = cacheDirFor(n.name, n.version, n.commit);
         if (dir.empty()) {
-            err = "no se encuentra la carpeta de la caché de paquetes";
+            err = "cannot find the package cache folder";
             return false;
         }
         std::string have = headCommit(dir);
@@ -901,7 +901,7 @@ struct Resolver {
                     return loadNode(n, err);
                 }
                 if (!h2.empty() || fs::exists(cdir, ec)) fs::remove_all(cdir, ec);
-                say("Descargando " + n.name + " @" + n.commit.substr(0, 7) + " (" + n.src.git + ")");
+                say("Downloading " + n.name + " @" + n.commit.substr(0, 7) + " (" + n.src.git + ")");
                 if (!cloneCommit(n.src.git, n.commit, cdir, err)) return false;
                 n.dir = cdir;
                 n.commit = headCommit(cdir);
@@ -910,14 +910,14 @@ struct Resolver {
             fs::remove_all(dir, ec);  // descarga incompleta o rota
         }
         if (!n.tag.empty()) {
-            say("Descargando " + n.name + " " + n.version + " (" + n.src.git + ")");
+            say("Downloading " + n.name + " " + n.version + " (" + n.src.git + ")");
             if (!cloneTag(n.src.git, n.tag, dir, err)) return false;
             std::string got = headCommit(dir);
             if (!n.commit.empty() && !startsWith(got, n.commit)) {
                 fs::remove_all(dir, ec);
                 if (fromLock)
-                    warn("la etiqueta " + n.tag + " de '" + n.name + "' ya no apunta al commit de paquetes.lock (" +
-                         n.commit.substr(0, 7) + "); se usa ese commit");
+                    warn("tag " + n.tag + " of '" + n.name + "' no longer points to the commit in paquetes.lock (" +
+                         n.commit.substr(0, 7) + "); using that commit");
                 std::string cdir = cacheDirFor(n.name, "", n.commit);
                 if (!cloneCommit(n.src.git, n.commit, cdir, err)) return false;
                 n.dir = cdir;
@@ -928,7 +928,7 @@ struct Resolver {
             n.commit = got;
             return loadNode(n, err);
         }
-        say("Descargando " + n.name + " @" + n.commit.substr(0, 7) + " (" + n.src.git + ")");
+        say("Downloading " + n.name + " @" + n.commit.substr(0, 7) + " (" + n.src.git + ")");
         if (!cloneCommit(n.src.git, n.commit, dir, err)) return false;
         n.dir = dir;
         n.commit = headCommit(dir);
@@ -980,7 +980,7 @@ struct Resolver {
                 continue;
             }
             if (lead->local && !r.local) continue;
-            err = "el paquete '" + name + "' se pide con orígenes distintos:\n  " + lead->by + ": " + lead->src.describe() + "\n  " +
+            err = "package '" + name + "' is requested from different sources:\n  " + lead->by + ": " + lead->src.describe() + "\n  " +
                   r.by + ": " + r.src.describe();
             return false;
         }
@@ -997,7 +997,7 @@ struct Resolver {
         for (const Req* r : same) {
             if (!r->ref.commit.empty() || !r->ref.branch.empty()) {
                 if (pin.req && (lower(pin.commit) != lower(r->ref.commit) || pin.branch != r->ref.branch)) {
-                    err = "el paquete '" + name + "' se fija a dos versiones distintas:\n  " + pin.req->by + ": " +
+                    err = "package '" + name + "' is pinned to two different versions:\n  " + pin.req->by + ": " +
                           (pin.commit.empty() ? "Branch=" + pin.branch : "Commit=" + pin.commit) + "\n  " + r->by + ": " +
                           (r->ref.commit.empty() ? "Branch=" + r->ref.branch : "Commit=" + r->ref.commit);
                     return false;
@@ -1010,7 +1010,7 @@ struct Resolver {
                 Range rg;
                 std::string perr;
                 if (!parseRange(r->ref.version, rg, perr)) {
-                    err = r->by + ": paquete '" + name + "': " + perr;
+                    err = r->by + ": package '" + name + "': " + perr;
                     return false;
                 }
                 ranges.push_back({rg, r});
@@ -1085,9 +1085,9 @@ struct Resolver {
         Strings avail;
         for (const Tag& t : tags) avail.push_back(t.v.str());
         std::reverse(avail.begin(), avail.end());
-        err = "no hay ninguna versión de '" + name + "' que cumpla todas las restricciones:";
-        for (const auto& [r, q] : ranges) err += "\n  " + q->by + " pide " + r.text;
-        err += "\n  versiones disponibles: " + (avail.empty() ? std::string("ninguna (el repositorio no tiene etiquetas vX.Y.Z)") : join(avail, ", "));
+        err = "no version of '" + name + "' satisfies all constraints:";
+        for (const auto& [r, q] : ranges) err += "\n  " + q->by + " requires " + r.text;
+        err += "\n  available versions: " + (avail.empty() ? std::string("none (the repository has no vX.Y.Z tags)") : join(avail, ", "));
         return false;
     }
 
@@ -1109,8 +1109,8 @@ struct Resolver {
                 r.by = fs::path(proj.path).filename().string();
                 r.local = true;
                 if (!validName(pr.name)) {
-                    err = proj.path + ":" + std::to_string(pr.line) + ": nombre de paquete no válido '" + pr.name +
-                          "' (letras, números, '.', '_' y '-')";
+                    err = proj.path + ":" + std::to_string(pr.line) + ": invalid package name '" + pr.name +
+                          "' (letters, numbers, '.', '_' and '-')";
                     return false;
                 }
                 if (!sourceOf(r, proj.dir, err)) return false;
@@ -1165,7 +1165,7 @@ struct Resolver {
                         }
                     if (firstConflict.empty()) firstConflict = cerr;
                     if (blame.empty()) {
-                        err = "conflicto de versiones: " + firstConflict;
+                        err = "version conflict: " + firstConflict;
                         return false;
                     }
                     excluded[blame].insert(chosen[blame].version);
@@ -1207,7 +1207,7 @@ struct Resolver {
                 return true;
             }
         }
-        err = "no se pudieron resolver las versiones de los paquetes (demasiados intentos)" +
+        err = "could not resolve package versions (too many attempts)" +
               (firstConflict.empty() ? "" : ":\n" + firstConflict);
         return false;
     }
@@ -1229,7 +1229,7 @@ struct Resolver {
             return;
         }
         std::string text = lockText(result);
-        if (readFile(lockPath) != text && !writeFileText(lockPath, text)) warn("no se pudo escribir " + lockPath);
+        if (readFile(lockPath) != text && !writeFileText(lockPath, text)) warn("could not write " + lockPath);
     }
 
     Strings projects() const {
@@ -1404,7 +1404,7 @@ bool upsertPackage(std::string& text, const PackageRef& r, std::string& err, boo
     for (size_t k = text.find("</Project>"); k != std::string::npos; k = text.find("</Project>", k + 1))
         if (!inZones(zones, k)) end = k;
     if (end == std::string::npos) {
-        err = "falta </Project> en el .fstproj";
+        err = "missing </Project> in the .fstproj";
         return false;
     }
     std::string block = "  <ItemGroup>\n    " + item + "\n  </ItemGroup>\n";
@@ -1477,7 +1477,7 @@ bool parseOpts(const Strings& a, size_t from, CliOpts& o) {
         const std::string& s = a[i];
         auto next = [&](std::string& dst) {
             if (i + 1 >= a.size()) {
-                fail("falta el valor de '" + s + "'");
+                fail("missing value for '" + s + "'");
                 return false;
             }
             dst = a[++i];
@@ -1502,7 +1502,7 @@ bool parseOpts(const Strings& a, size_t from, CliOpts& o) {
         else if (s == "--no-restore") o.noRestore = true;
         else if (s == "--verbose") gVerbose = true;
         else if (!s.empty() && s[0] == '-' && s.size() > 1) {
-            fail("opción desconocida '" + s + "'");
+            fail("unknown option '" + s + "'");
             return false;
         } else o.positional.push_back(s);
     }
@@ -1526,7 +1526,7 @@ bool findTarget(const std::string& given, std::string& proj) {
         return !proj.empty();
     }
     proj = projectIn(fs::current_path().string(), err);
-    if (proj.empty()) fail(err + "; indica el proyecto con --project <x.fstproj>");
+    if (proj.empty()) fail(err + "; specify the project with --project <x.fstproj>");
     return !proj.empty();
 }
 
@@ -1544,18 +1544,18 @@ int restoreCmd(const std::string& proj, bool updateAll, const Strings& names, bo
     }
     for (const std::string& n : names)
         if (std::none_of(r.result.begin(), r.result.end(), [&](const Locked& l) { return lower(l.name) == lower(n); })) {
-            fail("el proyecto no usa el paquete '" + n + "'");
+            fail("the project does not use package '" + n + "'");
             return 1;
         }
     r.saveLock();
     if (quietList) return 0;
     auto describe = [](const Locked& l) {
-        if (!l.path.empty()) return std::string("ruta ") + l.path;
+        if (!l.path.empty()) return std::string("path ") + l.path;
         if (!l.version.empty()) return l.version;
         return (l.branch.empty() ? std::string("") : l.branch + " ") + "@" + l.commit.substr(0, 7);
     };
     if (r.result.empty()) {
-        std::printf("El proyecto no usa paquetes.\n");
+        std::printf("The project does not use packages.\n");
         return 0;
     }
     int changes = 0;
@@ -1574,15 +1574,15 @@ int restoreCmd(const std::string& proj, bool updateAll, const Strings& names, bo
             std::printf("  - %s %s\n", b.name.c_str(), describe(b).c_str());
             changes++;
         }
-    std::printf("%s: %zu paquete%s%s (%s)\n", fs::path(proj).filename().string().c_str(), r.result.size(),
-                r.result.size() == 1 ? "" : "s", changes ? "" : ", sin cambios", kLockName);
+    std::printf("%s: %zu package%s%s (%s)\n", fs::path(proj).filename().string().c_str(), r.result.size(),
+                r.result.size() == 1 ? "" : "s", changes ? "" : ", no changes", kLockName);
     return 0;
 }
 
 // faset add <nombre|url git|ruta> [--version X] [--branch B] [--commit C] [--folder F] [--name N]
 int addCmd(const CliOpts& o) {
     if (o.positional.size() != 1) {
-        fail("uso: faset add <nombre | url git | ruta> [--version X] [--branch rama | --commit sha] [--folder carpeta] [--project x.fstproj]");
+        fail("usage: faset add <name | git url | path> [--version X] [--branch branch | --commit sha] [--folder folder] [--project x.fstproj]");
         return 1;
     }
     std::string proj;
@@ -1603,7 +1603,7 @@ int addCmd(const CliOpts& o) {
     ref.commit = o.commit;
     ref.folder = o.folder;
     if (!ref.branch.empty() && !ref.commit.empty()) {
-        fail("--branch y --commit no pueden ir juntos");
+        fail("--branch and --commit cannot be used together");
         return 1;
     }
     std::error_code ec;
@@ -1613,7 +1613,7 @@ int addCmd(const CliOpts& o) {
     probe.rootProj = proj;
     if (isPath) {
         if (!ref.branch.empty() || !ref.commit.empty()) {
-            fail("--branch y --commit solo valen para paquetes git");
+            fail("--branch and --commit only apply to git packages");
             return 1;
         }
         std::string dir = fs::absolute(what).lexically_normal().string();
@@ -1625,11 +1625,11 @@ int addCmd(const CliOpts& o) {
             return 1;
         }
         if (lib.prop("OutputType", "Exe") != "Library") {
-            fail("'" + p + "' no es una biblioteca (OutputType debe ser Library)");
+            fail("'" + p + "' is not a library (OutputType must be Library)");
             return 1;
         }
         if (canonical(p) == canonical(proj)) {
-            fail("un proyecto no puede usarse a sí mismo como paquete");
+            fail("a project cannot use itself as a package");
             return 1;
         }
         ref.name = o.name.empty() ? packageIdOf(lib) : o.name;
@@ -1639,7 +1639,7 @@ int addCmd(const CliOpts& o) {
         if (isLocalGitPath(what)) ref.git = relativeTo(fs::absolute(what).lexically_normal().string(), projDir);
         // Se descarga para saber su nombre (PackageId) y la versión más reciente.
         std::string guess = fs::path(normGit(what)).filename().string();
-        if (!validName(guess)) guess = "paquete";
+        if (!validName(guess)) guess = "package";
         Req r;
         r.ref = ref;
         r.ref.name = o.name.empty() ? guess : o.name;
@@ -1672,7 +1672,7 @@ int addCmd(const CliOpts& o) {
     } else {
         ref.name = o.name.empty() ? what : o.name;
         if (!validName(ref.name)) {
-            fail("nombre de paquete no válido '" + ref.name + "'");
+            fail("invalid package name '" + ref.name + "'");
             return 1;
         }
         const PackageRef* existing = nullptr;
@@ -1696,7 +1696,7 @@ int addCmd(const CliOpts& o) {
         if (!ref.git.empty() || !ref.path.empty()) {
             // (origen conocido: no hace falta el índice)
         } else if (!indexLookup(ref.name, e, why)) {
-            fail(why + ".\n  Usa la URL del repositorio git (faset add https://...) o una carpeta (faset add ../MiLib)");
+            fail(why + ".\n  Use the git repository URL (faset add https://...) or a folder (faset add ../MyLib)");
             return 1;
         } else if (ref.version.empty() && ref.branch.empty() && ref.commit.empty()) {
             Req r;
@@ -1715,7 +1715,7 @@ int addCmd(const CliOpts& o) {
         }
     }
     if (!validName(ref.name)) {
-        fail("nombre de paquete no válido '" + ref.name + "' (usa --name)");
+        fail("invalid package name '" + ref.name + "' (use --name)");
         return 1;
     }
     std::string original = readFile(proj), text = original;
@@ -1725,7 +1725,7 @@ int addCmd(const CliOpts& o) {
         return 1;
     }
     if (!writeFileText(proj, text)) {
-        fail("no se pudo escribir '" + proj + "'");
+        fail("could not write '" + proj + "'");
         return 1;
     }
     if (!o.noRestore) {
@@ -1734,42 +1734,42 @@ int addCmd(const CliOpts& o) {
         r.updating.insert(lower(ref.name));
         if (!r.resolve(err)) {
             writeFileText(proj, original);
-            fail(err + "\n(no se ha cambiado " + fs::path(proj).filename().string() + ")");
+            fail(err + "\n(" + fs::path(proj).filename().string() + " was not changed)");
             return 1;
         }
         r.saveLock();
         const Node* n = r.node(ref.name);
-        std::string got = !n ? "" : n->src.isPath ? "ruta " + ref.path : !n->version.empty() ? n->version : "@" + n->commit.substr(0, 7);
-        std::printf("%s '%s' %s en %s (%s)\n", replaced ? "Actualizado" : "Añadido", ref.name.c_str(), got.c_str(),
+        std::string got = !n ? "" : n->src.isPath ? "path " + ref.path : !n->version.empty() ? n->version : "@" + n->commit.substr(0, 7);
+        std::printf("%s '%s' %s in %s (%s)\n", replaced ? "Updated" : "Added", ref.name.c_str(), got.c_str(),
                     fs::path(proj).filename().string().c_str(), elementText(ref).c_str());
     } else {
-        std::printf("%s %s en %s\n", replaced ? "Actualizado" : "Añadido", elementText(ref).c_str(), fs::path(proj).filename().string().c_str());
+        std::printf("%s %s in %s\n", replaced ? "Updated" : "Added", elementText(ref).c_str(), fs::path(proj).filename().string().c_str());
     }
     return 0;
 }
 
 int removeCmd(const CliOpts& o) {
     if (o.positional.size() != 1) {
-        fail("uso: faset remove <nombre> [--project x.fstproj]");
+        fail("usage: faset remove <name> [--project x.fstproj]");
         return 1;
     }
     std::string proj;
     if (!findTarget(o.project, proj)) return 1;
     std::string text = readFile(proj);
     if (!removePackage(text, o.positional[0])) {
-        fail(fs::path(proj).filename().string() + " no tiene <PackageReference Include=\"" + o.positional[0] + "\">");
+        fail(fs::path(proj).filename().string() + " has no <PackageReference Include=\"" + o.positional[0] + "\">");
         return 1;
     }
     if (!writeFileText(proj, text)) {
-        fail("no se pudo escribir '" + proj + "'");
+        fail("could not write '" + proj + "'");
         return 1;
     }
-    std::printf("Quitado '%s' de %s\n", o.positional[0].c_str(), fs::path(proj).filename().string().c_str());
+    std::printf("Removed '%s' from %s\n", o.positional[0].c_str(), fs::path(proj).filename().string().c_str());
     Resolver r;
     r.rootProj = fs::absolute(proj).lexically_normal().string();
     std::string err;
     if (r.resolve(err)) r.saveLock();
-    else warn("no se pudo actualizar " + std::string(kLockName) + ": " + err);
+    else warn("could not update " + std::string(kLockName) + ": " + err);
     return 0;
 }
 
@@ -1792,7 +1792,7 @@ int listCmd(const CliOpts& o) {
     }
     r.saveLock();
     auto label = [&](const Locked& l) {
-        if (!l.path.empty()) return "(ruta " + l.path + ")";
+        if (!l.path.empty()) return "(path " + l.path + ")";
         std::string s = l.version.empty() ? (l.branch.empty() ? "" : l.branch + " ") + "@" + l.commit.substr(0, 7)
                                           : l.version + " (" + l.commit.substr(0, 7) + ")";
         return s + "  " + l.git + (l.folder.empty() ? "" : " /" + l.folder);
@@ -1835,7 +1835,7 @@ int listCmd(const CliOpts& o) {
     }
     std::printf("%s\n", fs::path(proj).filename().string().c_str());
     if (r.result.empty()) {
-        std::printf("  (sin paquetes)\n");
+        std::printf("  (no packages)\n");
         return 0;
     }
     Strings directs;
@@ -1849,11 +1849,11 @@ int listCmd(const CliOpts& o) {
             const Locked* l = find(name);
             std::string branch = last ? "└── " : "├── ";
             if (!l) {
-                std::printf("%s%s%s (sin resolver)\n", prefix.c_str(), branch.c_str(), name.c_str());
+                std::printf("%s%s%s (unresolved)\n", prefix.c_str(), branch.c_str(), name.c_str());
                 return;
             }
             bool cycle = path.count(lower(name));
-            std::printf("%s%s%s %s%s\n", prefix.c_str(), branch.c_str(), l->name.c_str(), label(*l).c_str(), cycle ? " (ciclo)" : "");
+            std::printf("%s%s%s %s%s\n", prefix.c_str(), branch.c_str(), l->name.c_str(), label(*l).c_str(), cycle ? " (cycle)" : "");
             if (cycle) return;
             path.insert(lower(name));
             for (size_t i = 0; i < l->deps.size(); i++) print(l->deps[i], prefix + (last ? "    " : "│   "), i + 1 == l->deps.size(), path);
@@ -1877,26 +1877,26 @@ int packCmd(const CliOpts& o, bool publish) {
         return 1;
     }
     Strings errors, warnings;
-    if (p.prop("OutputType", "Exe") != "Library") errors.push_back("<OutputType> debe ser Library (un paquete es una biblioteca)");
+    if (p.prop("OutputType", "Exe") != "Library") errors.push_back("<OutputType> must be Library (a package is a library)");
     std::string id = p.prop("PackageId");
-    if (id.empty()) errors.push_back("falta <PackageId> (el nombre con el que se usa el paquete)");
-    else if (!validName(id)) errors.push_back("<PackageId> no válido '" + id + "' (letras, números, '.', '_' y '-')");
+    if (id.empty()) errors.push_back("missing <PackageId> (the name the package is used by)");
+    else if (!validName(id)) errors.push_back("invalid <PackageId> '" + id + "' (letters, numbers, '.', '_' and '-')");
     std::string version = p.prop("Version");
     Semver sv;
     int parts = 0;
-    if (version.empty()) errors.push_back("falta <Version> (semver: 1.0.0)");
+    if (version.empty()) errors.push_back("missing <Version> (semver: 1.0.0)");
     else if (!parseSemver(version, sv, &parts) || parts != 3 || version[0] == 'v')
-        errors.push_back("<Version> debe ser semver MAYOR.MENOR.PARCHE (p. ej. 1.2.0), no '" + version + "'");
+        errors.push_back("<Version> must be semver MAJOR.MINOR.PATCH (e.g. 1.2.0), not '" + version + "'");
     for (const char* k : {"Description", "Authors", "License", "RepositoryUrl"})
-        if (p.prop(k).empty()) warnings.push_back("falta <" + std::string(k) + ">");
+        if (p.prop(k).empty()) warnings.push_back("missing <" + std::string(k) + ">");
     for (const PackageRef& r : p.packages) {
-        if (!r.path.empty()) errors.push_back("la dependencia '" + r.name + "' usa Path=: quien instale el paquete no tendrá esa carpeta (usa Git= o el índice)");
+        if (!r.path.empty()) errors.push_back("dependency '" + r.name + "' uses Path=: whoever installs the package will not have that folder (use Git= or the index)");
         else if (r.version.empty() && r.branch.empty() && r.commit.empty())
-            warnings.push_back("la dependencia '" + r.name + "' no indica Version: se usará siempre la más reciente");
-        else if (!r.branch.empty()) warnings.push_back("la dependencia '" + r.name + "' sigue la rama '" + r.branch + "': mejor una Version");
+            warnings.push_back("dependency '" + r.name + "' does not specify Version: the latest will always be used");
+        else if (!r.branch.empty()) warnings.push_back("dependency '" + r.name + "' follows branch '" + r.branch + "': prefer a Version");
     }
     std::error_code ec;
-    if (!fs::exists(fs::path(p.dir) / "README.md", ec)) warnings.push_back("no hay README.md");
+    if (!fs::exists(fs::path(p.dir) / "README.md", ec)) warnings.push_back("no README.md");
     // Git: carpeta dentro del repositorio, cambios sin confirmar y etiqueta existente.
     std::string top, out, folder;
     std::string tag = "v" + version;
@@ -1907,24 +1907,24 @@ int packCmd(const CliOpts& o, bool publish) {
         folder = relativeTo(p.dir, top);
         if (folder == ".") folder.clear();
         if (git({"-C", p.dir, "status", "--porcelain", "--", "."}, out) == 0 && !trim(out).empty())
-            warnings.push_back("hay cambios sin confirmar (git commit) en la carpeta del paquete");
+            warnings.push_back("there are uncommitted changes (git commit) in the package folder");
         if (git({"-C", p.dir, "tag", "-l", tag}, out) == 0 && trim(out) == tag)
-            warnings.push_back("la etiqueta " + tag + " ya existe: sube <Version> antes de publicar");
+            warnings.push_back("tag " + tag + " already exists: bump <Version> before publishing");
     } else {
-        warnings.push_back("la carpeta no es un repositorio git (git init) y los paquetes se publican con etiquetas git");
+        warnings.push_back("the folder is not a git repository (git init) and packages are published with git tags");
     }
-    std::printf("Paquete %s %s  (%s)\n", id.empty() ? "?" : id.c_str(), version.empty() ? "?" : version.c_str(), proj.c_str());
-    for (const std::string& w : warnings) std::printf("  aviso: %s\n", w.c_str());
+    std::printf("Package %s %s  (%s)\n", id.empty() ? "?" : id.c_str(), version.empty() ? "?" : version.c_str(), proj.c_str());
+    for (const std::string& w : warnings) std::printf("  warning: %s\n", w.c_str());
     for (const std::string& e : errors) std::printf("  error: %s\n", e.c_str());
     if (!errors.empty()) {
-        std::printf("\nCorrige los errores en %s y vuelve a probar.\n", fs::path(proj).filename().string().c_str());
+        std::printf("\nFix the errors in %s and try again.\n", fs::path(proj).filename().string().c_str());
         return 1;
     }
-    std::string repo = p.prop("RepositoryUrl", "<url del repositorio>");
-    std::printf("\nMetadatos correctos. Para publicar la versión %s:\n\n", version.c_str());
+    std::string repo = p.prop("RepositoryUrl", "<repository url>");
+    std::printf("\nMetadata OK. To publish version %s:\n\n", version.c_str());
     if (!inGit) std::printf("  git init && git add . && git commit -m \"%s %s\"\n  git remote add origin %s\n", id.c_str(), version.c_str(), repo.c_str());
     std::printf("  git tag %s\n  git push origin %s\n\n", tag.c_str(), tag.c_str());
-    std::printf("Quien quiera usarlo:\n\n  faset add %s --version ^%s%s\n\n  <PackageReference Include=\"%s\" Git=\"%s\" Version=\"^%s\"%s />\n",
+    std::printf("To use it:\n\n  faset add %s --version ^%s%s\n\n  <PackageReference Include=\"%s\" Git=\"%s\" Version=\"^%s\"%s />\n",
                 repo.c_str(), version.c_str(), folder.empty() ? "" : (" --folder " + folder).c_str(), id.c_str(), repo.c_str(),
                 version.c_str(), folder.empty() ? "" : (" Folder=\"" + folder + "\"").c_str());
     if (publish) {
@@ -1937,8 +1937,8 @@ int packCmd(const CliOpts& o, bool publish) {
         Json vs = Json::array();
         vs.push(version);
         e["versiones"] = vs;
-        std::printf("\nTodavía no hay un registro central. Cuando exista, 'faset publish' enviará esta entrada al\n"
-                    "índice (%s); mientras tanto puedes proponerla a mano:\n\n  \"%s\": %s\n",
+        std::printf("\nThere is no central registry yet. When there is, 'faset publish' will send this entry to the\n"
+                    "index (%s); meanwhile you can propose it manually:\n\n  \"%s\": %s\n",
                     kDefaultIndex, id.c_str(), e.dump().c_str());
     }
     return 0;
@@ -1950,22 +1950,22 @@ int newPackageCmd(const Strings& args) {
     for (const std::string& a : args)
         if (a == "--package" || a == "--lib" || a == "lib" || a == "classlib" || a == "--paquete") continue;
         else if (!a.empty() && a[0] == '-') {
-            fail("con --package solo vale --lib ('" + a + "' no)");
+            fail("with --package only --lib is valid ('" + a + "' is not)");
             return 1;
         } else name = a;
     if (name.empty()) {
-        fail("uso: faset new <Nombre> --lib --package");
+        fail("usage: faset new <Name> --lib --package");
         return 1;
     }
     fs::path dir(name);
     std::error_code ec;
     if (fs::exists(dir, ec)) {
-        fail("'" + name + "' ya existe");
+        fail("'" + name + "' already exists");
         return 1;
     }
     std::string id = dir.filename().string();
     if (!validName(id)) {
-        fail("nombre de paquete no válido '" + id + "' (letras, números, '.', '_' y '-')");
+        fail("invalid package name '" + id + "' (letters, numbers, '.', '_' and '-')");
         return 1;
     }
     std::string ns;
@@ -1979,16 +1979,16 @@ int newPackageCmd(const Strings& args) {
                   "    <AssemblyName>" + id + "</AssemblyName>\n"
                   "    <RootNamespace>" + ns + "</RootNamespace>\n"
                   "\n"
-                  "    <!-- Metadatos del paquete (faset pack los comprueba) -->\n"
+                  "    <!-- Package metadata (faset pack checks it) -->\n"
                   "    <PackageId>" + id + "</PackageId>\n"
                   "    <Version>0.1.0</Version>\n"
-                  "    <Description>Describe aquí qué hace " + id + ".</Description>\n"
-                  "    <Authors>Tu nombre</Authors>\n"
+                  "    <Description>Describe here what " + id + " does.</Description>\n"
+                  "    <Authors>Your name</Authors>\n"
                   "    <License>MIT</License>\n"
                   "    <RepositoryUrl>https://github.com/usuario/" + lower(id) + "</RepositoryUrl>\n"
                   "  </PropertyGroup>\n"
                   "\n"
-                  "  <!-- Dependencias de este paquete (se instalan también en quien lo use):\n"
+                  "  <!-- Dependencies of this package (also installed for whoever uses it):\n"
                   "  <ItemGroup>\n"
                   "    <PackageReference Include=\"Otro\" Git=\"https://github.com/usuario/otro\" Version=\"^1.0\" />\n"
                   "  </ItemGroup>\n"
@@ -1996,24 +1996,24 @@ int newPackageCmd(const Strings& args) {
                   "</Project>\n");
     writeFileText((dir / (id + ".fst")).string(),
                   "namespace " + ns + "\n{\n    public static class Saludo\n    {\n"
-                  "        public static string Texto() => \"¡Hola desde el paquete " + id + "!\";\n    }\n}\n");
+                  "        public static string Texto() => \"Hello from package " + id + "!\";\n    }\n}\n");
     writeFileText((dir / "README.md").string(),
                   "# " + id + "\n\n"
-                  "Describe aquí qué hace " + id + ".\n\n"
-                  "## Instalación\n\n"
+                  "Describe here what " + id + " does.\n\n"
+                  "## Installation\n\n"
                   "```sh\nfaset add https://github.com/usuario/" + lower(id) + "\n```\n\n"
-                  "o en el `.fstproj`:\n\n"
+                  "or in the `.fstproj`:\n\n"
                   "```xml\n<PackageReference Include=\"" + id + "\" Git=\"https://github.com/usuario/" + lower(id) +
                       "\" Version=\"^0.1\" />\n```\n\n"
-                  "## Uso\n\n"
+                  "## Usage\n\n"
                   "```csharp\nConsole.WriteLine(" + ns + ".Saludo.Texto());\n```\n\n"
-                  "## Publicar una versión\n\n"
-                  "1. Sube `<Version>` en `" + id + ".fstproj`.\n"
-                  "2. `faset pack` comprueba los metadatos.\n"
+                  "## Publishing a version\n\n"
+                  "1. Bump `<Version>` in `" + id + ".fstproj`.\n"
+                  "2. `faset pack` checks the metadata.\n"
                   "3. `git tag v0.1.0 && git push origin v0.1.0`.\n\n"
-                  "## Licencia\n\nMIT\n");
+                  "## License\n\nMIT\n");
     writeFileText((dir / ".gitignore").string(), "bin/\nobj/\n");
-    std::printf("Paquete '%s' creado (biblioteca con metadatos de paquete).\n\n  cd %s\n  faset pack       comprueba los metadatos\n"
+    std::printf("Package '%s' created (library with package metadata).\n\n  cd %s\n  faset pack       check the metadata\n"
                 "  git init && git add . && git commit -m \"%s 0.1.0\"\n  git tag v0.1.0\n",
                 id.c_str(), name.c_str(), id.c_str());
     return 0;
@@ -2021,19 +2021,19 @@ int newPackageCmd(const Strings& args) {
 
 void packagesUsage() {
     std::printf(
-        "Paquetes de Faset (git, carpetas locales y, en el futuro, el índice de faset.lat):\n\n"
-        "  faset add <nombre | url git | ruta> [opciones]   Añade <PackageReference> al .fstproj y lo descarga\n"
-        "      --version <restricción>   1.2.0, ^1.2, ~1.2, 1.2.x, \">=1.0 <2.0\" (por defecto ^ la más reciente)\n"
-        "      --branch <rama> | --commit <sha>   en vez de una versión\n"
-        "      --folder <carpeta>        el .fstproj del paquete está en una subcarpeta del repositorio\n"
-        "      --name <nombre>           nombre del paquete (por defecto su PackageId)\n"
-        "  faset remove <nombre>                          Quita el paquete del .fstproj\n"
-        "  faset restore [--offline]                      Descarga lo que diga paquetes.lock (o lo resuelve)\n"
-        "  faset update [nombre]                          Busca versiones nuevas y actualiza paquetes.lock\n"
-        "  faset list paquetes [--json]                   Árbol de dependencias resuelto\n"
-        "  faset new <Nombre> --lib --package             Biblioteca con metadatos, lista para publicar\n"
-        "  faset pack | faset publish                     Comprueba los metadatos y explica cómo publicar\n\n"
-        "Opciones comunes: --project <x.fstproj>, --offline (solo la caché), --index <url del índice>\n");
+        "Faset packages (git, local folders and, in the future, the faset.lat index):\n\n"
+        "  faset add <name | git url | path> [options]      Adds <PackageReference> to the .fstproj and downloads it\n"
+        "      --version <constraint>    1.2.0, ^1.2, ~1.2, 1.2.x, \">=1.0 <2.0\" (default: ^ the latest)\n"
+        "      --branch <branch> | --commit <sha>   instead of a version\n"
+        "      --folder <folder>         the package .fstproj is in a subfolder of the repository\n"
+        "      --name <name>             the package name (default: its PackageId)\n"
+        "  faset remove <name>                            Removes the package from the .fstproj\n"
+        "  faset restore [--offline]                      Downloads what paquetes.lock specifies (or resolves it)\n"
+        "  faset update [name]                            Checks for new versions and updates paquetes.lock\n"
+        "  faset list paquetes [--json]                   Resolved dependency tree\n"
+        "  faset new <Name> --lib --package               Library with metadata, ready to publish\n"
+        "  faset pack | faset publish                     Checks the metadata and explains how to publish\n\n"
+        "Common options: --project <x.fstproj>, --offline (cache only), --index <index url>\n");
 }
 
 }  // namespace
@@ -2087,11 +2087,11 @@ PackageStatus lockedPackageStatus(const std::string& projPath, const std::string
         if (lower(l.name) != lower(name)) continue;
         st.locked = true;
         st.project = lockedProject(lp, l);
-        if (!l.path.empty()) st.description = "paquete " + l.name + " (ruta " + l.path + ")";
+        if (!l.path.empty()) st.description = "package " + l.name + " (path " + l.path + ")";
         else
-            st.description = "paquete " + l.name + " " + (l.version.empty() ? (l.branch.empty() ? "" : "rama " + l.branch + " ") : l.version + " ") +
+            st.description = "package " + l.name + " " + (l.version.empty() ? (l.branch.empty() ? "" : "branch " + l.branch + " ") : l.version + " ") +
                              "· commit " + l.commit.substr(0, 7) + " · " + l.git + (l.folder.empty() ? "" : " /" + l.folder);
-        if (!l.deps.empty()) st.description += " · depende de " + join(l.deps, ", ");
+        if (!l.deps.empty()) st.description += " · depends on " + join(l.deps, ", ");
     }
     return st;
 }
@@ -2145,7 +2145,7 @@ bool packageCommand(const std::vector<std::string>& args, const std::string& sel
                 bv = v;
             }
         }
-        std::printf("%s\n", best.empty() ? "ninguna" : best.c_str());
+        std::printf("%s\n", best.empty() ? "none" : best.c_str());
         code = 0;
         return true;
     }
@@ -2154,7 +2154,7 @@ bool packageCommand(const std::vector<std::string>& args, const std::string& sel
     if (cmd == "list") {
         // 'faset list paquetes' (y 'faset list packages').
         if (args.size() < 2 || (args[1] != "paquetes" && args[1] != "packages")) {
-            fail("uso: faset list paquetes [--json] [--project x.fstproj]");
+            fail("usage: faset list paquetes [--json] [--project x.fstproj]");
             code = 1;
             return true;
         }
@@ -2213,11 +2213,11 @@ bool packageCommand(const std::vector<std::string>& args, const std::string& sel
                 used++;
                 if (restoreCmd(sp.path, cmd == "update" && names.empty(), names, false) != 0) code = 1;
             }
-            if (!used) std::printf("Ningún proyecto de %s usa paquetes.\n", fs::path(sln).filename().string().c_str());
+            if (!used) std::printf("No project in %s uses packages.\n", fs::path(sln).filename().string().c_str());
             return true;
         }
         if (cmd == "restore" && !names.empty()) {
-            fail("uso: faset restore [proyecto] [--offline]");
+            fail("usage: faset restore [project] [--offline]");
             code = 1;
         } else if (!findTarget(given, proj)) code = 1;
         else code = restoreCmd(proj, cmd == "update" && names.empty(), names, false);

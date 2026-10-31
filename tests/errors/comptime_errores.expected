@@ -1,12 +1,12 @@
-7|while evaluating 'Bucle' at compile time: se superó el límite de 20000000 pasos de evaluación en tiempo de compilación \(¿bucle infinito\?\)
-10|while evaluating 'Rec' at compile time: recursión demasiado profunda en tiempo de compilación \(límite: 200 llamadas anidadas\)
-11|while evaluating 'Medio' at compile time: división por cero en tiempo de compilación
-32|en tiempo de compilación: el valor de la variable 'x' no se conoce en tiempo de compilación
+7|while evaluating 'Bucle' at compile time: exceeded the limit of 20000000 evaluation steps at compile time \(infinite loop\?\)
+10|while evaluating 'Rec' at compile time: recursion too deep at compile time \(limit: 200 nested calls\)
+11|while evaluating 'Medio' at compile time: division by zero at compile time
+32|at compile time: the value of variable 'x' is not known at compile time
 33|static_assert failed: dentro de Main
 34|the condition of a 'comptime if' must be 'bool' \(it is int\)
 20|static_assert failed: la aritmética falla
-16|while evaluating 'Crece' at compile time: se superó el límite de 1000000 elementos creados en una evaluación de tiempo de compilación \(¿una lista que crece sin fin\?\)
-36|en tiempo de compilación: sizeof\(string\) depende de la plataforma de destino: no se puede evaluar en tiempo de compilación
+16|while evaluating 'Crece' at compile time: exceeded the limit of 1000000 elements created in a compile-time evaluation \(an endlessly growing list\?\)
+36|at compile time: sizeof\(string\) depends on the target platform: cannot be evaluated at compile time
 37|'comptime foreach' iterates over a compile-time list \(e\.g\. Tipo<T>\.Miembros\), not int
-23|en tiempo de compilación: los arreglos T\[\] no se pueden usar en tiempo de compilación; usa List<T> \(también con \[1, 2, \.\.otra\]\)
-24|en tiempo de compilación: el rango 5\.\.6 se sale de los límites \(longitud 2\)
+23|at compile time: arrays T\[\] cannot be used at compile time; use List<T> \(also with \[1, 2, \.\.other\]\)
+24|at compile time: range 5\.\.6 is out of bounds \(length 2\)

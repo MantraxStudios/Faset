@@ -36,7 +36,7 @@ std::vector<int> Parser::parseArrayRanks() {
         }
         const Token& close = (*toks_)[q];
         if (close.kind != TokKind::Punct || close.text != "]") break;  // new T[n], a[i]: no es un sufijo
-        if (commas > 2) fail("los arreglos tienen como mucho 3 dimensiones");
+        if (commas > 2) fail("arrays have at most 3 dimensions");
         ranks.push_back(commas + 1);
         p_ = q + 1;
     }
@@ -61,7 +61,7 @@ TypeRef* Parser::parseArraySuffix(TypeRef* tr) {
 // Después de 'new T' con '[' (o con T[] y '{').
 Expr* Parser::parseNewArray(SourceLoc loc, TypeRef* tr) {
     if (tr->arrayRank) {  // new int[] { ... } / new int[,] { ... }
-        if (!isP("{")) fail("se esperaba '{' con los elementos después de 'new " + tr->str() + "'");
+        if (!isP("{")) fail("expected '{' with the elements after 'new " + tr->str() + "'");
         auto* c = static_cast<CollectionExpr*>(parseBraceInit());
         c->loc = loc;
         c->arrayRef = tr;
@@ -72,7 +72,7 @@ Expr* Parser::parseNewArray(SourceLoc loc, TypeRef* tr) {
     do counts.push_back(parseExpr());
     while (acceptP(","));
     expectP("]");
-    if (counts.size() > 3) fail(loc, "los arreglos tienen como mucho 3 dimensiones");
+    if (counts.size() > 3) fail(loc, "arrays have at most 3 dimensions");
     // new int[3][]: arreglo de 3 elementos de tipo int[]
     std::vector<int> ranks = parseArrayRanks();
     TypeRef* elem = tr;
@@ -94,8 +94,8 @@ Expr* Parser::parseNewArray(SourceLoc loc, TypeRef* tr) {
 // new[] { 1, 2, 3 }  /  new[,] { {1, 2}, {3, 4} }
 Expr* Parser::parseImplicitNewArray(SourceLoc loc) {
     std::vector<int> ranks = parseArrayRanks();
-    if (ranks.size() != 1) fail("se esperaba 'new[] { ... }'");
-    if (!isP("{")) fail("se esperaba '{' con los elementos después de 'new[]'");
+    if (ranks.size() != 1) fail("expected 'new[] { ... }'");
+    if (!isP("{")) fail("expected '{' with the elements after 'new[]'");
     auto* c = static_cast<CollectionExpr*>(parseBraceInit());
     c->loc = loc;
     c->implicitNew = true;
@@ -142,7 +142,7 @@ Expr* Parser::parseCollectionExpr() {
                 auto* a = static_cast<AssignExpr*>(e);
                 auto* k = static_cast<CollectionExpr*>(a->lhs);
                 if (k->elems.size() != 1 || k->elems[0].spread || k->elems[0].key)
-                    fail(e->loc, "se esperaba '[clave] = valor'");
+                    fail(e->loc, "expected '[key] = value'");
                 el.key = k->elems[0].value;
                 el.value = a->rhs;
             } else {

@@ -24,7 +24,7 @@ void Parser::parseAttributeArgs(Attribute& a) {
                 a.namedExprs.push_back(parseConditional());
                 continue;
             }
-            if (!a.namedArgs.empty()) fail("los argumentos posicionales de un atributo van antes de los nombrados");
+            if (!a.namedArgs.empty()) fail("an attribute's positional arguments come before the named ones");
             size_t begin = p_;
             Expr* e = parseConditional();
             if (e->kind == EK::StringLit) {
@@ -61,7 +61,7 @@ Stmt* Parser::tryParseComptimeStmt() {
         parseType();  // 'var' o el tipo (se ignora: el elemento es un valor de tiempo de compilación)
         s->nameLoc = cur().loc;
         s->name = expectIdent();
-        if (!acceptK("in")) fail("se esperaba 'in' en 'comptime foreach' pero se encontró '" + cur().text + "'");
+        if (!acceptK("in")) fail("expected 'in' in 'comptime foreach' but found '" + cur().text + "'");
         s->coll = parseExpr();
         expectP(")");
         s->tokens = toks_;

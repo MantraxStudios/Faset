@@ -71,7 +71,7 @@ Expr* Parser::tryParseLambda() {
             do {
                 LambdaExpr::LParam prm;
                 prm.loc = cur().loc;
-                if (isK("ref") || isK("out")) fail("los parámetros de una lambda no pueden ser 'ref' ni 'out'");
+                if (isK("ref") || isK("out")) fail("the parameters of a lambda cannot be 'ref' or 'out'");
                 bool bare = cur().kind == TokKind::Ident && peekTok().kind == TokKind::Punct &&
                             (peekTok().text == "," || peekTok().text == ")");
                 if (!bare) {
@@ -85,7 +85,7 @@ Expr* Parser::tryParseLambda() {
         }
         expectP(")");
         if (typed != 0 && typed != (int)l->params.size())
-            fail(l->loc, "en una lambda, o todos los parámetros indican su tipo o ninguno lo hace");
+            fail(l->loc, "in a lambda, either all parameters specify their type or none do");
         expectP("=>");
     }
     if (isP("{")) l->blockBody = parseBlock();
@@ -119,8 +119,8 @@ void Parser::parseDelegateDecl(ClassDecl* owner, std::vector<Attribute> attrs, M
     if (isP("<")) m->typeParams = parseTypeParams();
     parseParams(m);
     for (Param& p : m->params)
-        if (p.isRef() || p.isThis) fail(p.loc, "los parámetros de un delegado no pueden ser 'ref', 'out' ni 'this'");
-    if (m->variadic) fail(loc, "un delegado no puede ser variádico");
+        if (p.isRef() || p.isThis) fail(p.loc, "the parameters of a delegate cannot be 'ref', 'out' or 'this'");
+    if (m->variadic) fail(loc, "a delegate cannot be variadic");
     expectP(";");
     m->owner = owner;
     m->file = file_;

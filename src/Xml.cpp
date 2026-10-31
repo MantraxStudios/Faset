@@ -15,7 +15,7 @@ struct XmlParser {
 
     int lineAt(size_t pos) const { return 1 + (int)std::count(s.begin(), s.begin() + (long)std::min(pos, s.size()), '\n'); }
     bool fail(const std::string& msg) {
-        if (error.empty()) error = "línea " + std::to_string(lineAt(i)) + ": " + msg;
+        if (error.empty()) error = "line " + std::to_string(lineAt(i)) + ": " + msg;
         return false;
     }
     void skipWs() {
@@ -60,14 +60,14 @@ struct XmlParser {
     }
     bool element(XmlNode& n) {
         skipWs();
-        if (i >= s.size() || s[i] != '<') return fail("se esperaba '<'");
+        if (i >= s.size() || s[i] != '<') return fail("expected '<'");
         n.line = lineAt(i);
         i++;
         n.name = name();
-        if (n.name.empty()) return fail("nombre de elemento vacío");
+        if (n.name.empty()) return fail("empty element name");
         for (;;) {
             skipWs();
-            if (i >= s.size()) return fail("fin de archivo dentro de <" + n.name + ">");
+            if (i >= s.size()) return fail("end of file inside <" + n.name + ">");
             if (s.compare(i, 2, "/>") == 0) {
                 i += 2;
                 return true;
@@ -77,15 +77,15 @@ struct XmlParser {
                 break;
             }
             std::string a = name();
-            if (a.empty()) return fail("atributo mal formado en <" + n.name + ">");
+            if (a.empty()) return fail("malformed attribute in <" + n.name + ">");
             skipWs();
-            if (i >= s.size() || s[i] != '=') return fail("se esperaba '=' en el atributo '" + a + "'");
+            if (i >= s.size() || s[i] != '=') return fail("expected '=' in attribute '" + a + "'");
             i++;
             skipWs();
-            if (i >= s.size() || (s[i] != '"' && s[i] != '\'')) return fail("se esperaban comillas en '" + a + "'");
+            if (i >= s.size() || (s[i] != '"' && s[i] != '\'')) return fail("expected quotes in '" + a + "'");
             char q = s[i++];
             size_t e = s.find(q, i);
-            if (e == std::string::npos) return fail("atributo sin cerrar");
+            if (e == std::string::npos) return fail("unterminated attribute");
             n.attrs[a] = unescape(s.substr(i, e - i));
             n.attrOrder.push_back(a);
             i = e + 1;
@@ -98,13 +98,13 @@ struct XmlParser {
                 skipWs();
                 continue;
             }
-            if (i >= s.size()) return fail("falta </" + n.name + ">");
+            if (i >= s.size()) return fail("missing </" + n.name + ">");
             if (s.compare(i, 2, "</") == 0) {
                 i += 2;
                 std::string close = name();
                 skipWs();
-                if (close != n.name) return fail("se esperaba </" + n.name + "> pero se encontró </" + close + ">");
-                if (i >= s.size() || s[i] != '>') return fail("se esperaba '>'");
+                if (close != n.name) return fail("expected </" + n.name + "> but found </" + close + ">");
+                if (i >= s.size() || s[i] != '>') return fail("expected '>'");
                 i++;
                 n.text = unescape(n.text);
                 size_t a = n.text.find_first_not_of(" \t\r\n"), z = n.text.find_last_not_of(" \t\r\n");

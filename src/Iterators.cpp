@@ -282,9 +282,9 @@ void Sema::checkYield(YieldStmt* y) {
             break;
         }
     if (ideMode && a->iterKind > 0)
-        addRef(y->loc, 5, y->isBreak ? "yield break: termina el iterador (se ejecutan sus 'finally')"
-                                     : "yield return: entrega un elemento de '" + a->ret->str() +
-                                           "' y suspende el iterador hasta el siguiente MoveNext()", nullptr);
+        addRef(y->loc, 5, y->isBreak ? "yield break: ends the iterator (its 'finally' blocks run)"
+                                     : "yield return: yields an element of '" + a->ret->str() +
+                                           "' and suspends the iterator until the next MoveNext()", nullptr);
     if (y->isBreak) return;
     a->yields++;
     if (a->iterKind < 0) {

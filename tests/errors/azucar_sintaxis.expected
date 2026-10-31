@@ -1,4 +1,4 @@
 5|empty hole '\{\}' in interpolated string
 6|unmatched '\}' in interpolated string \(write '\}\}' for a literal '\}'\)
 7|hole alignment must be a constant integer \(\{value,10\} or \{value,-10\}\)
-8|una tupla necesita al menos dos elementos
+8|a tuple needs at least two elements

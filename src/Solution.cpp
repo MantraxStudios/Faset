@@ -74,7 +74,7 @@ int Solution::find(const std::string& projectPath) const {
 bool loadSolution(const std::string& path, Solution& out, std::string& error) {
     std::ifstream f(path, std::ios::binary);
     if (!f) {
-        error = "no se puede leer '" + path + "'";
+        error = "cannot read '" + path + "'";
         return false;
     }
     std::stringstream ss;
@@ -82,11 +82,11 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
     XmlNode root;
     std::string xmlError;
     if (!parseXml(ss.str(), root, xmlError)) {
-        error = path + ": XML no válido: " + xmlError;
+        error = path + ": invalid XML: " + xmlError;
         return false;
     }
     if (root.name != "Solution") {
-        error = path + ": el elemento raíz debe ser <Solution>";
+        error = path + ": the root element must be <Solution>";
         return false;
     }
     out = Solution();
@@ -94,7 +94,7 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
     out.dir = fs::path(out.path).parent_path().string();
     for (const std::string& a : root.attrOrder) {
         if (a != "Name" && a != "Configuration" && a != "TargetPlatform") {
-            error = path + ": atributo desconocido '" + a + "' en <Solution> (válidos: Name, Configuration, TargetPlatform)";
+            error = path + ": unknown attribute '" + a + "' in <Solution> (valid: Name, Configuration, TargetPlatform)";
             return false;
         }
     }
@@ -107,7 +107,7 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
     out.configuration = attr(root, "Configuration");
     out.targetPlatform = attr(root, "TargetPlatform");
     if (!out.configuration.empty() && out.configuration != "Debug" && out.configuration != "Release") {
-        error = path + ": Configuration debe ser Debug o Release (no '" + out.configuration + "')";
+        error = path + ": Configuration must be Debug or Release (not '" + out.configuration + "')";
         return false;
     }
     int startups = 0;
@@ -118,7 +118,7 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
                 p.rel = attr(c, "Path");
                 std::replace(p.rel.begin(), p.rel.end(), '\\', '/');
                 if (p.rel.empty()) {
-                    error = path + ":" + std::to_string(c.line) + ": <Project> necesita el atributo Path";
+                    error = path + ":" + std::to_string(c.line) + ": <Project> needs the Path attribute";
                     return false;
                 }
                 p.path = (fs::path(out.dir) / p.rel).lexically_normal().string();
@@ -128,21 +128,21 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
                 if (p.startup) startups++;
                 for (const auto& sp : out.projects)
                     if (canonical(sp.path) == canonical(p.path)) {
-                        error = path + ":" + std::to_string(c.line) + ": el proyecto '" + p.rel + "' está repetido";
+                        error = path + ":" + std::to_string(c.line) + ": project '" + p.rel + "' is duplicated";
                         return false;
                     }
                 out.projects.push_back(p);
             } else if (c.name == "Folder") {
                 std::string name = attr(c, "Name");
                 if (name.empty() || name.find('/') != std::string::npos) {
-                    error = path + ":" + std::to_string(c.line) + ": <Folder> necesita un Name sin '/'";
+                    error = path + ":" + std::to_string(c.line) + ": <Folder> needs a Name without '/'";
                     return false;
                 }
                 std::string full = folder.empty() ? name : folder + "/" + name;
                 if (std::find(out.folders.begin(), out.folders.end(), full) == out.folders.end()) out.folders.push_back(full);
                 if (!walk(c, full)) return false;
             } else {
-                error = path + ":" + std::to_string(c.line) + ": elemento desconocido <" + c.name + "> (se esperaba Project o Folder)";
+                error = path + ":" + std::to_string(c.line) + ": unknown element <" + c.name + "> (expected Project or Folder)";
                 return false;
             }
         }
@@ -150,7 +150,7 @@ bool loadSolution(const std::string& path, Solution& out, std::string& error) {
     };
     if (!walk(root, "")) return false;
     if (startups > 1) {
-        error = path + ": solo un proyecto puede tener Startup=\"true\"";
+        error = path + ": only one project can have Startup=\"true\"";
         return false;
     }
     return true;
@@ -185,12 +185,12 @@ std::string solutionXml(const Solution& s) {
 bool saveSolution(const Solution& s, std::string& error) {
     std::ofstream f(s.path, std::ios::binary);
     if (!f) {
-        error = "no se puede escribir '" + s.path + "'";
+        error = "cannot write '" + s.path + "'";
         return false;
     }
     f << solutionXml(s);
     if (!f) {
-        error = "no se pudo guardar '" + s.path + "'";
+        error = "could not save '" + s.path + "'";
         return false;
     }
     return true;
@@ -224,7 +224,7 @@ bool solutionBuildOrder(const Solution& s, std::vector<int>& order, std::string&
     std::function<bool(int)> dfs = [&](int i) -> bool {
         if (state[i] == 2) return true;
         if (state[i] == 1) {
-            error = "referencia circular entre proyectos: " + s.projects[i].rel;
+            error = "circular reference between projects: " + s.projects[i].rel;
             return false;
         }
         state[i] = 1;

@@ -118,21 +118,21 @@ std::vector<TypeRef*>* exprTypeArgs(Expr* e) {
 std::string awaitNote(Type* t) {
     if (!t || !t->isClass() || !t->decl) return "";
     ClassDecl* d = t->decl;
-    if (!d->templateOf && d->name == "Task" && d->ns == "std.task") return "  (await: sin valor)";
+    if (!d->templateOf && d->name == "Task" && d->ns == "std.task") return "  (await: no value)";
     if (d->templateOf && d->templateOf->name == "Task" && d->templateOf->ns == "std.task" && d->typeArgs.size() == 1)
         return "  (await: " + d->typeArgs[0]->str() + ")";
     return "";
 }
 
 std::string describeVar(VarInfo* v) {
-    std::string kind = v->cname.rfind("p_", 0) == 0 ? "(parámetro) " : v->isConst ? "(constante local) " : "(variable local) ";
+    std::string kind = v->cname.rfind("p_", 0) == 0 ? "(parameter) " : v->isConst ? "(local constant) " : "(local variable) ";
     return kind + v->type->str() + (v->isRef ? "& " : " ") + v->name + awaitNote(v->type);
 }
 std::string describeField(FieldDecl* f) {
     std::string kind = f->owner->isNamespaceScope ? "(variable global) "
                        : f->mods.isConst          ? "(constante) "
-                       : f->isStatic()            ? "(campo estático) "
-                                                  : "(campo) ";
+                       : f->isStatic()            ? "(static field) "
+                                                  : "(field) ";
     std::string owner = f->owner->isNamespaceScope ? (f->owner->ns.empty() ? "" : f->owner->ns + ".")
                                                    : f->owner->displayName + ".";
     return kind + (f->type ? f->type->str() : f->tref->str()) + " " + owner + f->name;
@@ -1839,7 +1839,7 @@ static void describeExpr(Expr* e, Type* t, std::string& hover, SourceLoc& def, b
             def = n->var->loc;
             hasDef = true;
         } else if (n->getter) {
-            hover = "(propiedad) " + Sema::methodSignature(n->getter);
+            hover = "(property) " + Sema::methodSignature(n->getter);
             def = n->getter->loc;
             hasDef = true;
         } else if (n->field) {
@@ -1859,7 +1859,7 @@ static void describeExpr(Expr* e, Type* t, std::string& hover, SourceLoc& def, b
                 hasDef = true;
                 break;
             case MemberExpr::Ref::Property:
-                hover = "(propiedad) " + Sema::methodSignature(m->getter);
+                hover = "(property) " + Sema::methodSignature(m->getter);
                 def = m->getter->loc;
                 hasDef = true;
                 break;
@@ -1874,8 +1874,8 @@ static void describeExpr(Expr* e, Type* t, std::string& hover, SourceLoc& def, b
                 }
                 break;
             case MemberExpr::Ref::ConstInt: hover = "const " + t->str() + " " + t->str() + "." + m->name; break;
-            case MemberExpr::Ref::StrLength: hover = "(propiedad) int string.Length"; break;
-            case MemberExpr::Ref::StrPtr: hover = "(propiedad) byte* string.Ptr"; break;
+            case MemberExpr::Ref::StrLength: hover = "(property) int string.Length"; break;
+            case MemberExpr::Ref::StrPtr: hover = "(property) byte* string.Ptr"; break;
             default: break;
         }
     }
@@ -2351,7 +2351,7 @@ Type* Sema::checkCall(CallExpr* e) {
     if (Type* t = unionCallHook(e)) return t;  // Option.Some(5), Ok(x) (Unions.cpp)
     Expr* callee = e->callee;
     if (callee->type->isError()) return tc_.error();
-    if (callee->vk == ValKind::Value && rejectNamedArgs(e->args, "al invocar un delegado")) return tc_.error();
+    if (callee->vk == ValKind::Value && rejectNamedArgs(e->args, "when invoking a delegate")) return tc_.error();
     if (callee->vk == ValKind::Value && callee->type->isDelegate()) return checkDelegateCall(e);
 
     if (callee->vk == ValKind::Value && callee->type->isFuncPtr()) {
@@ -3071,7 +3071,7 @@ void Sema::completeScope() {
     if (ctx_.file) {
         for (NamespaceSym* ns : ctx_.file->nsUsings) completeNamespaceMembers(ns, false);
         for (UsingDirective& u : ctx_.file->usings)
-            if (!u.alias.empty()) addCompletion(u.alias, kClass, "alias de " + u.aliasType->str());
+            if (!u.alias.empty()) addCompletion(u.alias, kClass, "alias of " + u.aliasType->str());
     }
     static const char* const keywords[] = {
         "if", "else", "while", "do", "for", "break", "continue", "return", "switch", "case", "default",
@@ -3121,8 +3121,8 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
         return;
     }
     if (base->is(TK::String)) {
-        addCompletion("Length", kProperty, "(propiedad) int string.Length");
-        addCompletion("Ptr", kProperty, "(propiedad) byte* string.Ptr");
+        addCompletion("Length", kProperty, "(property) int string.Length");
+        addCompletion("Ptr", kProperty, "(property) byte* string.Ptr");
     }
     for (size_t i = 0; isTupleType(base) && i < base->tupleNames.size(); i++)  // (int x, int y): x, y
         if (!base->tupleNames[i].empty()) addCompletion(base->tupleNames[i], kField, base->decl->fields[i]->type->str() + " " + base->tupleNames[i]);
@@ -3160,10 +3160,10 @@ void Sema::completeMembers(Expr* obj, bool arrow, Type* ot) {
         for (auto& [n, c] : ns->types) {
             if (!c->isStaticClass() || c->isTemplate()) continue;
             for (MethodDecl* m : c->methods)
-                if (m->isExtension() && applies(m)) addCompletion(m->name, kMethod, "(extensión) " + methodSignature(m));
+                if (m->isExtension() && applies(m)) addCompletion(m->name, kMethod, "(extension) " + methodSignature(m));
         }
         for (auto& [n, fs] : ns->funcs)
             for (MethodDecl* m : fs)
-                if (m->isExtension() && applies(m)) addCompletion(m->name, kMethod, "(extensión) " + methodSignature(m));
+                if (m->isExtension() && applies(m)) addCompletion(m->name, kMethod, "(extension) " + methodSignature(m));
     }
 }

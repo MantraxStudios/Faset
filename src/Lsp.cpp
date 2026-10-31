@@ -197,7 +197,7 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
 
     Json out = Json::object();
     FrontendResult r;
-    if (fo.libDir.empty()) diag.fatal("no se encontró la biblioteca estándar de Faset (define FASET_LIB)");
+    if (fo.libDir.empty()) diag.fatal("Faset standard library not found (set FASET_LIB)");
     else if (!fo.inputs.empty()) r = runFrontend(fo);
 
     auto pathOf = [](int file) -> std::string {
@@ -347,7 +347,7 @@ int runAnalyzer(const std::string& requestPath, const std::string& resultPath, c
             for (auto& e : fs::directory_iterator(dir, ec)) {
                 std::string stem = e.path().stem().string();
                 if (e.is_directory()) addNs(e.path().filename().string(), "namespace " + prefix + e.path().filename().string());
-                else if (e.path().extension() == ".fst" && stem != "core" && stem != "exceptions") addNs(stem, "módulo " + prefix + stem);
+                else if (e.path().extension() == ".fst" && stem != "core" && stem != "exceptions") addNs(stem, "module " + prefix + stem);
             }
         } else if (xmlCompletePath.empty()) {
             for (const auto& c : r.sema->completions) {
@@ -694,7 +694,7 @@ Json Server::analyze(const std::string& focus, const std::map<std::string, std::
         e["line"] = 1;
         e["col"] = 1;
         e["severity"] = 1;
-        e["message"] = "el analizador de Faset falló de forma inesperada";
+        e["message"] = "the Faset analyzer failed unexpectedly";
         d.push(std::move(e));
         result["diagnostics"] = std::move(d);
     }
@@ -1015,7 +1015,7 @@ void Server::handle(const Json& msg, std::set<std::string>& dirty) {
         auto it = docs_.find(uriToPath(params.get("textDocument").get("uri").asString()));
         reply(id, it != docs_.end() ? formattingEdits(it->second.text) : Json::array());
     }
-    else replyError(id, -32601, "método no soportado: " + method);
+    else replyError(id, -32601, "unsupported method: " + method);
 }
 
 int Server::run() {

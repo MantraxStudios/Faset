@@ -10,7 +10,7 @@
 29|a named argument out of position cannot be followed by positional arguments
 30|parameter 'x' of 'F' already received an argument
 31|no overload of 'F' accepts the arguments \(int, string, int\)
-33|named arguments cannot be used al invocar un delegado
+33|named arguments cannot be used when invoking a delegate
 34|required member 'Persona\.Edad' \('required'\) must be assigned: initialize it in the object initializer \(new Persona \{ Edad = \.\.\. \}\)
 36|property 'Apodo' is init-only \('init'\): it can only be assigned in an object initializer, in 'with' or in a constructor
 37|'Sin' does not contain a definition for 'B'

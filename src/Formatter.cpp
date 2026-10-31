@@ -65,7 +65,7 @@ bool scan(const std::string& s, std::vector<Tok>& out, std::string& error) {
     std::string ws;
     bool lineStart = true;
     auto fail = [&](const std::string& why) {
-        error = "línea " + std::to_string(line + 1) + ": " + why;
+        error = "line " + std::to_string(line + 1) + ": " + why;
         return false;
     };
     auto push = [&](K k, size_t from, size_t to) {
@@ -123,7 +123,7 @@ bool scan(const std::string& s, std::vector<Tok>& out, std::string& error) {
         }
         if (c == '/' && i + 1 < n && s[i + 1] == '*') {
             size_t e = s.find("*/", i + 2);
-            if (e == std::string::npos) return fail("comentario de bloque sin cerrar");
+            if (e == std::string::npos) return fail("unterminated block comment");
             push(K::BlockComment, i, e + 2);
             i = e + 2;
             continue;
@@ -178,7 +178,7 @@ bool scan(const std::string& s, std::vector<Tok>& out, std::string& error) {
                     if (!verbatim && d == '\n') break;
                     j++;
                 }
-                if (!closed) return fail("cadena sin cerrar");
+                if (!closed) return fail("unterminated string");
                 push(K::Str, start, j);
                 i = j;
                 continue;
@@ -187,7 +187,7 @@ bool scan(const std::string& s, std::vector<Tok>& out, std::string& error) {
         if (c == '\'') {
             size_t j = i + 1;
             while (j < n && s[j] != '\'' && s[j] != '\n') j += s[j] == '\\' ? 2 : 1;
-            if (j >= n || s[j] != '\'') return fail("carácter sin cerrar");
+            if (j >= n || s[j] != '\'') return fail("unterminated character");
             push(K::Str, i, j + 1);
             i = j + 1;
             continue;
@@ -215,7 +215,7 @@ bool scan(const std::string& s, std::vector<Tok>& out, std::string& error) {
             continue;
         }
         size_t p = punctAt(s, i);
-        if (p == 0) return fail(std::string("carácter inesperado '") + c + "'");
+        if (p == 0) return fail(std::string("unexpected character '") + c + "'");
         push(K::Punct, i, i + p);
         i += p;
     }
@@ -396,7 +396,7 @@ bool formatSource(const std::string& src, std::string& out, std::string& error) 
             if (isP(t, "{")) stack.push_back(i);
             else if (isP(t, "}")) {
                 if (stack.empty()) {
-                    error = "línea " + std::to_string(t.line + 1) + ": '}' sin '{'";
+                    error = "line " + std::to_string(t.line + 1) + ": '}' without '{'";
                     return false;
                 }
                 match[i] = (int)stack.back();
@@ -405,7 +405,7 @@ bool formatSource(const std::string& src, std::string& out, std::string& error) 
             }
         }
         if (!stack.empty()) {
-            error = "línea " + std::to_string(toks[stack.back()].line + 1) + ": '{' sin cerrar";
+            error = "line " + std::to_string(toks[stack.back()].line + 1) + ": unterminated '{'";
             return false;
         }
     }
@@ -638,12 +638,12 @@ bool formatSource(const std::string& src, std::string& out, std::string& error) 
     std::vector<Tok> again;
     std::string err2;
     if (!scan(result, again, err2) || again.size() != toks.size()) {
-        error = "error interno del formateador (los tokens no coinciden); el archivo no se cambia";
+        error = "internal formatter error (tokens do not match); the file is left unchanged";
         return false;
     }
     for (size_t i = 0; i < toks.size(); i++)
         if (again[i].k != toks[i].k || again[i].text != toks[i].text) {
-            error = "error interno del formateador en la línea " + std::to_string(toks[i].line + 1) + "; el archivo no se cambia";
+            error = "internal formatter error at line " + std::to_string(toks[i].line + 1) + "; the file is left unchanged";
             return false;
         }
     out = result;
@@ -692,15 +692,15 @@ int cmdFormat(const std::vector<std::string>& args) {
         else if (a == "-q" || a == "--quiet") quiet = true;
         else if (a == "-h" || a == "--help") {
             std::printf(
-                "Uso: faset fmt [archivos|carpetas] [--check] [--stdin]\n\n"
-                "Formatea los .fst con el estilo de Faset (como C#): llaves en su propia línea, sangría de\n"
-                "4 espacios, espacios alrededor de los operadores y tras las comas. Sin archivos, formatea\n"
-                "la carpeta actual (sin bin/, obj/ ni carpetas ocultas). Los comentarios y las cadenas no se tocan.\n\n"
-                "  --check   no escribe nada; termina con código 1 si algún archivo necesita formato (para CI)\n"
-                "  --stdin   lee el código de la entrada estándar y escribe el resultado en la salida\n");
+                "Usage: faset fmt [files|folders] [--check] [--stdin]\n\n"
+                "Format .fst files in Faset style (like C#): braces on their own line, 4-space\n"
+                "indentation, spaces around operators and after commas. With no files, formats\n"
+                "the current folder (excluding bin/, obj/ and hidden folders). Comments and strings are left untouched.\n\n"
+                "  --check   writes nothing; exits with code 1 if any file needs formatting (for CI)\n"
+                "  --stdin   read code from standard input and write the result to standard output\n");
             return 0;
         } else if (!a.empty() && a[0] == '-') {
-            std::fprintf(stderr, "faset: error: opción desconocida '%s' (usa 'faset fmt --help')\n", a.c_str());
+            std::fprintf(stderr, "faset: error: unknown option '%s' (use 'faset fmt --help')\n", a.c_str());
             return 2;
         } else inputs.push_back(a);
     }
@@ -719,7 +719,7 @@ int cmdFormat(const std::vector<std::string>& args) {
     for (const std::string& in : inputs) {
         std::error_code ec;
         if (!fs::exists(in, ec)) {
-            std::fprintf(stderr, "faset: error: no existe '%s'\n", in.c_str());
+            std::fprintf(stderr, "faset: error: '%s' does not exist\n", in.c_str());
             return 2;
         }
         collect(in, files);
@@ -729,7 +729,7 @@ int cmdFormat(const std::vector<std::string>& args) {
     for (const fs::path& f : files) {
         std::string src, out, err;
         if (!readFile(f, src)) {
-            std::fprintf(stderr, "faset: error: no se puede leer '%s'\n", f.string().c_str());
+            std::fprintf(stderr, "faset: error: cannot read '%s'\n", f.string().c_str());
             failed++;
             continue;
         }
@@ -741,22 +741,22 @@ int cmdFormat(const std::vector<std::string>& args) {
         if (out == src) continue;
         changed++;
         if (check) {
-            if (!quiet) std::printf("Necesita formato: %s\n", f.string().c_str());
+            if (!quiet) std::printf("Needs formatting: %s\n", f.string().c_str());
             continue;
         }
         std::ofstream o(f, std::ios::binary);
         if (!(o << out)) {
-            std::fprintf(stderr, "faset: error: no se puede escribir '%s'\n", f.string().c_str());
+            std::fprintf(stderr, "faset: error: cannot write '%s'\n", f.string().c_str());
             failed++;
             continue;
         }
-        if (!quiet) std::printf("Formateado: %s\n", f.string().c_str());
+        if (!quiet) std::printf("Formatted: %s\n", f.string().c_str());
     }
     if (!quiet) {
         if (check)
-            std::printf("%zu archivo(s) comprobado(s), %d necesita(n) formato.\n", files.size(), changed);
+            std::printf("%zu file(s) checked, %d need(s) formatting.\n", files.size(), changed);
         else
-            std::printf("%zu archivo(s), %d formateado(s).\n", files.size(), changed);
+            std::printf("%zu file(s), %d formatted.\n", files.size(), changed);
     }
     if (failed) return 2;
     return check && changed ? 1 : 0;

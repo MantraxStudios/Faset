@@ -1,1 +1,1 @@
-4|el objeto de 'Nodo' calculado con comptime se refiere a sí mismo \(un ciclo\): no se puede escribir como constante
+4|the object of 'Nodo' computed with comptime refers to itself \(a cycle\): it cannot be written as a constant

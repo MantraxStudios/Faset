@@ -103,64 +103,64 @@ struct Options {
 
 static void usage() {
     std::printf(
-        "Faset %s - lenguaje nativo que mezcla C# y C++\n\n"
-        "Uso:\n"
-        "  faset new <Nombre> [plantilla]        Crea un proyecto (Nombre/Nombre.fstproj)\n"
-        "         plantillas: --console (por defecto), --lib [--package], --winexe, --ui (AppUI),\n"
-        "                     --android (AppUI para Android), --android --console\n"
-        "  faset build  [entrada] [opciones]     Compila a un ejecutable nativo\n"
-        "  faset run    [entrada] [-- args]      Compila y ejecuta\n"
-        "  faset check  [entrada]                Comprueba errores sin compilar\n"
-        "  faset emit-c [entrada] [-o f.c]       Genera el código C intermedio\n"
-        "  faset clean  [proyecto] [--cache]     Borra bin/ y obj/ (--cache: también la caché de objetos de C)\n"
-        "  faset test   [entrada] [--filter X]   Ejecuta las pruebas [Test] (--report r.xml|r.json, --list)\n"
-        "  faset fmt    [archivos|carpetas]      Formatea el código .fst (--check: solo comprueba)\n"
-        "  faset new sln [Nombre]                Crea una solución .fstp (sin nombre: en la carpeta actual)\n"
-        "  faset new <Nombre> --solution [...]   Solución con un primer proyecto (Nombre/Nombre.fstp)\n"
-        "  faset sln <orden>                     add, remove, list, startup, folder, move, rename, ref\n"
+        "Faset %s - native language blending C# and C++\n\n"
+        "Usage:\n"
+        "  faset new <Name> [template]           Create a project (Name/Name.fstproj)\n"
+        "         templates: --console (default), --lib [--package], --winexe, --ui (AppUI),\n"
+        "                    --android (AppUI for Android), --android --console\n"
+        "  faset build  [input] [options]        Compile to a native executable\n"
+        "  faset run    [input] [-- args]        Compile and run\n"
+        "  faset check  [input]                  Check for errors without compiling\n"
+        "  faset emit-c [input] [-o f.c]         Emit the intermediate C code\n"
+        "  faset clean  [project] [--cache]      Delete bin/ and obj/ (--cache: also the C object cache)\n"
+        "  faset test   [input] [--filter X]     Run the [Test] tests (--report r.xml|r.json, --list)\n"
+        "  faset fmt    [files|folders]          Format .fst code (--check: only checks)\n"
+        "  faset new sln [Name]                  Create a .fstp solution (no name: in the current folder)\n"
+        "  faset new <Name> --solution [...]     Solution with a first project (Name/Name.fstp)\n"
+        "  faset sln <command>                   add, remove, list, startup, folder, move, rename, ref\n"
         "                                        (faset sln help)\n"
-        "  faset add <paquete> [--version X]     Añade un paquete: nombre del índice, URL git o carpeta\n"
+        "  faset add <package> [--version X]     Add a package: index name, git URL or folder\n"
         "                                        (faset add --help)\n"
-        "  faset remove <paquete>                Quita un paquete del .fstproj\n"
-        "  faset restore [proyecto|solución]     Descarga los paquetes (respeta paquetes.lock)\n"
-        "  faset update [paquete]                Busca versiones nuevas y actualiza paquetes.lock\n"
-        "  faset list paquetes [--json]          Árbol de dependencias resuelto\n"
-        "  faset pack | faset publish            Comprueba los metadatos de un paquete y explica cómo publicarlo\n"
-        "  faset android <comando>               devices, avds, emulator, logcat, stop, uninstall\n"
+        "  faset remove <package>                Remove a package from the .fstproj\n"
+        "  faset restore [project|solution]      Download the packages (respects paquetes.lock)\n"
+        "  faset update [package]                Check for new versions and update paquetes.lock\n"
+        "  faset list packages [--json]          Resolved dependency tree\n"
+        "  faset pack | faset publish            Check a package's metadata and explain how to publish it\n"
+        "  faset android <command>               devices, avds, emulator, logcat, stop, uninstall\n"
         "                                        (faset android help)\n"
-        "  faset doctor                          Muestra los compiladores y el SDK de Android detectados\n"
+        "  faset doctor                          Show the detected compilers and Android SDK\n"
         "  faset setup [linux|windows|android|multimedia|all] [--list] [--yes]\n"
-        "                                        Instala lo que necesita cada plataforma (sin módulo: la actual)\n"
-        "  faset lsp                             Servidor de lenguaje (para VS Code y otros editores)\n"
+        "                                        Install what each platform needs (no module: the current one)\n"
+        "  faset lsp                             Language server (for VS Code and other editors)\n"
         "  faset version | help\n\n"
-        "Entrada: un .fstproj, una solución .fstp, una carpeta con uno de ellos, o archivos .fst sueltos.\n"
-        "         Sin entrada se usa el .fstproj de la carpeta actual (o su .fstp si no hay .fstproj).\n"
-        "         Con una solución se compilan todos sus proyectos en orden de dependencias,\n"
-        "         'run' ejecuta el proyecto de inicio y -o se aplica a ese proyecto.\n\n"
-        "Opciones:\n"
-        "  -o <ruta>            Archivo de salida\n"
-        "  -c <Debug|Release>   Configuración\n"
+        "Input: a .fstproj, a .fstp solution, a folder with one of them, or loose .fst files.\n"
+        "       With no input, the .fstproj in the current folder is used (or its .fstp if there is no .fstproj).\n"
+        "       With a solution, all its projects are built in dependency order,\n"
+        "       'run' runs the startup project and -o applies to that project.\n\n"
+        "Options:\n"
+        "  -o <path>            Output file\n"
+        "  -c <Debug|Release>   Configuration\n"
         "  --target <t>         native, linux, windows, android\n"
         "  --arch <a>           x86_64, x86, arm64, armv7\n"
-        "  --api <n>            Nivel de API mínimo de Android (por defecto 24)\n"
-        "  --device <serie>     Android: dispositivo para 'run' (ver 'faset android devices')\n"
-        "  --no-apk             Android: ejecutable ELF suelto en vez de un APK\n"
-        "  --shared             Biblioteca (.so / .dll)\n"
-        "  --gui                Windows: aplicación de ventana (sin consola)\n"
-        "  --static             Enlazado estático\n"
-        "  --debug / --release  Atajos de -c Debug / -c Release\n"
-        "  -g, --debug-info     Información de depuración con las líneas de Faset (por defecto en Debug;\n"
-        "                       --no-debug-info la quita)\n"
-        "  --cc <compilador>    Compilador de C (también: variable FASET_CC)\n"
-        "  -l <lib>  -L <dir>   Bibliotecas nativas\n"
-        "  --checks/--no-checks Diagnósticos extra: uso tras delete y delete doble (por defecto\n"
-        "                       solo en Debug; nulos, índices y división por cero se comprueban siempre)\n"
-        "  --allow-unsafe       Trata todos los archivos como contexto memory_unsafe\n"
-        "  --sanitize           Detecta errores de memoria en ejecución (ASan + UBSan)\n"
-        "  --keep-c             Conserva el C generado junto a la salida\n"
-        "  -v, --verbose        Muestra los comandos ejecutados\n\n"
-        "Android: 'faset build --target android' genera un APK firmado (bin/<Config>/android/<App>.apk)\n"
-        "y 'faset run --target android' lo instala, lo abre y muestra su logcat.\n",
+        "  --api <n>            Minimum Android API level (default 24)\n"
+        "  --device <serial>    Android: device for 'run' (see 'faset android devices')\n"
+        "  --no-apk             Android: loose ELF executable instead of an APK\n"
+        "  --shared             Library (.so / .dll)\n"
+        "  --gui                Windows: windowed application (no console)\n"
+        "  --static             Static linking\n"
+        "  --debug / --release  Shortcuts for -c Debug / -c Release\n"
+        "  -g, --debug-info     Debug info with Faset line numbers (on by default in Debug;\n"
+        "                       --no-debug-info removes it)\n"
+        "  --cc <compiler>      C compiler (also: FASET_CC variable)\n"
+        "  -l <lib>  -L <dir>   Native libraries\n"
+        "  --checks/--no-checks Extra diagnostics: use-after-delete and double delete (by default\n"
+        "                       only in Debug; null, indexes and division by zero are always checked)\n"
+        "  --allow-unsafe       Treat all files as memory_unsafe context\n"
+        "  --sanitize           Detect memory errors at runtime (ASan + UBSan)\n"
+        "  --keep-c             Keep the generated C next to the output\n"
+        "  -v, --verbose        Show the commands that are run\n\n"
+        "Android: 'faset build --target android' produces a signed APK (bin/<Config>/android/<App>.apk)\n"
+        "and 'faset run --target android' installs it, opens it and shows its logcat.\n",
         kVersion);
 }
 
@@ -198,7 +198,7 @@ static int runCommand(const std::vector<std::string>& args, bool verbose) {
     // Sin cmd.exe: no expande %VAR% en las rutas ni los argumentos de 'faset run', y la línea
     // puede llegar a 32767 caracteres (cmd.exe corta en 8191).
     int r = runProgramWindows(args);
-    if (r == -1) std::fprintf(stderr, "faset: no se pudo ejecutar '%s'\n", args.empty() ? "" : args[0].c_str());
+    if (r == -1) std::fprintf(stderr, "faset: could not run '%s'\n", args.empty() ? "" : args[0].c_str());
 #else
     std::fflush(stdout);
     int r = std::system(cmd.c_str());
@@ -219,8 +219,8 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
     if (t == "android") {
         std::string ndk = findAndroidNdk();
         if (ndk.empty()) {
-            why = "no se encontró el Android NDK; instálalo con 'sdkmanager --install \"ndk;<versión>\"' (queda en "
-                  "<SDK>/ndk/<versión>) o define ANDROID_NDK_HOME";
+            why = "the Android NDK was not found; install it with 'sdkmanager --install \"ndk;<version>\"' (it ends up in "
+                  "<SDK>/ndk/<version>) or set ANDROID_NDK_HOME";
             return "";
         }
 #if defined(_WIN32)
@@ -233,7 +233,7 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
         fs::path cc = fs::path(ndk) / "toolchains" / "llvm" / "prebuilt" / hostTag / "bin" /
                       (androidTriple(o.arch) + std::to_string(o.androidApi) + "-clang" + ext);
         if (!fs::exists(cc)) {
-            why = "no existe " + cc.string() + " (¿nivel de API o arquitectura no soportados por tu NDK?)";
+            why = "missing " + cc.string() + " (API level or architecture not supported by your NDK?)";
             return "";
         }
         return cc.string();
@@ -243,7 +243,7 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
             if (!findProgram(c).empty()) return c;
         // Windows: el toolchain llvm-mingw de 'faset setup windows'.
         if (t == "windows" && !managedMingwCompiler(o.arch).empty()) return managedMingwCompiler(o.arch);
-        why = std::string("no se encontró un compilador de C: ejecuta 'faset setup") + (t == "windows" ? " windows'" : "' (o instala gcc o clang)");
+        why = std::string("no C compiler found: run 'faset setup") + (t == "windows" ? " windows'" : "' (or install gcc or clang)");
         return "";
     }
     if (t == "windows") {
@@ -251,7 +251,7 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
         for (const std::string& c : {triple + "-gcc", triple + "-clang"})
             if (!findProgram(c).empty()) return c;
         if (!managedMingwCompiler(o.arch).empty()) return managedMingwCompiler(o.arch);
-        why = "no se encontró " + triple + "-gcc: ejecuta 'faset setup windows' (descarga llvm-mingw) o 'sudo apt install mingw-w64'";
+        why = "could not find " + triple + "-gcc: run 'faset setup windows' (downloads llvm-mingw) or 'sudo apt install mingw-w64'";
         return "";
     }
     if (t == "linux") {
@@ -259,10 +259,10 @@ static std::string resolveCompiler(const Options& o, std::string& why) {
                              : o.arch == "x86" ? "i686-linux-gnu" : "x86_64-linux-gnu";
         std::string c = triple + "-gcc";
         if (!findProgram(c).empty()) return c;
-        why = "no se encontró " + c + " para compilación cruzada";
+        why = "could not find " + c + " for cross-compilation";
         return "";
     }
-    why = "no se puede compilar para '" + t + "' desde " + kHostOS;
+    why = "cannot compile for '" + t + "' from " + kHostOS;
     return "";
 }
 
@@ -285,7 +285,7 @@ static std::string findProjectIn(const fs::path& dir) {
     for (auto& e : fs::directory_iterator(dir, ec))
         if (e.path().extension() == ".fstproj") found.push_back(e.path().string());
     if (found.size() > 1) {
-        diag.fatal("hay varios .fstproj en '" + dir.string() + "'; indica cuál compilar");
+        diag.fatal("there are several .fstproj in '" + dir.string() + "'; specify which one to build");
         std::exit(1);
     }
     return found.empty() ? "" : found[0];
@@ -300,7 +300,7 @@ static bool loadProjectTree(const std::string& path, Options& o) {
     std::function<bool(const std::string&, bool)> visit = [&](const std::string& p, bool isRoot) -> bool {
         std::string key = fs::weakly_canonical(p).string();
         if (std::find(stack.begin(), stack.end(), key) != stack.end()) {
-            diag.fatal("referencia circular entre proyectos: " + key);
+            diag.fatal("circular reference between projects: " + key);
             return false;
         }
         if (!done.insert(key).second) return true;
@@ -311,7 +311,7 @@ static bool loadProjectTree(const std::string& path, Options& o) {
             return false;
         }
         if (!isRoot && proj->prop("OutputType", "Exe") != "Library") {
-            diag.fatal("'" + p + "' está referenciado como dependencia pero su OutputType no es Library");
+            diag.fatal("'" + p + "' is referenced as a dependency but its OutputType is not Library");
             return false;
         }
         if (isRoot) o.project = proj;
@@ -327,7 +327,7 @@ static bool loadProjectTree(const std::string& path, Options& o) {
         stack.push_back(key);
         for (const std::string& ref : proj->references) {
             if (!fs::exists(ref)) {
-                diag.fatal(proj->path + ": no existe el proyecto referenciado '" + ref + "'");
+                diag.fatal(proj->path + ": referenced project '" + ref + "' does not exist");
                 return false;
             }
             if (!visit(ref, false)) return false;
@@ -401,14 +401,14 @@ static bool frontEnd(Options& o, std::string* csrc) {
     if (o.allowUnsafe)
         for (const std::string& f : o.inputs) fo.unsafeFiles.insert(normalizePath(f));
     if (fo.libDir.empty()) {
-        diag.fatal("no se encontró la biblioteca estándar (carpeta 'lib' con std/core.fst); define FASET_LIB");
+        diag.fatal("standard library not found (the 'lib' folder with std/core.fst); set FASET_LIB");
         return false;
     }
     FrontendResult r = runFrontend(fo);
     if (!r.sema || !r.ok) return false;
     if (!r.sema->entry && o.shared != 1 && o.command != "check") {
-        diag.fatal("no se encontró el punto de entrada ('static void Main()' o 'void main()'); para una biblioteca usa "
-                   "OutputType=Library o --shared");
+        diag.fatal("entry point not found ('static void Main()' or 'void main()'); for a library use "
+                   "OutputType=Library or --shared");
         return false;
     }
     // Bibliotecas del sistema que necesitan algunos módulos de la biblioteca estándar.
@@ -563,7 +563,7 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
     std::error_code ec;
     if (name == "bearssl") {
         root = lib0 / "net" / "bearssl";
-        what = "BearSSL (TLS y criptografía)";
+        what = "BearSSL (TLS and cryptography)";
         args.push_back("-I" + (root / "inc").generic_string());
         args.push_back("-I" + (root / "src").generic_string());
         for (auto it = fs::recursive_directory_iterator(root / "src", ec); it != fs::recursive_directory_iterator(); it.increment(ec))
@@ -584,11 +584,11 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
         args.push_back("-DMINIZ_NO_ARCHIVE_APIS=1");
         sources.push_back((root / "miniz.c").generic_string());
     } else {
-        diag.fatal("biblioteca incluida desconocida: " + name);
+        diag.fatal("unknown bundled library: " + name);
         return "";
     }
     if (sources.empty() || !fs::exists(sources[0], ec)) {
-        diag.fatal("falta " + root.string() + " (" + what + ")");
+        diag.fatal("missing " + root.string() + " (" + what + ")");
         return "";
     }
     std::sort(sources.begin(), sources.end());
@@ -603,7 +603,7 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
     fs::path obj = dir / "obj";
     fs::remove_all(obj, ec);
     fs::create_directories(obj, ec);
-    std::fprintf(stderr, "faset: compilando %s (%s-%s, solo la primera vez)...\n", what.c_str(), o.target.c_str(), o.arch.c_str());
+    std::fprintf(stderr, "faset: compiling %s (%s-%s, first time only)...\n", what.c_str(), o.target.c_str(), o.arch.c_str());
     // Archivos de respuesta (@archivo): la lista no cabe en la línea de órdenes de Windows.
     auto rsp = [](const fs::path& f, const std::vector<std::string>& list) {
         std::string t;
@@ -617,7 +617,7 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
     std::string ar = archiverFor(cc);
     fs::path tmpLib = dir / ("libfaset_" + name + ".tmp.a");
     if (!rsp(dir / "cc.rsp", args) || !rsp(dir / "ar.rsp", objs)) {
-        diag.fatal("no se pudo escribir en " + dir.string());
+        diag.fatal("could not write to " + dir.string());
         return "";
     }
     fs::path old = fs::current_path(ec);
@@ -627,7 +627,7 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
     fs::remove(tmpLib, ec);
     if (r == 0) r = runCommand({ar, "rcs", tmpLib.string(), "@" + (dir / "ar.rsp").string()}, o.verbose);
     if (r != 0) {
-        diag.fatal("no se pudo compilar " + what + " (código " + std::to_string(r) + "); usa -v para ver el comando");
+        diag.fatal("could not compile " + what + " (code " + std::to_string(r) + "); use -v to see the command");
         return "";
     }
     fs::rename(tmpLib, lib, ec);
@@ -636,7 +636,7 @@ static std::string vendorArchive(const Options& o, const std::string& cc, const 
     fs::remove(dir / "cc.rsp", ignore);
     fs::remove(dir / "ar.rsp", ignore);
     if (ec) {
-        diag.fatal("no se pudo crear " + lib.string());
+        diag.fatal("could not create " + lib.string());
         return "";
     }
     return lib.string();
@@ -668,7 +668,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     if (!writeFile(mainC, csrc) || !writeFile(tmp / "faset_rt.h", std::string(kRuntimeHeader) + kRuntimeExcHeader) ||
         !writeFile(rtC, runtime) ||
         !writeFile(gcC, kRuntimeGcSource)) {
-        diag.fatal("no se pudo escribir en " + tmp.string());
+        diag.fatal("could not write to " + tmp.string());
         return 1;
     }
 
@@ -722,7 +722,7 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     if (o.keepC) fs::copy_file(mainC, fs::path(outPath).replace_extension(".c"), fs::copy_options::overwrite_existing, ec);
     fs::remove_all(tmp, ec);
     if (r != 0) {
-        diag.fatal("el compilador de C falló (código " + std::to_string(r) + "); usa -v para ver el comando");
+        diag.fatal("the C compiler failed (code " + std::to_string(r) + "); use -v to see the command");
         return 1;
     }
     return 0;
@@ -829,12 +829,12 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
     if (ndk.empty()) {
         std::string why;
         resolveCompiler(o, why);
-        diag.fatal(why.empty() ? "no se encontró el Android NDK" : why);
+        diag.fatal(why.empty() ? "the Android NDK was not found" : why);
         return 1;
     }
     fs::path appGlue = fs::path(ndk) / "sources" / "android" / "native_app_glue";
     if (!fs::exists(glueC) || !fs::exists(appGlue / "android_native_app_glue.c")) {
-        diag.fatal("falta " + (fs::exists(glueC) ? (appGlue / "android_native_app_glue.c").string() : glueC.string()));
+        diag.fatal("missing " + (fs::exists(glueC) ? (appGlue / "android_native_app_glue.c").string() : glueC.string()));
         return 1;
     }
 
@@ -844,7 +844,7 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
     else abis = splitSemicolons(p ? p->prop("AndroidAbis", "arm64-v8a;x86_64") : "arm64-v8a;x86_64");
     for (const std::string& abi : abis)
         if (androidAbiToArch(abi).empty()) {
-            diag.fatal("ABI de Android desconocida '" + abi + "' (usa arm64-v8a, armeabi-v7a, x86 o x86_64)");
+            diag.fatal("unknown Android ABI '" + abi + "' (use arm64-v8a, armeabi-v7a, x86 or x86_64)");
             return 1;
         }
 
@@ -859,7 +859,7 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
     std::string tagSrc = "/* Generado por faset. */\nconst char faset_android_tag[] = \"" +
                          replaceAll(replaceAll(name, "\\", "\\\\"), "\"", "\\\"") + "\";\n";
     if (!writeFile(tagC, tagSrc)) {
-        diag.fatal("no se pudo escribir " + tagC.string());
+        diag.fatal("could not write " + tagC.string());
         return 1;
     }
 
@@ -873,7 +873,7 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
         std::vector<std::string> extra = {"-shared", "-fPIC", "-I" + appGlue.string(), "-I" + (fs::path(libDir) / "android").string(),
                                           "-DNDEBUG", "-u", "ANativeActivity_onCreate", "-Wl,-z,max-page-size=16384", "-landroid", "-llog"};
         if (o.debug != 1) extra.push_back("-s");
-        if (o.verbose) std::fprintf(stderr, "faset: compilando %s\n", abi.c_str());
+        if (o.verbose) std::fprintf(stderr, "faset: compiling %s\n", abi.c_str());
         if (int r = compileC(oa, csrc, so.string(),
                              {(appGlue / "android_native_app_glue.c").string(), glueC.string(), tagC.string()}, extra))
             return r;
@@ -893,7 +893,7 @@ static int buildApk(Options& o, const std::string& csrc, std::string& outPath) {
     for (const auto& [rel, src] : o.assets) {
         std::error_code aec;
         if (!fs::is_regular_file(src, aec)) {
-            diag.fatal("no existe el recurso '" + rel + "' (<Asset Include=\"" + rel + "\"/>)");
+            diag.fatal("asset '" + rel + "' does not exist (<Asset Include=\"" + rel + "\"/>)");
             return 1;
         }
         spec.files.push_back({"assets/" + rel, src});
@@ -946,7 +946,7 @@ static int copyAssets(const Options& o, const std::string& outPath) {
     for (const auto& [rel, src] : o.assets) {
         std::error_code ec;
         if (!fs::is_regular_file(src, ec)) {
-            diag.fatal("no existe el recurso '" + rel + "' (<Asset Include=\"" + rel + "\"/>)");
+            diag.fatal("asset '" + rel + "' does not exist (<Asset Include=\"" + rel + "\"/>)");
             return 1;
         }
         fs::path dst = dir / rel;
@@ -955,7 +955,7 @@ static int copyAssets(const Options& o, const std::string& outPath) {
             continue;
         fs::create_directories(dst.parent_path(), ec);
         if (!fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec)) {
-            diag.fatal("no se pudo copiar el recurso '" + rel + "' a " + dst.string() + ": " + ec.message());
+            diag.fatal("could not copy asset '" + rel + "' to " + dst.string() + ": " + ec.message());
             return 1;
         }
     }
@@ -965,7 +965,7 @@ static int copyAssets(const Options& o, const std::string& outPath) {
 static int build(Options& o, std::string& outPath) {
     std::string csrc;
     if (!frontEnd(o, &csrc)) {
-        std::fprintf(stderr, "compilación fallida: %d error(es)\n", diag.errorCount);
+        std::fprintf(stderr, "build failed: %d error(s)\n", diag.errorCount);
         return 1;
     }
     if (o.target == "android" && o.shared != 1 && !o.noApk) return buildApk(o, csrc, outPath);
@@ -979,7 +979,7 @@ static int build(Options& o, std::string& outPath) {
 // faset test: compila el proyecto con el Main que genera TestRunner.cpp y ejecuta las pruebas.
 static int cmdTest(Options& o, const std::vector<std::string>& testArgs) {
     if (o.target != kHostOS || o.arch != kHostArch) {
-        diag.fatal("'faset test' ejecuta las pruebas en esta máquina; no admite --target ni --arch de otra plataforma");
+        diag.fatal("'faset test' runs the tests on this machine; it does not support --target or --arch for another platform");
         return 1;
     }
     TestBuildHost h;
@@ -1038,18 +1038,18 @@ static int cmdNew(const std::vector<std::string>& args) {
         } else if (a == "--ui" || a == "ui" || a == "appui" || a == "--appui") kind = "AppUI";
         else if (a == "--android" || a == "android") android = true;
         else if (!a.empty() && a[0] == '-') {
-            diag.fatal("plantilla desconocida '" + a + "' (usa --console, --lib, --winexe, --ui o --android)");
+            diag.fatal("unknown template '" + a + "' (use --console, --lib, --winexe, --ui or --android)");
             return 1;
         } else name = a;
     }
     if (name.empty()) {
-        diag.fatal("uso: faset new <Nombre> [--console | --lib | --winexe | --ui | --android [--console]]");
+        diag.fatal("usage: faset new <Name> [--console | --lib | --winexe | --ui | --android [--console]]");
         return 1;
     }
     if (android && kind == "Exe" && !console) kind = "AppUI";  // --android: interfaz táctil por defecto
     fs::path dir(name);
     if (fs::exists(dir)) {
-        diag.fatal("'" + name + "' ya existe");
+        diag.fatal("'" + name + "' already exists");
         return 1;
     }
     std::string proj = fs::path(name).filename().string();
@@ -1069,8 +1069,8 @@ static int cmdNew(const std::vector<std::string>& args) {
                           "    <AppName>" + proj + "</AppName>\n"
                           "    <VersionCode>1</VersionCode>\n"
                           "    <VersionName>1.0</VersionName>\n"
-                          "    <AndroidApi>24</AndroidApi>                     <!-- versión mínima de Android (7.0) -->\n"
-                          "    <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- móviles + emulador -->\n"
+                          "    <AndroidApi>24</AndroidApi>                     <!-- minimum Android version (7.0) -->\n"
+                          "    <AndroidAbis>arm64-v8a;x86_64</AndroidAbis>     <!-- phones + emulator -->\n"
                           "    <!-- <AndroidOrientation>portrait</AndroidOrientation> -->\n"
                           "    <!-- <AndroidIcon>icon.png</AndroidIcon> -->\n");
     }
@@ -1133,38 +1133,38 @@ static int cmdNew(const std::vector<std::string>& args) {
                       "            auto window = new MainWindow();\n"
                       "            return Application.Run(window.Window);\n        }\n    }\n}\n");
     } else if (kind == "Library") {
-        writeFile(dir / "Biblioteca.fst",
-                  "namespace " + ns + "\n{\n    public static class Saludo\n    {\n"
-                  "        public static string Texto() => \"¡Hola desde la biblioteca " + proj + "!\";\n    }\n}\n");
+        writeFile(dir / "Library.fst",
+                  "namespace " + ns + "\n{\n    public static class Greeting\n    {\n"
+                  "        public static string Text() => \"Hello from library " + proj + "!\";\n    }\n}\n");
     } else {
         writeFile(dir / "Program.fst",
                   "using std::collections;\n\nnamespace " + ns +
                       "\n{\n    public static class Program\n    {\n        public static void Main()\n        {\n"
-                      "            Console::WriteLine(\"¡Hola desde Faset!\");\n\n"
-                      "            auto numeros = new List<int>();\n"
-                      "            for (int i = 1; i <= 5; i++) numeros.Add(i * i);\n"
-                      "            Console::WriteLine(numeros.Sum());\n        }\n    }\n}\n");
+                      "            Console::WriteLine(\"Hello from Faset!\");\n\n"
+                      "            auto numbers = new List<int>();\n"
+                      "            for (int i = 1; i <= 5; i++) numbers.Add(i * i);\n"
+                      "            Console::WriteLine(numbers.Sum());\n        }\n    }\n}\n");
     }
     writeFile(dir / ".gitignore", "bin/\nobj/\n");
-    std::string shown = android ? (kind == "AppUI" ? "Android, AppUI" : "Android, consola") : kind;
-    std::printf("Proyecto '%s' creado (%s).\n\n  cd %s\n  faset run\n", proj.c_str(), shown.c_str(), name.c_str());
+    std::string shown = android ? (kind == "AppUI" ? "Android, AppUI" : "Android, console") : kind;
+    std::printf("Project '%s' created (%s).\n\n  cd %s\n  faset run\n", proj.c_str(), shown.c_str(), name.c_str());
     if (android)
-        std::printf("\n  faset android emulator <avd>   (si no hay un móvil conectado; 'faset android avds')\n"
-                    "  faset run --target native      (versión de escritorio)\n");
+        std::printf("\n  faset android emulator <avd>   (if no phone is connected; 'faset android avds')\n"
+                    "  faset run --target native      (desktop version)\n");
     return 0;
 }
 
 static int cmdDoctor(const Options& o) {
     std::printf("Faset %s  (host: %s-%s)\n\n", kVersion, kHostOS, kHostArch);
     auto show = [](const std::string& label, const std::string& found, const std::string& hint) {
-        std::printf("  %-26s %s\n", label.c_str(), found.empty() ? ("no encontrado  -> " + hint).c_str() : found.c_str());
+        std::printf("  %-26s %s\n", label.c_str(), found.empty() ? ("not found  -> " + hint).c_str() : found.c_str());
     };
     std::string native;
     for (const char* c : {"cc", "gcc", "clang"})
         if (native.empty()) native = findProgram(c);
-    show("Biblioteca std", findLibDir(o.argv0), "define FASET_LIB con la ruta de la carpeta lib/");
+    show("std library", findLibDir(o.argv0), "set FASET_LIB to the path of the lib/ folder");
     if (native.empty() && std::string(kHostOS) == "windows") native = managedMingwCompiler(kHostArch);
-    show("Nativo (" + std::string(kHostOS) + ")", native, std::string("faset setup ") + kHostOS);
+    show("Native (" + std::string(kHostOS) + ")", native, std::string("faset setup ") + kHostOS);
     std::string mingw = findProgram("x86_64-w64-mingw32-gcc");
     if (mingw.empty()) mingw = managedMingwCompiler("x86_64");
     show("Windows x86_64 (MinGW)", mingw, "faset setup windows");
@@ -1226,7 +1226,7 @@ int main(int argc, char** argv) {
             args.insert(args.begin(), "build");
             o.command = "build";
         } else {
-            diag.fatal("comando desconocido '" + o.command + "' (usa 'faset help')");
+            diag.fatal("unknown command '" + o.command + "' (use 'faset help')");
             return 1;
         }
     }
@@ -1237,7 +1237,7 @@ int main(int argc, char** argv) {
         const std::string& a = args[i];
         auto next = [&]() -> std::string {
             if (i + 1 >= args.size()) {
-                diag.fatal("falta el valor de '" + a + "'");
+                diag.fatal("missing value for '" + a + "'");
                 std::exit(1);
             }
             return args[++i];
@@ -1272,7 +1272,7 @@ int main(int argc, char** argv) {
         else if (a == "-L") o.libDirs.push_back(next());
         else if (a.rfind("-L", 0) == 0 && a.size() > 2) o.libDirs.push_back(a.substr(2));
         else if (!a.empty() && a[0] == '-') {
-            diag.fatal("opción desconocida '" + a + "'");
+            diag.fatal("unknown option '" + a + "'");
             return 1;
         } else positional.push_back(a);
     }
@@ -1297,17 +1297,17 @@ int main(int argc, char** argv) {
 
     if (o.command == "clean" && cleanCache) {
         unsigned long long bytes = clearObjectCache();
-        std::printf("Caché de objetos borrada: %s (%.1f MB)\n", objectCacheDir().c_str(), bytes / 1048576.0);
+        std::printf("Object cache cleared: %s (%.1f MB)\n", objectCacheDir().c_str(), bytes / 1048576.0);
         if (!o.project) return 0;
     }
     if (o.command == "clean") {
         if (!o.project) {
-            diag.fatal("'clean' necesita un proyecto .fstproj");
+            diag.fatal("'clean' needs a .fstproj project");
             return 1;
         }
         std::error_code ec;
         for (const char* d : {"bin", "obj"}) fs::remove_all(fs::path(o.project->dir) / d, ec);
-        std::printf("Limpio: %s\n", o.project->dir.c_str());
+        std::printf("Cleaned: %s\n", o.project->dir.c_str());
         return 0;
     }
 
@@ -1317,7 +1317,7 @@ int main(int argc, char** argv) {
     if (o.androidApi == 0) o.androidApi = 24;
     if (o.configuration.empty()) o.configuration = "Debug";
     if (o.configuration != "Debug" && o.configuration != "Release") {
-        diag.fatal("configuración desconocida '" + o.configuration + "' (usa Debug o Release)");
+        diag.fatal("unknown configuration '" + o.configuration + "' (use Debug or Release)");
         return 1;
     }
     if (o.debug < 0) o.debug = o.configuration == "Debug";
@@ -1328,17 +1328,17 @@ int main(int argc, char** argv) {
     for (auto& [src, platform] : o.nativeSources) {
         if (!platform.empty() && platform != o.target) continue;
         if (!fs::exists(src)) {
-            diag.fatal("no existe la fuente nativa '" + src + "' (<NativeSource>)");
+            diag.fatal("native source '" + src + "' does not exist (<NativeSource>)");
             return 1;
         }
         if (std::find(o.cSources.begin(), o.cSources.end(), src) == o.cSources.end()) o.cSources.push_back(src);
     }
     if (o.target != "linux" && o.target != "windows" && o.target != "android" && o.target != "macos") {
-        diag.fatal("objetivo desconocido '" + o.target + "' (usa native, linux, windows o android)");
+        diag.fatal("unknown target '" + o.target + "' (use native, linux, windows or android)");
         return 1;
     }
     if (o.inputs.empty()) {
-        diag.fatal("no hay archivos .fst que compilar (¿falta un .fstproj?)");
+        diag.fatal("no .fst files to compile (is a .fstproj missing?)");
         return 1;
     }
 
@@ -1346,18 +1346,18 @@ int main(int argc, char** argv) {
     // Un proyecto de pruebas no tiene Main: 'faset build' solo lo comprueba (las soluciones lo compilan así).
     if (o.project && o.project->boolProp("IsTestProject", false) && (o.command == "build" || o.command == "run")) {
         if (o.command == "run") {
-            diag.fatal("'" + o.project->path + "' es un proyecto de pruebas (<IsTestProject>): ejecútalo con 'faset test'");
+            diag.fatal("'" + o.project->path + "' is a test project (<IsTestProject>): run it with 'faset test'");
             return 1;
         }
-        std::fprintf(stderr, "Proyecto de pruebas: se comprueba sin compilar (ejecuta sus pruebas con 'faset test').\n");
+        std::fprintf(stderr, "Test project: checked without compiling (run its tests with 'faset test').\n");
         o.command = "check";
     }
     if (o.command == "check") {
         if (!frontEnd(o, nullptr)) {
-            std::fprintf(stderr, "%d error(es)\n", diag.errorCount);
+            std::fprintf(stderr, "%d error(s)\n", diag.errorCount);
             return 1;
         }
-        std::printf("Sin errores (%zu archivo(s)).\n", o.inputs.size());
+        std::printf("No errors (%zu file(s)).\n", o.inputs.size());
         return 0;
     }
     if (o.command == "emit-c") {
@@ -1365,7 +1365,7 @@ int main(int argc, char** argv) {
         if (!frontEnd(o, &csrc)) return 1;
         if (o.output.empty()) std::fwrite(csrc.data(), 1, csrc.size(), stdout);
         else if (!writeFile(o.output, csrc)) {
-            diag.fatal("no se pudo escribir '" + o.output + "'");
+            diag.fatal("could not write '" + o.output + "'");
             return 1;
         }
         return 0;
@@ -1374,14 +1374,14 @@ int main(int argc, char** argv) {
     std::string outPath;
     if (int r = build(o, outPath)) return r;
     if (o.command == "build") {
-        std::fprintf(stderr, "Compilado: %s  [%s-%s, %s]\n", nativeToUtf8(outPath).c_str(), o.target.c_str(), o.arch.c_str(),
+        std::fprintf(stderr, "Built: %s  [%s-%s, %s]\n", nativeToUtf8(outPath).c_str(), o.target.c_str(), o.arch.c_str(),
                      o.configuration.c_str());
         return 0;
     }
     if (o.target == "android" && o.shared != 1 && !o.noApk)
         return androidRunApk(outPath, androidPackage(o), androidName(o), o.device, o.verbose);
     if (o.target != kHostOS || o.shared == 1) {
-        diag.fatal("'run' solo puede ejecutar programas para esta máquina; usa 'build' para otros objetivos");
+        diag.fatal("'run' can only run programs for this machine; use 'build' for other targets");
         return 1;
     }
     std::vector<std::string> cmd = {fs::absolute(outPath).string()};

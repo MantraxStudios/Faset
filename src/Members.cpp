@@ -384,7 +384,7 @@ void Sema::completeArgNames(Expr* callee, const std::vector<Expr*>& args) {
     for (MethodDecl* m : group)
         for (Param& p : m->params) {
             if (p.isThis) continue;
-            addCompletion(p.name + ":", 6, "(parámetro) " + (p.type ? p.type->str() : p.tref->str()) + " " + p.name +
+            addCompletion(p.name + ":", 6, "(parameter) " + (p.type ? p.type->str() : p.tref->str()) + " " + p.name +
                                                paramDefaultText(p) + "  — " + methodSignature(m));
         }
 }
@@ -441,7 +441,7 @@ void Sema::declareOutVars(const std::vector<MethodDecl*>& group, std::vector<Exp
         VarInfo* v = declareLocal(o->name, t, o->loc, "l_");  // como 'is T x' (SemaClasses.cpp)
         v->cname += "__o" + std::to_string(++patternCounter_);
         ctx_.method->patternVars.push_back(v);
-        if (ideMode) addRef(o->loc, (int)o->name.size(), "(variable local) " + t->str() + " " + o->name, &o->loc);
+        if (ideMode) addRef(o->loc, (int)o->name.size(), "(local variable) " + t->str() + " " + o->name, &o->loc);
         auto* n = new NameExpr(o->loc);
         n->name = v->name;
         n->argName = o->argName;
@@ -464,7 +464,7 @@ Type* Sema::checkNewMembers(NewExpr* e) {
             Type* t = resolveType(e->tref);
             if (t->isAggregate())
                 for (MethodDecl* m : t->decl->ctors)
-                    for (Param& p : m->params) addCompletion(p.name + ":", 6, "(parámetro) " + p.type->str() + " " + p.name);
+                    for (Param& p : m->params) addCompletion(p.name + ":", 6, "(parameter) " + p.type->str() + " " + p.name);
         }
     }
     Type* T = checkNew(e);
@@ -612,11 +612,11 @@ void Sema::completeInitMembers(Type* t) {
     for (ClassDecl* k : lookupChain(t->decl)) {
         for (FieldDecl* f : k->fields)
             if (!f->isStatic() && !f->mods.isReadonly && accessible(f->mods.access, k))
-                addCompletion(f->name, 5, (f->mods.isRequired ? "(obligatorio) " : "") + f->type->str() + " " + f->name);
+                addCompletion(f->name, 5, (f->mods.isRequired ? "(required) " : "") + f->type->str() + " " + f->name);
         for (MethodDecl* m : k->methods)
             if (m->kind == MethodKind::Getter && !m->isStatic() && m->name != "this[]" && accessible(m->mods.access, k) &&
                 (FindSetter(m) || (m->ret && m->ret->isClass())))
-                addCompletion(m->name, 10, (m->mods.isRequired ? "(obligatorio) " : "") + methodSignature(m));
+                addCompletion(m->name, 10, (m->mods.isRequired ? "(required) " : "") + methodSignature(m));
     }
 }
 

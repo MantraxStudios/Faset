@@ -63,7 +63,7 @@ std::string Parser::attributeArgText() {
         text += cur().text.empty() ? "?" : cur().text;
         p_++;
     }
-    if (text.empty()) fail("falta el argumento del atributo");
+    if (text.empty()) fail("missing attribute argument");
     return text;
 }
 
@@ -348,15 +348,15 @@ void discoverFile(const std::string& path, const std::string& src, Discovery& ou
             if (!isTest && !isSetup && !isTeardown) continue;
             std::string what = isTest ? "[Test]" : isSetup ? "[Setup]" : "[Teardown]";
             if (m->kind != MethodKind::Normal) {
-                err(m->loc.line, what + " solo se aplica a métodos");
+                err(m->loc.line, what + " can only be applied to methods");
                 continue;
             }
             if (!c->isNamespaceScope && m->mods.access != Access::Public) {
-                err(m->loc.line, "el método " + what + " '" + m->name + "' debe ser public");
+                err(m->loc.line, "the " + what + " method '" + m->name + "' must be public");
                 continue;
             }
             if (!m->typeParams.empty() || !c->typeParams.empty()) {
-                err(m->loc.line, "un método " + what + " no puede ser genérico ni estar en una clase genérica");
+                err(m->loc.line, "a " + what + " method cannot be generic or in a generic class");
                 continue;
             }
             if (isTest) {
@@ -364,7 +364,7 @@ void discoverFile(const std::string& path, const std::string& src, Discovery& ou
                 continue;
             }
             if (!m->params.empty()) {
-                err(m->loc.line, "el método " + what + " '" + m->name + "' no debe tener parámetros");
+                err(m->loc.line, "the " + what + " method '" + m->name + "' must not have parameters");
                 continue;
             }
             (isSetup ? setups : teardowns).push_back({m->name, m->isStatic() || c->isNamespaceScope});
@@ -378,14 +378,14 @@ void discoverFile(const std::string& path, const std::string& src, Discovery& ou
             bool defaultCtor = c->ctors.empty();
             for (MethodDecl* k : c->ctors)
                 if (k->params.empty() && k->mods.access == Access::Public) defaultCtor = true;
-            std::string why = c->kind != ClassKind::Class ? "no es una clase"
-                              : c->mods.isStatic          ? "es estática"
-                              : c->mods.isAbstract        ? "es abstracta"
-                              : !defaultCtor              ? "no tiene un constructor público sin parámetros"
+            std::string why = c->kind != ClassKind::Class ? "is not a class"
+                              : c->mods.isStatic          ? "is static"
+                              : c->mods.isAbstract        ? "is abstract"
+                              : !defaultCtor              ? "has no public parameterless constructor"
                                                           : "";
-            if (c->mods.access != Access::Public && !c->isNamespaceScope && c->mods.hasAccess) why = "no es public";
+            if (c->mods.access != Access::Public && !c->isNamespaceScope && c->mods.hasAccess) why = "is not public";
             if (!why.empty()) {
-                err(c->loc.line, "la clase '" + c->name + "' tiene pruebas de instancia pero " + why);
+                err(c->loc.line, "class '" + c->name + "' has instance tests but " + why);
                 continue;
             }
         }
@@ -411,12 +411,12 @@ void discoverFile(const std::string& path, const std::string& src, Discovery& ou
                 any = true;
                 std::vector<std::string> args;
                 if (!attributeArgsAt(src, a.loc.line, a.loc.col, args)) {
-                    err(a.loc.line, "no se pudieron leer los argumentos de [TestCase]");
+                    err(a.loc.line, "could not read the [TestCase] arguments");
                     continue;
                 }
                 if (!hasParams && args.size() != m->params.size()) {
-                    err(a.loc.line, "[TestCase] tiene " + std::to_string(args.size()) + " argumento(s) pero '" + m->name + "' tiene " +
-                                        std::to_string(m->params.size()) + " parámetro(s)");
+                    err(a.loc.line, "[TestCase] has " + std::to_string(args.size()) + " argument(s) but '" + m->name + "' has " +
+                                        std::to_string(m->params.size()) + " parameter(s)");
                     continue;
                 }
                 TestInfo t = base;
@@ -426,7 +426,7 @@ void discoverFile(const std::string& path, const std::string& src, Discovery& ou
                 out.tests.push_back(t);
             }
             if (attr(m->attrs, "Test") && !m->params.empty()) {
-                err(m->loc.line, "la prueba '" + m->name + "' tiene parámetros: usa [TestCase(...)] para darles valores");
+                err(m->loc.line, "test '" + m->name + "' has parameters: use [TestCase(...)] to give them values");
                 continue;
             }
             if (!any) out.tests.push_back(base);
@@ -467,7 +467,7 @@ bool parseTestOptions(const std::vector<std::string>& args, TestOptions& o) {
         const std::string& a = args[i];
         auto next = [&](std::string& v) {
             if (i + 1 >= args.size()) {
-                std::fprintf(stderr, "faset: error: falta el valor de '%s'\n", a.c_str());
+                std::fprintf(stderr, "faset: error: missing value for '%s'\n", a.c_str());
                 return false;
             }
             v = args[++i];
@@ -506,7 +506,7 @@ bool selected(const TestInfo& t, const TestOptions& o) {
 
 std::string generateHarness(const std::vector<const TestInfo*>& run) {
     std::string s =
-        "// Generado por 'faset test': ejecuta las pruebas del proyecto. No lo edites.\n"
+        "// Generated by 'faset test': runs the project's tests. Do not edit it.\n"
         "using std.test;\n\n"
         "static class " + std::string(kTestHarnessClass) + "\n{\n";
     for (size_t i = 0; i < run.size(); i++) {
@@ -743,7 +743,7 @@ std::string junitXml(const Json& projects) {
                 pf++;
                 std::string body = t.get("message").asString();
                 if (t.has("expected"))
-                    body += "\nesperado: " + t.get("expected").asString() + "\nobtenido: " + t.get("actual").asString();
+                    body += "\nexpected: " + t.get("expected").asString() + "\nactual: " + t.get("actual").asString();
                 body += "\n" + t.get("failureFile").asString() + ":" + std::to_string(t.get("failureLine").asInt());
                 inner += "      <failure message=\"" + xmlEscape(t.get("message").asString()) + "\" type=\"" +
                          xmlEscape(t.get("exceptionType").asString()) + "\">" + xmlEscape(body) + "</failure>\n";
@@ -794,7 +794,7 @@ bool writeReport(const std::string& path, const Json& projects) {
     std::error_code ec;
     if (fs::path(path).has_parent_path()) fs::create_directories(fs::path(path).parent_path(), ec);
     if (!writeAll(path, data)) {
-        std::fprintf(stderr, "faset: error: no se pudo escribir el informe '%s'\n", path.c_str());
+        std::fprintf(stderr, "faset: error: could not write the report '%s'\n", path.c_str());
         return false;
     }
     return true;
@@ -823,7 +823,7 @@ bool takeTestOptions(std::vector<std::string>& args, std::vector<std::string>& t
         bool flag = a == "--exact" || a == "--list" || a == "--json" || a == "-q" || a == "--quiet";
         if (withValue) {
             if (i + 1 >= args.size()) {
-                std::fprintf(stderr, "faset: error: falta el valor de '%s'\n", a.c_str());
+                std::fprintf(stderr, "faset: error: missing value for '%s'\n", a.c_str());
                 return false;
             }
             testArgs.push_back(a);
@@ -843,12 +843,12 @@ int runTests(const TestBuildHost& host) {
     if (!parseTestOptions(host.args, opt)) return 1;
     Colors col;
     col.on = !opt.list && !opt.json && useColor();
-    std::string title = host.projectName.empty() ? "archivos" : host.projectName;
+    std::string title = host.projectName.empty() ? "files" : host.projectName;
 
     Discovery d = discover(host.inputs, host.defines);
     for (const std::string& e : d.errors) std::fprintf(stderr, "%s\n", e.c_str());
     if (!d.errors.empty()) {
-        std::fprintf(stderr, "faset test: %zu error(es) en las pruebas\n", d.errors.size());
+        std::fprintf(stderr, "faset test: %zu error(s) in the tests\n", d.errors.size());
         return 1;
     }
     std::vector<Result> results;
@@ -879,7 +879,7 @@ int runTests(const TestBuildHost& host) {
         } else {
             for (const Result& r : results)
                 std::printf("%s  %s:%d%s\n", r.test->fullName().c_str(), shownPath(r.test->file).c_str(), r.test->line,
-                            r.test->ignored ? "  (ignorada)" : "");
+                            r.test->ignored ? "  (ignored)" : "");
         }
         return 0;
     }
@@ -889,7 +889,7 @@ int runTests(const TestBuildHost& host) {
     projectJson["project"] = title;
     projectJson["path"] = host.projectPath;
     if (results.empty()) {
-        std::printf("%s: no se encontraron pruebas%s.\n", title.c_str(), opt.filters.empty() ? "" : " que coincidan con el filtro");
+        std::printf("%s: no tests found%s.\n", title.c_str(), opt.filters.empty() ? "" : " matching the filter");
         projectJson["tests"] = Json::array();
         if (!opt.report.empty()) {
             Json arr = Json::array();
@@ -910,7 +910,7 @@ int runTests(const TestBuildHost& host) {
         runIndex.push_back((int)i);
     }
 
-    std::printf("%s\n", col.bold("Pruebas de " + title + " (" + std::to_string(results.size()) + ")").c_str());
+    std::printf("%s\n", col.bold("Tests for " + title + " (" + std::to_string(results.size()) + ")").c_str());
     std::fflush(stdout);
     std::vector<Result> ran(run.size());
     for (size_t i = 0; i < run.size(); i++) ran[i].test = run[i];
@@ -919,7 +919,7 @@ int runTests(const TestBuildHost& host) {
         fs::create_directories(host.objDir, ec);
         std::string harness = (fs::path(host.objDir) / "__pruebas.fst").string();
         if (!writeAll(harness, generateHarness(run))) {
-            std::fprintf(stderr, "faset: error: no se pudo escribir '%s'\n", harness.c_str());
+            std::fprintf(stderr, "faset: error: could not write '%s'\n", harness.c_str());
             return 1;
         }
 #if defined(_WIN32)
@@ -933,7 +933,7 @@ int runTests(const TestBuildHost& host) {
         int rc = host.build(inputs, exe);
         testHarnessEntry = false;
         if (rc != 0) {
-            std::fprintf(stderr, "faset test: no se pudo compilar el programa de pruebas\n");
+            std::fprintf(stderr, "faset test: could not compile the test program\n");
             return 1;
         }
         fs::path compileDir = fs::current_path(ec);
@@ -979,7 +979,7 @@ int runTests(const TestBuildHost& host) {
                 if (at != std::string::npos && parseWhere(l, r.failFile, r.failLine)) r.failFile = absoluteFrom(r.failFile, compileDir);
                 else r.failFile.clear();
             } else {
-                r.message = "el programa de pruebas terminó de forma inesperada";
+                r.message = "the test program ended unexpectedly";
             }
             if (!err.empty()) r.output += err;
             showDone(r);
@@ -992,7 +992,7 @@ int runTests(const TestBuildHost& host) {
     for (const Result& r : results)
         if (r.status == Status::Skipped && !opt.quiet)
             std::printf("  %s %s %s\n", col.yellow("○").c_str(), r.test->fullName().c_str(),
-                        col.dim(r.test->ignoreReason.empty() ? "(ignorada)" : "(ignorada: " + r.test->ignoreReason + ")").c_str());
+                        col.dim(r.test->ignoreReason.empty() ? "(ignored)" : "(ignored: " + r.test->ignoreReason + ")").c_str());
 
     int passed = 0, failed = 0, skipped = 0;
     for (const Result& r : results) {
@@ -1001,7 +1001,7 @@ int runTests(const TestBuildHost& host) {
         else skipped++;
     }
     if (failed) {
-        std::printf("\n%s\n", col.bold("Fallos:").c_str());
+        std::printf("\n%s\n", col.bold("Failures:").c_str());
         int n = 0;
         for (const Result& r : results) {
             if (r.status != Status::Failed) continue;
@@ -1015,13 +1015,13 @@ int runTests(const TestBuildHost& host) {
                                                             : r.type + ": " + r.message;
             printIndented(msg, "     ");
             if (r.hasValues) {
-                std::printf("       esperado: %s\n", col.green(r.expected).c_str());
-                std::printf("       obtenido: %s\n", col.red(r.actual).c_str());
+                std::printf("       expected: %s\n", col.green(r.expected).c_str());
+                std::printf("       actual: %s\n", col.red(r.actual).c_str());
             }
             if (r.type != "AssertException" && !r.panicked && r.trace.find('\n') != std::string::npos)
                 printIndented(r.trace, "    ");
             if (!r.output.empty()) {
-                std::printf("     %s\n", col.dim("salida:").c_str());
+                std::printf("     %s\n", col.dim("output:").c_str());
                 std::string out = r.output;
                 if (out.size() > 4000) out = "...\n" + out.substr(out.size() - 4000);
                 printIndented(out, "       ");
@@ -1029,12 +1029,11 @@ int runTests(const TestBuildHost& host) {
         }
     }
     double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();
-    std::string summary = std::to_string(passed) + (passed == 1 ? " correcta" : " correctas") + ", " + std::to_string(failed) +
-                          (failed == 1 ? " fallida" : " fallidas");
-    if (skipped) summary += ", " + std::to_string(skipped) + (skipped == 1 ? " ignorada" : " ignoradas");
-    summary += " (" + std::to_string(results.size()) + (results.size() == 1 ? " prueba" : " pruebas") + ", " +
+    std::string summary = std::to_string(passed) + " passed, " + std::to_string(failed) + " failed";
+    if (skipped) summary += ", " + std::to_string(skipped) + " ignored";
+    summary += " (" + std::to_string(results.size()) + (results.size() == 1 ? " test" : " tests") + ", " +
                showDuration(secs * 1000) + ")";
-    std::printf("\n%s %s\n", col.bold("Resultado:").c_str(), failed ? col.red(summary).c_str() : col.green(summary).c_str());
+    std::printf("\n%s %s\n", col.bold("Result:").c_str(), failed ? col.red(summary).c_str() : col.green(summary).c_str());
 
     if (!opt.report.empty()) {
         Json tests = Json::array();
@@ -1177,7 +1176,7 @@ bool solutionTestCommand(const std::vector<std::string>& args, const std::string
         return true;
     }
     if (withTests == 0) {
-        std::printf("Solución '%s': ningún proyecto tiene pruebas.\n", s.name.c_str());
+        std::printf("Solution '%s': no project has tests.\n", s.name.c_str());
         code = 0;
         return true;
     }
@@ -1191,13 +1190,13 @@ bool solutionTestCommand(const std::vector<std::string>& args, const std::string
         }
     Colors col;
     col.on = useColor();
-    std::string summary = "Solución '" + s.name + "': " + std::to_string(withTests) + (withTests == 1 ? " proyecto" : " proyectos") +
-                          " con pruebas, " + std::to_string(total - failed - skipped) + " correctas, " + std::to_string(failed) +
-                          " fallidas";
-    if (skipped) summary += ", " + std::to_string(skipped) + " ignoradas";
-    if (brokenProjects) summary += " (" + std::to_string(brokenProjects) + " proyecto(s) no compilan)";
+    std::string summary = "Solution '" + s.name + "': " + std::to_string(withTests) + (withTests == 1 ? " project" : " projects") +
+                          " with tests, " + std::to_string(total - failed - skipped) + " passed, " + std::to_string(failed) +
+                          " failed";
+    if (skipped) summary += ", " + std::to_string(skipped) + " ignored";
+    if (brokenProjects) summary += " (" + std::to_string(brokenProjects) + " project(s) do not compile)";
     bool bad = failed || brokenProjects || (total == 0 && !opt.filters.empty());
-    if (total == 0 && !opt.filters.empty()) summary += " (ninguna prueba coincide con el filtro)";
+    if (total == 0 && !opt.filters.empty()) summary += " (no test matches the filter)";
     std::printf("\n%s\n", bad ? col.red(summary).c_str() : col.green(summary).c_str());
     if (!opt.report.empty() && !writeReport(opt.report, projects)) bad = true;
     code = bad ? 1 : 0;

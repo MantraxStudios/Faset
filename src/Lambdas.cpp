@@ -319,7 +319,7 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
     for (size_t i = 0; i < l->params.size(); i++) {
         auto& p = l->params[i];
         p.var = declareLocal(p.name, params[i], p.loc, "p_");
-        if (ideMode) addRef(p.loc, (int)p.name.size(), "(parámetro) " + params[i]->str() + " " + p.name, &p.loc);
+        if (ideMode) addRef(p.loc, (int)p.name.size(), "(parameter) " + params[i]->str() + " " + p.name, &p.loc);
     }
     if (l->exprBody) {
         Type* t = checkOperand(l->exprBody);

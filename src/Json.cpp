@@ -116,7 +116,7 @@ struct JsonParser {
         while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) i++;
     }
     bool fail(const char* m) {
-        if (err.empty()) err = std::string(m) + " en la posición " + std::to_string(i);
+        if (err.empty()) err = std::string(m) + " at position " + std::to_string(i);
         return false;
     }
     static void utf8(std::string& o, uint32_t cp) {
@@ -156,7 +156,7 @@ struct JsonParser {
                 out += c;
                 continue;
             }
-            if (i >= s.size()) return fail("escape incompleto");
+            if (i >= s.size()) return fail("incomplete escape");
             char e = s[i++];
             switch (e) {
                 case '"': out += '"'; break;
@@ -169,26 +169,26 @@ struct JsonParser {
                 case 't': out += '\t'; break;
                 case 'u': {
                     uint32_t cp;
-                    if (!hex4(cp)) return fail("\\u no válido");
+                    if (!hex4(cp)) return fail("invalid \\u");
                     if (cp >= 0xD800 && cp < 0xDC00 && i + 1 < s.size() && s[i] == '\\' && s[i + 1] == 'u') {
                         i += 2;
                         uint32_t lo;
-                        if (!hex4(lo)) return fail("\\u no válido");
+                        if (!hex4(lo)) return fail("invalid \\u");
                         cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
                     }
                     utf8(out, cp);
                     break;
                 }
-                default: return fail("escape desconocido");
+                default: return fail("unknown escape");
             }
         }
-        if (i >= s.size()) return fail("cadena sin cerrar");
+        if (i >= s.size()) return fail("unterminated string");
         i++;
         return true;
     }
     bool value(Json& out) {
         ws();
-        if (i >= s.size()) return fail("fin inesperado");
+        if (i >= s.size()) return fail("unexpected end");
         char c = s[i];
         if (c == '{') {
             i++;
@@ -200,11 +200,11 @@ struct JsonParser {
             }
             for (;;) {
                 ws();
-                if (i >= s.size() || s[i] != '"') return fail("se esperaba una clave");
+                if (i >= s.size() || s[i] != '"') return fail("expected a key");
                 std::string key;
                 if (!str(key)) return false;
                 ws();
-                if (i >= s.size() || s[i] != ':') return fail("se esperaba ':'");
+                if (i >= s.size() || s[i] != ':') return fail("expected ':'");
                 i++;
                 Json v;
                 if (!value(v)) return false;
@@ -218,7 +218,7 @@ struct JsonParser {
                     i++;
                     return true;
                 }
-                return fail("se esperaba ',' o '}'");
+                return fail("expected ',' or '}'");
             }
         }
         if (c == '[') {
@@ -242,7 +242,7 @@ struct JsonParser {
                     i++;
                     return true;
                 }
-                return fail("se esperaba ',' o ']'");
+                return fail("expected ',' or ']'");
             }
         }
         if (c == '"') {
@@ -269,7 +269,7 @@ struct JsonParser {
         const char* start = s.c_str() + i;
         char* end = nullptr;
         double d = std::strtod(start, &end);
-        if (end == start) return fail("valor no válido");
+        if (end == start) return fail("invalid value");
         i += (size_t)(end - start);
         out = Json(d);
         return true;
@@ -283,7 +283,7 @@ bool Json::parse(const std::string& text, Json& out, std::string* error) {
     bool ok = p.value(out);
     if (ok) {
         p.ws();
-        if (p.i != text.size()) ok = p.fail("contenido sobrante");
+        if (p.i != text.size()) ok = p.fail("trailing content");
     }
     if (!ok && error) *error = p.err;
     return ok;

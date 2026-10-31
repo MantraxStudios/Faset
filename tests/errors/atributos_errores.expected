@@ -1,7 +1,7 @@
 14|attribute \[SoloCampo\] cannot be applied to classes; per its \[AttributeUsage\] it is only valid for fields
 19|attribute \[Rango\] is duplicated \(use \[AttributeUsage\(\.\.\., AllowMultiple = true\)\] to allow it\)
 20|unknown attribute 'Desconocido' \(there is no class 'Desconocido' or 'DesconocidoAttribute' deriving from Attribute\)
-21|attribute \[Rango\]: ninguna sobrecarga del constructor de 'Rango' acepta \(string\) en tiempo de compilación
+21|attribute \[Rango\]: no overload of the constructor of 'Rango' accepts \(string\) at compile time
 22|'Rango' has no writable public field or property 'Max'
 23|'NoEsAtributo' is not an attribute: an attribute class must derive from Attribute
 24|attribute \[SoloCampo\] cannot be applied to methods; per its \[AttributeUsage\] it is only valid for fields
