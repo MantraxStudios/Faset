@@ -2342,6 +2342,11 @@ namespace FasetStudio.Ide
 
         void CreateProject()
         {
+            if (analyzer.Compiler.Length == 0)
+            {
+                SetStatus(L.T("Faset compiler not found: set the FASET environment variable, or put faset.exe next to the IDE or on your PATH"));
+                return;
+            }
             string name = fieldName.Text.Trim();
             string location = fieldLocation.Text.Trim();
             if (name.Length == 0 || location.Length == 0) return;
@@ -2381,7 +2386,7 @@ namespace FasetStudio.Ide
                 // Añadir el proyecto nuevo a la solución abierta.
                 AddProjectToSolution(Path.Combine(dest, String.Concat(name, ".fstproj")));
                 string first = Path.Combine(dest, projectTemplate == 3 || projectTemplate == 4 ? "MainWindow.fstui"
-                                                : projectTemplate == 1 ? "Biblioteca.fst" : "Program.fst");
+                                                : projectTemplate == 1 ? "Library.fst" : "Program.fst");
                 if (File.Exists(first)) OpenFile(first);
             }
             else if (code == 0 && Directory.Exists(dest))
