@@ -709,8 +709,15 @@ static int compileC(const Options& o, const std::string& csrc, const std::string
     cmd.insert(cmd.end(), extraArgs.begin(), extraArgs.end());
     for (const std::string& d : o.libDirs) cmd.push_back("-L" + d);
     for (const std::string& l : o.libs) cmd.push_back("-l" + l);
-    cmd.push_back("-lm");
+    if (o.target != "windows") cmd.push_back("-lm");  // on Windows the math functions live in the C runtime (no m.lib)
     if (o.target != "windows" && o.target != "android") cmd.push_back("-pthread");  // el recolector usa hilos
+    if (o.target == "windows") {
+        // Core Win32 libraries the runtime always needs. MinGW links these by default, but the
+        // MSVC-style toolchain (clang + lld-link) does not, so add them explicitly.
+        cmd.push_back("-lshell32");   // CommandLineToArgvW (faset_rt_init)
+        cmd.push_back("-ladvapi32");  // GetUserName and other advapi calls
+        cmd.push_back("-luser32");    // MsgWaitForMultipleObjectsEx (runtime wait/message pump)
+    }
 
     // Cada .c se compila por separado con la caché de objetos (BuildCache.cpp) y luego se enlaza.
     CompileCacheOptions cache;
