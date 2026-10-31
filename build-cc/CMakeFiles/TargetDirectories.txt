@@ -1,0 +1,7 @@
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/faset.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/edit_cache.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/rebuild_cache.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/list_install_components.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/install.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/install/local.dir
+C:/Users/tupap/OneDrive/Documentos/GitHub/Faset/build-cc/CMakeFiles/install/strip.dir
