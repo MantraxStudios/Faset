@@ -19,34 +19,34 @@ namespace std.ui
     // Ratón en coordenadas del control (Canvas: MouseDown/MouseMove/MouseUp).
     public struct MouseArgs
     {
-        public int X;
-        public int Y;
-        public int Button;   // 1 izquierdo, 2 central, 3 derecho (0 en MouseMove sin botón)
-        public int Clicks;   // 2 en un doble clic
-        public bool Ctrl;
-        public bool Shift;
+        public var X: int;
+        public var Y: int;
+        public var Button: int;   // 1 izquierdo, 2 central, 3 derecho (0 en MouseMove sin botón)
+        public var Clicks: int;   // 2 en un doble clic
+        public var Ctrl: bool;
+        public var Shift: bool;
     }
 
     public memory_unsafe partial class Widget
     {
-        internal int activatedEvent;
-        internal int paintEvent;
-        internal int mouseDownEvent;
-        internal int mouseMoveEvent;
-        internal int mouseUpEvent;
-        internal int tickEvent;
+        internal var activatedEvent: int;
+        internal var paintEvent: int;
+        internal var mouseDownEvent: int;
+        internal var mouseMoveEvent: int;
+        internal var mouseUpEvent: int;
+        internal var tickEvent: int;
 
         // Último evento de ratón (Canvas) y contexto de dibujo (válido durante Paint).
-        public MouseArgs Mouse;
-        public Graphics Graphics;
+        public var Mouse: MouseArgs;
+        public var Graphics: Graphics;
 
         // Menú contextual que se abre con el botón derecho sobre el control (o sus hijos).
-        public Widget ContextMenu;
+        public var ContextMenu: Widget;
         // ContextMenu: control sobre el que se abrió por última vez.
-        public Widget SourceControl;
+        public var SourceControl: Widget;
 
         // Conecta un evento con su número (SetEvents debe haberse llamado antes con la función).
-        public void SetEvent(WidgetEvent which, int id)
+        public func SetEvent(which: WidgetEvent, id: int)
         {
             switch (which)
             {
@@ -62,13 +62,13 @@ namespace std.ui
             }
         }
 
-        internal void RaiseEvent(int id)
+        internal func RaiseEvent(id: int)
         {
             if (id != 0 && eventFn != null) eventFn(eventTarget, this, id);
         }
 
         // Valores iniciales según el tipo (lo llama Widget.Create).
-        void InitKind()
+        func InitKind()
         {
             if (Kind == WidgetKind.Timer)
             {
@@ -80,21 +80,21 @@ namespace std.ui
         }
 
         // Número de opciones entre las que elige SelectedIndex.
-        internal int ChoiceCount => Kind == WidgetKind.TabControl ? PageCount : items.Count;
+        internal prop ChoiceCount: int => Kind == WidgetKind.TabControl ? PageCount : items.Count;
 
-        internal bool FocusableKind => Kind == WidgetKind.TabControl || Kind == WidgetKind.TreeView;
+        internal prop FocusableKind: bool => Kind == WidgetKind.TabControl || Kind == WidgetKind.TreeView;
 
         // Se redibuja al mover el ratón por encima (resaltado de filas, pestañas o menús).
-        internal bool TracksHover => Kind == WidgetKind.ListBox || Kind == WidgetKind.TreeView || Kind == WidgetKind.TabControl ||
+        internal prop TracksHover: bool => Kind == WidgetKind.ListBox || Kind == WidgetKind.TreeView || Kind == WidgetKind.TabControl ||
                                      Kind == WidgetKind.MenuBar;
 
-        internal bool ArrowCursor => Kind == WidgetKind.TreeView || Kind == WidgetKind.Canvas || Kind == WidgetKind.PictureBox ||
+        internal prop ArrowCursor: bool => Kind == WidgetKind.TreeView || Kind == WidgetKind.Canvas || Kind == WidgetKind.PictureBox ||
                                      Kind == WidgetKind.TabControl || Kind == WidgetKind.MenuBar;
 
         // Componentes sin representación en la ventana (Timer, ContextMenu...).
-        public bool IsComponent => Kind == WidgetKind.Timer || Kind == WidgetKind.ContextMenu;
+        public prop IsComponent: bool => Kind == WidgetKind.Timer || Kind == WidgetKind.ContextMenu;
 
-        void LayoutChildren()
+        func LayoutChildren()
         {
             if (Kind == WidgetKind.TabControl)
             {
@@ -105,8 +105,8 @@ namespace std.ui
                 Children[i].Layout(ScreenX, ScreenY, ActualWidth - width, ActualHeight - height);
         }
 
-        void DrawKind(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, bool hot,
-                      uint textColor, uint accent)
+        func DrawKind(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, focused: bool, hot: bool,
+                      textColor: uint, accent: uint)
         {
             switch (Kind)
             {
@@ -134,7 +134,7 @@ namespace std.ui
         }
 
         // Control visible más interno bajo el punto, contando también paneles y etiquetas.
-        internal Widget DeepestAt(int px, int py)
+        internal func DeepestAt(px: int, py: int) -> Widget
         {
             if (!Visible || !Contains(px, py) || IsComponent || Kind == WidgetKind.MenuItem) return null;
             for (int i = Children.Count - 1; i >= 0; i--)
@@ -145,7 +145,7 @@ namespace std.ui
             return this;
         }
 
-        internal void SetMouse(UiEvent e, int button, int clicks)
+        internal func SetMouse(e: UiEvent, button: int, clicks: int)
         {
             Mouse = new MouseArgs();
             Mouse.X = e.X - ScreenX;
@@ -160,16 +160,16 @@ namespace std.ui
     public partial class Window
     {
         // Componentes no visuales (Timer, ContextMenu...): no se dibujan ni reciben el ratón.
-        public List<Widget> Components = new List<Widget>();
+        public var Components: List<Widget> = new List<Widget>();
 
         // Doble clic: número de clics seguidos en el mismo sitio (1, 2...).
-        public int ClickCount = 1;
-        long lastClickTime = -1000;
-        int lastClickX;
-        int lastClickY;
-        Widget lastClickWidget;
+        public var ClickCount: int = 1;
+        var lastClickTime: long = -1000;
+        var lastClickX: int;
+        var lastClickY: int;
+        var lastClickWidget: Widget;
 
-        public Widget AddComponent(Widget w)
+        public func AddComponent(w: Widget) -> Widget
         {
             w.Parent = null;
             w.SetOwner(this);
@@ -178,14 +178,14 @@ namespace std.ui
         }
 
         // Busca un componente por su nombre.
-        public Widget FindComponent(string name)
+        public func FindComponent(name: string) -> Widget
         {
             for (int i = 0; i < Components.Count; i++)
                 if (Components[i].Name == name) return Components[i];
             return null;
         }
 
-        Widget DeepestAt(int x, int y)
+        func DeepestAt(x: int, y: int) -> Widget
         {
             for (int i = Children.Count - 1; i >= 0; i--)
             {
@@ -196,7 +196,7 @@ namespace std.ui
         }
 
         // Antes del tratamiento normal: menús abiertos, botón derecho y cuenta de clics.
-        bool HandleEventFirst(UiEvent e)
+        func HandleEventFirst(e: UiEvent) -> bool
         {
             if (e.Kind == UiEventKind.MouseDown && e.Button == 1)
             {
@@ -241,7 +241,7 @@ namespace std.ui
             return false;
         }
 
-        void RightClick(UiEvent e)
+        func RightClick(e: UiEvent)
         {
             Widget deep = DeepestAt(e.X, e.Y);
             for (Widget t = deep; t != null; t = t.Parent)
@@ -262,14 +262,14 @@ namespace std.ui
         }
 
         // Muestra un ContextMenu en el punto (coordenadas de la ventana).
-        public void ShowContextMenu(Widget menu, int x, int y)
+        public func ShowContextMenu(menu: Widget, x: int, y: int)
         {
             if (menu == null) return;
             CloseMenus();
             OpenContextMenu(menu, x, y);
         }
 
-        void MouseDownKind(Widget hit, UiEvent e)
+        func MouseDownKind(hit: Widget, e: UiEvent)
         {
             switch (hit.Kind)
             {
@@ -294,7 +294,7 @@ namespace std.ui
             }
         }
 
-        void MouseUpKind(Widget p, UiEvent e)
+        func MouseUpKind(p: Widget, e: UiEvent)
         {
             if (p.Kind == WidgetKind.Canvas)
             {
@@ -304,7 +304,7 @@ namespace std.ui
             else if (p.Kind == WidgetKind.PictureBox && p.Contains(e.X, e.Y)) p.RaiseClick();
         }
 
-        void MouseMoveKind(UiEvent e)
+        func MouseMoveKind(e: UiEvent)
         {
             Widget target = Pressed != null && Pressed.Kind == WidgetKind.Canvas ? Pressed : HitTest(e.X, e.Y);
             if (target != null && target.Kind == WidgetKind.Canvas && target.Enabled && target.mouseMoveEvent != 0)
@@ -314,7 +314,7 @@ namespace std.ui
             }
         }
 
-        void ScrollKind(Widget over, UiEvent e)
+        func ScrollKind(over: Widget, e: UiEvent)
         {
             if (over.Kind == WidgetKind.TreeView)
             {
@@ -323,7 +323,7 @@ namespace std.ui
             }
         }
 
-        void KeyKind(Widget f, UiEvent e)
+        func KeyKind(f: Widget, e: UiEvent)
         {
             if (f.Kind == WidgetKind.TabControl && (e.Key == KeyCode.Left || e.Key == KeyCode.Right))
             {
@@ -338,7 +338,7 @@ namespace std.ui
         }
 
         // Antes del tratamiento normal del teclado: menús abiertos, atajos y Ctrl+Tab.
-        bool HandleKeyFirst(UiEvent e)
+        func HandleKeyFirst(e: UiEvent) -> bool
         {
             if (popups.Count > 0)
             {
@@ -363,9 +363,9 @@ namespace std.ui
         // ------------------------------------------------------------- pruebas
 
         // Teclas con modificadores en FASET_UI_SCRIPT: "ctrl+s", "ctrl+shift+tab", "f5", "pagedown".
-        void ParseScriptKey(string k, ref UiEvent e)
+        func ParseScriptKey(k: string, ref e: UiEvent)
         {
-            auto parts = Text.Split(k.ToLower(), "+");
+            var parts = Text.Split(k.ToLower(), "+");
             string key = parts.Count > 0 ? parts[parts.Count - 1] : "";
             for (int i = 0; i + 1 < parts.Count; i++)
             {
@@ -383,7 +383,7 @@ namespace std.ui
         }
 
         // Verbos extra del guion de pruebas.
-        void ScriptVerb(string op, List<string> parts)
+        func ScriptVerb(op: string, parts: List<string>)
         {
             UiEvent e = new UiEvent();
             if ((op == "rclick" || op == "dblclick" || op == "down" || op == "up" || op == "drag") && parts.Count >= 3)

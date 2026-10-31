@@ -11,11 +11,11 @@ namespace std.ui
 {
     public memory_unsafe partial class Widget
     {
-        int interval;
-        long due;   // próximo disparo (ms de Environment.TickCount64; 0 = sin programar)
+        var interval: int;
+        var due: long;   // próximo disparo (ms de Environment.TickCount64; 0 = sin programar)
 
         // Timer: milisegundos entre dos Tick (mínimo 1).
-        public int Interval
+        public prop Interval: int
         {
             get => interval;
             set
@@ -26,14 +26,14 @@ namespace std.ui
         }
 
         // Timer: empieza a contar desde ahora.
-        public void Start()
+        public func Start()
         {
             Enabled = true;
             due = 0;
         }
 
         // Timer: se detiene. WebView: deja de cargar la página.
-        public void Stop()
+        public func Stop()
         {
             if (Kind == WidgetKind.WebView)
             {
@@ -45,7 +45,7 @@ namespace std.ui
         }
 
         // Dispara el Tick si ya toca; devuelve los ms hasta el siguiente o -1 si está parado.
-        internal int TimerUpdate(long now)
+        internal func TimerUpdate(now: long) -> int
         {
             if (!Enabled || interval <= 0)
             {
@@ -67,10 +67,10 @@ namespace std.ui
 
     public partial class Window
     {
-        long simTime = -1;   // reloj simulado del guion de pruebas ("wait MS")
+        var simTime: long = -1;   // reloj simulado del guion de pruebas ("wait MS")
 
         // Actualiza los componentes; devuelve los ms hasta el próximo temporizador (-1 = ninguno).
-        int UpdateComponents(long now)
+        func UpdateComponents(now: long) -> int
         {
             int best = -1;
             for (int i = 0; i < Components.Count; i++)

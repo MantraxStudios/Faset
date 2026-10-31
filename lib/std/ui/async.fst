@@ -27,25 +27,25 @@ namespace std.ui
     // Despertar el bucle de eventos desde otro hilo (runtime de C: tubería en POSIX, evento en Windows).
     public memory_unsafe static class UiLoop
     {
-        public static extern void faset_loop_wake();
-        public static extern void faset_loop_wait_msgs(int ms);
-        public static extern bool faset_wait_fd_wake(int fd, int ms);
+        public static extern func faset_loop_wake();
+        public static extern func faset_loop_wait_msgs(ms: int);
+        public static extern func faset_wait_fd_wake(fd: int, ms: int) -> bool;
 
         // Despierta al hilo de la interfaz si está esperando eventos.
-        public static void Wake() { NativeWindow.Wake(); }
+        public static func Wake() { NativeWindow.Wake(); }
 
         // Espera como mucho 'milliseconds' a que alguien llame a Wake (sin ventana: guion de pruebas).
-        public static void WaitWake(int milliseconds) { faset_wait_fd_wake(-1, milliseconds); }
+        public static func WaitWake(milliseconds: int) { faset_wait_fd_wake(-1, milliseconds); }
     }
 
     // Contexto de sincronización del hilo de la interfaz.
     public memory_unsafe class UiSynchronizationContext : SynchronizationContext
     {
-        Mutex m = new Mutex();
-        List<Action> queue = new List<Action>();
+        var m: Mutex = new Mutex();
+        var queue: List<Action> = new List<Action>();
 
         // Encola 'action' para el hilo de la interfaz (desde cualquier hilo) y despierta el bucle.
-        public override void Post(Action action)
+        public override func Post(action: Action)
         {
             m.Lock();
             queue.Add(action);
@@ -54,7 +54,7 @@ namespace std.ui
             NativeWindow.Wake();
         }
 
-        public bool HasPending
+        public prop HasPending: bool
         {
             get
             {
@@ -66,7 +66,7 @@ namespace std.ui
         }
 
         // Ejecuta lo pendiente (solo desde el hilo de la interfaz); devuelve cuántas acciones corrió.
-        public int RunPending()
+        public func RunPending() -> int
         {
             m.Lock();
             if (queue.Count == 0)
@@ -84,28 +84,28 @@ namespace std.ui
 
     public partial class Window
     {
-        UiSynchronizationContext sync;
+        var sync: UiSynchronizationContext;
 
         // El contexto de sincronización de esta ventana (el de su hilo).
-        public UiSynchronizationContext SyncContext => sync;
+        public prop SyncContext: UiSynchronizationContext => sync;
 
-        void InstallSync()
+        func InstallSync()
         {
             if (sync == null) sync = new UiSynchronizationContext();
             SynchronizationContext.SetSynchronizationContext(sync);
         }
 
-        bool HasPosted => sync != null && sync.HasPending;
+        prop HasPosted: bool => sync != null && sync.HasPending;
 
         // Continuaciones de los métodos async que volvieron al hilo de la interfaz.
-        void RunPosted()
+        func RunPosted()
         {
             if (sync == null) return;
             for (int round = 0; round < 64 && sync.RunPending() > 0; round++) { }
         }
 
         // Guion sin pantalla: deja pasar 'milliseconds' de tiempo real procesando vídeos y continuaciones.
-        void PumpFor(int milliseconds)
+        func PumpFor(milliseconds: int)
         {
             long end = Environment.TickCount64() + milliseconds;
             for (;;)

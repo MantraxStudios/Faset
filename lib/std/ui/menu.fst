@@ -27,19 +27,19 @@ namespace std.ui
     // Un menú desplegado (lista de los hijos visibles de 'Menu').
     class MenuPopup
     {
-        public Widget Menu;
-        public Widget Bar;     // MenuBar del que cuelga (solo el primero de la pila)
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
-        public int Hot = -1;   // índice (en Menu.Children) del elemento resaltado
+        public var Menu: Widget;
+        public var Bar: Widget;     // MenuBar del que cuelga (solo el primero de la pila)
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
+        public var Hot: int = -1;   // índice (en Menu.Children) del elemento resaltado
     }
 
     // Atajos de teclado escritos como texto ("Ctrl+Shift+S").
     public static class Shortcuts
     {
-        public static KeyCode KeyFromName(string name)
+        public static func KeyFromName(name: string) -> KeyCode
         {
             string n = name.ToLower();
             if (n == "tab") return KeyCode.Tab;
@@ -66,10 +66,10 @@ namespace std.ui
         }
 
         // ¿La tecla pulsada corresponde al atajo?
-        public static bool Matches(string shortcut, UiEvent e)
+        public static func Matches(shortcut: string, e: UiEvent) -> bool
         {
             if (shortcut.Length == 0 || e.Kind != UiEventKind.KeyDown) return false;
-            auto parts = Text.Split(shortcut, "+");
+            var parts = Text.Split(shortcut, "+");
             bool ctrl = false, shift = false;
             string key = parts[parts.Count - 1].Trim();
             if (key.Length == 0 && parts.Count >= 2) key = "+";
@@ -92,7 +92,7 @@ namespace std.ui
         }
 
         // ¿Lo usaría un cuadro de texto? (Ctrl+C/V/X/A o una tecla de edición sin Ctrl)
-        public static bool IsTextEditing(string shortcut)
+        public static func IsTextEditing(shortcut: string) -> bool
         {
             string s = Text.Replace(shortcut.ToLower(), " ", "");
             if (s == "ctrl+c" || s == "ctrl+v" || s == "ctrl+x" || s == "ctrl+a") return true;
@@ -103,15 +103,15 @@ namespace std.ui
 
     public memory_unsafe partial class Widget
     {
-        string shortcut = "";
+        var shortcut: string = "";
 
         // MenuItem: atajo de teclado ("Ctrl+S"); se muestra a la derecha del texto.
-        public string Shortcut { get => shortcut; set { shortcut = String.Copy(value); } }
+        public prop Shortcut: string { get => shortcut; set { shortcut = String.Copy(value); } }
 
-        public bool IsSeparator => Kind == WidgetKind.MenuItem && text == "-";
+        public prop IsSeparator: bool => Kind == WidgetKind.MenuItem && text == "-";
 
         // MenuItem: ¿abre un submenú?
-        public bool HasSubmenu
+        public prop HasSubmenu: bool
         {
             get
             {
@@ -122,7 +122,7 @@ namespace std.ui
         }
 
         // MenuItem / ContextMenu: añade un elemento (o "-" para un separador).
-        public Widget AddMenuItem(string text)
+        public func AddMenuItem(text: string) -> Widget
         {
             Widget item = Widget.Create(WidgetKind.MenuItem, "", 0, 0, 0, 0);
             item.Text = text;
@@ -131,7 +131,7 @@ namespace std.ui
         }
 
         // MenuBar: posición x (relativa) y ancho de la cabecera del menú i.
-        internal void MenuHeaderRect(int index, out float hx, out float hw)
+        internal func MenuHeaderRect(index: int, out hx: float, out hw: float)
         {
             UiFont font = UiFont.Get(FontSize, Bold);
             float x = 4;
@@ -153,7 +153,7 @@ namespace std.ui
         }
 
         // MenuBar: índice (en Children) del menú bajo el punto, o -1.
-        internal int MenuHeaderAt(int px, int py)
+        internal func MenuHeaderAt(px: int, py: int) -> int
         {
             if (py < ScreenY || py >= ScreenY + ActualHeight) return -1;
             for (int i = 0; i < Children.Count; i++)
@@ -167,7 +167,7 @@ namespace std.ui
             return -1;
         }
 
-        void DrawMenuBar(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, uint textColor)
+        func DrawMenuBar(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, textColor: uint)
         {
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, 0, 0);
             else c.FillRect(ScreenX, ScreenY, ActualWidth, ActualHeight, p.Surface);
@@ -190,14 +190,14 @@ namespace std.ui
 
     public partial class Window
     {
-        List<MenuPopup> popups = new List<MenuPopup>();
+        var popups: List<MenuPopup> = new List<MenuPopup>();
         const float MenuRow = 30;
         const float MenuSeparator = 9;
         const float MenuPad = 5;
 
-        public bool MenuOpen => popups.Count > 0;
+        public prop MenuOpen: bool => popups.Count > 0;
 
-        public void CloseMenus()
+        public func CloseMenus()
         {
             if (popups.Count == 0) return;
             popups.Clear();
@@ -205,15 +205,15 @@ namespace std.ui
         }
 
         // Índice del menú abierto de esa barra, o -1.
-        internal int OpenBarIndex(Widget bar)
+        internal func OpenBarIndex(bar: Widget) -> int
         {
             if (popups.Count == 0 || popups[0].Bar != bar) return -1;
             return bar.Children.IndexOf(popups[0].Menu);
         }
 
-        static bool Selectable(Widget item) => item.Kind == WidgetKind.MenuItem && item.Visible && !item.IsSeparator && item.Enabled;
+        static func Selectable(item: Widget) -> bool => item.Kind == WidgetKind.MenuItem && item.Visible && !item.IsSeparator && item.Enabled;
 
-        MenuPopup MakePopup(Widget menu, float x, float y)
+        func MakePopup(menu: Widget, x: float, y: float) -> MenuPopup
         {
             MenuPopup pop = new MenuPopup();
             pop.Menu = menu;
@@ -244,7 +244,7 @@ namespace std.ui
         }
 
         // Fila y de un elemento del menú (relativa al menú) o -1 si no está visible.
-        float RowTop(MenuPopup pop, int index)
+        func RowTop(pop: MenuPopup, index: int) -> float
         {
             float y = MenuPad;
             for (int i = 0; i < pop.Menu.Children.Count; i++)
@@ -258,7 +258,7 @@ namespace std.ui
         }
 
         // Elemento (índice en Children) del menú bajo el punto, o -1 (también en separadores).
-        int RowAt(MenuPopup pop, float px, float py)
+        func RowAt(pop: MenuPopup, px: float, py: float) -> int
         {
             if (px < pop.X || px >= pop.X + pop.W || py < pop.Y || py >= pop.Y + pop.H) return -1;
             float y = pop.Y + MenuPad;
@@ -273,7 +273,7 @@ namespace std.ui
             return -1;
         }
 
-        int PopupAt(float px, float py)
+        func PopupAt(px: float, py: float) -> int
         {
             for (int i = popups.Count - 1; i >= 0; i--)
             {
@@ -283,7 +283,7 @@ namespace std.ui
             return -1;
         }
 
-        void OpenBarMenu(Widget bar, int index, bool selectFirst)
+        func OpenBarMenu(bar: Widget, index: int, selectFirst: bool)
         {
             popups.Clear();
             if (index < 0 || index >= bar.Children.Count) return;
@@ -299,7 +299,7 @@ namespace std.ui
             dirty = true;
         }
 
-        void OpenContextMenu(Widget menu, int x, int y)
+        func OpenContextMenu(menu: Widget, x: int, y: int)
         {
             popups.Clear();
             MenuPopup pop = MakePopup(menu, x, y);
@@ -308,7 +308,7 @@ namespace std.ui
         }
 
         // Abre el submenú del elemento 'index' del menú 'level' (cierra los más profundos).
-        void OpenSubmenu(int level, int index, bool selectFirst)
+        func OpenSubmenu(level: int, index: int, selectFirst: bool)
         {
             while (popups.Count > level + 1) popups.RemoveAt(popups.Count - 1);
             MenuPopup parent = popups[level];
@@ -322,7 +322,7 @@ namespace std.ui
             dirty = true;
         }
 
-        int NextSelectable(MenuPopup pop, int from, int dir)
+        func NextSelectable(pop: MenuPopup, from: int, dir: int) -> int
         {
             int n = pop.Menu.Children.Count;
             if (n == 0) return -1;
@@ -337,14 +337,14 @@ namespace std.ui
             return -1;
         }
 
-        void ActivateMenuItem(Widget item)
+        func ActivateMenuItem(item: Widget)
         {
             CloseMenus();
             if (item == null || !Selectable(item)) return;
             item.RaiseClick();
         }
 
-        void MenuMouse(UiEvent e)
+        func MenuMouse(e: UiEvent)
         {
             MouseX = e.X;
             MouseY = e.Y;
@@ -402,7 +402,7 @@ namespace std.ui
             }
         }
 
-        void MenuKey(UiEvent e)
+        func MenuKey(e: UiEvent)
         {
             MenuPopup top = popups[popups.Count - 1];
             Widget bar = popups[0].Bar;
@@ -443,7 +443,7 @@ namespace std.ui
             }
         }
 
-        int NextHeader(Widget bar, int from, int dir)
+        func NextHeader(bar: Widget, from: int, dir: int) -> int
         {
             int n = bar.Children.Count;
             int i = from;
@@ -457,7 +457,7 @@ namespace std.ui
         }
 
         // Busca un elemento de menú con ese atajo (en las barras y en los menús contextuales).
-        bool RunShortcut(UiEvent e)
+        func RunShortcut(e: UiEvent) -> bool
         {
             if (e.Kind != UiEventKind.KeyDown || (e.Key == KeyCode.Other && e.KeyChar == 0 && !e.Ctrl)) return false;
             bool editing = Focused != null && Focused.Kind == WidgetKind.TextBox;
@@ -469,7 +469,7 @@ namespace std.ui
             return true;
         }
 
-        static Widget FindShortcut(Widget w, UiEvent e, bool editing, bool inMenu)
+        static func FindShortcut(w: Widget, e: UiEvent, editing: bool, inMenu: bool) -> Widget
         {
             if (!w.Visible || !w.Enabled) return null;
             bool menu = inMenu || w.Kind == WidgetKind.MenuBar || w.Kind == WidgetKind.ContextMenu;
@@ -485,7 +485,7 @@ namespace std.ui
         }
 
         // Menús abiertos (encima de todo).
-        void DrawPopups()
+        func DrawPopups()
         {
             for (int k = 0; k < popups.Count; k++)
             {

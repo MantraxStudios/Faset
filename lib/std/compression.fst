@@ -32,15 +32,15 @@ namespace std.compression
     [ExceptionBase("IOException")]
     public class InvalidDataException
     {
-        public InvalidDataException() { Message = "Los datos no son válidos."; }
-        public InvalidDataException(string message) { Message = message; }
-        public InvalidDataException(string message, Exception innerException)
+        public init() { Message = "Los datos no son válidos."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // Funciones de lib/compression/faset_compression.c (miniz).
@@ -51,7 +51,7 @@ namespace std.compression
         public static extern uint faset_crc32(uint crc, byte* p, long n);
         public static extern uint faset_adler32(uint adler, byte* p, long n);
 
-        public static int Level(CompressionLevel level)
+        public static func Level(level: CompressionLevel) -> int
         {
             if (level == CompressionLevel.Fastest) return 1;
             if (level == CompressionLevel.NoCompression) return 0;
@@ -59,7 +59,7 @@ namespace std.compression
             return 6;
         }
 
-        public static string Compress(string data, CompressionLevel level, int format)
+        public static func Compress(data: string, level: CompressionLevel, format: int) -> string
         {
             byte* output = null;
             long n = faset_deflate(data.Ptr, data.Length, Level(level), format, &output);
@@ -67,7 +67,7 @@ namespace std.compression
             return String.FromBytes(output, n);
         }
 
-        public static string Decompress(string data, int format, string what)
+        public static func Decompress(data: string, format: int, what: string) -> string
         {
             byte* output = null;
             long n = faset_inflate(data.Ptr, data.Length, format, &output);
@@ -80,35 +80,35 @@ namespace std.compression
     // Deflate sin cabecera (RFC 1951), como DeflateStream de .NET.
     public static class Deflate
     {
-        public static string Compress(string data) => Zlib.Compress(data, CompressionLevel.Optimal, 0);
-        public static string Compress(string data, CompressionLevel level) => Zlib.Compress(data, level, 0);
-        [TrackCaller] public static string Decompress(string data) => Zlib.Decompress(data, 0, "Deflate.Decompress");
+        public static func Compress(data: string) -> string => Zlib.Compress(data, CompressionLevel.Optimal, 0);
+        public static func Compress(data: string, level: CompressionLevel) -> string => Zlib.Compress(data, level, 0);
+        [TrackCaller] public static func Decompress(data: string) -> string => Zlib.Decompress(data, 0, "Deflate.Decompress");
     }
 
     // Formato zlib (RFC 1950: Deflate con cabecera de 2 bytes y Adler-32), como ZLibStream.
     public static class ZLib
     {
-        public static string Compress(string data) => Zlib.Compress(data, CompressionLevel.Optimal, 1);
-        public static string Compress(string data, CompressionLevel level) => Zlib.Compress(data, level, 1);
-        [TrackCaller] public static string Decompress(string data) => Zlib.Decompress(data, 1, "ZLib.Decompress");
+        public static func Compress(data: string) -> string => Zlib.Compress(data, CompressionLevel.Optimal, 1);
+        public static func Compress(data: string, level: CompressionLevel) -> string => Zlib.Compress(data, level, 1);
+        [TrackCaller] public static func Decompress(data: string) -> string => Zlib.Decompress(data, 1, "ZLib.Decompress");
     }
 
     // Formato gzip (RFC 1952), compatible con la herramienta gzip. Decompress acepta
     // varios miembros seguidos (como 'cat a.gz b.gz').
     public static class GZip
     {
-        public static string Compress(string data) => Zlib.Compress(data, CompressionLevel.Optimal, 2);
-        public static string Compress(string data, CompressionLevel level) => Zlib.Compress(data, level, 2);
-        [TrackCaller] public static string Decompress(string data) => Zlib.Decompress(data, 2, "GZip.Decompress");
+        public static func Compress(data: string) -> string => Zlib.Compress(data, CompressionLevel.Optimal, 2);
+        public static func Compress(data: string, level: CompressionLevel) -> string => Zlib.Compress(data, level, 2);
+        [TrackCaller] public static func Decompress(data: string) -> string => Zlib.Decompress(data, 2, "GZip.Decompress");
 
         // Comprime el archivo 'source' en 'destination' (p. ej. "datos.txt" -> "datos.txt.gz").
-        [TrackCaller] public static void CompressFile(string source, string destination)
+        [TrackCaller] public static func CompressFile(source: string, destination: string)
         {
             string data = File.ReadAllText(source);
             if (!File.WriteAllText(destination, Compress(data))) throw new IOException("GZip.CompressFile: no se puede escribir '" + destination + "'");
         }
 
-        [TrackCaller] public static void DecompressFile(string source, string destination)
+        [TrackCaller] public static func DecompressFile(source: string, destination: string)
         {
             string data = File.ReadAllText(source);
             if (!File.WriteAllText(destination, Decompress(data))) throw new IOException("GZip.DecompressFile: no se puede escribir '" + destination + "'");
@@ -118,15 +118,15 @@ namespace std.compression
     // Sumas de comprobación CRC-32 (la de zip, gzip y PNG) y Adler-32 (la de zlib).
     public memory_unsafe static class Crc32
     {
-        public static uint Compute(string data) => Zlib.faset_crc32(0, data.Ptr, data.Length);
+        public static func Compute(data: string) -> uint => Zlib.faset_crc32(0, data.Ptr, data.Length);
         // Continúa un CRC calculado antes (para datos en trozos).
-        public static uint Append(uint crc, string data) => Zlib.faset_crc32(crc, data.Ptr, data.Length);
+        public static func Append(crc: uint, data: string) -> uint => Zlib.faset_crc32(crc, data.Ptr, data.Length);
     }
 
     public memory_unsafe static class Adler32
     {
-        public static uint Compute(string data) => Zlib.faset_adler32(1, data.Ptr, data.Length);
-        public static uint Append(uint adler, string data) => Zlib.faset_adler32(adler, data.Ptr, data.Length);
+        public static func Compute(data: string) -> uint => Zlib.faset_adler32(1, data.Ptr, data.Length);
+        public static func Append(adler: uint, data: string) -> uint => Zlib.faset_adler32(adler, data.Ptr, data.Length);
     }
 
     // ---------------------------------------------------------------- .zip
@@ -134,22 +134,22 @@ namespace std.compression
     // Una entrada (archivo o carpeta) de un ZipArchive.
     public class ZipArchiveEntry
     {
-        internal string fullName;
-        internal int method;          // 0 = sin comprimir, 8 = Deflate
-        internal uint crc;
-        internal long length;
-        internal long compressedLength;
-        internal string compressed;   // datos comprimidos (vista del archivo leído o propios)
-        internal DateTime lastWrite;
-        internal int unixMode;        // permisos Unix (0 = sin información)
-        internal int flags;
+        internal var fullName: string;
+        internal var method: int;          // 0 = sin comprimir, 8 = Deflate
+        internal var crc: uint;
+        internal var length: long;
+        internal var compressedLength: long;
+        internal var compressed: string;   // datos comprimidos (vista del archivo leído o propios)
+        internal var lastWrite: DateTime;
+        internal var unixMode: int;        // permisos Unix (0 = sin información)
+        internal var flags: int;
 
-        internal ZipArchiveEntry() { }
+        internal init() { }
 
         // Ruta dentro del archivo, con '/' ("docs/leeme.txt"; las carpetas terminan en '/').
-        public string FullName => fullName;
+        public prop FullName: string => fullName;
         // Último componente de la ruta ("leeme.txt").
-        public string Name
+        public prop Name: string
         {
             get
             {
@@ -158,19 +158,19 @@ namespace std.compression
             }
         }
         // Tamaño sin comprimir, en bytes.
-        public long Length => length;
+        public prop Length: long => length;
         // Tamaño comprimido, en bytes.
-        public long CompressedLength => compressedLength;
+        public prop CompressedLength: long => compressedLength;
         // CRC-32 de los datos sin comprimir.
-        public uint Crc32 => crc;
+        public prop Crc32: uint => crc;
         // Fecha de modificación (hora local, con resolución de 2 segundos como en el formato zip).
-        public DateTime LastWriteTime => lastWrite;
-        public bool IsDirectory => fullName.EndsWith("/");
+        public prop LastWriteTime: DateTime => lastWrite;
+        public prop IsDirectory: bool => fullName.EndsWith("/");
         // true si los datos están comprimidos con Deflate (false: guardados tal cual).
-        public bool IsCompressed => method == 8;
+        public prop IsCompressed: bool => method == 8;
 
         // Contenido descomprimido (bytes). Comprueba el CRC-32: InvalidDataException si no coincide.
-        [TrackCaller] public string ReadAllBytes()
+        [TrackCaller] public func ReadAllBytes() -> string
         {
             if ((flags & 1) != 0) throw new NotSupportedException("ZipArchive: la entrada '" + fullName + "' está cifrada");
             string data;
@@ -183,12 +183,12 @@ namespace std.compression
         }
 
         // Igual que ReadAllBytes (el texto se devuelve tal cual, normalmente UTF-8).
-        [TrackCaller] public string ReadAllText() => ReadAllBytes();
+        [TrackCaller] public func ReadAllText() -> string => ReadAllBytes();
 
         // Extrae la entrada a un archivo (crea las carpetas que falten). Si ya existe, lanza IOException.
-        [TrackCaller] public void ExtractToFile(string path) => ExtractToFile(path, false);
+        [TrackCaller] public func ExtractToFile(path: string) => ExtractToFile(path, false);
 
-        [TrackCaller] public void ExtractToFile(string path, bool overwrite)
+        [TrackCaller] public func ExtractToFile(path: string, overwrite: bool)
         {
             if (!overwrite && File.Exists(path)) throw new IOException("ZipArchive: el archivo '" + path + "' ya existe");
             string dir = Path.GetDirectoryName(path);
@@ -199,7 +199,7 @@ namespace std.compression
             if (unixMode != 0 && Environment.CurrentPlatform() != Platform.Windows) File.SetUnixMode(path, unixMode & 0x1FF);
         }
 
-        public override string ToString() => fullName;
+        public override func ToString() -> string => fullName;
     }
 
     // Archivo .zip en memoria: se lee entero con Open/FromBytes, se modifica con AddEntry /
@@ -207,22 +207,22 @@ namespace std.compression
     // o archivos de más de 4 GiB).
     public class ZipArchive
     {
-        List<ZipArchiveEntry> entries = new List<ZipArchiveEntry>();
+        var entries: List<ZipArchiveEntry> = new List<ZipArchiveEntry>();
 
         // Archivo vacío (para crear uno nuevo).
-        public ZipArchive() { }
+        public init() { }
 
         // Entradas en el orden del archivo.
-        public List<ZipArchiveEntry> Entries => entries;
+        public prop Entries: List<ZipArchiveEntry> => entries;
 
         // Comentario del archivo ("" si no tiene).
-        public string Comment = "";
+        public var Comment: string = "";
 
         // Lee un .zip del disco. FileNotFoundException si no existe; InvalidDataException si no es un zip.
-        [TrackCaller] public static ZipArchive Open(string path) => FromBytes(File.ReadAllText(path));
+        [TrackCaller] public static func Open(path: string) -> ZipArchive => FromBytes(File.ReadAllText(path));
 
         // Lee un .zip que ya está en memoria.
-        [TrackCaller] public static ZipArchive FromBytes(string data)
+        [TrackCaller] public static func FromBytes(data: string) -> ZipArchive
         {
             ZipArchive z = new ZipArchive();
             z.Parse(data);
@@ -230,7 +230,7 @@ namespace std.compression
         }
 
         // Entrada con ese nombre, o null.
-        public ZipArchiveEntry GetEntry(string fullName)
+        public func GetEntry(fullName: string) -> ZipArchiveEntry
         {
             foreach (var e in entries)
                 if (e.fullName == fullName) return e;
@@ -238,9 +238,9 @@ namespace std.compression
         }
 
         // Añade (o sustituye) una entrada con el contenido 'data' comprimido con Deflate.
-        public ZipArchiveEntry AddEntry(string fullName, string data) => AddEntry(fullName, data, CompressionLevel.Optimal);
+        public func AddEntry(fullName: string, data: string) -> ZipArchiveEntry => AddEntry(fullName, data, CompressionLevel.Optimal);
 
-        [TrackCaller] public ZipArchiveEntry AddEntry(string fullName, string data, CompressionLevel level)
+        [TrackCaller] public func AddEntry(fullName: string, data: string, level: CompressionLevel) -> ZipArchiveEntry
         {
             ZipArchiveEntry e = NewEntry(fullName, DateTime.Now);
             e.length = data.Length;
@@ -262,9 +262,9 @@ namespace std.compression
         }
 
         // Añade el archivo del disco 'path' con el nombre 'fullName' (conserva la fecha y los permisos).
-        [TrackCaller] public ZipArchiveEntry AddFile(string path, string fullName) => AddFile(path, fullName, CompressionLevel.Optimal);
+        [TrackCaller] public func AddFile(path: string, fullName: string) -> ZipArchiveEntry => AddFile(path, fullName, CompressionLevel.Optimal);
 
-        [TrackCaller] public ZipArchiveEntry AddFile(string path, string fullName, CompressionLevel level)
+        [TrackCaller] public func AddFile(path: string, fullName: string, level: CompressionLevel) -> ZipArchiveEntry
         {
             ZipArchiveEntry e = AddEntry(fullName, File.ReadAllText(path), level);
             e.lastWrite = DateTime.FromUnixMs(File.GetLastWriteTime(path)).ToLocalTime();
@@ -273,7 +273,7 @@ namespace std.compression
         }
 
         // Añade una carpeta vacía ("docs/").
-        [TrackCaller] public ZipArchiveEntry AddDirectory(string fullName)
+        [TrackCaller] public func AddDirectory(fullName: string) -> ZipArchiveEntry
         {
             string name = fullName.EndsWith("/") ? fullName : fullName + "/";
             ZipArchiveEntry e = NewEntry(name, DateTime.Now);
@@ -284,7 +284,7 @@ namespace std.compression
         }
 
         // Quita la entrada con ese nombre. Devuelve false si no existía.
-        public bool Remove(string fullName)
+        public func Remove(fullName: string) -> bool
         {
             for (int i = 0; i < entries.Count; i++)
             {
@@ -299,9 +299,9 @@ namespace std.compression
 
         // Extrae todas las entradas en la carpeta 'directory' (la crea si no existe). Rechaza
         // las rutas que saldrían de la carpeta ("../x", "/etc/x") con IOException.
-        [TrackCaller] public void ExtractToDirectory(string directory) => ExtractToDirectory(directory, false);
+        [TrackCaller] public func ExtractToDirectory(directory: string) => ExtractToDirectory(directory, false);
 
-        [TrackCaller] public void ExtractToDirectory(string directory, bool overwrite)
+        [TrackCaller] public func ExtractToDirectory(directory: string, overwrite: bool)
         {
             if (!Directory.Exists(directory)) Directory.Create(directory);
             foreach (var e in entries)
@@ -316,7 +316,7 @@ namespace std.compression
         }
 
         // Bytes del archivo .zip.
-        public string ToBytes()
+        public func ToBytes() -> string
         {
             StringBuilder sb = new StringBuilder();
             List<long> offsets = new List<long>();
@@ -375,14 +375,14 @@ namespace std.compression
         }
 
         // Escribe el archivo .zip en el disco.
-        [TrackCaller] public void Save(string path)
+        [TrackCaller] public func Save(path: string)
         {
             if (!File.WriteAllText(path, ToBytes())) throw new IOException("ZipArchive.Save: no se puede escribir '" + path + "'");
         }
 
         // ------------------------------------------------------------ privado
 
-        ZipArchiveEntry NewEntry(string fullName, DateTime time)
+        func NewEntry(fullName: string, time: DateTime) -> ZipArchiveEntry
         {
             if (fullName.Length == 0 || fullName.Length > 0xFFFF) throw new ArgumentException("ZipArchive: nombre de entrada no válido", "fullName");
             if (entries.Count >= 0xFFFF) throw new NotSupportedException("ZipArchive: demasiadas entradas (ZIP64 no admitido)");
@@ -392,7 +392,7 @@ namespace std.compression
             return e;
         }
 
-        void Put(ZipArchiveEntry e)
+        func Put(e: ZipArchiveEntry)
         {
             if (e.compressed.Length > 0xFFFFFFFFL || e.length > 0xFFFFFFFFL)
                 throw new NotSupportedException("ZipArchive: entrada de más de 4 GiB (ZIP64 no admitido)");
@@ -407,7 +407,7 @@ namespace std.compression
             entries.Add(e);
         }
 
-        static string SafePath(string directory, string name)
+        static func SafePath(directory: string, name: string) -> string
         {
             string n = Text.Replace(name, "\\", "/");
             if (n.StartsWith("/") || (n.Length > 1 && n[1] == ':')) throw new IOException("ZipArchive: ruta absoluta no permitida: '" + name + "'");
@@ -417,7 +417,7 @@ namespace std.compression
             return Path.Combine(directory, rel);
         }
 
-        static void AppendDosTime(StringBuilder sb, DateTime t)
+        static func AppendDosTime(sb: StringBuilder, t: DateTime)
         {
             int year = t.Year < 1980 ? 1980 : (t.Year > 2107 ? 2107 : t.Year);
             int time = (t.Hour << 11) | (t.Minute << 5) | (t.Second / 2);
@@ -427,7 +427,7 @@ namespace std.compression
             sb.AppendUInt16LE(date);
         }
 
-        static DateTime FromDosTime(int time, int date)
+        static func FromDosTime(time: int, date: int) -> DateTime
         {
             int year = 1980 + ((date >> 9) & 0x7F), month = (date >> 5) & 0xF, day = date & 0x1F;
             int hour = (time >> 11) & 0x1F, minute = (time >> 5) & 0x3F, second = (time & 0x1F) * 2;
@@ -435,10 +435,10 @@ namespace std.compression
             return new DateTime(year, month, day, hour, minute, second);
         }
 
-        static int U16(string d, long p) => d[(int)p] | (d[(int)p + 1] << 8);
-        static uint U32(string d, long p) => (uint)U16(d, p) | ((uint)U16(d, p + 2) << 16);
+        static func U16(d: string, p: long) -> int => d[(int)p] | (d[(int)p + 1] << 8);
+        static func U32(d: string, p: long) -> uint => (uint)U16(d, p) | ((uint)U16(d, p + 2) << 16);
 
-        [TrackCaller] void Parse(string d)
+        [TrackCaller] func Parse(d: string)
         {
             // Fin del directorio central: está al final, antes del comentario (hasta 64 KiB).
             long eocd = -1;
@@ -495,10 +495,10 @@ namespace std.compression
     // Atajos para trabajar con carpetas (como System.IO.Compression.ZipFile).
     public static class ZipFile
     {
-        [TrackCaller] public static ZipArchive Open(string path) => ZipArchive.Open(path);
+        [TrackCaller] public static func Open(path: string) -> ZipArchive => ZipArchive.Open(path);
 
         // Crea 'zipPath' con todo el contenido de la carpeta 'sourceDirectory' (rutas relativas a ella).
-        [TrackCaller] public static void CreateFromDirectory(string sourceDirectory, string zipPath)
+        [TrackCaller] public static func CreateFromDirectory(sourceDirectory: string, zipPath: string)
         {
             ZipArchive z = new ZipArchive();
             string root = Path.GetFullPath(sourceDirectory);
@@ -511,13 +511,13 @@ namespace std.compression
             z.Save(zipPath);
         }
 
-        [TrackCaller] public static void ExtractToDirectory(string zipPath, string destinationDirectory) =>
+        [TrackCaller] public static func ExtractToDirectory(zipPath: string, destinationDirectory: string) =>
             ZipArchive.Open(zipPath).ExtractToDirectory(destinationDirectory, false);
 
-        [TrackCaller] public static void ExtractToDirectory(string zipPath, string destinationDirectory, bool overwrite) =>
+        [TrackCaller] public static func ExtractToDirectory(zipPath: string, destinationDirectory: string, overwrite: bool) =>
             ZipArchive.Open(zipPath).ExtractToDirectory(destinationDirectory, overwrite);
 
-        static string Relative(string root, string path)
+        static func Relative(root: string, path: string) -> string
         {
             string r = path.Substring(root.Length);
             while (r.StartsWith("/") || r.StartsWith("\\")) r = r.Substring(1);

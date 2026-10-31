@@ -49,11 +49,11 @@ namespace std.ui
     // Colores 0xAARRGGBB.
     public static class Rgb
     {
-        public static uint Of(uint rgb) => 0xff000000 | rgb;
-        public static uint Alpha(uint rgb, float a) => ((uint)(Math.Clamp((double)a, 0.0, 1.0) * 255) << 24) | (rgb & 0xffffff);
+        public static func Of(rgb: uint) -> uint => 0xff000000 | rgb;
+        public static func Alpha(rgb: uint, a: float) -> uint => ((uint)(Math.Clamp((double)a, 0.0, 1.0) * 255) << 24) | (rgb & 0xffffff);
 
         // Mezcla lineal de dos colores ARGB (t = 0..1).
-        public static uint Mix(uint a, uint b, float t)
+        public static func Mix(a: uint, b: uint, t: float) -> uint
         {
             if (t <= 0) return a;
             if (t >= 1) return b;
@@ -67,7 +67,7 @@ namespace std.ui
         }
 
         // "#RGB", "#RRGGBB" o "#RRGGBBAA" -> 0xAARRGGBB; 0 si no es válido.
-        public static uint Parse(string s)
+        public static func Parse(s: string) -> uint
         {
             if (s.Length == 0 || s[0] != '#') return 0;
             uint v = 0;
@@ -88,26 +88,26 @@ namespace std.ui
 
     public class Palette
     {
-        public uint Background;
-        public uint Surface;
-        public uint SurfaceHover;
-        public uint SurfacePressed;
-        public uint Border;
-        public uint BorderStrong;
-        public uint Input;
-        public uint Text;
-        public uint TextMuted;
-        public uint Primary;
-        public uint PrimaryHover;
-        public uint PrimaryText;
-        public uint Danger;
-        public uint Track;
-        public uint Selection;
-        public uint Focus;
+        public var Background: uint;
+        public var Surface: uint;
+        public var SurfaceHover: uint;
+        public var SurfacePressed: uint;
+        public var Border: uint;
+        public var BorderStrong: uint;
+        public var Input: uint;
+        public var Text: uint;
+        public var TextMuted: uint;
+        public var Primary: uint;
+        public var PrimaryHover: uint;
+        public var PrimaryText: uint;
+        public var Danger: uint;
+        public var Track: uint;
+        public var Selection: uint;
+        public var Focus: uint;
 
-        public static Palette For(UiTheme theme)
+        public static func For(theme: UiTheme) -> Palette
         {
-            auto p = new Palette();
+            var p = new Palette();
             if (theme == UiTheme.Light)
             {
                 p.Background = Rgb.Of(0xf5f5f6);
@@ -155,18 +155,18 @@ namespace std.ui
     // Mapa de píxeles 0x00RRGGBB con primitivas antialias (por distancia con signo).
     public memory_unsafe partial class Canvas
     {
-        public uint* Pixels;
-        public int Width;         // en píxeles físicos
-        public int Height;
-        public float Scale = 1;   // píxeles físicos por unidad lógica (las primitivas usan unidades lógicas)
-        int clipX0;
-        int clipY0;
-        int clipX1;
-        int clipY1;
+        public var Pixels: uint*;
+        public var Width: int;         // en píxeles físicos
+        public var Height: int;
+        public var Scale: float = 1;   // píxeles físicos por unidad lógica (las primitivas usan unidades lógicas)
+        var clipX0: int;
+        var clipY0: int;
+        var clipX1: int;
+        var clipY1: int;
 
-        ~Canvas() { Memory.Free(Pixels); }
+        deinit { Memory.Free(Pixels); }
 
-        public void Resize(int w, int h)
+        public func Resize(w: int, h: int)
         {
             if (w < 1) w = 1;
             if (h < 1) h = 1;
@@ -178,7 +178,7 @@ namespace std.ui
             ResetClip();
         }
 
-        public void ResetClip()
+        public func ResetClip()
         {
             clipX0 = 0;
             clipY0 = 0;
@@ -187,7 +187,7 @@ namespace std.ui
         }
 
         // Limita el dibujo a la intersección del recorte actual con el rectángulo.
-        public void Clip(int x, int y, int w, int h)
+        public func Clip(x: int, y: int, w: int, h: int)
         {
             if (Scale != 1)
             {
@@ -203,7 +203,7 @@ namespace std.ui
             clipY1 = Math.Min(clipY1, y + h);
         }
 
-        public void Clear(uint color)
+        public func Clear(color: uint)
         {
             uint c = color & 0xffffff;
             long n = (long)Width * Height;
@@ -211,7 +211,7 @@ namespace std.ui
         }
 
         // Mezcla 'color' (con su alfa) sobre el píxel, con cobertura 0..255.
-        void Blend(int x, int y, uint color, int coverage)
+        func Blend(x: int, y: int, color: uint, coverage: int)
         {
             int a = (int)((color >> 24) * (uint)coverage / 255);
             if (a <= 0) return;
@@ -229,10 +229,10 @@ namespace std.ui
             *p = rb | g;
         }
 
-        static float Cov(float d) => d >= 0.5f ? 0.0f : (d <= -0.5f ? 1.0f : 0.5f - d);
+        static func Cov(d: float) -> float => d >= 0.5f ? 0.0f : (d <= -0.5f ? 1.0f : 0.5f - d);
 
         // Distancia con signo a un rectángulo redondeado (centro, semiancho, semialto, radio).
-        static float RoundRectDistance(float px, float py, float cx, float cy, float hw, float hh, float r)
+        static func RoundRectDistance(px: float, py: float, cx: float, cy: float, hw: float, hh: float, r: float) -> float
         {
             float qx = (float)Math.Abs(px - cx) - hw + r;
             float qy = (float)Math.Abs(py - cy) - hh + r;
@@ -243,7 +243,7 @@ namespace std.ui
             return (float)Math.Sqrt(ox * ox + oy * oy) + (inside < 0 ? inside : 0) - r;
         }
 
-        public void FillRect(int x, int y, int w, int h, uint color)
+        public func FillRect(x: int, y: int, w: int, h: int, color: uint)
         {
             if (Scale != 1)
             {
@@ -259,23 +259,23 @@ namespace std.ui
                 for (int px = x0; px < x1; px++) Blend(px, py, color, 255);
         }
 
-        public void FillRoundRect(float x, float y, float w, float h, float r, uint color)
+        public func FillRoundRect(x: float, y: float, w: float, h: float, r: float, color: uint)
         {
             StrokeOrFill(x, y, w, h, r, -1, color, color, false);
         }
 
         // Degradado lineal de 'from' a 'to' (de arriba abajo, o de izquierda a derecha).
-        public void FillRoundRectGradient(float x, float y, float w, float h, float r, uint from, uint to, bool horizontal)
+        public func FillRoundRectGradient(x: float, y: float, w: float, h: float, r: float, from: uint, to: uint, horizontal: bool)
         {
             StrokeOrFill(x, y, w, h, r, -1, from, to, horizontal);
         }
 
-        public void StrokeRoundRect(float x, float y, float w, float h, float r, float thickness, uint color)
+        public func StrokeRoundRect(x: float, y: float, w: float, h: float, r: float, thickness: float, color: uint)
         {
             StrokeOrFill(x, y, w, h, r, thickness, color, color, false);
         }
 
-        void StrokeOrFill(float x, float y, float w, float h, float r, float thickness, uint color, uint color2, bool horizontal)
+        func StrokeOrFill(x: float, y: float, w: float, h: float, r: float, thickness: float, color: uint, color2: uint, horizontal: bool)
         {
             bool gradient = color2 != color;
             if (w <= 0 || h <= 0) return;
@@ -309,13 +309,13 @@ namespace std.ui
             }
         }
 
-        public void FillCircle(float cx, float cy, float r, uint color)
+        public func FillCircle(cx: float, cy: float, r: float, color: uint)
         {
             FillRoundRect(cx - r, cy - r, r * 2, r * 2, r, color);
         }
 
         // Segmento con extremos redondeados.
-        public void Line(float ax, float ay, float bx, float by, float thickness, uint color)
+        public func Line(ax: float, ay: float, bx: float, by: float, thickness: float, color: uint)
         {
             if (Scale != 1)
             {
@@ -346,7 +346,7 @@ namespace std.ui
         }
 
         // Dibuja texto con la línea base en 'baseline'; devuelve la x final.
-        public float Text(UiFont font, string s, float x, float baseline, uint color)
+        public func Text(font: UiFont, s: string, x: float, baseline: float, color: uint) -> float
         {
             int i = 0;
             int by = (int)Math.Floor(baseline * Scale + 0.5f);  // los glifos ya están a tamaño físico
@@ -374,7 +374,7 @@ namespace std.ui
         }
 
         // Guarda el lienzo como BMP de 32 bits (capturas de pantalla y pruebas).
-        public bool SaveBmp(string path)
+        public func SaveBmp(path: string) -> bool
         {
             long dataSize = (long)Width * Height * 4;
             byte* buf = (byte*)Memory.AllocZeroed(54 + dataSize);
@@ -398,38 +398,38 @@ namespace std.ui
 
     public memory_unsafe struct GlyphImage
     {
-        public byte* Coverage;  // Width x Height, 0..255
-        public int Width;
-        public int Height;
-        public int Left;        // desde el origen hasta el primer píxel
-        public int Top;         // desde la línea base hasta la fila superior (hacia arriba)
-        public float Advance;
+        public var Coverage: byte*;  // Width x Height, 0..255
+        public var Width: int;
+        public var Height: int;
+        public var Left: int;        // desde el origen hasta el primer píxel
+        public var Top: int;         // desde la línea base hasta la fila superior (hacia arriba)
+        public var Advance: float;
     }
 
     // Fuente del sistema a un tamaño concreto; los glifos se rasterizan bajo demanda.
     public memory_unsafe class UiFont
     {
-        static List<UiFont> cache = new List<UiFont>();
+        static var cache: List<UiFont> = new List<UiFont>();
 
-        Dictionary<char, GlyphImage> glyphs = new Dictionary<char, GlyphImage>();
-        void* handle;  // FT_Face (Linux), HDC con la fuente seleccionada (Windows) o fuente de stb_truetype (Android)
-        float scale = 1;
-        public int Size;
-        public bool Bold;
-        public float Ascent;
-        public float Descent;
-        public float LineHeight => Ascent + Descent;
+        var glyphs: Dictionary<char, GlyphImage> = new Dictionary<char, GlyphImage>();
+        var handle: void*;  // FT_Face (Linux), HDC con la fuente seleccionada (Windows) o fuente de stb_truetype (Android)
+        var scale: float = 1;
+        public var Size: int;
+        public var Bold: bool;
+        public var Ascent: float;
+        public var Descent: float;
+        public prop LineHeight: float => Ascent + Descent;
 
         // Densidad de la pantalla: los glifos se rasterizan a Size * Scale píxeles y las
         // medidas (Advance, Ascent...) se dan en unidades lógicas. La fija la ventana.
-        public static float Scale = 1;
+        public static var Scale: float = 1;
 
-        public static UiFont Get(int size, bool bold)
+        public static func Get(size: int, bold: bool) -> UiFont
         {
             if (size < 6) size = 6;
             for (int i = 0; i < cache.Count; i++)
                 if (cache[i].Size == size && cache[i].Bold == bold && cache[i].scale == Scale) return cache[i];
-            auto f = new UiFont();
+            var f = new UiFont();
             f.Size = size;
             f.Bold = bold;
             f.scale = Scale;
@@ -438,7 +438,7 @@ namespace std.ui
             return f;
         }
 
-        public GlyphImage Get(char c)
+        public func Get(c: char) -> GlyphImage
         {
             GlyphImage g;
             if (glyphs.TryGetValue(c, out g)) return g;
@@ -449,10 +449,10 @@ namespace std.ui
             return g;
         }
 
-        public float Measure(string s) => MeasureBytes(s, s.Length);
+        public func Measure(s: string) -> float => MeasureBytes(s, s.Length);
 
         // Ancho de los primeros 'bytes' bytes de 's'.
-        public float MeasureBytes(string s, int bytes)
+        public func MeasureBytes(s: string, bytes: int) -> float
         {
             float w = 0;
             int i = 0;
@@ -461,7 +461,7 @@ namespace std.ui
         }
 
         // Decodifica el carácter UTF-8 que empieza en s[i]; avanza i.
-        public static char NextChar(string s, ref int i)
+        public static func NextChar(s: string, ref i: int) -> char
         {
             byte b = s[i];
             if (b < 0x80)
@@ -491,7 +491,7 @@ namespace std.ui
         }
 
 #if WINDOWS
-        void Open()
+        func Open()
         {
             void* dc = Win32.CreateCompatibleDC(null);
             ushort* face = Win32.Wide("Segoe UI");
@@ -506,7 +506,7 @@ namespace std.ui
             handle = dc;
         }
 
-        GlyphImage Rasterize(char c)
+        func Rasterize(c: char) -> GlyphImage
         {
             GlyphImage g = new GlyphImage();
             byte* gm = (byte*)Memory.AllocZeroed(24);    // GLYPHMETRICS
@@ -546,9 +546,9 @@ namespace std.ui
             return g;
         }
 #elif ANDROID
-        static string FindFile(string candidates)
+        static func FindFile(candidates: string) -> string
         {
-            auto parts = Text.Split(candidates, ";");
+            var parts = Text.Split(candidates, ";");
             string found = "";
             for (int i = 0; i < parts.Count; i++)
                 if (File.Exists(parts[i]))
@@ -560,7 +560,7 @@ namespace std.ui
             return found;
         }
 
-        void Open()
+        func Open()
         {
             // Roboto es variable desde Android 12: si no hay una negrita estática se engrosa la regular.
             string bold = Bold ? FindFile("/system/fonts/Roboto-Bold.ttf;/system/fonts/RobotoStatic-Bold.ttf;/system/fonts/NotoSans-Bold.ttf;/system/fonts/DroidSans-Bold.ttf") : "";
@@ -578,7 +578,7 @@ namespace std.ui
             Descent = desc / scale;
         }
 
-        GlyphImage Rasterize(char c)
+        func Rasterize(c: char) -> GlyphImage
         {
             GlyphImage g = new GlyphImage();
             byte* cov = null;
@@ -594,11 +594,11 @@ namespace std.ui
             return g;
         }
 #else
-        static void* library;
+        static var library: void*;
 
-        static string FindFile(string candidates)
+        static func FindFile(candidates: string) -> string
         {
-            auto parts = Text.Split(candidates, ";");
+            var parts = Text.Split(candidates, ";");
             string found = "";
             for (int i = 0; i < parts.Count; i++)
                 if (File.Exists(parts[i]))
@@ -610,7 +610,7 @@ namespace std.ui
             return found;
         }
 
-        void Open()
+        func Open()
         {
             if (library == null && FreeType.FT_Init_FreeType(&library) != 0) return;
             string path = Bold
@@ -634,7 +634,7 @@ namespace std.ui
             handle = face;
         }
 
-        GlyphImage Rasterize(char c)
+        func Rasterize(c: char) -> GlyphImage
         {
             GlyphImage g = new GlyphImage();
             if (FreeType.FT_Load_Char(handle, c, FreeType.LoadRender | FreeType.LoadTargetLight) != 0) return g;
@@ -662,67 +662,67 @@ namespace std.ui
     // Un control de la interfaz. Todos los tipos comparten esta clase y se distinguen por 'Kind'.
     public memory_unsafe partial class Widget
     {
-        public WidgetKind Kind;
-        public string Name = String.Copy("");
-        public Widget Parent;
-        public Window Owner;
-        public List<Widget> Children = new List<Widget>();
-        public Anchor Anchor = Anchor.Left | Anchor.Top;
-        public WidgetStyle Style = WidgetStyle.Default;
-        public TextAlign TextAlign = TextAlign.Left;
-        public int FontSize = 14;
-        public bool Bold;
-        public bool Enabled = true;
-        public bool Visible = true;
-        public int CornerRadius = -1;  // -1 = según el tipo
-        public void* Tag;
-        public VideoPlayer Player;     // estado del reproductor (solo WidgetKind.VideoPlayer)
+        public var Kind: WidgetKind;
+        public var Name: string = String.Copy("");
+        public var Parent: Widget;
+        public var Owner: Window;
+        public var Children: List<Widget> = new List<Widget>();
+        public var Anchor: Anchor = Anchor.Left | Anchor.Top;
+        public var Style: WidgetStyle = WidgetStyle.Default;
+        public var TextAlign: TextAlign = TextAlign.Left;
+        public var FontSize: int = 14;
+        public var Bold: bool;
+        public var Enabled: bool = true;
+        public var Visible: bool = true;
+        public var CornerRadius: int = -1;  // -1 = según el tipo
+        public var Tag: void*;
+        public var Player: VideoPlayer;     // estado del reproductor (solo WidgetKind.VideoPlayer)
 
         // Colores 0xAARRGGBB; 0 = el del tema. Con Background2 el fondo es un degradado.
-        public uint Background;
-        public uint Background2;
-        public bool GradientHorizontal;
-        public uint Foreground;
-        public uint BorderColor;
-        public uint Accent;          // casilla marcada, deslizador y barra de progreso
+        public var Background: uint;
+        public var Background2: uint;
+        public var GradientHorizontal: bool;
+        public var Foreground: uint;
+        public var BorderColor: uint;
+        public var Accent: uint;          // casilla marcada, deslizador y barra de progreso
 
-        int x;
-        int y;
-        int width;
-        int height;
-        string text = String.Copy("");
-        string placeholder = String.Copy("");
-        bool isChecked;
-        float value;
-        float min;
-        float max = 100;
+        var x: int;
+        var y: int;
+        var width: int;
+        var height: int;
+        var text: string = String.Copy("");
+        var placeholder: string = String.Copy("");
+        var isChecked: bool;
+        var value: float;
+        var min: float;
+        var max: float = 100;
 
         // Posición final en la ventana (después de aplicar los anclajes).
-        public int ScreenX;
-        public int ScreenY;
-        public int ActualWidth;
-        public int ActualHeight;
+        public var ScreenX: int;
+        public var ScreenY: int;
+        public var ActualWidth: int;
+        public var ActualHeight: int;
 
         // Edición de texto (TextBox): posiciones en bytes UTF-8.
-        int caret;
-        int selAnchor;
-        float scroll;
+        var caret: int;
+        var selAnchor: int;
+        var scroll: float;
 
         // Eventos: un único punto de entrada con el número de evento de cada tipo.
-        delegate*<void*, Widget, int, void> eventFn;
-        void* eventTarget;
-        int clickEvent;
-        int changedEvent;
+        var eventFn: delegate*<void*, Widget, int, void>;
+        var eventTarget: void*;
+        var clickEvent: int;
+        var changedEvent: int;
 
         // Listas (ComboBox, ListBox) y grupo de los RadioButton.
-        List<string> items = new List<string>();
-        int selectedIndex = -1;
-        int firstVisible;   // ListBox: primer elemento visible
-        string group = String.Copy("");
+        var items: List<string> = new List<string>();
+        var selectedIndex: int = -1;
+        var firstVisible: int;   // ListBox: primer elemento visible
+        var group: string = String.Copy("");
 
-        public static Widget Create(WidgetKind kind, string name, int x, int y, int w, int h)
+        public static func Create(kind: WidgetKind, name: string, x: int, y: int, w: int, h: int) -> Widget
         {
-            auto wd = new Widget();
+            var wd = new Widget();
             wd.Kind = kind;
             String.Free(wd.Name);
             wd.Name = String.Copy(name);
@@ -736,7 +736,7 @@ namespace std.ui
             return wd;
         }
 
-        ~Widget()
+        deinit
         {
             for (int i = 0; i < Children.Count; i++) delete Children[i];
             delete Children;
@@ -748,13 +748,13 @@ namespace std.ui
             String.Free(group);
         }
 
-        public int X { get => x; set { x = value; Invalidate(); } }
-        public int Y { get => y; set { y = value; Invalidate(); } }
-        public int Width { get => width; set { width = value; Invalidate(); } }
-        public int Height { get => height; set { height = value; Invalidate(); } }
+        public prop X: int { get => x; set { x = value; Invalidate(); } }
+        public prop Y: int { get => y; set { y = value; Invalidate(); } }
+        public prop Width: int { get => width; set { width = value; Invalidate(); } }
+        public prop Height: int { get => height; set { height = value; Invalidate(); } }
 
         // El texto se copia al asignarlo.
-        public string Text
+        public prop Text: string
         {
             get => text;
             set
@@ -768,7 +768,7 @@ namespace std.ui
             }
         }
 
-        public string Placeholder
+        public prop Placeholder: string
         {
             get => placeholder;
             set
@@ -780,11 +780,11 @@ namespace std.ui
             }
         }
 
-        public bool Checked { get => isChecked; set { isChecked = value; Invalidate(); } }
-        public float Min { get => min; set { min = value; Invalidate(); } }
-        public float Max { get => max; set { max = value; Invalidate(); } }
+        public prop Checked: bool { get => isChecked; set { isChecked = value; Invalidate(); } }
+        public prop Min: float { get => min; set { min = value; Invalidate(); } }
+        public prop Max: float { get => max; set { max = value; Invalidate(); } }
 
-        public float Value
+        public prop Value: float
         {
             get => value;
             set
@@ -798,10 +798,10 @@ namespace std.ui
         }
 
         // Fracción 0..1 del valor entre Min y Max.
-        public float Fraction => max > min ? (value - min) / (max - min) : 0;
+        public prop Fraction: float => max > min ? (value - min) / (max - min) : 0;
 
         // RadioButton: al marcar uno se desmarcan los del mismo contenedor con el mismo grupo.
-        public string Group
+        public prop Group: string
         {
             get => group;
             set
@@ -814,21 +814,21 @@ namespace std.ui
 
         // ------------------------------------------------------------- listas (ComboBox, ListBox)
 
-        public int ItemCount => items.Count;
+        public prop ItemCount: int => items.Count;
 
         // Elemento i (vista) o "" si no existe.
-        public string Item(int i) => i >= 0 && i < items.Count ? items[i] : "";
+        public func Item(i: int) -> string => i >= 0 && i < items.Count ? items[i] : "";
 
         // Elemento seleccionado (vista) o "".
-        public string SelectedItem => Item(selectedIndex);
+        public prop SelectedItem: string => Item(selectedIndex);
 
-        public void AddItem(string s)
+        public func AddItem(s: string)
         {
             items.Add(String.Copy(s));
             Invalidate();
         }
 
-        public void RemoveItemAt(int i)
+        public func RemoveItemAt(i: int)
         {
             if (i < 0 || i >= items.Count) return;
             String.Free(items[i]);
@@ -839,7 +839,7 @@ namespace std.ui
             Invalidate();
         }
 
-        public void ClearItems()
+        public func ClearItems()
         {
             for (int i = 0; i < items.Count; i++) String.Free(items[i]);
             items.Clear();
@@ -849,17 +849,17 @@ namespace std.ui
         }
 
         // Reemplaza los elementos por los de una lista separada por ';' ("Rojo;Verde;Azul").
-        public void SetItems(string list)
+        public func SetItems(list: string)
         {
             ClearItems();
             if (list.Length == 0) return;
-            auto parts = std.text.Text.Split(list, ";");
+            var parts = std.text.Text.Split(list, ";");
             for (int i = 0; i < parts.Count; i++) items.Add(String.Copy(parts[i].Trim()));
             delete parts;
         }
 
         // Índice del elemento seleccionado (-1 = ninguno). Asignarlo no lanza 'Changed'.
-        public int SelectedIndex
+        public prop SelectedIndex: int
         {
             get => selectedIndex;
             set
@@ -873,7 +873,7 @@ namespace std.ui
         }
 
         // Selecciona por interacción del usuario (lanza 'Changed' si cambia).
-        internal void Choose(int i)
+        internal func Choose(i: int)
         {
             if (i < 0 || i >= items.Count || i == selectedIndex) return;
             selectedIndex = i;
@@ -882,9 +882,9 @@ namespace std.ui
             RaiseChanged();
         }
 
-        internal int RowHeight => (int)UiFont.Get(FontSize, Bold).LineHeight + 14;
+        internal prop RowHeight: int => (int)UiFont.Get(FontSize, Bold).LineHeight + 14;
 
-        internal int VisibleRows
+        internal prop VisibleRows: int
         {
             get
             {
@@ -894,21 +894,21 @@ namespace std.ui
             }
         }
 
-        internal void ClampScroll()
+        internal func ClampScroll()
         {
             int most = items.Count - VisibleRows;
             if (firstVisible > most) firstVisible = most;
             if (firstVisible < 0) firstVisible = 0;
         }
 
-        internal void ScrollList(int rows)
+        internal func ScrollList(rows: int)
         {
             firstVisible += rows;
             ClampScroll();
             Invalidate();
         }
 
-        void EnsureVisible()
+        func EnsureVisible()
         {
             if (Kind != WidgetKind.ListBox || selectedIndex < 0) return;
             if (selectedIndex < firstVisible) firstVisible = selectedIndex;
@@ -918,7 +918,7 @@ namespace std.ui
         }
 
         // ListBox: fila bajo la coordenada y de la ventana, o -1.
-        internal int RowAt(int py)
+        internal func RowAt(py: int) -> int
         {
             int local = py - ScreenY - 4;
             if (local < 0) return -1;
@@ -926,7 +926,7 @@ namespace std.ui
             return i < items.Count ? i : -1;
         }
 
-        public Widget Add(Widget child)
+        public func Add(child: Widget) -> Widget
         {
             child.Parent = this;
             child.SetOwner(Owner);
@@ -935,14 +935,14 @@ namespace std.ui
             return child;
         }
 
-        public void SetOwner(Window w)
+        public func SetOwner(w: Window)
         {
             Owner = w;
             for (int i = 0; i < Children.Count; i++) Children[i].SetOwner(w);
         }
 
         // Conecta los eventos: fn(target, control, número) se llama con 'click' o 'changed'.
-        public void SetEvents(delegate*<void*, Widget, int, void> fn, void* target, int click, int changed)
+        public func SetEvents(fn: delegate*<void*, Widget, int, void>, target: void*, click: int, changed: int)
         {
             eventFn = fn;
             eventTarget = target;
@@ -950,12 +950,12 @@ namespace std.ui
             changedEvent = changed;
         }
 
-        public void Invalidate()
+        public func Invalidate()
         {
             if (Owner != null) Owner.Invalidate();
         }
 
-        public bool Focusable => Visible && Enabled && (Kind == WidgetKind.TextBox || Kind == WidgetKind.Button ||
+        public prop Focusable: bool => Visible && Enabled && (Kind == WidgetKind.TextBox || Kind == WidgetKind.Button ||
                                                        Kind == WidgetKind.CheckBox || Kind == WidgetKind.Slider ||
                                                        Kind == WidgetKind.RadioButton || Kind == WidgetKind.ComboBox ||
                                                        Kind == WidgetKind.ListBox || FocusableKind);
@@ -966,13 +966,13 @@ namespace std.ui
         public event Action<Widget> Changed;
         public event Action<Widget> Tick;  // Timer
 
-        internal void RaiseClick()
+        internal func RaiseClick()
         {
             if (clickEvent != 0 && eventFn != null) eventFn(eventTarget, this, clickEvent);
             Click(this);
         }
 
-        internal void RaiseChanged()
+        internal func RaiseChanged()
         {
             if (changedEvent != 0 && eventFn != null) eventFn(eventTarget, this, changedEvent);
             Changed(this);
@@ -981,7 +981,7 @@ namespace std.ui
         // ------------------------------------------------------------- disposición
 
         // Calcula la posición final según el tamaño real del padre y su tamaño de diseño.
-        internal void Layout(int parentX, int parentY, int dw, int dh)
+        internal func Layout(parentX: int, parentY: int, dw: int, dh: int)
         {
             int ax = (int)Anchor;
             bool left = (ax & 1) != 0, top = (ax & 2) != 0, right = (ax & 4) != 0, bottom = (ax & 8) != 0;
@@ -1000,11 +1000,11 @@ namespace std.ui
             LayoutChildren();
         }
 
-        public bool Contains(int px, int py) =>
+        public func Contains(px: int, py: int) -> bool =>
             px >= ScreenX && py >= ScreenY && px < ScreenX + ActualWidth && py < ScreenY + ActualHeight;
 
         // Control visible más interno bajo el punto (o null).
-        internal Widget HitTest(int px, int py)
+        internal func HitTest(px: int, py: int) -> Widget
         {
             if (!Visible || !Contains(px, py)) return null;
             for (int i = Children.Count - 1; i >= 0; i--)
@@ -1017,7 +1017,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- dibujo
 
-        internal void Draw(Canvas c, Palette p, Window w)
+        internal func Draw(c: Canvas, p: Palette, w: Window)
         {
             if (!Visible) return;
             float fx = ScreenX, fy = ScreenY, fw = ActualWidth, fh = ActualHeight;
@@ -1181,7 +1181,7 @@ namespace std.ui
         }
 
         // Fondo propio (sólido o degradado); shade: 1 más claro (encima), -1 más oscuro (pulsado).
-        void FillBackground(Canvas c, float x, float y, float w, float h, float r, int shade)
+        func FillBackground(c: Canvas, x: float, y: float, w: float, h: float, r: float, shade: int)
         {
             uint a = Background, b = Background2 != 0 ? Background2 : Background;
             if (shade > 0)
@@ -1198,13 +1198,13 @@ namespace std.ui
             else c.FillRoundRectGradient(x, y, w, h, r, a, b, GradientHorizontal);
         }
 
-        static uint Darken(uint c)
+        static func Darken(c: uint) -> uint
         {
             uint r = ((c >> 16) & 0xff) * 85 / 100, g = ((c >> 8) & 0xff) * 85 / 100, b = (c & 0xff) * 85 / 100;
             return (c & 0xff000000) | (r << 16) | (g << 8) | b;
         }
 
-        void DrawLabelText(Canvas c, UiFont font, string s, float fx, float fy, float fw, float fh, uint color)
+        func DrawLabelText(c: Canvas, font: UiFont, s: string, fx: float, fy: float, fw: float, fh: float, color: uint)
         {
             // Varias líneas separadas por '\n', centradas verticalmente en el control.
             int lines = 1;
@@ -1225,7 +1225,7 @@ namespace std.ui
             }
         }
 
-        void DrawListBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, uint textColor)
+        func DrawListBox(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, focused: bool, textColor: uint)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
@@ -1255,7 +1255,7 @@ namespace std.ui
             c.ResetClip();
         }
 
-        void DrawTextBox(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused, bool hot)
+        func DrawTextBox(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, focused: bool, hot: bool)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
@@ -1286,16 +1286,16 @@ namespace std.ui
 
         // ------------------------------------------------------------- texto (TextBox)
 
-        bool HasSelection => selAnchor != caret;
+        prop HasSelection: bool => selAnchor != caret;
 
-        void DeleteSelection()
+        func DeleteSelection()
         {
             if (!HasSelection) return;
             int a = selAnchor < caret ? selAnchor : caret, b = selAnchor < caret ? caret : selAnchor;
             Replace(a, b, "");
         }
 
-        void Replace(int a, int b, string with)
+        func Replace(a: int, b: int, with: string)
         {
             string head = text.Substring(0, a);
             string tail = text.Substring(b, text.Length - b);
@@ -1306,7 +1306,7 @@ namespace std.ui
             selAnchor = caret;
         }
 
-        int PrevChar(int i)
+        func PrevChar(i: int) -> int
         {
             if (i <= 0) return 0;
             i--;
@@ -1314,7 +1314,7 @@ namespace std.ui
             return i;
         }
 
-        int NextCharPos(int i)
+        func NextCharPos(i: int) -> int
         {
             if (i >= text.Length) return text.Length;
             i++;
@@ -1322,7 +1322,7 @@ namespace std.ui
             return i;
         }
 
-        int CaretFromX(int px)
+        func CaretFromX(px: int) -> int
         {
             UiFont font = UiFont.Get(FontSize, Bold);
             float local = px - (ScreenX + 10) + scroll;
@@ -1338,27 +1338,27 @@ namespace std.ui
             return text.Length;
         }
 
-        internal void TextMouseDown(int px, bool shift)
+        internal func TextMouseDown(px: int, shift: bool)
         {
             caret = CaretFromX(px);
             if (!shift) selAnchor = caret;
         }
 
-        internal void TextMouseDrag(int px) { caret = CaretFromX(px); }
+        internal func TextMouseDrag(px: int) { caret = CaretFromX(px); }
 
-        internal void SelectAll()
+        internal func SelectAll()
         {
             selAnchor = 0;
             caret = text.Length;
         }
 
-        internal string SelectedText()
+        internal func SelectedText() -> string
         {
             int a = selAnchor < caret ? selAnchor : caret, b = selAnchor < caret ? caret : selAnchor;
             return String.Copy(text.Substring(a, b - a));
         }
 
-        internal void InsertText(string s)
+        internal func InsertText(s: string)
         {
             DeleteSelection();
             Replace(caret, caret, s);
@@ -1366,7 +1366,7 @@ namespace std.ui
         }
 
         // Devuelve true si la tecla se usó.
-        internal bool TextKey(UiEvent e)
+        internal func TextKey(e: UiEvent) -> bool
         {
             int before = caret;
             switch (e.Key)
@@ -1417,59 +1417,59 @@ namespace std.ui
 
     public struct UiEvent
     {
-        public UiEventKind Kind;
-        public int X;
-        public int Y;
-        public int Button;    // 1 izquierdo, 2 central, 3 derecho
-        public KeyCode Key;
-        public char Char;
-        public bool Ctrl;
-        public bool Shift;
-        public int Width;
-        public int Height;
-        public int Delta;     // rueda: positivo hacia abajo
-        public char KeyChar;  // KeyDown: letra (mayúscula) o dígito de la tecla, para los atajos (Ctrl+S)
+        public var Kind: UiEventKind;
+        public var X: int;
+        public var Y: int;
+        public var Button: int;    // 1 izquierdo, 2 central, 3 derecho
+        public var Key: KeyCode;
+        public var Char: char;
+        public var Ctrl: bool;
+        public var Shift: bool;
+        public var Width: int;
+        public var Height: int;
+        public var Delta: int;     // rueda: positivo hacia abajo
+        public var KeyChar: char;  // KeyDown: letra (mayúscula) o dígito de la tecla, para los atajos (Ctrl+S)
     }
 
     public partial class Window
     {
-        public List<Widget> Children = new List<Widget>();
-        public UiTheme Theme = UiTheme.Dark;
-        public bool Resizable = true;
-        public int MinWidth = 200;
-        public int MinHeight = 120;
-        public uint Background;          // 0 = el del tema
-        public uint Background2;         // con valor: degradado de Background a Background2
-        public bool GradientHorizontal;
+        public var Children: List<Widget> = new List<Widget>();
+        public var Theme: UiTheme = UiTheme.Dark;
+        public var Resizable: bool = true;
+        public var MinWidth: int = 200;
+        public var MinHeight: int = 120;
+        public var Background: uint;          // 0 = el del tema
+        public var Background2: uint;         // con valor: degradado de Background a Background2
+        public var GradientHorizontal: bool;
 
-        string title;
-        int designWidth;
-        int designHeight;
-        int width;
-        int height;
-        bool dirty = true;
-        bool open;
-        Palette palette;
-        Canvas canvas = new Canvas();
-        NativeWindow native;
-        long caretTime;
+        var title: string;
+        var designWidth: int;
+        var designHeight: int;
+        var width: int;
+        var height: int;
+        var dirty: bool = true;
+        var open: bool;
+        var palette: Palette;
+        var canvas: Canvas = new Canvas();
+        var native: NativeWindow;
+        var caretTime: long;
 
         // Estado de la interacción (lo usan los controles al dibujarse).
-        public Widget Hot;
-        public Widget Pressed;
-        public Widget Focused;
-        public bool FocusVisible;
-        public bool CaretOn = true;
-        public int MouseX = -1;
-        public int MouseY = -1;
+        public var Hot: Widget;
+        public var Pressed: Widget;
+        public var Focused: Widget;
+        public var FocusVisible: bool;
+        public var CaretOn: bool = true;
+        public var MouseX: int = -1;
+        public var MouseY: int = -1;
 
         // ComboBox con la lista abierta (se dibuja encima de todo).
-        public Widget DropDown;
-        int dropHot = -1;
-        int dropScroll;
+        public var DropDown: Widget;
+        var dropHot: int = -1;
+        var dropScroll: int;
         const int DropMaxRows = 8;
 
-        public Window(string title, int width, int height)
+        public init(title: string, width: int, height: int)
         {
             this.title = String.Copy(title);
             designWidth = width;
@@ -1478,7 +1478,7 @@ namespace std.ui
             this.height = height;
         }
 
-        ~Window()
+        deinit
         {
             for (int i = 0; i < Children.Count; i++) delete Children[i];
             delete Children;
@@ -1488,7 +1488,7 @@ namespace std.ui
             String.Free(title);
         }
 
-        public string Title
+        public prop Title: string
         {
             get => title;
             set
@@ -1500,11 +1500,11 @@ namespace std.ui
             }
         }
 
-        public int Width => width;
-        public int Height => height;
-        public bool IsOpen => open;
+        public prop Width: int => width;
+        public prop Height: int => height;
+        public prop IsOpen: bool => open;
 
-        public Widget Add(Widget w)
+        public func Add(w: Widget) -> Widget
         {
             w.Parent = null;
             w.SetOwner(this);
@@ -1514,7 +1514,7 @@ namespace std.ui
         }
 
         // Busca un control por su nombre (también dentro de paneles).
-        public Widget Find(string name)
+        public func Find(name: string) -> Widget
         {
             for (int i = 0; i < Children.Count; i++)
             {
@@ -1524,7 +1524,7 @@ namespace std.ui
             return null;
         }
 
-        static Widget FindIn(Widget w, string name)
+        static func FindIn(w: Widget, name: string) -> Widget
         {
             if (w.Name == name) return w;
             for (int i = 0; i < w.Children.Count; i++)
@@ -1535,11 +1535,11 @@ namespace std.ui
             return null;
         }
 
-        public void Invalidate() { dirty = true; }
+        public func Invalidate() { dirty = true; }
 
-        public void Close() { open = false; }
+        public func Close() { open = false; }
 
-        public void Focus(Widget w)
+        public func Focus(w: Widget)
         {
             if (Focused == w) return;
             Focused = w;
@@ -1550,7 +1550,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- dibujo
 
-        public void Render()
+        public func Render()
         {
             dirty = false;  // antes de dibujar: un Paint (Canvas) puede pedir otro fotograma con Invalidate
             if (palette == null) palette = Palette.For(Theme);
@@ -1573,7 +1573,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- lista desplegable
 
-        void OpenDropDown(Widget combo)
+        func OpenDropDown(combo: Widget)
         {
             DropDown = combo;
             dropHot = combo.SelectedIndex;
@@ -1582,17 +1582,17 @@ namespace std.ui
             dirty = true;
         }
 
-        void CloseDropDown()
+        func CloseDropDown()
         {
             DropDown = null;
             dropHot = -1;
             dirty = true;
         }
 
-        int DropRows => DropDown.ItemCount < DropMaxRows ? DropDown.ItemCount : DropMaxRows;
+        prop DropRows: int => DropDown.ItemCount < DropMaxRows ? DropDown.ItemCount : DropMaxRows;
 
         // Rectángulo de la lista: debajo del ComboBox, o encima si no cabe.
-        void DropRect(out int x, out int y, out int w, out int h)
+        func DropRect(out x: int, out y: int, out w: int, out h: int)
         {
             Widget d = DropDown;
             int rows = DropRows < 1 ? 1 : DropRows;
@@ -1603,14 +1603,14 @@ namespace std.ui
             if (y + h > height && d.ScreenY - h - 4 >= 0) y = d.ScreenY - h - 4;
         }
 
-        bool InDropDown(int px, int py)
+        func InDropDown(px: int, py: int) -> bool
         {
             int x = 0, y = 0, w = 0, h = 0;
             DropRect(out x, out y, out w, out h);
             return px >= x && py >= y && px < x + w && py < y + h;
         }
 
-        int DropIndexAt(int px, int py)
+        func DropIndexAt(px: int, py: int) -> int
         {
             if (!InDropDown(px, py)) return -1;
             int x = 0, y = 0, w = 0, h = 0;
@@ -1621,7 +1621,7 @@ namespace std.ui
             return i < DropDown.ItemCount ? i : -1;
         }
 
-        void ScrollDropDown(int rows)
+        func ScrollDropDown(rows: int)
         {
             int most = DropDown.ItemCount - DropRows;
             dropScroll += rows;
@@ -1630,7 +1630,7 @@ namespace std.ui
             dirty = true;
         }
 
-        void DrawDropDown()
+        func DrawDropDown()
         {
             Widget d = DropDown;
             int x = 0, y = 0, w = 0, h = 0;
@@ -1663,11 +1663,11 @@ namespace std.ui
             canvas.ResetClip();
         }
 
-        public Canvas Canvas => canvas;
+        public prop Canvas: Canvas => canvas;
 
         // ------------------------------------------------------------- eventos
 
-        Widget HitTest(int x, int y)
+        func HitTest(x: int, y: int) -> Widget
         {
             for (int i = Children.Count - 1; i >= 0; i--)
             {
@@ -1677,16 +1677,16 @@ namespace std.ui
             return null;
         }
 
-        void CollectFocusable(Widget w, List<Widget> found)
+        func CollectFocusable(w: Widget, found: List<Widget>)
         {
             if (!w.Visible) return;
             if (w.Focusable) found.Add(w);
             for (int i = 0; i < w.Children.Count; i++) CollectFocusable(w.Children[i], found);
         }
 
-        void MoveFocus(bool back)
+        func MoveFocus(back: bool)
         {
-            auto list = new List<Widget>();
+            var list = new List<Widget>();
             for (int i = 0; i < Children.Count; i++) CollectFocusable(Children[i], list);
             if (list.Count > 0)
             {
@@ -1700,7 +1700,7 @@ namespace std.ui
             delete list;
         }
 
-        void SetSlider(Widget w, int mx)
+        func SetSlider(w: Widget, mx: int)
         {
             float left = w.ScreenX + 8, right = w.ScreenX + w.ActualWidth - 8;
             float t = right > left ? (mx - left) / (right - left) : 0;
@@ -1711,7 +1711,7 @@ namespace std.ui
             if (w.Value != old) w.RaiseChanged();
         }
 
-        void Activate(Widget w)
+        func Activate(w: Widget)
         {
             if (w.Kind == WidgetKind.CheckBox)
             {
@@ -1736,7 +1736,7 @@ namespace std.ui
             w.RaiseClick();
         }
 
-        public void HandleEvent(UiEvent e)
+        public func HandleEvent(e: UiEvent)
         {
             if (HandleEventFirst(e)) return;  // menús abiertos, botón derecho, doble clic (ui/menu.fst)
             switch (e.Kind)
@@ -1880,7 +1880,7 @@ namespace std.ui
             }
         }
 
-        void HandleKey(UiEvent e)
+        func HandleKey(e: UiEvent)
         {
             Widget f = Focused;
             if (DropDown != null)
@@ -1973,15 +1973,15 @@ namespace std.ui
         // Simula entrada sin pantalla (FASET_UI_SCRIPT): "click X Y | move X Y | scroll N | type texto | key tab | resize W H"
         // y también "rclick X Y | dblclick X Y | down X Y | drag X Y | up X Y | key ctrl+s | wait MS" (ver ui/menu.fst).
         // Las pruebas pueden llamarlo directamente.
-        public void Simulate(string script) { RunScript(script); }
+        public func Simulate(script: string) { RunScript(script); }
 
-        void RunScript(string script)
+        func RunScript(script: string)
         {
-            auto cmds = Text.Split(script, "|");
+            var cmds = Text.Split(script, "|");
             for (int i = 0; i < cmds.Count; i++)
             {
                 string cmd = cmds[i].Trim();
-                auto parts = Text.Split(cmd, " ");
+                var parts = Text.Split(cmd, " ");
                 if (parts.Count == 0 || cmd.Length == 0)
                 {
                     delete parts;
@@ -2058,7 +2058,7 @@ namespace std.ui
         // ------------------------------------------------------------- bucle
 
         // Muestra la ventana y procesa eventos hasta que se cierra. Devuelve 0 si todo fue bien.
-        public int Run()
+        public func Run() -> int
         {
             InstallSync();  // los 'await' de los métodos async de este hilo vuelven a él (ui/async.fst)
             // FASET_UI_SCREENSHOT=archivo.bmp: dibuja una vez, guarda la imagen y termina (sin pantalla).
@@ -2135,13 +2135,13 @@ namespace std.ui
     public static class Application
     {
         // Ejecuta la ventana principal hasta que se cierra.
-        public static int Run(Window window) => window.Run();
+        public static func Run(window: Window) -> int => window.Run();
     }
 
     // UTF-8
     public memory_unsafe static class Utf8
     {
-        public static string Encode(char c)
+        public static func Encode(c: char) -> string
         {
             uint cp = (uint)c;
             byte* b = (byte*)Memory.AllocZeroed(4);
@@ -2179,52 +2179,49 @@ namespace std.ui
 
     memory_unsafe static class Win32
     {
-        public static extern void* GetModuleHandleW(ushort* name);
-        public static extern ushort RegisterClassExW(byte* wc);
-        public static extern void* CreateWindowExW(uint exStyle, ushort* cls, ushort* title, uint style, int x, int y, int w, int h,
-                                                   void* parent, void* menu, void* instance, void* param);
-        public static extern long DefWindowProcW(void* hwnd, uint msg, ulong wp, long lp);
-        public static extern int ShowWindow(void* hwnd, int cmd);
-        public static extern int UpdateWindow(void* hwnd);
-        public static extern int DestroyWindow(void* hwnd);
-        public static extern int PeekMessageW(byte* msg, void* hwnd, uint min, uint max, uint remove);
-        public static extern int TranslateMessage(byte* msg);
-        public static extern long DispatchMessageW(byte* msg);
-        public static extern uint MsgWaitForMultipleObjects(uint count, void* handles, int waitAll, uint ms, uint mask);
-        public static extern void* LoadCursorW(void* instance, void* name);
-        public static extern void* SetCursor(void* cursor);
-        public static extern int SetWindowTextW(void* hwnd, ushort* text);
-        public static extern int AdjustWindowRectEx(int* rect, uint style, int menu, uint exStyle);
-        public static extern int InvalidateRect(void* hwnd, void* rect, int erase);
-        public static extern void* BeginPaint(void* hwnd, byte* ps);
-        public static extern int EndPaint(void* hwnd, byte* ps);
-        public static extern void* GetDC(void* hwnd);
-        public static extern int ReleaseDC(void* hwnd, void* dc);
-        public static extern int SetDIBitsToDevice(void* dc, int x, int y, uint w, uint h, int sx, int sy, uint start, uint lines,
-                                                   void* bits, byte* info, uint usage);
-        public static extern void* SetCapture(void* hwnd);
-        public static extern int ReleaseCapture();
-        public static extern int TrackMouseEvent(byte* tme);
-        public static extern short GetKeyState(int key);
-        public static extern void* CreateCompatibleDC(void* dc);
-        public static extern void* CreateFontW(int h, int w, int esc, int orient, int weight, uint italic, uint underline, uint strike,
-                                               uint charset, uint outPrec, uint clipPrec, uint quality, uint pitch, ushort* face);
-        public static extern void* SelectObject(void* dc, void* obj);
-        public static extern int GetTextMetricsW(void* dc, byte* tm);
-        public static extern uint GetGlyphOutlineW(void* dc, uint ch, uint format, byte* gm, uint size, void* buffer, byte* mat);
-        public static extern int MultiByteToWideChar(uint cp, uint flags, byte* src, int n, ushort* dst, int cap);
-        public static extern int WideCharToMultiByte(uint cp, uint flags, ushort* src, int n, byte* dst, int cap, void* d, void* u);
-        public static extern int OpenClipboard(void* hwnd);
-        public static extern int CloseClipboard();
-        public static extern int EmptyClipboard();
-        public static extern void* GetClipboardData(uint format);
-        public static extern void* SetClipboardData(uint format, void* mem);
-        public static extern void* GlobalAlloc(uint flags, ulong bytes);
-        public static extern void* GlobalLock(void* mem);
-        public static extern int GlobalUnlock(void* mem);
+        public static extern func GetModuleHandleW(name: ushort*) -> void*;
+        public static extern func RegisterClassExW(wc: byte*) -> ushort;
+        public static extern func CreateWindowExW(exStyle: uint, cls: ushort*, title: ushort*, style: uint, x: int, y: int, w: int, h: int, parent: void*, menu: void*, instance: void*, param: void*) -> void*;
+        public static extern func DefWindowProcW(hwnd: void*, msg: uint, wp: ulong, lp: long) -> long;
+        public static extern func ShowWindow(hwnd: void*, cmd: int) -> int;
+        public static extern func UpdateWindow(hwnd: void*) -> int;
+        public static extern func DestroyWindow(hwnd: void*) -> int;
+        public static extern func PeekMessageW(msg: byte*, hwnd: void*, min: uint, max: uint, remove: uint) -> int;
+        public static extern func TranslateMessage(msg: byte*) -> int;
+        public static extern func DispatchMessageW(msg: byte*) -> long;
+        public static extern func MsgWaitForMultipleObjects(count: uint, handles: void*, waitAll: int, ms: uint, mask: uint) -> uint;
+        public static extern func LoadCursorW(instance: void*, name: void*) -> void*;
+        public static extern func SetCursor(cursor: void*) -> void*;
+        public static extern func SetWindowTextW(hwnd: void*, text: ushort*) -> int;
+        public static extern func AdjustWindowRectEx(rect: int*, style: uint, menu: int, exStyle: uint) -> int;
+        public static extern func InvalidateRect(hwnd: void*, rect: void*, erase: int) -> int;
+        public static extern func BeginPaint(hwnd: void*, ps: byte*) -> void*;
+        public static extern func EndPaint(hwnd: void*, ps: byte*) -> int;
+        public static extern func GetDC(hwnd: void*) -> void*;
+        public static extern func ReleaseDC(hwnd: void*, dc: void*) -> int;
+        public static extern func SetDIBitsToDevice(dc: void*, x: int, y: int, w: uint, h: uint, sx: int, sy: int, start: uint, lines: uint, bits: void*, info: byte*, usage: uint) -> int;
+        public static extern func SetCapture(hwnd: void*) -> void*;
+        public static extern func ReleaseCapture() -> int;
+        public static extern func TrackMouseEvent(tme: byte*) -> int;
+        public static extern func GetKeyState(key: int) -> short;
+        public static extern func CreateCompatibleDC(dc: void*) -> void*;
+        public static extern func CreateFontW(h: int, w: int, esc: int, orient: int, weight: int, italic: uint, underline: uint, strike: uint, charset: uint, outPrec: uint, clipPrec: uint, quality: uint, pitch: uint, face: ushort*) -> void*;
+        public static extern func SelectObject(dc: void*, obj: void*) -> void*;
+        public static extern func GetTextMetricsW(dc: void*, tm: byte*) -> int;
+        public static extern func GetGlyphOutlineW(dc: void*, ch: uint, format: uint, gm: byte*, size: uint, buffer: void*, mat: byte*) -> uint;
+        public static extern func MultiByteToWideChar(cp: uint, flags: uint, src: byte*, n: int, dst: ushort*, cap: int) -> int;
+        public static extern func WideCharToMultiByte(cp: uint, flags: uint, src: ushort*, n: int, dst: byte*, cap: int, d: void*, u: void*) -> int;
+        public static extern func OpenClipboard(hwnd: void*) -> int;
+        public static extern func CloseClipboard() -> int;
+        public static extern func EmptyClipboard() -> int;
+        public static extern func GetClipboardData(format: uint) -> void*;
+        public static extern func SetClipboardData(format: uint, mem: void*) -> void*;
+        public static extern func GlobalAlloc(flags: uint, bytes: ulong) -> void*;
+        public static extern func GlobalLock(mem: void*) -> void*;
+        public static extern func GlobalUnlock(mem: void*) -> int;
 
         // Copia UTF-16 terminada en cero.
-        public static ushort* Wide(string s)
+        public static func Wide(s: string) -> ushort*
         {
             int n = MultiByteToWideChar(65001, 0, s.Ptr, s.Length, null, 0);
             ushort* w = (ushort*)Memory.AllocZeroed((long)(n + 1) * 2);
@@ -2235,32 +2232,32 @@ namespace std.ui
 
     memory_unsafe class NativeWindow
     {
-        static NativeWindow current;
+        static var current: NativeWindow;
 
-        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
-        void* hwnd;
-        byte* msg;
-        byte* bmi;
+        public var Scale: float = 1;  // densidad (unidades lógicas -> píxeles)
+        var hwnd: void*;
+        var msg: byte*;
+        var bmi: byte*;
 
-        internal ulong Handle => (ulong)hwnd;  // ventana padre de los controles nativos (WebView)
-        List<UiEvent> queue = new List<UiEvent>();
-        void* cursorArrow;
-        void* cursorText;
-        void* cursorHand;
-        CursorShape cursor = CursorShape.Arrow;
-        bool tracking;
-        int minW;
-        int minH;
-        uint style;
+        internal prop Handle: ulong => (ulong)hwnd;  // ventana padre de los controles nativos (WebView)
+        var queue: List<UiEvent> = new List<UiEvent>();
+        var cursorArrow: void*;
+        var cursorText: void*;
+        var cursorHand: void*;
+        var cursor: CursorShape = CursorShape.Arrow;
+        var tracking: bool;
+        var minW: int;
+        var minH: int;
+        var style: uint;
 
-        ~NativeWindow()
+        deinit
         {
             delete queue;
             Memory.Free(msg);
             Memory.Free(bmi);
         }
 
-        public bool Create(string title, int w, int h, bool resizable, int minWidth, int minHeight, uint background)
+        public func Create(title: string, w: int, h: int, resizable: bool, minWidth: int, minHeight: int, background: uint) -> bool
         {
             current = this;
             minW = minWidth;
@@ -2298,39 +2295,39 @@ namespace std.ui
             return true;
         }
 
-        public void Destroy()
+        public func Destroy()
         {
             if (hwnd != null) Win32.DestroyWindow(hwnd);
             hwnd = null;
         }
 
-        public void SetTitle(string title)
+        public func SetTitle(title: string)
         {
             ushort* t = Win32.Wide(title);
             Win32.SetWindowTextW(hwnd, t);
             Memory.Free(t);
         }
 
-        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
+        public func SetTextInput(on: bool) { }  // solo Android muestra un teclado en pantalla
 
-        public void SetCursor(CursorShape shape)
+        public func SetCursor(shape: CursorShape)
         {
             cursor = shape;
             Win32.SetCursor(CursorHandle());
         }
 
-        void* CursorHandle() => cursor == CursorShape.Text ? cursorText : (cursor == CursorShape.Hand ? cursorHand : cursorArrow);
+        func CursorHandle() -> void* => cursor == CursorShape.Text ? cursorText : (cursor == CursorShape.Hand ? cursorHand : cursorArrow);
 
-        public void Present(Canvas c)
+        public func Present(c: Canvas)
         {
             void* dc = Win32.GetDC(hwnd);
             Blit(dc, c);
             Win32.ReleaseDC(hwnd, dc);
         }
 
-        Canvas last;
+        var last: Canvas;
 
-        void Blit(void* dc, Canvas c)
+        func Blit(dc: void*, c: Canvas)
         {
             last = c;
             *(uint*)bmi = 40;
@@ -2341,16 +2338,16 @@ namespace std.ui
             Win32.SetDIBitsToDevice(dc, 0, 0, (uint)c.Width, (uint)c.Height, 0, 0, 0, (uint)c.Height, c.Pixels, bmi, 0);
         }
 
-        public void Wait(int ms)
+        public func Wait(ms: int)
         {
             if (queue.Count > 0) return;
             if (ms < 0) ms = 0;
             UiLoop.faset_loop_wait_msgs(ms);  // mensajes, UiLoop.Wake (continuaciones async) o el plazo
         }
 
-        public static void Wake() { UiLoop.faset_loop_wake(); }
+        public static func Wake() { UiLoop.faset_loop_wake(); }
 
-        public bool Poll(out UiEvent e)
+        public func Poll(out e: UiEvent) -> bool
         {
             while (queue.Count == 0 && Win32.PeekMessageW(msg, null, 0, 0, 1) != 0)
             {
@@ -2367,12 +2364,12 @@ namespace std.ui
             return true;
         }
 
-        void Push(UiEvent e) { queue.Add(e); }
+        func Push(e: UiEvent) { queue.Add(e); }
 
-        static int LoX(long lp) => (int)(short)(lp & 0xffff);
-        static int HiY(long lp) => (int)(short)((lp >> 16) & 0xffff);
+        static func LoX(lp: long) -> int => (int)(short)(lp & 0xffff);
+        static func HiY(lp: long) -> int => (int)(short)((lp >> 16) & 0xffff);
 
-        static KeyCode MapKey(ulong vk)
+        static func MapKey(vk: ulong) -> KeyCode
         {
             switch ((int)vk)
             {
@@ -2401,7 +2398,7 @@ namespace std.ui
             }
         }
 
-        static long WndProc(void* hwnd, uint m, ulong wp, long lp)
+        static func WndProc(hwnd: void*, m: uint, wp: ulong, lp: long) -> long
         {
             NativeWindow w = current;
             if (w == null || w.hwnd != hwnd && w.hwnd != null) return Win32.DefWindowProcW(hwnd, m, wp, lp);
@@ -2523,7 +2520,7 @@ namespace std.ui
             return Win32.DefWindowProcW(hwnd, m, wp, lp);
         }
 
-        public void SetClipboard(string s)
+        public func SetClipboard(s: string)
         {
             if (Win32.OpenClipboard(hwnd) == 0) return;
             Win32.EmptyClipboard();
@@ -2537,7 +2534,7 @@ namespace std.ui
             Win32.CloseClipboard();
         }
 
-        public string GetClipboard()
+        public func GetClipboard() -> string
         {
             string r = String.Copy("");
             if (Win32.OpenClipboard(hwnd) == 0) return r;
@@ -2566,37 +2563,37 @@ namespace std.ui
     // Capa nativa en lib/android/faset_android.c (se compila dentro del APK).
     static class AndroidNative
     {
-        public static extern int faset_android_wait_window();
-        public static extern float faset_android_density();
-        public static extern int faset_android_next(int* ev);
-        public static extern void faset_android_wait(int ms);
-        public static extern void faset_android_wake();
-        public static extern void faset_android_present(uint* pixels, int w, int h);
-        public static extern void faset_android_text_input(int on);
-        public static extern int faset_android_clipboard_set(byte* text, int len);
-        public static extern int faset_android_clipboard_get(byte** text);
-        public static extern void* faset_ttf_open(byte* path, float px, int fakeBold, float* ascent, float* descent);
-        public static extern int faset_ttf_glyph(void* font, uint cp, byte** coverage, int* w, int* h, int* left, int* top, float* advance);
+        public static extern func faset_android_wait_window() -> int;
+        public static extern func faset_android_density() -> float;
+        public static extern func faset_android_next(ev: int*) -> int;
+        public static extern func faset_android_wait(ms: int);
+        public static extern func faset_android_wake();
+        public static extern func faset_android_present(pixels: uint*, w: int, h: int);
+        public static extern func faset_android_text_input(on: int);
+        public static extern func faset_android_clipboard_set(text: byte*, len: int) -> int;
+        public static extern func faset_android_clipboard_get(text: byte**) -> int;
+        public static extern func faset_ttf_open(path: byte*, px: float, fakeBold: int, ascent: float*, descent: float*) -> void*;
+        public static extern func faset_ttf_glyph(font: void*, cp: uint, coverage: byte**, w: int*, h: int*, left: int*, top: int*, advance: float*) -> int;
     }
 
     // La "ventana" es la actividad a pantalla completa: los toques llegan como ratón
     // (botón 1) y el tamaño lógico es el de la pantalla dividido por la densidad.
     memory_unsafe class NativeWindow
     {
-        public float Scale = 1;
-        int* ev;
-        bool textInput;
+        public var Scale: float = 1;
+        var ev: int*;
+        var textInput: bool;
 
-        internal ulong Handle => 0;  // los controles nativos (WebView) van en ventanas propias
-        string clipboard = String.Copy("");
+        internal prop Handle: ulong => 0;  // los controles nativos (WebView) van en ventanas propias
+        var clipboard: string = String.Copy("");
 
-        ~NativeWindow()
+        deinit
         {
             Memory.Free(ev);
             String.Free(clipboard);
         }
 
-        public bool Create(string title, int w, int h, bool resizable, int minW, int minH, uint background)
+        public func Create(title: string, w: int, h: int, resizable: bool, minW: int, minH: int, background: uint) -> bool
         {
             if (AndroidNative.faset_android_wait_window() == 0) return false;
             Scale = AndroidNative.faset_android_density();
@@ -2605,34 +2602,34 @@ namespace std.ui
             return true;
         }
 
-        public void Destroy() { SetTextInput(false); }
+        public func Destroy() { SetTextInput(false); }
 
-        public void SetTitle(string title) { }
+        public func SetTitle(title: string) { }
 
-        public void SetCursor(CursorShape shape) { }
+        public func SetCursor(shape: CursorShape) { }
 
-        public void SetTextInput(bool on)
+        public func SetTextInput(on: bool)
         {
             if (on == textInput) return;
             textInput = on;
             AndroidNative.faset_android_text_input(on ? 1 : 0);
         }
 
-        public void Present(Canvas c) { AndroidNative.faset_android_present(c.Pixels, c.Width, c.Height); }
+        public func Present(c: Canvas) { AndroidNative.faset_android_present(c.Pixels, c.Width, c.Height); }
 
-        public void Wait(int ms)
+        public func Wait(ms: int)
         {
             if (ms < 0) ms = 0;
             AndroidNative.faset_android_wait(ms);
         }
 
         // Despierta a Wait desde otro hilo (continuaciones async para el hilo de la interfaz).
-        public static void Wake() { AndroidNative.faset_android_wake(); }
+        public static func Wake() { AndroidNative.faset_android_wake(); }
 
-        int Logical(int px) => (int)(px / Scale);
+        func Logical(px: int) -> int => (int)(px / Scale);
 
         // Códigos AKEYCODE_* de android/keycodes.h.
-        static KeyCode MapKey(int code)
+        static func MapKey(code: int) -> KeyCode
         {
             switch (code)
             {
@@ -2662,7 +2659,7 @@ namespace std.ui
             }
         }
 
-        public bool Poll(out UiEvent e)
+        public func Poll(out e: UiEvent) -> bool
         {
             e = new UiEvent();
             while (AndroidNative.faset_android_next(ev) != 0)
@@ -2699,14 +2696,14 @@ namespace std.ui
             return false;
         }
 
-        public void SetClipboard(string text)
+        public func SetClipboard(text: string)
         {
             String.Free(clipboard);
             clipboard = String.Copy(text);
             AndroidNative.faset_android_clipboard_set(text.Ptr, text.Length);
         }
 
-        public string GetClipboard()
+        public func GetClipboard() -> string
         {
             byte* data = null;
             int n = AndroidNative.faset_android_clipboard_get(&data);
@@ -2721,10 +2718,10 @@ namespace std.ui
 
     memory_unsafe static class FreeType
     {
-        public static extern int FT_Init_FreeType(void** library);
-        public static extern int FT_New_Face(void* library, byte* path, long faceIndex, void** face);
-        public static extern int FT_Set_Pixel_Sizes(void* face, uint width, uint height);
-        public static extern int FT_Load_Char(void* face, ulong charcode, int flags);
+        public static extern func FT_Init_FreeType(library: void**) -> int;
+        public static extern func FT_New_Face(library: void*, path: byte*, faceIndex: long, face: void**) -> int;
+        public static extern func FT_Set_Pixel_Sizes(face: void*, width: uint, height: uint) -> int;
+        public static extern func FT_Load_Char(face: void*, charcode: ulong, flags: int) -> int;
 
         // Desplazamientos en FT_FaceRec / FT_SizeRec / FT_GlyphSlotRec (64 bits).
         public const int FaceGlyph = 152;
@@ -2744,69 +2741,67 @@ namespace std.ui
 
     memory_unsafe static class X11
     {
-        public static extern void* XOpenDisplay(byte* name);
-        public static extern int XCloseDisplay(void* dpy);
-        public static extern int XDefaultScreen(void* dpy);
-        public static extern ulong XRootWindow(void* dpy, int screen);
-        public static extern void* XDefaultVisual(void* dpy, int screen);
-        public static extern int XDefaultDepth(void* dpy, int screen);
-        public static extern void* XDefaultGC(void* dpy, int screen);
-        public static extern ulong XCreateSimpleWindow(void* dpy, ulong parent, int x, int y, uint w, uint h, uint border, ulong borderColor, ulong background);
-        public static extern int XSelectInput(void* dpy, ulong w, long mask);
-        public static extern int XMapWindow(void* dpy, ulong w);
-        public static extern int XStoreName(void* dpy, ulong w, byte* name);
-        public static extern ulong XInternAtom(void* dpy, byte* name, int onlyIfExists);
-        public static extern int XSetWMProtocols(void* dpy, ulong w, ulong* atoms, int count);
-        public static extern int XSetWMNormalHints(void* dpy, ulong w, byte* hints);
-        public static extern int XPending(void* dpy);
-        public static extern int XNextEvent(void* dpy, void* ev);
-        public static extern int XConnectionNumber(void* dpy);
-        public static extern int XLookupString(void* keyEvent, byte* buf, int len, ulong* keysym, void* status);
-        public static extern int XFlush(void* dpy);
-        public static extern int XDestroyWindow(void* dpy, ulong w);
-        public static extern ulong XCreateFontCursor(void* dpy, uint shape);
-        public static extern int XDefineCursor(void* dpy, ulong w, ulong cursor);
-        public static extern void* XCreateImage(void* dpy, void* visual, uint depth, int format, int offset, void* data,
-                                                uint w, uint h, int pad, int bytesPerLine);
-        public static extern int XPutImage(void* dpy, ulong d, void* gc, void* image, int sx, int sy, int dx, int dy, uint w, uint h);
-        public static extern int XFree(void* data);
-        public static extern int XChangeProperty(void* dpy, ulong w, ulong property, ulong type, int format, int mode, byte* data, int count);
-        public static extern int XSetSelectionOwner(void* dpy, ulong selection, ulong owner, ulong time);
-        public static extern ulong XGetSelectionOwner(void* dpy, ulong selection);
-        public static extern int XConvertSelection(void* dpy, ulong selection, ulong target, ulong property, ulong requestor, ulong time);
-        public static extern int XGetWindowProperty(void* dpy, ulong w, ulong property, long offset, long length, int del, ulong reqType,
-                                                    ulong* actualType, int* actualFormat, ulong* nitems, ulong* bytesAfter, byte** data);
-        public static extern int XSendEvent(void* dpy, ulong w, int propagate, long mask, void* ev);
+        public static extern func XOpenDisplay(name: byte*) -> void*;
+        public static extern func XCloseDisplay(dpy: void*) -> int;
+        public static extern func XDefaultScreen(dpy: void*) -> int;
+        public static extern func XRootWindow(dpy: void*, screen: int) -> ulong;
+        public static extern func XDefaultVisual(dpy: void*, screen: int) -> void*;
+        public static extern func XDefaultDepth(dpy: void*, screen: int) -> int;
+        public static extern func XDefaultGC(dpy: void*, screen: int) -> void*;
+        public static extern func XCreateSimpleWindow(dpy: void*, parent: ulong, x: int, y: int, w: uint, h: uint, border: uint, borderColor: ulong, background: ulong) -> ulong;
+        public static extern func XSelectInput(dpy: void*, w: ulong, mask: long) -> int;
+        public static extern func XMapWindow(dpy: void*, w: ulong) -> int;
+        public static extern func XStoreName(dpy: void*, w: ulong, name: byte*) -> int;
+        public static extern func XInternAtom(dpy: void*, name: byte*, onlyIfExists: int) -> ulong;
+        public static extern func XSetWMProtocols(dpy: void*, w: ulong, atoms: ulong*, count: int) -> int;
+        public static extern func XSetWMNormalHints(dpy: void*, w: ulong, hints: byte*) -> int;
+        public static extern func XPending(dpy: void*) -> int;
+        public static extern func XNextEvent(dpy: void*, ev: void*) -> int;
+        public static extern func XConnectionNumber(dpy: void*) -> int;
+        public static extern func XLookupString(keyEvent: void*, buf: byte*, len: int, keysym: ulong*, status: void*) -> int;
+        public static extern func XFlush(dpy: void*) -> int;
+        public static extern func XDestroyWindow(dpy: void*, w: ulong) -> int;
+        public static extern func XCreateFontCursor(dpy: void*, shape: uint) -> ulong;
+        public static extern func XDefineCursor(dpy: void*, w: ulong, cursor: ulong) -> int;
+        public static extern func XCreateImage(dpy: void*, visual: void*, depth: uint, format: int, offset: int, data: void*, w: uint, h: uint, pad: int, bytesPerLine: int) -> void*;
+        public static extern func XPutImage(dpy: void*, d: ulong, gc: void*, image: void*, sx: int, sy: int, dx: int, dy: int, w: uint, h: uint) -> int;
+        public static extern func XFree(data: void*) -> int;
+        public static extern func XChangeProperty(dpy: void*, w: ulong, property: ulong, type: ulong, format: int, mode: int, data: byte*, count: int) -> int;
+        public static extern func XSetSelectionOwner(dpy: void*, selection: ulong, owner: ulong, time: ulong) -> int;
+        public static extern func XGetSelectionOwner(dpy: void*, selection: ulong) -> ulong;
+        public static extern func XConvertSelection(dpy: void*, selection: ulong, target: ulong, property: ulong, requestor: ulong, time: ulong) -> int;
+        public static extern func XGetWindowProperty(dpy: void*, w: ulong, property: ulong, offset: long, length: long, del: int, reqType: ulong, actualType: ulong*, actualFormat: int*, nitems: ulong*, bytesAfter: ulong*, data: byte**) -> int;
+        public static extern func XSendEvent(dpy: void*, w: ulong, propagate: int, mask: long, ev: void*) -> int;
     }
 
     memory_unsafe class NativeWindow
     {
-        public float Scale = 1;  // densidad (unidades lógicas -> píxeles)
-        void* display;
-        ulong window;
-        int screen;
-        ulong wmDelete;
-        ulong atomClipboard;
-        ulong atomUtf8;
-        ulong atomTargets;
-        ulong atomPaste;
-        byte* ev;
-        ulong* cursors;
-        CursorShape cursor = CursorShape.Text;
-        int width;
-        int height;
-        string clipboard = String.Copy("");
+        public var Scale: float = 1;  // densidad (unidades lógicas -> píxeles)
+        var display: void*;
+        var window: ulong;
+        var screen: int;
+        var wmDelete: ulong;
+        var atomClipboard: ulong;
+        var atomUtf8: ulong;
+        var atomTargets: ulong;
+        var atomPaste: ulong;
+        var ev: byte*;
+        var cursors: ulong*;
+        var cursor: CursorShape = CursorShape.Text;
+        var width: int;
+        var height: int;
+        var clipboard: string = String.Copy("");
 
-        internal ulong Handle => window;  // ventana padre de los controles nativos (WebView)
+        internal prop Handle: ulong => window;  // ventana padre de los controles nativos (WebView)
 
-        ~NativeWindow()
+        deinit
         {
             Memory.Free(ev);
             Memory.Free(cursors);
             String.Free(clipboard);
         }
 
-        public bool Create(string title, int w, int h, bool resizable, int minW, int minH, uint background)
+        public func Create(title: string, w: int, h: int, resizable: bool, minW: int, minH: int, background: uint) -> bool
         {
             display = X11.XOpenDisplay(null);
             if (display == null) return false;
@@ -2842,7 +2837,7 @@ namespace std.ui
             return true;
         }
 
-        public void Destroy()
+        public func Destroy()
         {
             if (display == null) return;
             X11.XDestroyWindow(display, window);
@@ -2850,7 +2845,7 @@ namespace std.ui
             display = null;
         }
 
-        public void SetTitle(string title)
+        public func SetTitle(title: string)
         {
             // WM_NAME / WM_ICON_NAME (39 / 37) también en UTF-8: XStoreName los marca como Latin-1
             // y algunas barras de tareas mostraban los acentos rotos.
@@ -2863,9 +2858,9 @@ namespace std.ui
             X11.XFlush(display);
         }
 
-        public void SetTextInput(bool on) { }  // solo Android muestra un teclado en pantalla
+        public func SetTextInput(on: bool) { }  // solo Android muestra un teclado en pantalla
 
-        public void SetCursor(CursorShape shape)
+        public func SetCursor(shape: CursorShape)
         {
             if (shape == cursor) return;
             cursor = shape;
@@ -2873,7 +2868,7 @@ namespace std.ui
             X11.XFlush(display);
         }
 
-        public void Present(Canvas c)
+        public func Present(c: Canvas)
         {
             void* img = X11.XCreateImage(display, X11.XDefaultVisual(display, screen), (uint)X11.XDefaultDepth(display, screen), 2, 0,
                                          c.Pixels, (uint)c.Width, (uint)c.Height, 32, c.Width * 4);
@@ -2883,7 +2878,7 @@ namespace std.ui
             X11.XFlush(display);
         }
 
-        public void Wait(int ms)
+        public func Wait(ms: int)
         {
             if (X11.XPending(display) > 0) return;
             if (ms < 0) ms = 0;
@@ -2892,13 +2887,13 @@ namespace std.ui
             UiLoop.faset_wait_fd_wake(X11.XConnectionNumber(display), ms);  // también despierta con Wake
         }
 
-        public static void Wake() { UiLoop.faset_loop_wake(); }
+        public static func Wake() { UiLoop.faset_loop_wake(); }
 
-        static int I32(byte* p, int off) => *(int*)(p + off);
-        static uint U32(byte* p, int off) => *(uint*)(p + off);
-        static ulong U64(byte* p, int off) => *(ulong*)(p + off);
+        static func I32(p: byte*, off: int) -> int => *(int*)(p + off);
+        static func U32(p: byte*, off: int) -> uint => *(uint*)(p + off);
+        static func U64(p: byte*, off: int) -> ulong => *(ulong*)(p + off);
 
-        static KeyCode MapKey(ulong sym)
+        static func MapKey(sym: ulong) -> KeyCode
         {
             switch (sym)
             {
@@ -2934,10 +2929,10 @@ namespace std.ui
         }
 
         // Un evento de tecla puede producir dos eventos de la interfaz (tecla y carácter).
-        char pendingChar;
-        bool pendingCtrl;
+        var pendingChar: char;
+        var pendingCtrl: bool;
 
-        public bool Poll(out UiEvent e)
+        public func Poll(out e: UiEvent) -> bool
         {
             e = new UiEvent();
             if (pendingChar != 0)
@@ -3039,7 +3034,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- portapapeles
 
-        public void SetClipboard(string text)
+        public func SetClipboard(text: string)
         {
             String.Free(clipboard);
             clipboard = String.Copy(text);
@@ -3047,7 +3042,7 @@ namespace std.ui
             X11.XFlush(display);
         }
 
-        public string GetClipboard()
+        public func GetClipboard() -> string
         {
             if (X11.XGetSelectionOwner(display, atomClipboard) == window) return String.Copy(clipboard);
             X11.XConvertSelection(display, atomClipboard, atomUtf8, atomPaste, window, 0);
@@ -3080,7 +3075,7 @@ namespace std.ui
             return String.Copy("");
         }
 
-        void AnswerSelectionRequest()
+        func AnswerSelectionRequest()
         {
             ulong requestor = U64(ev, 40);
             ulong selection = U64(ev, 48);

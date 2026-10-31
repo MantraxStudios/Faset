@@ -36,22 +36,22 @@ namespace std.task
     // siguiente 'yield' (0 = MoveNextAsync, 1 = DisposeAsync) y devuelve la tarea de esa llamada.
     public sealed class GeneradorAsync<T> : IAsyncEnumerable<T>, IAsyncEnumerator<T>
     {
-        public T __actual;  // lo asigna 'yield return'
-        Func<int, Task<bool>> paso;
-        Func<GeneradorAsync<T>> clonar;
-        bool entregado;
+        public var __actual: T;  // lo asigna 'yield return'
+        var paso: Func<int, Task<bool>>;
+        var clonar: Func<GeneradorAsync<T>>;
+        var entregado: bool;
 
-        public GeneradorAsync(Func<int, Task<bool>> paso, Func<GeneradorAsync<T>> clonar)
+        public init(paso: Func<int, Task<bool>>, clonar: Func<GeneradorAsync<T>>)
         {
             this.paso = paso;
             this.clonar = clonar;
         }
 
-        public T Current => __actual;
-        public Task<bool> MoveNextAsync() => paso(0);
-        public Task DisposeAsync() => paso(1);
+        public prop Current: T => __actual;
+        public func MoveNextAsync() -> Task<bool> => paso(0);
+        public func DisposeAsync() -> Task => paso(1);
 
-        public IAsyncEnumerator<T> GetAsyncEnumerator()
+        public func GetAsyncEnumerator() -> IAsyncEnumerator<T>
         {
             if (!entregado)
             {
@@ -67,7 +67,7 @@ namespace std.task
     public static class AsyncEnumerable
     {
         // Todos los elementos de un flujo en una lista.
-        public static async Task<List<T>> ToListAsync<T>(this IAsyncEnumerable<T> source)
+        public static async func ToListAsync<T>(this source: IAsyncEnumerable<T>) -> Task<List<T>>
         {
             List<T> r = new List<T>();
             await foreach (T x in source) r.Add(x);
@@ -75,7 +75,7 @@ namespace std.task
         }
 
         // Un IEnumerable<T> como flujo asíncrono.
-        public static async IAsyncEnumerable<T> ToAsyncEnumerable<T>(this IEnumerable<T> source)
+        public static async func ToAsyncEnumerable<T>(this source: IEnumerable<T>) -> IAsyncEnumerable<T>
         {
             foreach (T x in source) yield return x;
         }

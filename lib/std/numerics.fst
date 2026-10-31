@@ -62,7 +62,7 @@ namespace std.numerics
         public static extern int faset_dec_from_double(double v, uint* lo, uint* mid, uint* hi, int* flags);
         public static extern double faset_dec_to_double(uint lo, uint mid, uint hi, int f);
 
-        public static uint* Words(int n) => (uint*)Memory.AllocBytes(4 * (n > 0 ? n : 1));
+        public static func Words(n: int) -> uint* => (uint*)Memory.AllocBytes(4 * (n > 0 ? n : 1));
     }
 
     // ---------------------------------------------------------------- BigInteger
@@ -70,18 +70,18 @@ namespace std.numerics
     // Entero con signo de cualquier tamaño. Es inmutable: las operaciones devuelven otro.
     public memory_unsafe struct BigInteger
     {
-        int sign;      // -1, 0 o 1 (el valor por defecto es 0)
-        uint* mag;     // magnitud en palabras de 32 bits, la menos significativa primero
-        int len;       // palabras usadas (sin ceros altos)
+        var sign: int;      // -1, 0 o 1 (el valor por defecto es 0)
+        var mag: uint*;     // magnitud en palabras de 32 bits, la menos significativa primero
+        var len: int;       // palabras usadas (sin ceros altos)
 
-        BigInteger(int sign, uint* mag, int len)
+        init(sign: int, mag: uint*, len: int)
         {
             this.sign = len == 0 ? 0 : sign;
             this.mag = mag;
             this.len = len;
         }
 
-        public BigInteger(long value)
+        public init(value: long)
         {
             mag = Num.Words(2);
             ulong u = value < 0 ? (ulong)(-(value + 1)) + 1UL : (ulong)value;
@@ -91,7 +91,7 @@ namespace std.numerics
             sign = len == 0 ? 0 : (value < 0 ? -1 : 1);
         }
 
-        public BigInteger(ulong value)
+        public init(value: ulong)
         {
             mag = Num.Words(2);
             mag[0] = (uint)(value & 0xFFFFFFFFUL);
@@ -100,17 +100,17 @@ namespace std.numerics
             sign = len == 0 ? 0 : 1;
         }
 
-        public static BigInteger Zero => new BigInteger(0L);
-        public static BigInteger One => new BigInteger(1L);
-        public static BigInteger MinusOne => new BigInteger(-1L);
+        public static prop Zero: BigInteger => new BigInteger(0L);
+        public static prop One: BigInteger => new BigInteger(1L);
+        public static prop MinusOne: BigInteger => new BigInteger(-1L);
 
         // -1, 0 o 1.
-        public int Sign => sign;
-        public bool IsZero => sign == 0;
-        public bool IsOne => sign == 1 && len == 1 && mag[0] == 1;
-        public bool IsEven => sign == 0 || (mag[0] & 1) == 0;
+        public prop Sign: int => sign;
+        public prop IsZero: bool => sign == 0;
+        public prop IsOne: bool => sign == 1 && len == 1 && mag[0] == 1;
+        public prop IsEven: bool => sign == 0 || (mag[0] & 1) == 0;
 
-        public bool IsPowerOfTwo
+        public prop IsPowerOfTwo: bool
         {
             get
             {
@@ -124,7 +124,7 @@ namespace std.numerics
         }
 
         // Bits necesarios para el valor absoluto (0 para el cero).
-        public long GetBitLength()
+        public func GetBitLength() -> long
         {
             if (sign == 0) return 0;
             uint top = mag[len - 1];
@@ -140,14 +140,14 @@ namespace std.numerics
         // ---------------------------------------------------------------- texto
 
         // Lee un entero en base 10 ("-123", " +45 "). Lanza FormatException si no lo es.
-        [TrackCaller] public static BigInteger Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> BigInteger
         {
             BigInteger r;
             if (!TryParse(s, out r)) throw new FormatException("BigInteger.Parse: '" + s + "' no es un número entero");
             return r;
         }
 
-        public static bool TryParse(string s, out BigInteger result)
+        public static func TryParse(s: string, out result: BigInteger) -> bool
         {
             result = Zero;
             string t = s.Trim();
@@ -167,7 +167,7 @@ namespace std.numerics
             return true;
         }
 
-        public override string ToString()
+        public override func ToString() -> string
         {
             byte* p = Memory.AllocBytes(10 * len + 2);
             int n = 0;
@@ -177,7 +177,7 @@ namespace std.numerics
         }
 
         // Hexadecimal del valor absoluto, con '-' delante si es negativo ("ff", "-1a").
-        public string ToHexString()
+        public func ToHexString() -> string
         {
             if (sign == 0) return "0";
             StringBuilder sb = new StringBuilder();
@@ -195,7 +195,7 @@ namespace std.numerics
             return sb.ToString();
         }
 
-        public int GetHashCode()
+        public func GetHashCode() -> int
         {
             ulong h = (ulong)(sign + 1);
             for (int i = 0; i < len; i++) h = (h ^ mag[i]) * 1099511628211UL;
@@ -205,7 +205,7 @@ namespace std.numerics
         // ---------------------------------------------------------------- conversiones
 
         // A long; lanza OverflowException si no cabe.
-        [TrackCaller] public long ToInt64()
+        [TrackCaller] public func ToInt64() -> long
         {
             if (sign == 0) return 0;
             if (len > 2) throw new OverflowException("BigInteger: el valor no cabe en un long");
@@ -220,14 +220,14 @@ namespace std.numerics
             return u == 9223372036854775808UL ? -9223372036854775807L - 1 : -(long)u;
         }
 
-        [TrackCaller] public int ToInt32()
+        [TrackCaller] public func ToInt32() -> int
         {
             long v = ToInt64();
             if (v < -2147483648L || v > 2147483647L) throw new OverflowException("BigInteger: el valor no cabe en un int");
             return (int)v;
         }
 
-        public bool TryToInt64(out long value)
+        public func TryToInt64(out value: long) -> bool
         {
             value = 0;
             if (len > 2) return false;
@@ -237,7 +237,7 @@ namespace std.numerics
         }
 
         // Aproximación en coma flotante (infinito si es enorme).
-        public double ToDouble()
+        public func ToDouble() -> double
         {
             double r = 0;
             for (int i = len - 1; i >= 0; i--) r = r * 4294967296.0 + mag[i];
@@ -246,9 +246,9 @@ namespace std.numerics
 
         // ---------------------------------------------------------------- aritmética
 
-        static int CmpMag(BigInteger a, BigInteger b) => Num.faset_big_cmp(a.mag, a.len, b.mag, b.len);
+        static func CmpMag(a: BigInteger, b: BigInteger) -> int => Num.faset_big_cmp(a.mag, a.len, b.mag, b.len);
 
-        static BigInteger AddMag(BigInteger a, BigInteger b, int sg)
+        static func AddMag(a: BigInteger, b: BigInteger, sg: int) -> BigInteger
         {
             int n = (a.len > b.len ? a.len : b.len) + 1;
             uint* w = Num.Words(n);
@@ -256,13 +256,13 @@ namespace std.numerics
         }
 
         // |a| - |b| con |a| >= |b|.
-        static BigInteger SubMag(BigInteger a, BigInteger b, int sg)
+        static func SubMag(a: BigInteger, b: BigInteger, sg: int) -> BigInteger
         {
             uint* w = Num.Words(a.len);
             return new BigInteger(sg, w, Num.faset_big_sub(a.mag, a.len, b.mag, b.len, w));
         }
 
-        public static BigInteger operator +(BigInteger a, BigInteger b)
+        public operator +(a: BigInteger, b: BigInteger) -> BigInteger
         {
             if (a.sign == 0) return b;
             if (b.sign == 0) return a;
@@ -272,10 +272,10 @@ namespace std.numerics
             return c > 0 ? SubMag(a, b, a.sign) : SubMag(b, a, b.sign);
         }
 
-        public static BigInteger operator -(BigInteger a) => new BigInteger(-a.sign, a.mag, a.len);
-        public static BigInteger operator -(BigInteger a, BigInteger b) => a + (-b);
+        public operator -(a: BigInteger) -> BigInteger => new BigInteger(-a.sign, a.mag, a.len);
+        public operator -(a: BigInteger, b: BigInteger) -> BigInteger => a + (-b);
 
-        public static BigInteger operator *(BigInteger a, BigInteger b)
+        public operator *(a: BigInteger, b: BigInteger) -> BigInteger
         {
             if (a.sign == 0 || b.sign == 0) return Zero;
             uint* w = Num.Words(a.len + b.len);
@@ -283,7 +283,7 @@ namespace std.numerics
         }
 
         // Cociente truncado hacia cero y resto con el signo del dividendo (como C#).
-        [TrackCaller] public static BigInteger DivRem(BigInteger a, BigInteger b, out BigInteger remainder)
+        [TrackCaller] public static func DivRem(a: BigInteger, b: BigInteger, out remainder: BigInteger) -> BigInteger
         {
             if (b.sign == 0) throw new DivideByZeroException("BigInteger: división por cero");
             if (CmpMag(a, b) < 0)
@@ -299,13 +299,13 @@ namespace std.numerics
             return new BigInteger(a.sign * b.sign, q, qn);
         }
 
-        [TrackCaller] public static BigInteger operator /(BigInteger a, BigInteger b)
+        [TrackCaller] public operator /(a: BigInteger, b: BigInteger) -> BigInteger
         {
             BigInteger r;
             return DivRem(a, b, out r);
         }
 
-        [TrackCaller] public static BigInteger operator %(BigInteger a, BigInteger b)
+        [TrackCaller] public operator %(a: BigInteger, b: BigInteger) -> BigInteger
         {
             BigInteger r;
             DivRem(a, b, out r);
@@ -313,7 +313,7 @@ namespace std.numerics
         }
 
         // Desplazamientos: multiplican o dividen (redondeando hacia -infinito, como C#) por 2^n.
-        public static BigInteger operator <<(BigInteger a, int n)
+        public operator <<(a: BigInteger, n: int) -> BigInteger
         {
             if (n < 0) return a >> -n;
             if (a.sign == 0 || n == 0) return a;
@@ -321,7 +321,7 @@ namespace std.numerics
             return new BigInteger(a.sign, w, Num.faset_big_shl(a.mag, a.len, n, w));
         }
 
-        public static BigInteger operator >>(BigInteger a, int n)
+        public operator >>(a: BigInteger, n: int) -> BigInteger
         {
             if (n < 0) return a << -n;
             if (a.sign == 0 || n == 0) return a;
@@ -331,48 +331,48 @@ namespace std.numerics
         }
 
         // Comparaciones.
-        public static int Compare(BigInteger a, BigInteger b)
+        public static func Compare(a: BigInteger, b: BigInteger) -> int
         {
             if (a.sign != b.sign) return a.sign < b.sign ? -1 : 1;
             int c = CmpMag(a, b);
             return a.sign < 0 ? -c : c;
         }
 
-        public int CompareTo(BigInteger other) => Compare(this, other);
-        public bool Equals(BigInteger other) => Compare(this, other) == 0;
+        public func CompareTo(other: BigInteger) -> int => Compare(this, other);
+        public func Equals(other: BigInteger) -> bool => Compare(this, other) == 0;
 
-        public static bool operator ==(BigInteger a, BigInteger b) => Compare(a, b) == 0;
-        public static bool operator <(BigInteger a, BigInteger b) => Compare(a, b) < 0;
-        public static bool operator >(BigInteger a, BigInteger b) => Compare(a, b) > 0;
-        public static bool operator <=(BigInteger a, BigInteger b) => Compare(a, b) <= 0;
-        public static bool operator >=(BigInteger a, BigInteger b) => Compare(a, b) >= 0;
+        public operator ==(a: BigInteger, b: BigInteger) -> bool => Compare(a, b) == 0;
+        public operator <(a: BigInteger, b: BigInteger) -> bool => Compare(a, b) < 0;
+        public operator >(a: BigInteger, b: BigInteger) -> bool => Compare(a, b) > 0;
+        public operator <=(a: BigInteger, b: BigInteger) -> bool => Compare(a, b) <= 0;
+        public operator >=(a: BigInteger, b: BigInteger) -> bool => Compare(a, b) >= 0;
 
         // Mezclados con long (Faset no tiene conversiones implícitas definidas por el usuario).
-        public static BigInteger operator +(BigInteger a, long b) => a + new BigInteger(b);
-        public static BigInteger operator +(long a, BigInteger b) => new BigInteger(a) + b;
-        public static BigInteger operator -(BigInteger a, long b) => a - new BigInteger(b);
-        public static BigInteger operator -(long a, BigInteger b) => new BigInteger(a) - b;
-        public static BigInteger operator *(BigInteger a, long b) => a * new BigInteger(b);
-        public static BigInteger operator *(long a, BigInteger b) => new BigInteger(a) * b;
-        [TrackCaller] public static BigInteger operator /(BigInteger a, long b) => a / new BigInteger(b);
-        [TrackCaller] public static BigInteger operator /(long a, BigInteger b) => new BigInteger(a) / b;
-        [TrackCaller] public static BigInteger operator %(BigInteger a, long b) => a % new BigInteger(b);
-        [TrackCaller] public static BigInteger operator %(long a, BigInteger b) => new BigInteger(a) % b;
-        public static bool operator ==(BigInteger a, long b) => Compare(a, new BigInteger(b)) == 0;
-        public static bool operator <(BigInteger a, long b) => Compare(a, new BigInteger(b)) < 0;
-        public static bool operator >(BigInteger a, long b) => Compare(a, new BigInteger(b)) > 0;
-        public static bool operator <=(BigInteger a, long b) => Compare(a, new BigInteger(b)) <= 0;
-        public static bool operator >=(BigInteger a, long b) => Compare(a, new BigInteger(b)) >= 0;
+        public operator +(a: BigInteger, b: long) -> BigInteger => a + new BigInteger(b);
+        public operator +(a: long, b: BigInteger) -> BigInteger => new BigInteger(a) + b;
+        public operator -(a: BigInteger, b: long) -> BigInteger => a - new BigInteger(b);
+        public operator -(a: long, b: BigInteger) -> BigInteger => new BigInteger(a) - b;
+        public operator *(a: BigInteger, b: long) -> BigInteger => a * new BigInteger(b);
+        public operator *(a: long, b: BigInteger) -> BigInteger => new BigInteger(a) * b;
+        [TrackCaller] public operator /(a: BigInteger, b: long) -> BigInteger => a / new BigInteger(b);
+        [TrackCaller] public operator /(a: long, b: BigInteger) -> BigInteger => new BigInteger(a) / b;
+        [TrackCaller] public operator %(a: BigInteger, b: long) -> BigInteger => a % new BigInteger(b);
+        [TrackCaller] public operator %(a: long, b: BigInteger) -> BigInteger => new BigInteger(a) % b;
+        public operator ==(a: BigInteger, b: long) -> bool => Compare(a, new BigInteger(b)) == 0;
+        public operator <(a: BigInteger, b: long) -> bool => Compare(a, new BigInteger(b)) < 0;
+        public operator >(a: BigInteger, b: long) -> bool => Compare(a, new BigInteger(b)) > 0;
+        public operator <=(a: BigInteger, b: long) -> bool => Compare(a, new BigInteger(b)) <= 0;
+        public operator >=(a: BigInteger, b: long) -> bool => Compare(a, new BigInteger(b)) >= 0;
 
         // ---------------------------------------------------------------- funciones
 
-        public static BigInteger Abs(BigInteger a) => a.sign < 0 ? -a : a;
-        public static BigInteger Negate(BigInteger a) => -a;
-        public static BigInteger Min(BigInteger a, BigInteger b) => a <= b ? a : b;
-        public static BigInteger Max(BigInteger a, BigInteger b) => a >= b ? a : b;
+        public static func Abs(a: BigInteger) -> BigInteger => a.sign < 0 ? -a : a;
+        public static func Negate(a: BigInteger) -> BigInteger => -a;
+        public static func Min(a: BigInteger, b: BigInteger) -> BigInteger => a <= b ? a : b;
+        public static func Max(a: BigInteger, b: BigInteger) -> BigInteger => a >= b ? a : b;
 
         // a^exponent (exponent >= 0), por cuadrados sucesivos.
-        [TrackCaller] public static BigInteger Pow(BigInteger a, int exponent)
+        [TrackCaller] public static func Pow(a: BigInteger, exponent: int) -> BigInteger
         {
             if (exponent < 0) throw new ArgumentOutOfRangeException("exponent", "BigInteger.Pow: el exponente no puede ser negativo");
             BigInteger result = One;
@@ -389,7 +389,7 @@ namespace std.numerics
 
         // (value^exponent) % modulus sin calcular la potencia completa. Como en .NET, el resultado
         // lleva el signo de value^exponent.
-        [TrackCaller] public static BigInteger ModPow(BigInteger value, BigInteger exponent, BigInteger modulus)
+        [TrackCaller] public static func ModPow(value: BigInteger, exponent: BigInteger, modulus: BigInteger) -> BigInteger
         {
             if (exponent.sign < 0) throw new ArgumentOutOfRangeException("exponent", "BigInteger.ModPow: el exponente no puede ser negativo");
             if (modulus.sign == 0) throw new DivideByZeroException("BigInteger.ModPow: módulo cero");
@@ -407,7 +407,7 @@ namespace std.numerics
         }
 
         // Máximo común divisor (siempre >= 0), con el algoritmo de Euclides.
-        public static BigInteger GreatestCommonDivisor(BigInteger a, BigInteger b)
+        public static func GreatestCommonDivisor(a: BigInteger, b: BigInteger) -> BigInteger
         {
             BigInteger x = Abs(a);
             BigInteger y = Abs(b);
@@ -420,10 +420,10 @@ namespace std.numerics
             return x;
         }
 
-        public static BigInteger Gcd(BigInteger a, BigInteger b) => GreatestCommonDivisor(a, b);
+        public static func Gcd(a: BigInteger, b: BigInteger) -> BigInteger => GreatestCommonDivisor(a, b);
 
         // Raíz cuadrada entera (la parte entera de √a), por el método de Newton.
-        [TrackCaller] public static BigInteger Sqrt(BigInteger a)
+        [TrackCaller] public static func Sqrt(a: BigInteger) -> BigInteger
         {
             if (a.sign < 0) throw new ArgumentOutOfRangeException("a", "BigInteger.Sqrt: el valor no puede ser negativo");
             if (a.sign == 0) return a;
@@ -443,12 +443,12 @@ namespace std.numerics
     // deben sumar exacto: Decimal.Parse("0.1") + Decimal.Parse("0.2") == Decimal.Parse("0.3").
     public memory_unsafe struct Decimal
     {
-        uint lo;
-        uint mid;
-        uint hi;
-        int flags;     // escala en los bits 16..23 y signo en el bit 31 (como en .NET)
+        var lo: uint;
+        var mid: uint;
+        var hi: uint;
+        var flags: int;     // escala en los bits 16..23 y signo en el bit 31 (como en .NET)
 
-        Decimal(uint lo, uint mid, uint hi, int flags)
+        init(lo: uint, mid: uint, hi: uint, flags: int)
         {
             this.lo = lo;
             this.mid = mid;
@@ -456,7 +456,7 @@ namespace std.numerics
             this.flags = flags;
         }
 
-        public Decimal(long value)
+        public init(value: long)
         {
             ulong u = value < 0 ? (ulong)(-(value + 1)) + 1UL : (ulong)value;
             lo = (uint)(u & 0xFFFFFFFFUL);
@@ -466,7 +466,7 @@ namespace std.numerics
         }
 
         // unscaled · 10^-scale: new Decimal(1999, 2) es 19.99.
-        public Decimal(long unscaled, int scale)
+        public init(unscaled: long, scale: int)
         {
             if (scale < 0 || scale > 28) throw new ArgumentOutOfRangeException("scale", "Decimal: la escala debe estar entre 0 y 28");
             ulong u = unscaled < 0 ? (ulong)(-(unscaled + 1)) + 1UL : (ulong)unscaled;
@@ -477,7 +477,7 @@ namespace std.numerics
         }
 
         // Como el constructor de .NET: mantisa de 96 bits (lo, mid, hi), signo y escala.
-        public Decimal(int lo, int mid, int hi, bool isNegative, byte scale)
+        public init(lo: int, mid: int, hi: int, isNegative: bool, scale: byte)
         {
             if (scale > 28) throw new ArgumentOutOfRangeException("scale", "Decimal: la escala debe estar entre 0 y 28");
             this.lo = (uint)lo;
@@ -487,7 +487,7 @@ namespace std.numerics
         }
 
         // Desde un double, con 15 cifras significativas (como .NET): new Decimal(0.1) es 0.1.
-        public Decimal(double value)
+        public init(value: double)
         {
             uint a = 0;
             uint b = 0;
@@ -501,24 +501,24 @@ namespace std.numerics
             flags = f;
         }
 
-        public static Decimal Zero => new Decimal(0L);
-        public static Decimal One => new Decimal(1L);
-        public static Decimal MinusOne => new Decimal(-1L);
+        public static prop Zero: Decimal => new Decimal(0L);
+        public static prop One: Decimal => new Decimal(1L);
+        public static prop MinusOne: Decimal => new Decimal(-1L);
         // ±79 228 162 514 264 337 593 543 950 335
-        public static Decimal MaxValue => new Decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
-        public static Decimal MinValue => new Decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, (int)0x80000000);
+        public static prop MaxValue: Decimal => new Decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0);
+        public static prop MinValue: Decimal => new Decimal(0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, (int)0x80000000);
 
         // Cifras decimales (0..28): Decimal.Parse("1.50").Scale es 2.
-        public int Scale => (flags >> 16) & 0xFF;
-        public bool IsNegative => flags < 0 && !IsZero;
-        public bool IsZero => lo == 0 && mid == 0 && hi == 0;
-        public int Sign => IsZero ? 0 : (flags < 0 ? -1 : 1);
+        public prop Scale: int => (flags >> 16) & 0xFF;
+        public prop IsNegative: bool => flags < 0 && !IsZero;
+        public prop IsZero: bool => lo == 0 && mid == 0 && hi == 0;
+        public prop Sign: int => IsZero ? 0 : (flags < 0 ? -1 : 1);
 
         // ---------------------------------------------------------------- texto
 
         // Lee "123.45", "-0.5", " +7 " o "1.5e3" (con '.' como separador). Las cifras que no
         // caben se redondean. Lanza FormatException u OverflowException.
-        [TrackCaller] public static Decimal Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> Decimal
         {
             uint a = 0;
             uint b = 0;
@@ -530,7 +530,7 @@ namespace std.numerics
             return new Decimal(a, b, c, f);
         }
 
-        public static bool TryParse(string s, out Decimal result)
+        public static func TryParse(s: string, out result: Decimal) -> bool
         {
             uint a = 0;
             uint b = 0;
@@ -542,7 +542,7 @@ namespace std.numerics
         }
 
         // Con todas sus cifras decimales: "19.90", "-3", "0.0001".
-        public override string ToString()
+        public override func ToString() -> string
         {
             byte* p = Memory.AllocBytes(64);
             int n = Num.faset_dec_to_string(lo, mid, hi, flags, p);
@@ -551,7 +551,7 @@ namespace std.numerics
 
         // Formatos de .NET (cultura invariante): "F2" (2 decimales), "N2" (además, separador de
         // miles ','), "F0", "N". Redondean alejándose de cero en los empates, como .NET.
-        [TrackCaller] public string ToString(string format)
+        [TrackCaller] public func ToString(format: string) -> string
         {
             if (format.Length == 0 || format == "G" || format == "g") return ToString();
             char kind = (char)format[0];
@@ -591,7 +591,7 @@ namespace std.numerics
         }
 
         // Mismo hash para 1.5 y 1.50 (son iguales).
-        public int GetHashCode()
+        public func GetHashCode() -> int
         {
             Decimal n = Normalize(this);
             ulong h = ((ulong)n.hi << 40) ^ ((ulong)n.mid << 20) ^ n.lo ^ ((ulong)(uint)n.flags << 7);
@@ -601,10 +601,10 @@ namespace std.numerics
 
         // ---------------------------------------------------------------- conversiones
 
-        public double ToDouble() => Num.faset_dec_to_double(lo, mid, hi, flags);
+        public func ToDouble() -> double => Num.faset_dec_to_double(lo, mid, hi, flags);
 
         // Parte entera (truncada hacia cero) como long; OverflowException si no cabe.
-        [TrackCaller] public long ToInt64()
+        [TrackCaller] public func ToInt64() -> long
         {
             Decimal t = Truncate(this);
             if (t.hi != 0 || (t.mid & 0x80000000) != 0)
@@ -616,7 +616,7 @@ namespace std.numerics
             return t.flags < 0 ? -v : v;
         }
 
-        [TrackCaller] public int ToInt32()
+        [TrackCaller] public func ToInt32() -> int
         {
             long v = ToInt64();
             if (v < -2147483648L || v > 2147483647L) throw new OverflowException("Decimal: el valor no cabe en un int");
@@ -625,7 +625,7 @@ namespace std.numerics
 
         // ---------------------------------------------------------------- aritmética
 
-        [TrackCaller] static Decimal Op(int op, Decimal a, Decimal b)
+        [TrackCaller] static func Op(op: int, a: Decimal, b: Decimal) -> Decimal
         {
             uint x = 0;
             uint y = 0;
@@ -637,59 +637,59 @@ namespace std.numerics
             return new Decimal(x, y, z, f);
         }
 
-        [TrackCaller] public static Decimal operator +(Decimal a, Decimal b) => Op(0, a, b);
-        [TrackCaller] public static Decimal operator -(Decimal a, Decimal b) => Op(1, a, b);
-        [TrackCaller] public static Decimal operator *(Decimal a, Decimal b) => Op(2, a, b);
+        [TrackCaller] public operator +(a: Decimal, b: Decimal) -> Decimal => Op(0, a, b);
+        [TrackCaller] public operator -(a: Decimal, b: Decimal) -> Decimal => Op(1, a, b);
+        [TrackCaller] public operator *(a: Decimal, b: Decimal) -> Decimal => Op(2, a, b);
         // Cociente con hasta 28 decimales: 1 / 3 = 0.3333333333333333333333333333.
-        [TrackCaller] public static Decimal operator /(Decimal a, Decimal b) => Op(3, a, b);
+        [TrackCaller] public operator /(a: Decimal, b: Decimal) -> Decimal => Op(3, a, b);
         // Resto con el signo del dividendo: 7.5 % 2 = 1.5.
-        [TrackCaller] public static Decimal operator %(Decimal a, Decimal b) => Op(4, a, b);
-        public static Decimal operator -(Decimal a) => new Decimal(a.lo, a.mid, a.hi, a.flags ^ (int)0x80000000);
+        [TrackCaller] public operator %(a: Decimal, b: Decimal) -> Decimal => Op(4, a, b);
+        public operator -(a: Decimal) -> Decimal => new Decimal(a.lo, a.mid, a.hi, a.flags ^ (int)0x80000000);
 
-        public static int Compare(Decimal a, Decimal b) => Num.faset_dec_cmp(a.lo, a.mid, a.hi, a.flags, b.lo, b.mid, b.hi, b.flags);
-        public int CompareTo(Decimal other) => Compare(this, other);
-        public bool Equals(Decimal other) => Compare(this, other) == 0;
+        public static func Compare(a: Decimal, b: Decimal) -> int => Num.faset_dec_cmp(a.lo, a.mid, a.hi, a.flags, b.lo, b.mid, b.hi, b.flags);
+        public func CompareTo(other: Decimal) -> int => Compare(this, other);
+        public func Equals(other: Decimal) -> bool => Compare(this, other) == 0;
 
-        public static bool operator ==(Decimal a, Decimal b) => Compare(a, b) == 0;
-        public static bool operator <(Decimal a, Decimal b) => Compare(a, b) < 0;
-        public static bool operator >(Decimal a, Decimal b) => Compare(a, b) > 0;
-        public static bool operator <=(Decimal a, Decimal b) => Compare(a, b) <= 0;
-        public static bool operator >=(Decimal a, Decimal b) => Compare(a, b) >= 0;
+        public operator ==(a: Decimal, b: Decimal) -> bool => Compare(a, b) == 0;
+        public operator <(a: Decimal, b: Decimal) -> bool => Compare(a, b) < 0;
+        public operator >(a: Decimal, b: Decimal) -> bool => Compare(a, b) > 0;
+        public operator <=(a: Decimal, b: Decimal) -> bool => Compare(a, b) <= 0;
+        public operator >=(a: Decimal, b: Decimal) -> bool => Compare(a, b) >= 0;
 
         // Mezclados con long: precio * 3, total - 1.
-        [TrackCaller] public static Decimal operator +(Decimal a, long b) => Op(0, a, new Decimal(b));
-        [TrackCaller] public static Decimal operator +(long a, Decimal b) => Op(0, new Decimal(a), b);
-        [TrackCaller] public static Decimal operator -(Decimal a, long b) => Op(1, a, new Decimal(b));
-        [TrackCaller] public static Decimal operator -(long a, Decimal b) => Op(1, new Decimal(a), b);
-        [TrackCaller] public static Decimal operator *(Decimal a, long b) => Op(2, a, new Decimal(b));
-        [TrackCaller] public static Decimal operator *(long a, Decimal b) => Op(2, new Decimal(a), b);
-        [TrackCaller] public static Decimal operator /(Decimal a, long b) => Op(3, a, new Decimal(b));
-        [TrackCaller] public static Decimal operator /(long a, Decimal b) => Op(3, new Decimal(a), b);
-        [TrackCaller] public static Decimal operator %(Decimal a, long b) => Op(4, a, new Decimal(b));
-        public static bool operator ==(Decimal a, long b) => Compare(a, new Decimal(b)) == 0;
-        public static bool operator <(Decimal a, long b) => Compare(a, new Decimal(b)) < 0;
-        public static bool operator >(Decimal a, long b) => Compare(a, new Decimal(b)) > 0;
-        public static bool operator <=(Decimal a, long b) => Compare(a, new Decimal(b)) <= 0;
-        public static bool operator >=(Decimal a, long b) => Compare(a, new Decimal(b)) >= 0;
+        [TrackCaller] public operator +(a: Decimal, b: long) -> Decimal => Op(0, a, new Decimal(b));
+        [TrackCaller] public operator +(a: long, b: Decimal) -> Decimal => Op(0, new Decimal(a), b);
+        [TrackCaller] public operator -(a: Decimal, b: long) -> Decimal => Op(1, a, new Decimal(b));
+        [TrackCaller] public operator -(a: long, b: Decimal) -> Decimal => Op(1, new Decimal(a), b);
+        [TrackCaller] public operator *(a: Decimal, b: long) -> Decimal => Op(2, a, new Decimal(b));
+        [TrackCaller] public operator *(a: long, b: Decimal) -> Decimal => Op(2, new Decimal(a), b);
+        [TrackCaller] public operator /(a: Decimal, b: long) -> Decimal => Op(3, a, new Decimal(b));
+        [TrackCaller] public operator /(a: long, b: Decimal) -> Decimal => Op(3, new Decimal(a), b);
+        [TrackCaller] public operator %(a: Decimal, b: long) -> Decimal => Op(4, a, new Decimal(b));
+        public operator ==(a: Decimal, b: long) -> bool => Compare(a, new Decimal(b)) == 0;
+        public operator <(a: Decimal, b: long) -> bool => Compare(a, new Decimal(b)) < 0;
+        public operator >(a: Decimal, b: long) -> bool => Compare(a, new Decimal(b)) > 0;
+        public operator <=(a: Decimal, b: long) -> bool => Compare(a, new Decimal(b)) <= 0;
+        public operator >=(a: Decimal, b: long) -> bool => Compare(a, new Decimal(b)) >= 0;
 
-        [TrackCaller] public static Decimal Add(Decimal a, Decimal b) => Op(0, a, b);
-        [TrackCaller] public static Decimal Subtract(Decimal a, Decimal b) => Op(1, a, b);
-        [TrackCaller] public static Decimal Multiply(Decimal a, Decimal b) => Op(2, a, b);
-        [TrackCaller] public static Decimal Divide(Decimal a, Decimal b) => Op(3, a, b);
-        [TrackCaller] public static Decimal Remainder(Decimal a, Decimal b) => Op(4, a, b);
-        public static Decimal Negate(Decimal a) => -a;
-        public static Decimal Abs(Decimal a) => a.flags < 0 ? -a : a;
-        public static Decimal Min(Decimal a, Decimal b) => a <= b ? a : b;
-        public static Decimal Max(Decimal a, Decimal b) => a >= b ? a : b;
+        [TrackCaller] public static func Add(a: Decimal, b: Decimal) -> Decimal => Op(0, a, b);
+        [TrackCaller] public static func Subtract(a: Decimal, b: Decimal) -> Decimal => Op(1, a, b);
+        [TrackCaller] public static func Multiply(a: Decimal, b: Decimal) -> Decimal => Op(2, a, b);
+        [TrackCaller] public static func Divide(a: Decimal, b: Decimal) -> Decimal => Op(3, a, b);
+        [TrackCaller] public static func Remainder(a: Decimal, b: Decimal) -> Decimal => Op(4, a, b);
+        public static func Negate(a: Decimal) -> Decimal => -a;
+        public static func Abs(a: Decimal) -> Decimal => a.flags < 0 ? -a : a;
+        public static func Min(a: Decimal, b: Decimal) -> Decimal => a <= b ? a : b;
+        public static func Max(a: Decimal, b: Decimal) -> Decimal => a >= b ? a : b;
 
         // ---------------------------------------------------------------- redondeo
 
         // Al entero más cercano; los empates al par (2.5 -> 2, 3.5 -> 4), como Math.Round de C#.
-        public static Decimal Round(Decimal d) => Round(d, 0, MidpointRounding.ToEven);
-        public static Decimal Round(Decimal d, MidpointRounding mode) => Round(d, 0, mode);
-        [TrackCaller] public static Decimal Round(Decimal d, int decimals) => Round(d, decimals, MidpointRounding.ToEven);
+        public static func Round(d: Decimal) -> Decimal => Round(d, 0, MidpointRounding.ToEven);
+        public static func Round(d: Decimal, mode: MidpointRounding) -> Decimal => Round(d, 0, mode);
+        [TrackCaller] public static func Round(d: Decimal, decimals: int) -> Decimal => Round(d, decimals, MidpointRounding.ToEven);
 
-        [TrackCaller] public static Decimal Round(Decimal d, int decimals, MidpointRounding mode)
+        [TrackCaller] public static func Round(d: Decimal, decimals: int, mode: MidpointRounding) -> Decimal
         {
             if (decimals < 0 || decimals > 28) throw new ArgumentOutOfRangeException("decimals", "Decimal.Round: los decimales deben estar entre 0 y 28");
             uint x = 0;
@@ -700,12 +700,12 @@ namespace std.numerics
             return new Decimal(x, y, z, f);
         }
 
-        public static Decimal Truncate(Decimal d) => Round(d, 0, MidpointRounding.ToZero);
-        public static Decimal Floor(Decimal d) => Round(d, 0, MidpointRounding.ToNegativeInfinity);
-        public static Decimal Ceiling(Decimal d) => Round(d, 0, MidpointRounding.ToPositiveInfinity);
+        public static func Truncate(d: Decimal) -> Decimal => Round(d, 0, MidpointRounding.ToZero);
+        public static func Floor(d: Decimal) -> Decimal => Round(d, 0, MidpointRounding.ToNegativeInfinity);
+        public static func Ceiling(d: Decimal) -> Decimal => Round(d, 0, MidpointRounding.ToPositiveInfinity);
 
         // Sin ceros finales: 1.500 -> 1.5, 2.00 -> 2.
-        public static Decimal Normalize(Decimal d)
+        public static func Normalize(d: Decimal) -> Decimal
         {
             Decimal r = d;
             while (r.Scale > 0)

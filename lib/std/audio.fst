@@ -82,43 +82,43 @@ namespace std.audio
         // "alsa", "winmm", "aaudio", "opensl", "null" (sin sonido) u "offline" (sin hilo:
         // el programa mezcla con Render). También se puede elegir con FASET_AUDIO_DRIVER.
         // Devuelve false si no se pudo abrir la pedida (entonces se usa "null").
-        public static bool Open(string driver) => Native.faset_audio_open(driver) != 0;
-        public static bool Open() => Native.faset_audio_open("") != 0;
+        public static func Open(driver: string) -> bool => Native.faset_audio_open(driver) != 0;
+        public static func Open() -> bool => Native.faset_audio_open("") != 0;
 
         // Cierra la salida y para todas las voces.
-        public static void Close() { Native.faset_audio_close(); }
+        public static func Close() { Native.faset_audio_close(); }
 
-        public static bool IsOpen => Native.faset_audio_is_open() != 0;
+        public static prop IsOpen: bool => Native.faset_audio_is_open() != 0;
 
         // Controlador en uso ("" si la salida está cerrada).
-        public static string Driver => Native.Text(Native.faset_audio_driver());
+        public static prop Driver: string => Native.Text(Native.faset_audio_driver());
 
         // Frecuencia de la salida en Hz (48000 salvo que el dispositivo pida otra).
-        public static int SampleRate => Native.faset_audio_rate();
+        public static prop SampleRate: int => Native.faset_audio_rate();
 
         // Último error de la biblioteca de audio en este hilo ("" si no hubo).
-        public static string Error => Native.Text(Native.faset_audio_error());
+        public static prop Error: string => Native.Text(Native.faset_audio_error());
 
         // Volumen general (1 = normal, 0 = silencio; puede pasar de 1).
-        public static float MasterVolume
+        public static prop MasterVolume: float
         {
             get => Native.faset_audio_master();
             set { Native.faset_audio_set_master(value); }
         }
 
         // Para todas las voces.
-        public static void StopAll() { Native.faset_audio_stop_source(null); }
+        public static func StopAll() { Native.faset_audio_stop_source(null); }
 
         // Pausa o reanuda todo a la vez (p. ej. al minimizar un juego).
-        public static void PauseAll() { Native.faset_audio_pause_all(1); }
-        public static void ResumeAll() { Native.faset_audio_pause_all(0); }
+        public static func PauseAll() { Native.faset_audio_pause_all(1); }
+        public static func ResumeAll() { Native.faset_audio_pause_all(0); }
 
         // Voces sonando o en pausa.
-        public static int ActiveVoices => Native.faset_audio_voice_count();
+        public static prop ActiveVoices: int => Native.faset_audio_voice_count();
 
         // Solo con Open("offline"): mezcla 'frames' fotogramas y los devuelve como
         // muestras estéreo entrelazadas (izquierda, derecha, ...) entre -1 y 1.
-        public static List<float> Render(int frames)
+        public static func Render(frames: int) -> List<float>
         {
             List<float> buffer = new List<float>(frames * 2);
             for (int i = 0; i < frames * 2; i++) buffer.Add(0);
@@ -127,7 +127,7 @@ namespace std.audio
         }
 
         // Abre la salida si aún no lo está.
-        public static void EnsureOpen()
+        public static func EnsureOpen()
         {
             if (Native.faset_audio_is_open() == 0) Native.faset_audio_open("");
         }
@@ -139,61 +139,61 @@ namespace std.audio
     // identificador deja de ser válido y todo lo de abajo se ignora sin error.
     public memory_unsafe class Voice
     {
-        long id;
-        double duration;
+        var id: long;
+        var duration: double;
 
-        public Voice(long id, double duration)
+        public init(id: long, duration: double)
         {
             this.id = id;
             this.duration = duration;
         }
 
         // Sonando (no en pausa y sin terminar).
-        public bool IsPlaying => id != 0 && Native.faset_voice_state(id) == 1;
-        public bool IsPaused => id != 0 && Native.faset_voice_state(id) == 2;
+        public prop IsPlaying: bool => id != 0 && Native.faset_voice_state(id) == 1;
+        public prop IsPaused: bool => id != 0 && Native.faset_voice_state(id) == 2;
         // Sonando o en pausa.
-        public bool IsActive => id != 0 && Native.faset_voice_state(id) != 0;
+        public prop IsActive: bool => id != 0 && Native.faset_voice_state(id) != 0;
 
-        public void Stop() { if (id != 0) Native.faset_voice_stop(id); }
-        public void Pause() { if (id != 0) Native.faset_voice_set_paused(id, 1); }
-        public void Resume() { if (id != 0) Native.faset_voice_set_paused(id, 0); }
+        public func Stop() { if (id != 0) Native.faset_voice_stop(id); }
+        public func Pause() { if (id != 0) Native.faset_voice_set_paused(id, 1); }
+        public func Resume() { if (id != 0) Native.faset_voice_set_paused(id, 0); }
 
         // 1 = volumen original.
-        public float Volume
+        public prop Volume: float
         {
             get => Native.faset_voice_get(id, 0);
             set { Native.faset_voice_set(id, 0, value); }
         }
 
         // -1 izquierda, 0 centro, 1 derecha.
-        public float Pan
+        public prop Pan: float
         {
             get => Native.faset_voice_get(id, 1);
             set { Native.faset_voice_set(id, 1, value); }
         }
 
         // Velocidad de reproducción (también cambia el tono): 1 normal, 2 el doble.
-        public float Speed
+        public prop Speed: float
         {
             get => Native.faset_voice_get(id, 2);
             set { Native.faset_voice_set(id, 2, value); }
         }
 
-        public bool Loop
+        public prop Loop: bool
         {
             get => Native.faset_voice_get(id, 3) != 0;
             set { Native.faset_voice_set(id, 3, value ? 1 : 0); }
         }
 
         // Posición en segundos (al repetir vuelve a 0). Asignarla salta a ese punto.
-        public double Position
+        public prop Position: double
         {
             get => id != 0 ? Native.faset_voice_position(id) : 0;
             set { if (id != 0) Native.faset_voice_seek(id, value); }
         }
 
         // Duración de la fuente en segundos.
-        public double Duration => duration;
+        public prop Duration: double => duration;
     }
 
     // ======================================================================= Sound
@@ -203,15 +203,15 @@ namespace std.audio
     public memory_unsafe class Sound
     {
         void* handle;
-        string error = "";
-        float volume = 1;
+        var error: string = "";
+        var volume: float = 1;
 
         // Valores para las próximas reproducciones (Play()).
-        public float Pan;
-        public float Speed = 1;
-        public bool Loop;
+        public var Pan: float;
+        public var Speed: float = 1;
+        public var Loop: bool;
 
-        ~Sound()
+        deinit
         {
             if (handle != null) Native.faset_source_release(handle);
             handle = null;
@@ -226,23 +226,23 @@ namespace std.audio
         }
 
         // Carga un WAV, OGG o MP3 (ver las reglas de rutas al principio del archivo).
-        public static Sound Load(string path) => Wrap(Native.faset_sound_load(path));
+        public static func Load(path: string) -> Sound => Wrap(Native.faset_sound_load(path));
 
         // Archivo de audio completo ya leído en memoria (WAV, OGG o MP3).
-        public static Sound FromBytes(List<byte> data) => Wrap(Native.faset_sound_from_memory(data.Data, data.Count));
+        public static func FromBytes(data: List<byte>) -> Sound => Wrap(Native.faset_sound_from_memory(data.Data, data.Count));
 
         // Como FromBytes, desde los bytes de una cadena (p. ej. File.ReadAllText de un binario).
-        public static Sound FromBytes(string data) => Wrap(Native.faset_sound_from_memory(data.Ptr, data.Length));
+        public static func FromBytes(data: string) -> Sound => Wrap(Native.faset_sound_from_memory(data.Ptr, data.Length));
 
         // Muestras entre -1 y 1 (entrelazadas si channels = 2).
-        public static Sound FromSamples(List<float> samples, int channels, int sampleRate)
+        public static func FromSamples(samples: List<float>, channels: int, sampleRate: int) -> Sound
         {
             long frames = channels > 0 ? samples.Count / channels : 0;
             return Wrap(Native.faset_sound_from_samples(samples.Data, frames, channels, sampleRate));
         }
 
         // Tono senoidal (con 5 ms de entrada y salida suaves): útil para pitidos y pruebas.
-        public static Sound Tone(double frequency, double seconds, float volume)
+        public static func Tone(frequency: double, seconds: double, volume: float) -> Sound
         {
             int rate = 48000;
             int n = (int)(seconds * rate);
@@ -258,20 +258,20 @@ namespace std.audio
             }
             return FromSamples(samples, 1, rate);
         }
-        public static Sound Tone(double frequency, double seconds) => Tone(frequency, seconds, 0.5f);
+        public static func Tone(frequency: double, seconds: double) -> Sound => Tone(frequency, seconds, 0.5f);
 
-        public bool IsLoaded => handle != null;
+        public prop IsLoaded: bool => handle != null;
         // Por qué no se cargó ("" si se cargó bien).
-        public string Error => error;
+        public prop Error: string => error;
 
-        public long Frames => handle != null ? Native.faset_source_frames(handle) : 0;
-        public int Channels => handle != null ? Native.faset_source_channels(handle) : 0;
-        public int SampleRate => handle != null ? Native.faset_source_rate(handle) : 0;
+        public prop Frames: long => handle != null ? Native.faset_source_frames(handle) : 0;
+        public prop Channels: int => handle != null ? Native.faset_source_channels(handle) : 0;
+        public prop SampleRate: int => handle != null ? Native.faset_source_rate(handle) : 0;
         // Duración en segundos.
-        public double Duration => handle != null ? (double)Frames / SampleRate : 0;
+        public prop Duration: double => handle != null ? (double)Frames / SampleRate : 0;
 
         // Volumen del sonido: afecta también a las voces que ya están sonando.
-        public float Volume
+        public prop Volume: float
         {
             get => volume;
             set
@@ -282,18 +282,18 @@ namespace std.audio
         }
 
         // Muestra del canal 'channel' en el fotograma 'frame' (-1..1; 0 fuera de rango).
-        public float Sample(long frame, int channel) => handle != null ? Native.faset_sound_sample(handle, frame, channel) : 0;
+        public func Sample(frame: long, channel: int) -> float => handle != null ? Native.faset_sound_sample(handle, frame, channel) : 0;
 
         // Empieza a sonar con Pan, Speed y Loop; puede sonar varias veces a la vez.
-        public Voice Play() => PlayWith(1, Pan, false);
+        public func Play() -> Voice => PlayWith(1, Pan, false);
         // Con un volumen propio para esta voz (que se multiplica por Volume).
-        public Voice Play(float voiceVolume) => PlayWith(voiceVolume, Pan, false);
+        public func Play(voiceVolume: float) -> Voice => PlayWith(voiceVolume, Pan, false);
         // Con volumen y panorama propios.
-        public Voice Play(float voiceVolume, float pan) => PlayWith(voiceVolume, pan, false);
+        public func Play(voiceVolume: float, pan: float) -> Voice => PlayWith(voiceVolume, pan, false);
         // Prepara una voz en pausa (para ajustarla y luego Resume()).
-        public Voice PlayPaused() => PlayWith(1, Pan, true);
+        public func PlayPaused() -> Voice => PlayWith(1, Pan, true);
 
-        Voice PlayWith(float v, float pan, bool paused)
+        func PlayWith(v: float, pan: float, paused: bool) -> Voice
         {
             if (handle == null) return new Voice(0, 0);
             Audio.EnsureOpen();
@@ -302,7 +302,7 @@ namespace std.audio
         }
 
         // Para todas las voces de este sonido.
-        public void Stop() { if (handle != null) Native.faset_audio_stop_source(handle); }
+        public func Stop() { if (handle != null) Native.faset_audio_stop_source(handle); }
     }
 
     // ======================================================================= Music
@@ -313,15 +313,15 @@ namespace std.audio
     public memory_unsafe class Music
     {
         void* handle;
-        string error = "";
-        float volume = 1;
-        Voice current = new Voice(0, 0);
+        var error: string = "";
+        var volume: float = 1;
+        var current: Voice = new Voice(0, 0);
 
-        public float Pan;
-        public float Speed = 1;
-        bool loop;
+        public var Pan: float;
+        public var Speed: float = 1;
+        var loop: bool;
 
-        ~Music()
+        deinit
         {
             if (handle != null) Native.faset_source_release(handle);
             handle = null;
@@ -335,16 +335,16 @@ namespace std.audio
             return m;
         }
 
-        public static Music Load(string path) => Wrap(Native.faset_music_load(path));
-        public static Music FromBytes(List<byte> data) => Wrap(Native.faset_music_from_memory(data.Data, data.Count));
-        public static Music FromBytes(string data) => Wrap(Native.faset_music_from_memory(data.Ptr, data.Length));
+        public static func Load(path: string) -> Music => Wrap(Native.faset_music_load(path));
+        public static func FromBytes(data: List<byte>) -> Music => Wrap(Native.faset_music_from_memory(data.Data, data.Count));
+        public static func FromBytes(data: string) -> Music => Wrap(Native.faset_music_from_memory(data.Ptr, data.Length));
 
-        public bool IsLoaded => handle != null;
-        public string Error => error;
-        public int Channels => handle != null ? Native.faset_source_channels(handle) : 0;
-        public int SampleRate => handle != null ? Native.faset_source_rate(handle) : 0;
+        public prop IsLoaded: bool => handle != null;
+        public prop Error: string => error;
+        public prop Channels: int => handle != null ? Native.faset_source_channels(handle) : 0;
+        public prop SampleRate: int => handle != null ? Native.faset_source_rate(handle) : 0;
         // Duración en segundos (0 si no se conoce).
-        public double Duration
+        public prop Duration: double
         {
             get
             {
@@ -354,7 +354,7 @@ namespace std.audio
             }
         }
 
-        public float Volume
+        public prop Volume: float
         {
             get => volume;
             set
@@ -365,7 +365,7 @@ namespace std.audio
         }
 
         // Repetir al llegar al final (también cambia la voz actual).
-        public bool Loop
+        public prop Loop: bool
         {
             get => loop;
             set
@@ -376,10 +376,10 @@ namespace std.audio
         }
 
         // La voz de Play() (puede haber terminado).
-        public Voice Current => current;
+        public prop Current: Voice => current;
 
         // Empieza desde el principio (para la reproducción anterior de Play()).
-        public Voice Play()
+        public func Play() -> Voice
         {
             current.Stop();
             current = Start(false);
@@ -387,9 +387,9 @@ namespace std.audio
         }
 
         // Otra voz independiente de la actual.
-        public Voice PlayOverlay() => Start(false);
+        public func PlayOverlay() -> Voice => Start(false);
 
-        Voice Start(bool paused)
+        func Start(paused: bool) -> Voice
         {
             if (handle == null) return new Voice(0, 0);
             Audio.EnsureOpen();
@@ -397,20 +397,20 @@ namespace std.audio
             return new Voice(id, Duration);
         }
 
-        public bool IsPlaying => current.IsPlaying;
-        public bool IsPaused => current.IsPaused;
-        public void Pause() { current.Pause(); }
+        public prop IsPlaying: bool => current.IsPlaying;
+        public prop IsPaused: bool => current.IsPaused;
+        public func Pause() { current.Pause(); }
         // Reanuda la pausa; si no estaba sonando, empieza.
-        public void Resume()
+        public func Resume()
         {
             if (current.IsActive) current.Resume();
             else Play();
         }
         // Para todas las voces de esta música.
-        public void Stop() { if (handle != null) Native.faset_audio_stop_source(handle); }
+        public func Stop() { if (handle != null) Native.faset_audio_stop_source(handle); }
 
         // Posición de la voz actual en segundos.
-        public double Position
+        public prop Position: double
         {
             get => current.Position;
             set { current.Position = value; }

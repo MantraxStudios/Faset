@@ -46,55 +46,55 @@ namespace std.ui
     public memory_unsafe partial class Widget
     {
         // ------------------------------------------------------------- WebView
-        string webSource = "";
-        string webTitle = "";
-        string webMessage = "";
-        string webHtml = "";       // HTML pendiente hasta que exista la vista nativa
-        internal bool webHasHtml;
-        string webBase = "";
-        List<string> webPending;   // scripts pendientes hasta que termine la primera carga
-        internal bool webReady;    // la vista nativa ya cargó su primera página
-        bool webLoading;
-        int webHistory;            // bit 1: atrás, bit 2: adelante
-        int navigatedEvent;
-        int titleEvent;
-        int messageEvent;
+        var webSource: string = "";
+        var webTitle: string = "";
+        var webMessage: string = "";
+        var webHtml: string = "";       // HTML pendiente hasta que exista la vista nativa
+        internal var webHasHtml: bool;
+        var webBase: string = "";
+        var webPending: List<string>;   // scripts pendientes hasta que termine la primera carga
+        internal var webReady: bool;    // la vista nativa ya cargó su primera página
+        var webLoading: bool;
+        var webHistory: int;            // bit 1: atrás, bit 2: adelante
+        var navigatedEvent: int;
+        var titleEvent: int;
+        var messageEvent: int;
 
         // Estado de la vista nativa (lo gestiona WebViewHost).
-        internal int webId;
-        internal bool webFailed;
-        internal bool webVisible;
-        internal int webX = -1;
-        internal int webY = -1;
-        internal int webW = -1;
-        internal int webH = -1;
-        internal bool webShown;
+        internal var webId: int;
+        internal var webFailed: bool;
+        internal var webVisible: bool;
+        internal var webX: int = -1;
+        internal var webY: int = -1;
+        internal var webW: int = -1;
+        internal var webH: int = -1;
+        internal var webShown: bool;
 
         // Dirección actual (Source, en image.fst, navega al asignarla en un WebView).
-        public string Url => webSource;
+        public prop Url: string => webSource;
 
         // Título del documento cargado.
-        public string Title => webTitle;
+        public prop Title: string => webTitle;
 
         // Último mensaje recibido de la página (window.faset.postMessage).
-        public string Message => webMessage;
+        public prop Message: string => webMessage;
 
-        public bool IsLoading => webLoading;
-        public bool CanGoBack => (History() & 1) != 0;
-        public bool CanGoForward => (History() & 2) != 0;
+        public prop IsLoading: bool => webLoading;
+        public prop CanGoBack: bool => (History() & 1) != 0;
+        public prop CanGoForward: bool => (History() & 2) != 0;
 
         // true si hay un navegador nativo de verdad (no el marco de vista previa).
-        public bool HasNativeWebView => webId != 0;
+        public prop HasNativeWebView: bool => webId != 0;
 
         // Conecta los eventos de WebView (números de evento para SetEvents; 0 = ninguno).
-        public void SetWebEvents(int navigated, int titleChanged, int messageReceived)
+        public func SetWebEvents(navigated: int, titleChanged: int, messageReceived: int)
         {
             navigatedEvent = navigated;
             titleEvent = titleChanged;
             messageEvent = messageReceived;
         }
 
-        public void Navigate(string url)
+        public func Navigate(url: string)
         {
             webSource = String.Copy(url);
             webHasHtml = false;
@@ -103,7 +103,7 @@ namespace std.ui
         }
 
         // Muestra un documento HTML; las rutas relativas se resuelven contra 'baseUrl' (puede ser "").
-        public void LoadHtml(string html, string baseUrl)
+        public func LoadHtml(html: string, baseUrl: string)
         {
             webHtml = String.Copy(html);
             webHasHtml = true;
@@ -113,9 +113,9 @@ namespace std.ui
             Invalidate();
         }
 
-        public void LoadHtml(string html) { LoadHtml(html, ""); }
+        public func LoadHtml(html: string) { LoadHtml(html, ""); }
 
-        internal void SendHtml()
+        internal func SendHtml()
         {
             string html = webHtml;
             webHtml = "";
@@ -123,18 +123,18 @@ namespace std.ui
             WebNative.faset_wv_load_html(webId, html.Ptr, html.Length, webBase.Ptr, webBase.Length);
         }
 
-        public void GoBack() { Command(1); }
-        public void GoForward() { Command(2); }
-        public void Reload() { Command(3); }
+        public func GoBack() { Command(1); }
+        public func GoForward() { Command(2); }
+        public func Reload() { Command(3); }
         // Stop (en timer.fst) detiene la carga en un WebView.
-        internal void StopLoading() { Command(4); }
+        internal func StopLoading() { Command(4); }
 
-        void Command(int cmd)
+        func Command(cmd: int)
         {
             if (webId != 0) WebNative.faset_wv_command(webId, cmd);
         }
 
-        int History()
+        func History() -> int
         {
             if (webId != 0) webHistory = WebNative.faset_wv_history(webId);
             return webHistory;
@@ -142,7 +142,7 @@ namespace std.ui
 
         // Ejecuta JavaScript en la página (sin esperar resultado: para devolver datos usa
         // window.faset.postMessage). Antes de la primera carga se encola.
-        public void ExecuteScript(string js)
+        public func ExecuteScript(js: string)
         {
             if (webId != 0 && webReady)
             {
@@ -154,13 +154,13 @@ namespace std.ui
         }
 
         // Envía un texto a la página: llega a window.faset.onmessage / addEventListener("message") como e.data.
-        public void PostMessage(string message)
+        public func PostMessage(message: string)
         {
             ExecuteScript("window.faset&&window.faset.__receive(" + WebViewHost.JsString(message) + ");");
         }
 
         // Un evento de la capa nativa (hilo de la interfaz).
-        internal void OnWebEvent(int kind, string text)
+        internal func OnWebEvent(kind: int, text: string)
         {
             if (kind == WebEvent.Started)
             {
@@ -205,13 +205,13 @@ namespace std.ui
             Invalidate();
         }
 
-        void RaiseWeb(int ev)
+        func RaiseWeb(ev: int)
         {
             if (ev != 0 && eventFn != null) eventFn(eventTarget, this, ev);
         }
 
         // Marco de vista previa (sin pantalla, en el diseñador o si no hay navegador nativo).
-        internal void DrawWebView(Canvas c, Palette p, UiFont font, float fx, float fy, float fw, float fh)
+        internal func DrawWebView(c: Canvas, p: Palette, font: UiFont, fx: float, fy: float, fw: float, fh: float)
         {
             if (webId != 0 && webShown)
             {
@@ -273,12 +273,12 @@ namespace std.ui
     // Vistas nativas de los WebView de la ventana: las crea, las coloca y reparte sus eventos.
     internal memory_unsafe static class WebViewHost
     {
-        static List<Widget> live = new List<Widget>();
+        static var live: List<Widget> = new List<Widget>();
 
-        public static bool Active => live.Count > 0;
+        public static prop Active: bool => live.Count > 0;
 
         // Texto que explica por qué no hay navegador ("" si lo hay o aún no se intentó).
-        public static string Unavailable(Widget w)
+        public static func Unavailable(w: Widget) -> string
         {
             if (!w.webFailed) return "";
 #if WINDOWS
@@ -290,7 +290,7 @@ namespace std.ui
 #endif
         }
 
-        static void Collect(Widget w, bool visible, List<Widget> found)
+        static func Collect(w: Widget, visible: bool, found: List<Widget>)
         {
             bool v = visible && w.Visible;
             if (w.Kind == WidgetKind.WebView)
@@ -302,7 +302,7 @@ namespace std.ui
         }
 
         // Después de dibujar: crea las vistas que faltan, coloca las que hay y destruye las retiradas.
-        public static void Sync(Window window, ulong parent, float scale)
+        public static func Sync(window: Window, parent: ulong, scale: float)
         {
             List<Widget> found = null;
             for (int i = 0; i < window.Children.Count; i++)
@@ -326,7 +326,7 @@ namespace std.ui
             }
         }
 
-        static bool HasWebView(Widget w)
+        static func HasWebView(w: Widget) -> bool
         {
             if (w.Kind == WidgetKind.WebView) return true;
             for (int i = 0; i < w.Children.Count; i++)
@@ -334,7 +334,7 @@ namespace std.ui
             return false;
         }
 
-        static void Create(Widget w, ulong parent)
+        static func Create(w: Widget, parent: ulong)
         {
             int id = WebNative.faset_wv_create(parent);
             if (id == 0)
@@ -355,7 +355,7 @@ namespace std.ui
             }
         }
 
-        static void Place(Widget w, float scale)
+        static func Place(w: Widget, scale: float)
         {
             int x = (int)Math.Floor(w.ScreenX * scale + 0.5f), y = (int)Math.Floor(w.ScreenY * scale + 0.5f);
             int r = (int)Math.Floor((w.ScreenX + w.ActualWidth) * scale + 0.5f), b = (int)Math.Floor((w.ScreenY + w.ActualHeight) * scale + 0.5f);
@@ -371,7 +371,7 @@ namespace std.ui
             if (was != show) w.Invalidate();
         }
 
-        static void Release(Widget w)
+        static func Release(w: Widget)
         {
             if (w.webId != 0) WebNative.faset_wv_destroy(w.webId);
             w.webId = 0;
@@ -380,7 +380,7 @@ namespace std.ui
         }
 
         // Atiende el bucle del navegador y reparte sus eventos (en cada vuelta del bucle de la ventana).
-        public static void Pump()
+        public static func Pump()
         {
             if (live.Count == 0) return;
             WebNative.faset_wv_pump();
@@ -400,24 +400,24 @@ namespace std.ui
         }
 
         // Clic en el lienzo de std.ui: el teclado vuelve a la ventana.
-        public static void WindowClicked()
+        public static func WindowClicked()
         {
             if (live.Count > 0) WebNative.faset_wv_release_focus();
         }
 
         // Con navegadores vivos la espera es corta: su bucle se atiende desde aquí.
-        public static int WaitMs(int ms) => live.Count > 0 && ms > 15 ? 15 : ms;
+        public static func WaitMs(ms: int) -> int => live.Count > 0 && ms > 15 ? 15 : ms;
 
-        public static void CloseAll()
+        public static func CloseAll()
         {
             for (int i = 0; i < live.Count; i++) Release(live[i]);
             live.Clear();
         }
 
         // Literal de cadena de JavaScript (JSON) con el texto.
-        public static string JsString(string s)
+        public static func JsString(s: string) -> string
         {
-            auto sb = new StringBuilder();
+            var sb = new StringBuilder();
             sb.Append("\"");
             int start = 0;
             for (int i = 0; i < s.Length; i++)

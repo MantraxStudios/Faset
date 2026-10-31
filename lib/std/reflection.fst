@@ -29,15 +29,15 @@ namespace std.reflection
     // Un valor que no es un objeto (int, string, un struct...) guardado como 'object'.
     public abstract class BoxedValue
     {
-        public abstract Type ValueType { get; }  // typeof(T) de su Boxed<T>
+        public abstract prop ValueType: Type { get; }  // typeof(T) de su Boxed<T>
     }
 
     public sealed class Boxed<T> : BoxedValue
     {
-        public T Value;
-        public Boxed(T value) { Value = value; }
-        public override Type ValueType => typeof(T);
-        public override string ToString()
+        public var Value: T;
+        public init(value: T) { Value = value; }
+        public override prop ValueType: Type => typeof(T);
+        public override func ToString() -> string
         {
             comptime if (Tipo<T>.TieneToString) return $"{Value}";
             else return Tipo<T>.Nombre;  // un struct sin ToString(): su nombre, como en C#
@@ -47,18 +47,18 @@ namespace std.reflection
     // Lo común a campos, propiedades y métodos: nombre, tipo que lo declara y atributos.
     public class MemberInfo
     {
-        public string Name;
-        public Type DeclaringType;
-        public List<Attribute> Attributes = new List<Attribute>();
+        public var Name: string;
+        public var DeclaringType: Type;
+        public var Attributes: List<Attribute> = new List<Attribute>();
 
-        public MemberInfo(string name, Type declaringType)
+        public init(name: string, declaringType: Type)
         {
             Name = name;
             DeclaringType = declaringType;
         }
 
         // Primer atributo del tipo A (o derivado), o null.
-        public A GetCustomAttribute<A>()
+        public func GetCustomAttribute<A>() -> A
         {
             foreach (Attribute a in Attributes)
             {
@@ -67,36 +67,36 @@ namespace std.reflection
             }
             return null;
         }
-        public bool IsDefined<A>() => GetCustomAttribute<A>() != null;
+        public func IsDefined<A>() -> bool => GetCustomAttribute<A>() != null;
 
-        public override string ToString() => Name;
+        public override func ToString() -> string => Name;
     }
 
     // Un campo o una propiedad (IsProperty) con sus funciones de lectura y escritura.
     public class FieldInfo : MemberInfo
     {
-        public Type FieldType;
-        public bool IsProperty;
-        public Func<object, object> Getter;
-        public Action<object, object> Setter;  // null si es de solo lectura
+        public var FieldType: Type;
+        public var IsProperty: bool;
+        public var Getter: Func<object, object>;
+        public var Setter: Action<object, object>;  // null si es de solo lectura
 
-        public FieldInfo(string name, Type fieldType, Type declaringType, bool isProperty) : base(name, declaringType)
+        public init(name: string, fieldType: Type, declaringType: Type, isProperty: bool) : base(name, declaringType)
         {
             FieldType = fieldType;
             IsProperty = isProperty;
         }
 
-        public bool CanWrite => Setter != null;
+        public prop CanWrite: bool => Setter != null;
 
         // Valor del campo en 'obj' (los que no son objetos llegan en un Boxed<T>).
-        public object GetValue(object obj)
+        public func GetValue(obj: object) -> object
         {
             Reflection.CheckTarget(obj, DeclaringType, Name);
             return Getter(obj);
         }
 
         // Cambia el valor del campo en 'obj'. InvalidCastException si 'value' no es del tipo del campo.
-        public void SetValue(object obj, object value)
+        public func SetValue(obj: object, value: object)
         {
             Reflection.CheckTarget(obj, DeclaringType, Name);
             if (Setter == null) throw new InvalidOperationException($"'{DeclaringType.Name}.{Name}' es de solo lectura");
@@ -107,20 +107,20 @@ namespace std.reflection
     // Un método público. Invoke recibe los argumentos en una List<object> (Reflection.Box para valores).
     public class MethodInfo : MemberInfo
     {
-        public Type ReturnType;    // null si devuelve void
-        public bool IsStatic;
-        public List<string> ParameterNames = new List<string>();
-        public List<Type> ParameterTypes = new List<Type>();
-        public Func<object, List<object>, object> Invoker;
+        public var ReturnType: Type;    // null si devuelve void
+        public var IsStatic: bool;
+        public var ParameterNames: List<string> = new List<string>();
+        public var ParameterTypes: List<Type> = new List<Type>();
+        public var Invoker: Func<object, List<object>, object>;
 
-        public MethodInfo(string name, Type returnType, Type declaringType, bool isStatic) : base(name, declaringType)
+        public init(name: string, returnType: Type, declaringType: Type, isStatic: bool) : base(name, declaringType)
         {
             ReturnType = returnType;
             IsStatic = isStatic;
         }
 
         // Llama al método sobre 'obj' (null si es estático). Devuelve null si el método es void.
-        public object Invoke(object obj, List<object> args)
+        public func Invoke(obj: object, args: List<object>) -> object
         {
             if (!IsStatic) Reflection.CheckTarget(obj, DeclaringType, Name);
             int n = args == null ? 0 : args.Count;
@@ -129,9 +129,9 @@ namespace std.reflection
             if (args == null) args = new List<object>();
             return Invoker(obj, args);
         }
-        public object Invoke(object obj) => Invoke(obj, null);
+        public func Invoke(obj: object) -> object => Invoke(obj, null);
 
-        public override string ToString()
+        public override func ToString() -> string
         {
             string s = (ReturnType == null ? "void" : ReturnType.Name) + " " + Name + "(";
             for (int i = 0; i < ParameterNames.Count; i++)
@@ -143,29 +143,29 @@ namespace std.reflection
     // Metadatos de un tipo (los crea Registrar<T>).
     public class TypeMetadata
     {
-        public Type Type;
-        public List<FieldInfo> Fields = new List<FieldInfo>();
-        public List<FieldInfo> Properties = new List<FieldInfo>();
-        public List<MethodInfo> Methods = new List<MethodInfo>();
-        public List<Attribute> Attributes = new List<Attribute>();
-        public Func<object> Factory;  // null si no tiene constructor sin parámetros (o es abstracta)
+        public var Type: Type;
+        public var Fields: List<FieldInfo> = new List<FieldInfo>();
+        public var Properties: List<FieldInfo> = new List<FieldInfo>();
+        public var Methods: List<MethodInfo> = new List<MethodInfo>();
+        public var Attributes: List<Attribute> = new List<Attribute>();
+        public var Factory: Func<object>;  // null si no tiene constructor sin parámetros (o es abstracta)
 
-        public TypeMetadata(Type type) { Type = type; }
+        public init(type: Type) { Type = type; }
     }
 
     public static class Reflection
     {
-        static Dictionary<string, TypeMetadata> tabla;
+        static var tabla: Dictionary<string, TypeMetadata>;
 
         // Valor -> object: los objetos pasan tal cual; lo demás va en un Boxed<T>.
-        public static object Box<T>(T value)
+        public static func Box<T>(value: T) -> object
         {
             comptime if (Tipo<T>.EsClase || Tipo<T>.EsInterfaz) return value;
             else return new Boxed<T>(value);
         }
 
         // object -> T. InvalidCastException si 'o' no es un T (o un Boxed<T>).
-        public static T Unbox<T>(object o)
+        public static func Unbox<T>(o: object) -> T
         {
             comptime if (Tipo<T>.EsClase || Tipo<T>.EsInterfaz)
             {
@@ -183,7 +183,7 @@ namespace std.reflection
         }
 
         // Tipo de un valor: el de dentro para un Boxed<T> (typeof(Punto) para un struct Punto en su caja).
-        public static Type TypeOf(object o)
+        public static func TypeOf(o: object) -> Type
         {
             if (o == null) return null;
             BoxedValue b = o as BoxedValue;
@@ -191,7 +191,7 @@ namespace std.reflection
         }
 
         // Nombre del tipo de un valor ('int' para un Boxed<int>).
-        public static string TypeName(object o)
+        public static func TypeName(o: object) -> string
         {
             if (o == null) return "null";
             string n = o.GetType().Name;
@@ -200,7 +200,7 @@ namespace std.reflection
         }
 
         // Metadatos de 't'. InvalidOperationException si el tipo no los tiene.
-        public static TypeMetadata Metadata(Type t)
+        public static func Metadata(t: Type) -> TypeMetadata
         {
             TypeMetadata m = Find(t);
             if (m == null)
@@ -209,7 +209,7 @@ namespace std.reflection
         }
 
         // Metadatos de 't', o null si no los tiene.
-        public static TypeMetadata Find(Type t)
+        public static func Find(t: Type) -> TypeMetadata
         {
             if (tabla == null || t == null) return null;
             TypeMetadata m;
@@ -217,7 +217,7 @@ namespace std.reflection
             return null;
         }
 
-        public static void CheckTarget(object obj, Type declaring, string member)
+        public static func CheckTarget(obj: object, declaring: Type, member: string)
         {
             if (obj == null) throw new ArgumentNullException("obj", $"el objeto de '{declaring.Name}.{member}' es null");
             if (!declaring.IsInstanceOfType(obj) && TypeOf(obj).FullName != declaring.FullName)  // un struct llega en un Boxed<T>
@@ -225,7 +225,7 @@ namespace std.reflection
         }
 
         // Lo llama el compilador (src/Reflection.cpp) una vez por tipo con metadatos, al iniciar.
-        public static bool Registrar<T>()
+        public static func Registrar<T>() -> bool
         {
             if (tabla == null) tabla = new Dictionary<string, TypeMetadata>();
             TypeMetadata info = new TypeMetadata(typeof(T));
@@ -279,14 +279,14 @@ namespace std.reflection
 
         // ---- extensiones de Type (typeof(X).GetFields()...)
 
-        public static List<FieldInfo> GetFields(this Type t) => Metadata(t).Fields;
-        public static List<FieldInfo> GetProperties(this Type t) => Metadata(t).Properties;
-        public static List<MethodInfo> GetMethods(this Type t) => Metadata(t).Methods;
-        public static List<Attribute> GetCustomAttributes(this Type t) => Metadata(t).Attributes;
-        public static bool HasMetadata(this Type t) => Find(t) != null;
+        public static func GetFields(this t: Type) -> List<FieldInfo> => Metadata(t).Fields;
+        public static func GetProperties(this t: Type) -> List<FieldInfo> => Metadata(t).Properties;
+        public static func GetMethods(this t: Type) -> List<MethodInfo> => Metadata(t).Methods;
+        public static func GetCustomAttributes(this t: Type) -> List<Attribute> => Metadata(t).Attributes;
+        public static func HasMetadata(this t: Type) -> bool => Find(t) != null;
 
         // Campos y propiedades juntos, en orden de declaración (primero los de la base).
-        public static List<FieldInfo> GetMembers(this Type t)
+        public static func GetMembers(this t: Type) -> List<FieldInfo>
         {
             List<FieldInfo> r = new List<FieldInfo>();
             foreach (FieldInfo f in Metadata(t).Fields) r.Add(f);
@@ -294,17 +294,17 @@ namespace std.reflection
             return r;
         }
 
-        public static FieldInfo GetField(this Type t, string name)
+        public static func GetField(this t: Type, name: string) -> FieldInfo
         {
             foreach (FieldInfo f in Metadata(t).Fields) if (f.Name == name) return f;
             return null;
         }
-        public static FieldInfo GetProperty(this Type t, string name)
+        public static func GetProperty(this t: Type, name: string) -> FieldInfo
         {
             foreach (FieldInfo f in Metadata(t).Properties) if (f.Name == name) return f;
             return null;
         }
-        public static MethodInfo GetMethod(this Type t, string name)
+        public static func GetMethod(this t: Type, name: string) -> MethodInfo
         {
             foreach (MethodInfo m in Metadata(t).Methods) if (m.Name == name) return m;
             return null;
@@ -314,13 +314,13 @@ namespace std.reflection
     public static class Activator
     {
         // Instancia nueva de 't' con su constructor sin parámetros.
-        public static object CreateInstance(Type t)
+        public static func CreateInstance(t: Type) -> object
         {
             TypeMetadata m = Reflection.Metadata(t);
             if (m.Factory == null) throw new InvalidOperationException($"'{t.Name}' no tiene un constructor público sin parámetros");
             return m.Factory();
         }
 
-        public static T CreateInstance<T>() => new T();
+        public static func CreateInstance<T>() -> T => new T();
     }
 }

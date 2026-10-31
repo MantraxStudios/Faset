@@ -36,7 +36,7 @@ namespace std
     // Unwrap() o Expect() sobre un None o un Err.
     public class UnwrapException : InvalidOperationException
     {
-        public UnwrapException(string message) { Message = message; }
+        public init(message: string) { Message = message; }
     }
 
     // ---------------------------------------------------------------- Option<T>
@@ -45,66 +45,66 @@ namespace std
         None,
         Some(T Value);
 
-        public bool IsSome => __caso == 1;
-        public bool IsNone => __caso == 0;
+        public prop IsSome: bool => __caso == 1;
+        public prop IsNone: bool => __caso == 0;
 
         // El valor; con None lanza UnwrapException.
-        [TrackCaller] public T Unwrap()
+        [TrackCaller] public func Unwrap() -> T
         {
             if (__caso != 1) throw new UnwrapException("Option.Unwrap(): el valor es None");
             return __Some_Value;
         }
 
         // El valor; con None lanza UnwrapException con el mensaje indicado.
-        [TrackCaller] public T Expect(string message)
+        [TrackCaller] public func Expect(message: string) -> T
         {
             if (__caso != 1) throw new UnwrapException(message);
             return __Some_Value;
         }
 
-        public T UnwrapOr(T other) => __caso == 1 ? __Some_Value : other;
-        public T UnwrapOrDefault() => __Some_Value;  // con None es default(T)
-        public T UnwrapOrElse(Func<T> f) => __caso == 1 ? __Some_Value : f();
+        public func UnwrapOr(other: T) -> T => __caso == 1 ? __Some_Value : other;
+        public func UnwrapOrDefault() -> T => __Some_Value;  // con None es default(T)
+        public func UnwrapOrElse(f: Func<T>) -> T => __caso == 1 ? __Some_Value : f();
 
-        public Option<U> Map<U>(Func<T, U> f)
+        public func Map<U>(f: Func<T, U>) -> Option<U>
         {
             if (__caso == 1) return Option<U>.Some(f(__Some_Value));
             return Option<U>.None;
         }
 
-        public Option<U> AndThen<U>(Func<T, Option<U>> f)
+        public func AndThen<U>(f: Func<T, Option<U>>) -> Option<U>
         {
             if (__caso == 1) return f(__Some_Value);
             return Option<U>.None;
         }
 
-        public Option<T> Filter(Func<T, bool> predicate)
+        public func Filter(predicate: Func<T, bool>) -> Option<T>
         {
             if (__caso == 1 && predicate(__Some_Value)) return this;
             return None;
         }
 
-        public Option<T> Or(Option<T> other) => __caso == 1 ? this : other;
-        public Option<T> OrElse(Func<Option<T>> f) => __caso == 1 ? this : f();
+        public func Or(other: Option<T>) -> Option<T> => __caso == 1 ? this : other;
+        public func OrElse(f: Func<Option<T>>) -> Option<T> => __caso == 1 ? this : f();
 
         // Some(v) -> Ok(v); None -> Err(error).
-        public Result<T, E> OkOr<E>(E error)
+        public func OkOr<E>(error: E) -> Result<T, E>
         {
             if (__caso == 1) return Result<T, E>.Ok(__Some_Value);
             return Result<T, E>.Err(error);
         }
 
-        public U Match<U>(Func<T, U> some, Func<U> none) => __caso == 1 ? some(__Some_Value) : none();
+        public func Match<U>(some: Func<T, U>, none: Func<U>) -> U => __caso == 1 ? some(__Some_Value) : none();
 
         // T? con el valor (null si es None).
-        public T? ToNullable()
+        public func ToNullable() -> T?
         {
             T? r = null;
             if (__caso == 1) r = __Some_Value;
             return r;
         }
 
-        public static Option<T> FromNullable(T? value)
+        public static func FromNullable(value: T?) -> Option<T>
         {
             if (value == null) return None;
             return Some(value ?? default(T));
@@ -117,65 +117,65 @@ namespace std
         Ok(T Value),
         Err(E Error);
 
-        public bool IsOk => __caso == 0;
-        public bool IsErr => __caso == 1;
+        public prop IsOk: bool => __caso == 0;
+        public prop IsErr: bool => __caso == 1;
 
         // El valor; con Err lanza UnwrapException ("Result.Unwrap(): Err(...)").
-        [TrackCaller] public T Unwrap()
+        [TrackCaller] public func Unwrap() -> T
         {
             if (__caso != 0) throw new UnwrapException("Result.Unwrap(): " + ToString());
             return __Ok_Value;
         }
 
-        [TrackCaller] public T Expect(string message)
+        [TrackCaller] public func Expect(message: string) -> T
         {
             if (__caso != 0) throw new UnwrapException(message + ": " + ToString());
             return __Ok_Value;
         }
 
         // El error; con Ok lanza UnwrapException.
-        [TrackCaller] public E UnwrapErr()
+        [TrackCaller] public func UnwrapErr() -> E
         {
             if (__caso != 1) throw new UnwrapException("Result.UnwrapErr(): " + ToString());
             return __Err_Error;
         }
 
-        public T UnwrapOr(T other) => __caso == 0 ? __Ok_Value : other;
-        public T UnwrapOrDefault() => __Ok_Value;  // con Err es default(T)
-        public T UnwrapOrElse(Func<E, T> f) => __caso == 0 ? __Ok_Value : f(__Err_Error);
+        public func UnwrapOr(other: T) -> T => __caso == 0 ? __Ok_Value : other;
+        public func UnwrapOrDefault() -> T => __Ok_Value;  // con Err es default(T)
+        public func UnwrapOrElse(f: Func<E, T>) -> T => __caso == 0 ? __Ok_Value : f(__Err_Error);
 
-        public Result<U, E> Map<U>(Func<T, U> f)
+        public func Map<U>(f: Func<T, U>) -> Result<U, E>
         {
             if (__caso == 0) return Result<U, E>.Ok(f(__Ok_Value));
             return Result<U, E>.Err(__Err_Error);
         }
 
-        public Result<T, F> MapErr<F>(Func<E, F> f)
+        public func MapErr<F>(f: Func<E, F>) -> Result<T, F>
         {
             if (__caso == 0) return Result<T, F>.Ok(__Ok_Value);
             return Result<T, F>.Err(f(__Err_Error));
         }
 
-        public Result<U, E> AndThen<U>(Func<T, Result<U, E>> f)
+        public func AndThen<U>(f: Func<T, Result<U, E>>) -> Result<U, E>
         {
             if (__caso == 0) return f(__Ok_Value);
             return Result<U, E>.Err(__Err_Error);
         }
 
-        public Result<T, E> Or(Result<T, E> other) => __caso == 0 ? this : other;
-        public Result<T, E> OrElse(Func<E, Result<T, E>> f) => __caso == 0 ? this : f(__Err_Error);
+        public func Or(other: Result<T, E>) -> Result<T, E> => __caso == 0 ? this : other;
+        public func OrElse(f: Func<E, Result<T, E>>) -> Result<T, E> => __caso == 0 ? this : f(__Err_Error);
 
         // Ok(v) -> Some(v); Err -> None   (y al revés para el error).
-        public Option<T> ToOption() => __caso == 0 ? Option<T>.Some(__Ok_Value) : Option<T>.None;
-        public Option<E> ErrOption() => __caso == 1 ? Option<E>.Some(__Err_Error) : Option<E>.None;
+        public func ToOption() -> Option<T> => __caso == 0 ? Option<T>.Some(__Ok_Value) : Option<T>.None;
+        public func ErrOption() -> Option<E> => __caso == 1 ? Option<E>.Some(__Err_Error) : Option<E>.None;
 
-        public U Match<U>(Func<T, U> ok, Func<E, U> err) => __caso == 0 ? ok(__Ok_Value) : err(__Err_Error);
+        public func Match<U>(ok: Func<T, U>, err: Func<E, U>) -> U => __caso == 0 ? ok(__Ok_Value) : err(__Err_Error);
     }
 
     // Result.Try(() => ...): ejecuta la función y convierte una excepción en un Err.
     public static class Result
     {
-        public static Result<T, Exception> Try<T>(Func<T> f)
+        public static func Try<T>(f: Func<T>) -> Result<T, Exception>
         {
             try
             {

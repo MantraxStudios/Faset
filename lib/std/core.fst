@@ -31,25 +31,25 @@ namespace std
     [TrackCaller] static extern void faset_panic_at(string msg);
 
     // ---------------------------------------------------------------- funciones globales (estilo C++)
-    public void print(string v) { Console.Write(v); }
-    public void print(long v) { Console.Write(v); }
-    public void print(double v) { Console.Write(v); }
-    public void print(char v) { Console.Write(v); }
-    public void print(bool v) { Console.Write(v ? "true" : "false"); }
-    public void println() { Console.WriteLine(); }
-    public void println(string v) { Console.WriteLine(v); }
-    public void println(long v) { Console.WriteLine(v); }
-    public void println(double v) { Console.WriteLine(v); }
-    public void println(char v) { Console.WriteLine(v); }
-    public void println(bool v) { Console.WriteLine(v ? "true" : "false"); }
+    public func print(v: string) { Console.Write(v); }
+    public func print(v: long) { Console.Write(v); }
+    public func print(v: double) { Console.Write(v); }
+    public func print(v: char) { Console.Write(v); }
+    public func print(v: bool) { Console.Write(v ? "true" : "false"); }
+    public func println() { Console.WriteLine(); }
+    public func println(v: string) { Console.WriteLine(v); }
+    public func println(v: long) { Console.WriteLine(v); }
+    public func println(v: double) { Console.WriteLine(v); }
+    public func println(v: char) { Console.WriteLine(v); }
+    public func println(v: bool) { Console.WriteLine(v ? "true" : "false"); }
 
     // Termina el programa con un mensaje de error en stderr y código de salida 101:
     //   Faset panic: <mensaje> at archivo.fst:línea
     // [TrackCaller]: la ubicación es la de quien llama (no la de esta función).
-    [TrackCaller] public void panic(string message) { memory_unsafe { faset_panic_at(message); } }
+    [TrackCaller] public func panic(message: string) { memory_unsafe { faset_panic_at(message); } }
 
     // Comprueba una condición; si es falsa, termina con 'message'.
-    [TrackCaller] public void assert(bool condition, string message)
+    [TrackCaller] public func assert(condition: bool, message: string)
     {
         if (!condition) panic(message);
     }
@@ -57,40 +57,40 @@ namespace std
     // ---------------------------------------------------------------- Console
     public memory_unsafe static class Console
     {
-        public static void Write(string v) { faset_write_str(v); }
-        public static void Write(int v) { faset_write_i64(v); }
-        public static void Write(long v) { faset_write_i64(v); }
-        public static void Write(uint v) { faset_write_u64(v); }
-        public static void Write(ulong v) { faset_write_u64(v); }
-        public static void Write(float v) { faset_write_f32(v); }
-        public static void Write(double v) { faset_write_f64(v); }
-        public static void Write(char v) { faset_write_char(v); }
-        public static void Write(void* v) { faset_write_ptr(v); }
-        public static void Write(bool v) { faset_write_str(v ? "True" : "False"); }
+        public static func Write(v: string) { faset_write_str(v); }
+        public static func Write(v: int) { faset_write_i64(v); }
+        public static func Write(v: long) { faset_write_i64(v); }
+        public static func Write(v: uint) { faset_write_u64(v); }
+        public static func Write(v: ulong) { faset_write_u64(v); }
+        public static func Write(v: float) { faset_write_f32(v); }
+        public static func Write(v: double) { faset_write_f64(v); }
+        public static func Write(v: char) { faset_write_char(v); }
+        public static func Write(v: void*) { faset_write_ptr(v); }
+        public static func Write(v: bool) { faset_write_str(v ? "True" : "False"); }
         // Objetos: su ToString() (virtual); null no escribe nada.
-        public static void Write(object v) { if (v != null) faset_write_str(v.ToString()); }
+        public static func Write(v: object) { if (v != null) faset_write_str(v.ToString()); }
 
-        public static void WriteLine() { faset_write_char('\n'); }
-        public static void WriteLine(string v) { Write(v); WriteLine(); }
-        public static void WriteLine(int v) { Write(v); WriteLine(); }
-        public static void WriteLine(long v) { Write(v); WriteLine(); }
-        public static void WriteLine(uint v) { Write(v); WriteLine(); }
-        public static void WriteLine(ulong v) { Write(v); WriteLine(); }
-        public static void WriteLine(float v) { Write(v); WriteLine(); }
-        public static void WriteLine(double v) { Write(v); WriteLine(); }
-        public static void WriteLine(char v) { Write(v); WriteLine(); }
-        public static void WriteLine(bool v) { Write(v); WriteLine(); }
-        public static void WriteLine(object v) { Write(v); WriteLine(); }
-        public static void WriteLine(void* v) { Write(v); WriteLine(); }
+        public static func WriteLine() { faset_write_char('\n'); }
+        public static func WriteLine(v: string) { Write(v); WriteLine(); }
+        public static func WriteLine(v: int) { Write(v); WriteLine(); }
+        public static func WriteLine(v: long) { Write(v); WriteLine(); }
+        public static func WriteLine(v: uint) { Write(v); WriteLine(); }
+        public static func WriteLine(v: ulong) { Write(v); WriteLine(); }
+        public static func WriteLine(v: float) { Write(v); WriteLine(); }
+        public static func WriteLine(v: double) { Write(v); WriteLine(); }
+        public static func WriteLine(v: char) { Write(v); WriteLine(); }
+        public static func WriteLine(v: bool) { Write(v); WriteLine(); }
+        public static func WriteLine(v: object) { Write(v); WriteLine(); }
+        public static func WriteLine(v: void*) { Write(v); WriteLine(); }
 
         // Escribe en la salida de error.
-        public static void Error(string v) { faset_write_err_str(v); }
-        public static void ErrorLine(string v) { faset_write_err_str(v); faset_write_err_str("\n"); }
+        public static func Error(v: string) { faset_write_err_str(v); }
+        public static func ErrorLine(v: string) { faset_write_err_str(v); faset_write_err_str("\n"); }
 
-        public static void Flush() { faset_flush(); }
+        public static func Flush() { faset_flush(); }
 
         // Devuelve una cadena nueva.
-        public static string ReadLine() { return faset_read_line(); }
+        public static func ReadLine() -> string { return faset_read_line(); }
     }
 
     // ---------------------------------------------------------------- Math
@@ -125,52 +125,52 @@ namespace std
         static extern double fmod(double x, double y);
         static extern double hypot(double x, double y);
 
-        public static double Sqrt(double x) => sqrt(x);
-        public static double Cbrt(double x) => cbrt(x);
-        public static double Pow(double x, double y) => pow(x, y);
-        public static double Sin(double x) => sin(x);
-        public static double Cos(double x) => cos(x);
-        public static double Tan(double x) => tan(x);
-        public static double Asin(double x) => asin(x);
-        public static double Acos(double x) => acos(x);
-        public static double Atan(double x) => atan(x);
-        public static double Atan2(double y, double x) => atan2(y, x);
-        public static double Sinh(double x) => sinh(x);
-        public static double Cosh(double x) => cosh(x);
-        public static double Tanh(double x) => tanh(x);
-        public static double Exp(double x) => exp(x);
-        public static double Log(double x) => log(x);
-        public static double Log2(double x) => log2(x);
-        public static double Log10(double x) => log10(x);
-        public static double Floor(double x) => floor(x);
-        public static double Ceiling(double x) => ceil(x);
-        public static double Truncate(double x) => trunc(x);
-        public static double Round(double x) => rint(x);
-        public static double Mod(double x, double y) => fmod(x, y);
-        public static double Hypot(double x, double y) => hypot(x, y);
+        public static func Sqrt(x: double) -> double => sqrt(x);
+        public static func Cbrt(x: double) -> double => cbrt(x);
+        public static func Pow(x: double, y: double) -> double => pow(x, y);
+        public static func Sin(x: double) -> double => sin(x);
+        public static func Cos(x: double) -> double => cos(x);
+        public static func Tan(x: double) -> double => tan(x);
+        public static func Asin(x: double) -> double => asin(x);
+        public static func Acos(x: double) -> double => acos(x);
+        public static func Atan(x: double) -> double => atan(x);
+        public static func Atan2(y: double, x: double) -> double => atan2(y, x);
+        public static func Sinh(x: double) -> double => sinh(x);
+        public static func Cosh(x: double) -> double => cosh(x);
+        public static func Tanh(x: double) -> double => tanh(x);
+        public static func Exp(x: double) -> double => exp(x);
+        public static func Log(x: double) -> double => log(x);
+        public static func Log2(x: double) -> double => log2(x);
+        public static func Log10(x: double) -> double => log10(x);
+        public static func Floor(x: double) -> double => floor(x);
+        public static func Ceiling(x: double) -> double => ceil(x);
+        public static func Truncate(x: double) -> double => trunc(x);
+        public static func Round(x: double) -> double => rint(x);
+        public static func Mod(x: double, y: double) -> double => fmod(x, y);
+        public static func Hypot(x: double, y: double) -> double => hypot(x, y);
 
-        public static double Abs(double x) => fabs(x);
-        public static int Abs(int x) => x < 0 ? -x : x;
-        public static long Abs(long x) => x < 0 ? -x : x;
-        public static int Sign(double x) => x > 0 ? 1 : (x < 0 ? -1 : 0);
-        public static int Sign(long x) => x > 0 ? 1 : (x < 0 ? -1 : 0);
+        public static func Abs(x: double) -> double => fabs(x);
+        public static func Abs(x: int) -> int => x < 0 ? -x : x;
+        public static func Abs(x: long) -> long => x < 0 ? -x : x;
+        public static func Sign(x: double) -> int => x > 0 ? 1 : (x < 0 ? -1 : 0);
+        public static func Sign(x: long) -> int => x > 0 ? 1 : (x < 0 ? -1 : 0);
 
-        public static int Min(int a, int b) => a < b ? a : b;
-        public static long Min(long a, long b) => a < b ? a : b;
-        public static double Min(double a, double b) => a < b ? a : b;
-        public static int Max(int a, int b) => a > b ? a : b;
-        public static long Max(long a, long b) => a > b ? a : b;
-        public static double Max(double a, double b) => a > b ? a : b;
-        public static int Clamp(int v, int lo, int hi) => v < lo ? lo : (v > hi ? hi : v);
-        public static long Clamp(long v, long lo, long hi) => v < lo ? lo : (v > hi ? hi : v);
-        public static double Clamp(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
+        public static func Min(a: int, b: int) -> int => a < b ? a : b;
+        public static func Min(a: long, b: long) -> long => a < b ? a : b;
+        public static func Min(a: double, b: double) -> double => a < b ? a : b;
+        public static func Max(a: int, b: int) -> int => a > b ? a : b;
+        public static func Max(a: long, b: long) -> long => a > b ? a : b;
+        public static func Max(a: double, b: double) -> double => a > b ? a : b;
+        public static func Clamp(v: int, lo: int, hi: int) -> int => v < lo ? lo : (v > hi ? hi : v);
+        public static func Clamp(v: long, lo: long, hi: long) -> long => v < lo ? lo : (v > hi ? hi : v);
+        public static func Clamp(v: double, lo: double, hi: double) -> double => v < lo ? lo : (v > hi ? hi : v);
 
-        public static double Lerp(double a, double b, double t) => a + (b - a) * t;
-        public static double DegToRad(double deg) => deg * (PI / 180.0);
-        public static double RadToDeg(double rad) => rad * (180.0 / PI);
-        public static bool IsNaN(double x) => x != x;
+        public static func Lerp(a: double, b: double, t: double) -> double => a + (b - a) * t;
+        public static func DegToRad(deg: double) -> double => deg * (PI / 180.0);
+        public static func RadToDeg(rad: double) -> double => rad * (180.0 / PI);
+        public static func IsNaN(x: double) -> bool => x != x;
 
-        public static long Gcd(long a, long b)
+        public static func Gcd(a: long, b: long) -> long
         {
             a = Abs(a);
             b = Abs(b);
@@ -183,9 +183,9 @@ namespace std
             return a;
         }
 
-        public static long Lcm(long a, long b) => a == 0 || b == 0 ? 0 : Abs(a / Gcd(a, b) * b);
+        public static func Lcm(a: long, b: long) -> long => a == 0 || b == 0 ? 0 : Abs(a / Gcd(a, b) * b);
 
-        public static bool IsPrime(long n)
+        public static func IsPrime(n: long) -> bool
         {
             if (n < 2) return false;
             if (n % 2 == 0) return n == 2;
@@ -195,7 +195,7 @@ namespace std
         }
 
         // Potencia entera rápida.
-        public static long IPow(long b, int e)
+        public static func IPow(b: long, e: int) -> long
         {
             long r = 1;
             while (e > 0)
@@ -223,24 +223,24 @@ namespace std
 
         //  La memoria es del recolector de basura: Free no la libera (solo devuelve a C la que
         //  venga de bibliotecas de C), así que nunca queda un puntero colgando.
-        public memory_unsafe static void* Alloc(long size) => faset_alloc(size);
+        public memory_unsafe static func Alloc(size: long) -> void* => faset_alloc(size);
         // Bloque de bytes que nunca contendrá punteros: el recolector no lo recorre (más rápido).
-        public memory_unsafe static byte* AllocBytes(long size) => (byte*)faset_alloc_atomic(size);
-        public memory_unsafe static void* AllocZeroed(long size) => faset_alloc_zeroed(size);
-        public memory_unsafe static void* Realloc(void* p, long size) => faset_realloc(p, size);
-        public memory_unsafe static void Free(void* p) { faset_free(p); }
-        public memory_unsafe static void Copy(void* dst, void* src, long n) { faset_mem_copy(dst, src, n); }
-        public memory_unsafe static void Set(void* dst, int value, long n) { faset_mem_set(dst, value, n); }
-        public memory_unsafe static int Compare(void* a, void* b, long n) => faset_mem_compare(a, b, n);
+        public memory_unsafe static func AllocBytes(size: long) -> byte* => (byte*)faset_alloc_atomic(size);
+        public memory_unsafe static func AllocZeroed(size: long) -> void* => faset_alloc_zeroed(size);
+        public memory_unsafe static func Realloc(p: void*, size: long) -> void* => faset_realloc(p, size);
+        public memory_unsafe static func Free(p: void*) { faset_free(p); }
+        public memory_unsafe static func Copy(dst: void*, src: void*, n: long) { faset_mem_copy(dst, src, n); }
+        public memory_unsafe static func Set(dst: void*, value: int, n: long) { faset_mem_set(dst, value, n); }
+        public memory_unsafe static func Compare(a: void*, b: void*, n: long) -> int => faset_mem_compare(a, b, n);
 
         // Reserva 'count' elementos de tipo T inicializados a cero.
-        public memory_unsafe static T* New<T>(long count) => (T*)faset_alloc_zeroed(sizeof(T) * count);
+        public memory_unsafe static func New<T>(count: long) -> T* => (T*)faset_alloc_zeroed(sizeof(T) * count);
 
         // Cambia el tamaño de un bloque de elementos T.
-        public memory_unsafe static T* Resize<T>(T* p, long count) => (T*)faset_realloc(p, sizeof(T) * count);
+        public memory_unsafe static func Resize<T>(p: T*, count: long) -> T* => (T*)faset_realloc(p, sizeof(T) * count);
 
         // Copia 'count' elementos de tipo T.
-        public memory_unsafe static void CopyItems<T>(T* dst, T* src, long count) { faset_mem_copy(dst, src, sizeof(T) * count); }
+        public memory_unsafe static func CopyItems<T>(dst: T*, src: T*, count: long) { faset_mem_copy(dst, src, sizeof(T) * count); }
     }
 
     // ---------------------------------------------------------------- GC (recolector de basura)
@@ -253,13 +253,13 @@ namespace std
         static extern long faset_gc_count();
 
         // Fuerza una recolección completa (y ejecuta los destructores pendientes).
-        public static void Collect() { faset_gc_collect(); }
+        public static func Collect() { faset_gc_collect(); }
         // Bytes que el montón ocupa ahora.
-        public static long HeapBytes => faset_gc_heap_bytes();
+        public static prop HeapBytes: long => faset_gc_heap_bytes();
         // Bytes en uso (vivos tras la última recolección más lo reservado desde entonces).
-        public static long TotalMemory => faset_gc_live_bytes();
+        public static prop TotalMemory: long => faset_gc_live_bytes();
         // Recolecciones hechas desde que empezó el programa.
-        public static long Collections => faset_gc_count();
+        public static prop Collections: long => faset_gc_count();
     }
 
     // ---------------------------------------------------------------- String
@@ -277,33 +277,33 @@ namespace std
         public const string Empty = "";
 
         // Las funciones que crean cadenas nuevas reservan memoria del recolector.
-        public static string Concat(string a, string b) => faset_str_concat(a, b);
-        public static string Concat(string a, string b, string c)
+        public static func Concat(a: string, b: string) -> string => faset_str_concat(a, b);
+        public static func Concat(a: string, b: string, c: string) -> string
         {
             string ab = faset_str_concat(a, b);
             string r = faset_str_concat(ab, c);
             faset_str_free(ab);
             return r;
         }
-        public static string Copy(string s) => faset_str_copy(s);
-        public static string FromInt(long v) => faset_i64_to_str(v);
-        public static string FromUInt(ulong v) => faset_u64_to_str(v);
-        public static string FromDouble(double v) => faset_f64_to_str(v);
+        public static func Copy(s: string) -> string => faset_str_copy(s);
+        public static func FromInt(v: long) -> string => faset_i64_to_str(v);
+        public static func FromUInt(v: ulong) -> string => faset_u64_to_str(v);
+        public static func FromDouble(v: double) -> string => faset_f64_to_str(v);
         // Ya no hace falta: el recolector recupera las cadenas. Se conserva por compatibilidad.
-        public static void Free(string s) { faset_str_free(s); }
+        public static func Free(s: string) { faset_str_free(s); }
 
         // Vistas (no copian ni reservan memoria).
-        public static string FromCString(byte* p) => faset_str_from_cstr(p);
-        public static string FromBytes(byte* p, long length) => faset_str_make(p, length);
+        public static func FromCString(p: byte*) -> string => faset_str_from_cstr(p);
+        public static func FromBytes(p: byte*, length: long) -> string => faset_str_make(p, length);
     }
 
     // ---------------------------------------------------------------- extensiones de string
     //  Las cadenas son vistas UTF-8 inmutables: Substring/Trim no copian.
     public memory_unsafe static class StringExtensions
     {
-        public static bool IsEmpty(this string s) => s.Length == 0;
+        public static func IsEmpty(this s: string) -> bool => s.Length == 0;
 
-        public static bool StartsWith(this string s, string prefix)
+        public static func StartsWith(this s: string, prefix: string) -> bool
         {
             if (prefix.Length > s.Length) return false;
             for (int i = 0; i < prefix.Length; i++)
@@ -311,7 +311,7 @@ namespace std
             return true;
         }
 
-        public static bool EndsWith(this string s, string suffix)
+        public static func EndsWith(this s: string, suffix: string) -> bool
         {
             int off = s.Length - suffix.Length;
             if (off < 0) return false;
@@ -320,9 +320,9 @@ namespace std
             return true;
         }
 
-        public static int IndexOf(this string s, string sub) => s.IndexOf(sub, 0);
+        public static func IndexOf(this s: string, sub: string) -> int => s.IndexOf(sub, 0);
 
-        public static int IndexOf(this string s, string sub, int start)
+        public static func IndexOf(this s: string, sub: string, start: int) -> int
         {
             if (sub.Length == 0) return start <= s.Length ? start : -1;
             for (int i = start; i + sub.Length <= s.Length; i++)
@@ -334,7 +334,7 @@ namespace std
             return -1;
         }
 
-        public static int LastIndexOf(this string s, string sub)
+        public static func LastIndexOf(this s: string, sub: string) -> int
         {
             for (int i = s.Length - sub.Length; i >= 0; i--)
             {
@@ -345,9 +345,9 @@ namespace std
             return -1;
         }
 
-        public static bool Contains(this string s, string sub) => s.IndexOf(sub, 0) >= 0;
+        public static func Contains(this s: string, sub: string) -> bool => s.IndexOf(sub, 0) >= 0;
 
-        public static int Count(this string s, string sub)
+        public static func Count(this s: string, sub: string) -> int
         {
             if (sub.Length == 0) return 0;
             int n = 0;
@@ -360,31 +360,31 @@ namespace std
             return n;
         }
 
-        [TrackCaller] public static string Substring(this string s, int start, int length)
+        [TrackCaller] public static func Substring(this s: string, start: int, length: int) -> string
         {
             if (start < 0 || length < 0 || start + length > s.Length) throw new ArgumentOutOfRangeException("Substring: rango fuera de la cadena", null);
             return String.FromBytes(s.Ptr + start, length);
         }
 
-        [TrackCaller] public static string Substring(this string s, int start) => s.Substring(start, s.Length - start);
+        [TrackCaller] public static func Substring(this s: string, start: int) -> string => s.Substring(start, s.Length - start);
 
-        public static string TrimStart(this string s)
+        public static func TrimStart(this s: string) -> string
         {
             int i = 0;
             while (i < s.Length && Char.IsWhiteSpace((char)s[i])) i++;
             return String.FromBytes(s.Ptr + i, s.Length - i);
         }
 
-        public static string TrimEnd(this string s)
+        public static func TrimEnd(this s: string) -> string
         {
             int n = s.Length;
             while (n > 0 && Char.IsWhiteSpace((char)s[n - 1])) n--;
             return String.FromBytes(s.Ptr, n);
         }
 
-        public static string Trim(this string s) => s.TrimStart().TrimEnd();
+        public static func Trim(this s: string) -> string => s.TrimStart().TrimEnd();
 
-        public static int CompareTo(this string a, string b)
+        public static func CompareTo(this a: string, b: string) -> int
         {
             int n = a.Length < b.Length ? a.Length : b.Length;
             for (int i = 0; i < n; i++)
@@ -392,9 +392,9 @@ namespace std
             return a.Length == b.Length ? 0 : (a.Length < b.Length ? -1 : 1);
         }
 
-        public static bool Equals(this string a, string b) => a == b;
+        public static func Equals(this a: string, b: string) -> bool => a == b;
 
-        public static bool EqualsIgnoreCase(this string a, string b)
+        public static func EqualsIgnoreCase(this a: string, b: string) -> bool
         {
             if (a.Length != b.Length) return false;
             for (int i = 0; i < a.Length; i++)
@@ -403,7 +403,7 @@ namespace std
         }
 
         // Copias nuevas.
-        public static string ToUpper(this string s)
+        public static func ToUpper(this s: string) -> string
         {
             byte* p = (byte*)Memory.Alloc(s.Length + 1);
             for (int i = 0; i < s.Length; i++) p[i] = (byte)Char.ToUpper((char)s[i]);
@@ -411,7 +411,7 @@ namespace std
             return String.FromBytes(p, s.Length);
         }
 
-        public static string ToLower(this string s)
+        public static func ToLower(this s: string) -> string
         {
             byte* p = (byte*)Memory.Alloc(s.Length + 1);
             for (int i = 0; i < s.Length; i++) p[i] = (byte)Char.ToLower((char)s[i]);
@@ -420,25 +420,25 @@ namespace std
         }
 
         // Conversión a C: la cadena resultante termina en '\0' (copia).
-        public static string ToCString(this string s) => String.Copy(s);
+        public static func ToCString(this s: string) -> string => String.Copy(s);
 
-        [TrackCaller] public static int ToInt(this string s) => Convert.ToInt32(s);
-        [TrackCaller] public static long ToLong(this string s) => Convert.ToInt64(s);
-        [TrackCaller] public static double ToDouble(this string s) => Convert.ToDouble(s);
+        [TrackCaller] public static func ToInt(this s: string) -> int => Convert.ToInt32(s);
+        [TrackCaller] public static func ToLong(this s: string) -> long => Convert.ToInt64(s);
+        [TrackCaller] public static func ToDouble(this s: string) -> double => Convert.ToDouble(s);
     }
 
     // ---------------------------------------------------------------- Char (ASCII)
     public static class Char
     {
-        public static bool IsDigit(char c) => c >= '0' && c <= '9';
-        public static bool IsLetter(char c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0xC0;
-        public static bool IsLetterOrDigit(char c) => IsLetter(c) || IsDigit(c);
-        public static bool IsUpper(char c) => c >= 'A' && c <= 'Z';
-        public static bool IsLower(char c) => c >= 'a' && c <= 'z';
-        public static bool IsWhiteSpace(char c) => c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
-        public static char ToUpper(char c) => IsLower(c) ? (char)(c - 32) : c;
-        public static char ToLower(char c) => IsUpper(c) ? (char)(c + 32) : c;
-        public static int DigitValue(char c) => IsDigit(c) ? (int)(c - '0') : -1;
+        public static func IsDigit(c: char) -> bool => c >= '0' && c <= '9';
+        public static func IsLetter(c: char) -> bool => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c >= 0xC0;
+        public static func IsLetterOrDigit(c: char) -> bool => IsLetter(c) || IsDigit(c);
+        public static func IsUpper(c: char) -> bool => c >= 'A' && c <= 'Z';
+        public static func IsLower(c: char) -> bool => c >= 'a' && c <= 'z';
+        public static func IsWhiteSpace(c: char) -> bool => c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f';
+        public static func ToUpper(c: char) -> char => IsLower(c) ? (char)(c - 32) : c;
+        public static func ToLower(c: char) -> char => IsUpper(c) ? (char)(c + 32) : c;
+        public static func DigitValue(c: char) -> int => IsDigit(c) ? (int)(c - '0') : -1;
     }
 
     // ---------------------------------------------------------------- Convert
@@ -447,7 +447,7 @@ namespace std
         static extern bool faset_parse_i64(string s, long* outValue);
         static extern bool faset_parse_f64(string s, double* outValue);
 
-        public static bool TryToInt64(string s, out long value)
+        public static func TryToInt64(s: string, out value: long) -> bool
         {
             long v = 0;
             bool ok = faset_parse_i64(s.Trim(), &v);
@@ -455,7 +455,7 @@ namespace std
             return ok;
         }
 
-        public static bool TryToInt32(string s, out int value)
+        public static func TryToInt32(s: string, out value: int) -> bool
         {
             long v = 0;
             bool ok = faset_parse_i64(s.Trim(), &v) && v >= int.MinValue && v <= int.MaxValue;
@@ -463,7 +463,7 @@ namespace std
             return ok;
         }
 
-        public static bool TryToDouble(string s, out double value)
+        public static func TryToDouble(s: string, out value: double) -> bool
         {
             double v = 0;
             bool ok = faset_parse_f64(s.Trim(), &v);
@@ -471,21 +471,21 @@ namespace std
             return ok;
         }
 
-        [TrackCaller] public static long ToInt64(string s)
+        [TrackCaller] public static func ToInt64(s: string) -> long
         {
             long v = 0;
             if (!TryToInt64(s, out v)) throw new FormatException("Convert.ToInt64: formato no válido");
             return v;
         }
 
-        [TrackCaller] public static int ToInt32(string s)
+        [TrackCaller] public static func ToInt32(s: string) -> int
         {
             int v = 0;
             if (!TryToInt32(s, out v)) throw new FormatException("Convert.ToInt32: formato no válido");
             return v;
         }
 
-        [TrackCaller] public static double ToDouble(string s)
+        [TrackCaller] public static func ToDouble(s: string) -> double
         {
             double v = 0;
             if (!TryToDouble(s, out v)) throw new FormatException("Convert.ToDouble: formato no válido");
@@ -493,9 +493,9 @@ namespace std
         }
 
         // Crean cadenas nuevas.
-        public static string ToString(long v) => String.FromInt(v);
-        public static string ToString(double v) => String.FromDouble(v);
-        public static string ToString(bool v) => String.Copy(v ? "True" : "False");
+        public static func ToString(v: long) -> string => String.FromInt(v);
+        public static func ToString(v: double) -> string => String.FromDouble(v);
+        public static func ToString(v: bool) -> string => String.Copy(v ? "True" : "False");
     }
 
     // ---------------------------------------------------------------- int.Parse, double.TryParse...
@@ -504,47 +504,47 @@ namespace std
     //  TryParse devuelve false y no lanza nada.
     public static class Int32
     {
-        [TrackCaller] public static int Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> int
         {
             long v = 0;
             if (!Convert.TryToInt64(s, out v)) throw new FormatException("int.Parse: '" + s + "' no es un número entero");
             if (v < int.MinValue || v > int.MaxValue) throw new OverflowException("int.Parse: '" + s + "' no cabe en un int");
             return (int)v;
         }
-        public static bool TryParse(string s, out int result) => Convert.TryToInt32(s, out result);
+        public static func TryParse(s: string, out result: int) -> bool => Convert.TryToInt32(s, out result);
     }
 
     public static class Int64
     {
-        [TrackCaller] public static long Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> long
         {
             long v = 0;
             if (!Convert.TryToInt64(s, out v)) throw new FormatException("long.Parse: '" + s + "' no es un número entero");
             return v;
         }
-        public static bool TryParse(string s, out long result) => Convert.TryToInt64(s, out result);
+        public static func TryParse(s: string, out result: long) -> bool => Convert.TryToInt64(s, out result);
     }
 
     public static class Double
     {
-        [TrackCaller] public static double Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> double
         {
             double v = 0;
             if (!Convert.TryToDouble(s, out v)) throw new FormatException("double.Parse: '" + s + "' no es un número");
             return v;
         }
-        public static bool TryParse(string s, out double result) => Convert.TryToDouble(s, out result);
+        public static func TryParse(s: string, out result: double) -> bool => Convert.TryToDouble(s, out result);
     }
 
     public static class Boolean
     {
-        [TrackCaller] public static bool Parse(string s)
+        [TrackCaller] public static func Parse(s: string) -> bool
         {
             bool v = false;
             if (!TryParse(s, out v)) throw new FormatException("bool.Parse: '" + s + "' no es True ni False");
             return v;
         }
-        public static bool TryParse(string s, out bool result)
+        public static func TryParse(s: string, out result: bool) -> bool
         {
             string t = s.Trim().ToLower();
             result = t == "true";
@@ -562,14 +562,14 @@ namespace std
         static extern int faset_platform();
         static extern string faset_getenv(string name);
 
-        public static void Exit(int code) { faset_exit(code); }
-        public static long TickCount64() => faset_ticks_ms();
-        public static int ArgCount() => faset_arg_count();
-        public static string GetArg(int index) => faset_arg_get(index);
-        public static Platform CurrentPlatform() => (Platform)faset_platform();
+        public static func Exit(code: int) { faset_exit(code); }
+        public static func TickCount64() -> long => faset_ticks_ms();
+        public static func ArgCount() -> int => faset_arg_count();
+        public static func GetArg(index: int) -> string => faset_arg_get(index);
+        public static func CurrentPlatform() -> Platform => (Platform)faset_platform();
 
         // Devuelve una copia o "" si no existe.
-        public static string GetVariable(string name)
+        public static func GetVariable(name: string) -> string
         {
             string value;
             TryGetVariable(name, out value);
@@ -578,7 +578,7 @@ namespace std
 
         // Como GetVariable, pero distingue una variable vacía de una que no existe.
         // 'value' es siempre una copia.
-        public static bool TryGetVariable(string name, out string value)
+        public static func TryGetVariable(name: string, out value: string) -> bool
         {
 #if WINDOWS
             ushort* w = Utf16.Encode(name);
@@ -619,7 +619,7 @@ namespace std
     public memory_unsafe static class Utf16
     {
         // Número de unidades UTF-16 que ocupa 's'.
-        public static int Length(string s)
+        public static func Length(s: string) -> int
         {
             int n = 0, i = 0;
             while (i < s.Length)
@@ -631,14 +631,14 @@ namespace std
         }
 
         // Copia terminada en 0.
-        public static ushort* Encode(string s)
+        public static func Encode(s: string) -> ushort*
         {
             int length;
             return Encode(s, out length);
         }
 
         // Igual, y devuelve en 'length' el número de unidades (sin el 0 final).
-        public static ushort* Encode(string s, out int length)
+        public static func Encode(s: string, out length: int) -> ushort*
         {
             ushort* w = Memory.New<ushort>(Length(s) + 1);
             int n = 0, i = 0;
@@ -659,7 +659,7 @@ namespace std
         }
 
         // Cadena UTF-8 nueva a partir de texto UTF-16 terminado en 0.
-        public static string Decode(ushort* w)
+        public static func Decode(w: ushort*) -> string
         {
             int n = 0;
             if (w != null) while (w[n] != 0) n++;
@@ -667,7 +667,7 @@ namespace std
         }
 
         // Cadena UTF-8 nueva a partir de 'count' unidades UTF-16.
-        public static string Decode(ushort* w, int count)
+        public static func Decode(w: ushort*, count: int) -> string
         {
             byte* p = (byte*)Memory.Alloc((long)count * 3 + 1);
             int n = 0;
@@ -705,7 +705,7 @@ namespace std
         }
 
         // Decodifica el punto de código UTF-8 que empieza en 'i' y avanza 'i'.
-        static char NextCodePoint(string s, ref int i)
+        static func NextCodePoint(s: string, ref i: int) -> char
         {
             uint b = s[i];
             int extra = b < 0x80 ? 0 : (b & 0xE0) == 0xC0 ? 1 : (b & 0xF0) == 0xE0 ? 2 : (b & 0xF8) == 0xF0 ? 3 : -1;
@@ -736,18 +736,18 @@ namespace std
     //  null, los operadores ?? ??= ?. y las comparaciones (x == null, x == 5, x < y).
     public struct Nullable<T>
     {
-        bool hasValue;  // el orden de los campos lo usa el compilador: {hasValue, value}
-        T value;
+        var hasValue: bool;  // el orden de los campos lo usa el compilador: {hasValue, value}
+        var value: T;
 
-        public Nullable(T v)
+        public init(v: T)
         {
             hasValue = true;
             value = v;
         }
 
-        public bool HasValue => hasValue;
+        public prop HasValue: bool => hasValue;
 
-        [TrackCaller] public T Value
+        [TrackCaller] public prop Value: T
         {
             get
             {
@@ -756,8 +756,8 @@ namespace std
             }
         }
 
-        public T GetValueOrDefault() => value;
-        public T GetValueOrDefault(T defaultValue) => hasValue ? value : defaultValue;
+        public func GetValueOrDefault() -> T => value;
+        public func GetValueOrDefault(defaultValue: T) -> T => hasValue ? value : defaultValue;
     }
 
     // ---------------------------------------------------------------- foreach sobre string
@@ -765,20 +765,20 @@ namespace std
     //  "año" da 'a', 'ñ', 'o'. Una secuencia UTF-8 no válida da U+FFFD.
     public struct StringEnumerator
     {
-        string text;
-        int pos;
-        char current;
+        var text: string;
+        var pos: int;
+        var current: char;
 
-        public StringEnumerator(string s)
+        public init(s: string)
         {
             text = s;
             pos = 0;
             current = '\0';
         }
 
-        public char Current => current;
+        public prop Current: char => current;
 
-        public bool MoveNext()
+        public func MoveNext() -> bool
         {
             if (pos >= text.Length) return false;
             int b = text[pos];
@@ -803,7 +803,7 @@ namespace std
 
     public static class StringEnumeration
     {
-        public static StringEnumerator GetEnumerator(this string s) => new StringEnumerator(s);
+        public static func GetEnumerator(this s: string) -> StringEnumerator => new StringEnumerator(s);
     }
 
     // ---------------------------------------------------------------- object y Type
@@ -824,14 +824,14 @@ namespace std
     public memory_unsafe class Object
     {
         // Por defecto, el nombre completo del tipo (p. ej. "Zoo.Perro").
-        public virtual string ToString() { return faset_type_fullname(faset_obj_type((void*)this)); }
+        public virtual func ToString() -> string { return faset_type_fullname(faset_obj_type((void*)this)); }
         // Por defecto, igualdad de referencias.
-        public virtual bool Equals(object other) { return (void*)this == (void*)other; }
-        public virtual int GetHashCode() { return faset_obj_hash((void*)this); }
+        public virtual func Equals(other: object) -> bool { return (void*)this == (void*)other; }
+        public virtual func GetHashCode() -> int { return faset_obj_hash((void*)this); }
         // Tipo del objeto en tiempo de ejecución (el más derivado).
-        public Type GetType() { return Type.FromHandle(faset_obj_type((void*)this)); }
-        public static bool ReferenceEquals(object a, object b) { return (void*)a == (void*)b; }
-        public static bool Equals(object a, object b)
+        public func GetType() -> Type { return Type.FromHandle(faset_obj_type((void*)this)); }
+        public static func ReferenceEquals(a: object, b: object) -> bool { return (void*)a == (void*)b; }
+        public static func Equals(a: object, b: object) -> bool
         {
             if ((void*)a == (void*)b) return true;
             if ((void*)a == null || (void*)b == null) return false;
@@ -842,43 +842,43 @@ namespace std
     // Descripción de un tipo: typeof(T) u obj.GetType(). Dos Type del mismo tipo son iguales (==).
     public sealed memory_unsafe class Type
     {
-        private void* handle;
-        private Type(void* h) { handle = h; }
-        public memory_unsafe static Type FromHandle(void* h)
+        private var handle: void*;
+        private init(h: void*) { handle = h; }
+        public memory_unsafe static func FromHandle(h: void*) -> Type
         {
             if (h == null) return null;
             return new Type(h);
         }
-        public memory_unsafe void* Handle => handle;
+        public memory_unsafe prop Handle: void* => handle;
 
-        public string Name => faset_type_name(handle);
-        public string FullName => faset_type_fullname(handle);
-        public Type BaseType => FromHandle(faset_type_base(handle));
-        public bool IsClass => faset_type_kind(handle) == 0;
-        public bool IsInterface => faset_type_kind(handle) == 1;
-        public bool IsEnum => faset_type_kind(handle) == 2;
-        public bool IsValueType => faset_type_kind(handle) >= 2;
-        public bool IsAbstract => (faset_type_flags(handle) & 1) != 0 || IsInterface;
-        public bool IsSealed => (faset_type_flags(handle) & 2) != 0;
-        public bool IsRecord => (faset_type_flags(handle) & 4) != 0;
+        public prop Name: string => faset_type_name(handle);
+        public prop FullName: string => faset_type_fullname(handle);
+        public prop BaseType: Type => FromHandle(faset_type_base(handle));
+        public prop IsClass: bool => faset_type_kind(handle) == 0;
+        public prop IsInterface: bool => faset_type_kind(handle) == 1;
+        public prop IsEnum: bool => faset_type_kind(handle) == 2;
+        public prop IsValueType: bool => faset_type_kind(handle) >= 2;
+        public prop IsAbstract: bool => (faset_type_flags(handle) & 1) != 0 || IsInterface;
+        public prop IsSealed: bool => (faset_type_flags(handle) & 2) != 0;
+        public prop IsRecord: bool => (faset_type_flags(handle) & 4) != 0;
 
         // ¿Se puede asignar un valor de tipo 'other' a una variable de este tipo?
-        public bool IsAssignableFrom(Type other)
+        public func IsAssignableFrom(other: Type) -> bool
         {
             if ((void*)other == null) return false;
             return faset_type_assignable(handle, other.handle);
         }
-        public bool IsSubclassOf(Type other)
+        public func IsSubclassOf(other: Type) -> bool
         {
             if ((void*)other == null || other.handle == handle) return false;
             return IsClass && faset_type_assignable(other.handle, handle);
         }
-        public bool IsInstanceOfType(object o)
+        public func IsInstanceOfType(o: object) -> bool
         {
             if ((void*)o == null) return false;
             return faset_type_assignable(handle, faset_obj_type((void*)o));
         }
-        public std.collections.List<string> GetEnumNames()
+        public func GetEnumNames() -> std.collections.List<string>
         {
             std.collections.List<string> names = new std.collections.List<string>();
             int n = faset_type_enum_count(handle);
@@ -886,36 +886,36 @@ namespace std
             return names;
         }
 
-        public override string ToString() => FullName;
-        public override bool Equals(object o)
+        public override func ToString() -> string => FullName;
+        public override func Equals(o: object) -> bool
         {
             Type t = o as Type;
             return (void*)t != null && t.handle == handle;
         }
-        public override int GetHashCode() => faset_obj_hash(handle);
-        public static bool operator==(Type a, Type b)
+        public override func GetHashCode() -> int => faset_obj_hash(handle);
+        public operator ==(a: Type, b: Type) -> bool
         {
             void* x = (void*)a;
             void* y = (void*)b;
             if (x == null || y == null) return x == y;
             return a.handle == b.handle;
         }
-        public static bool operator!=(Type a, Type b) => !(a == b);
+        public operator !=(a: Type, b: Type) -> bool => !(a == b);
     }
 
     // ---------------------------------------------------------------- Enum
     //  Color c = Color.Rojo;  c.ToString() == "Rojo";  Enum.Parse<Color>("Verde", out c)
     public memory_unsafe static class Enum
     {
-        public static string GetName<T>(T value) => value.ToString();
-        public static int Count<T>() => faset_type_enum_count(typeof(T).Handle);
-        public static bool IsDefined<T>(string name)
+        public static func GetName<T>(value: T) -> string => value.ToString();
+        public static func Count<T>() -> int => faset_type_enum_count(typeof(T).Handle);
+        public static func IsDefined<T>(name: string) -> bool
         {
             T v;
             return TryParse<T>(name, out v);
         }
         // Busca el miembro con ese nombre: devuelve false (y default) si no existe.
-        public static bool TryParse<T>(string name, out T value)
+        public static func TryParse<T>(name: string, out value: T) -> bool
         {
             void* t = typeof(T).Handle;
             int n = faset_type_enum_count(t);
@@ -930,16 +930,16 @@ namespace std
             value = default(T);
             return false;
         }
-        public static bool Parse<T>(string name, out T value) => TryParse<T>(name, out value);
+        public static func Parse<T>(name: string, out value: T) -> bool => TryParse<T>(name, out value);
         // Como TryParse, pero termina con 'panic' si el nombre no existe.
-        [TrackCaller] public static T Parse<T>(string name)
+        [TrackCaller] public static func Parse<T>(name: string) -> T
         {
             T v;
             if (!TryParse<T>(name, out v)) panic("'" + name + "' no es un valor de " + typeof(T).Name);
             return v;
         }
-        public static std.collections.List<string> GetNames<T>() => typeof(T).GetEnumNames();
-        public static std.collections.List<T> GetValues<T>()
+        public static func GetNames<T>() -> std.collections.List<string> => typeof(T).GetEnumNames();
+        public static func GetValues<T>() -> std.collections.List<T>
         {
             void* t = typeof(T).Handle;
             std.collections.List<T> values = new std.collections.List<T>();
@@ -956,12 +956,12 @@ namespace std
 
     public static class ComparableExtensions
     {
-        public static int CompareTo(this int a, int b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this long a, long b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this uint a, uint b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this ulong a, ulong b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this double a, double b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this float a, float b) => a < b ? -1 : a > b ? 1 : 0;
-        public static int CompareTo(this char a, char b) => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: int, b: int) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: long, b: long) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: uint, b: uint) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: ulong, b: ulong) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: double, b: double) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: float, b: float) -> int => a < b ? -1 : a > b ? 1 : 0;
+        public static func CompareTo(this a: char, b: char) -> int => a < b ? -1 : a > b ? 1 : 0;
     }
 }

@@ -15,16 +15,16 @@ namespace std.ui
 {
     public memory_unsafe class TreeNode
     {
-        string text = "";
-        bool expanded;
-        public List<TreeNode> Nodes = new List<TreeNode>();
-        public TreeNode Parent;
-        public string Tag = "";          // dato libre del programa (ruta, id...)
-        internal Widget view;
+        var text: string = "";
+        var expanded: bool;
+        public var Nodes: List<TreeNode> = new List<TreeNode>();
+        public var Parent: TreeNode;
+        public var Tag: string = "";          // dato libre del programa (ruta, id...)
+        internal var view: Widget;
 
-        public TreeNode(string text) { this.text = String.Copy(text); }
+        public init(text: string) { this.text = String.Copy(text); }
 
-        public string Text
+        public prop Text: string
         {
             get => text;
             set
@@ -34,7 +34,7 @@ namespace std.ui
             }
         }
 
-        public bool Expanded
+        public prop Expanded: bool
         {
             get => expanded;
             set
@@ -45,9 +45,9 @@ namespace std.ui
         }
 
         // TreeView al que pertenece (null si aún no está en ninguno).
-        public Widget TreeView => view;
+        public prop TreeView: Widget => view;
 
-        public int Level
+        public prop Level: int
         {
             get
             {
@@ -58,9 +58,9 @@ namespace std.ui
         }
 
         // Textos desde la raíz separados por '/'.
-        public string FullPath => Parent == null ? String.Copy(text) : Parent.FullPath + "/" + text;
+        public prop FullPath: string => Parent == null ? String.Copy(text) : Parent.FullPath + "/" + text;
 
-        public TreeNode Add(string text)
+        public func Add(text: string) -> TreeNode
         {
             TreeNode n = new TreeNode(text);
             n.Parent = this;
@@ -70,39 +70,39 @@ namespace std.ui
             return n;
         }
 
-        public void Remove(TreeNode node)
+        public func Remove(node: TreeNode)
         {
             Nodes.Remove(node);
             if (view != null) view.NodeRemoved(node);
             Changed();
         }
 
-        public void Clear()
+        public func Clear()
         {
             Nodes.Clear();
             if (view != null) view.NodeRemoved(this);
             Changed();
         }
 
-        public void Expand() { Expanded = true; }
-        public void Collapse() { Expanded = false; }
-        public void Toggle() { Expanded = !expanded; }
+        public func Expand() { Expanded = true; }
+        public func Collapse() { Expanded = false; }
+        public func Toggle() { Expanded = !expanded; }
 
-        public void ExpandAll()
+        public func ExpandAll()
         {
             expanded = true;
             for (int i = 0; i < Nodes.Count; i++) Nodes[i].ExpandAll();
             Changed();
         }
 
-        public void CollapseAll()
+        public func CollapseAll()
         {
             expanded = false;
             for (int i = 0; i < Nodes.Count; i++) Nodes[i].CollapseAll();
             Changed();
         }
 
-        void Changed()
+        func Changed()
         {
             if (view != null) view.Invalidate();
         }
@@ -110,12 +110,12 @@ namespace std.ui
 
     public memory_unsafe partial class Widget
     {
-        List<TreeNode> treeNodes;
-        TreeNode selectedNode;
-        int treeScroll;   // primera fila visible
+        var treeNodes: List<TreeNode>;
+        var selectedNode: TreeNode;
+        var treeScroll: int;   // primera fila visible
 
         // TreeView: nodos de primer nivel.
-        public List<TreeNode> Nodes
+        public prop Nodes: List<TreeNode>
         {
             get
             {
@@ -124,7 +124,7 @@ namespace std.ui
             }
         }
 
-        public TreeNode AddNode(string text)
+        public func AddNode(text: string) -> TreeNode
         {
             TreeNode n = new TreeNode(text);
             n.view = this;
@@ -133,14 +133,14 @@ namespace std.ui
             return n;
         }
 
-        public void RemoveNode(TreeNode node)
+        public func RemoveNode(node: TreeNode)
         {
             Nodes.Remove(node);
             NodeRemoved(node);
             Invalidate();
         }
 
-        public void ClearNodes()
+        public func ClearNodes()
         {
             Nodes.Clear();
             selectedNode = null;
@@ -148,18 +148,18 @@ namespace std.ui
             Invalidate();
         }
 
-        public void ExpandAll()
+        public func ExpandAll()
         {
             for (int i = 0; i < Nodes.Count; i++) Nodes[i].ExpandAll();
         }
 
-        public void CollapseAll()
+        public func CollapseAll()
         {
             for (int i = 0; i < Nodes.Count; i++) Nodes[i].CollapseAll();
         }
 
         // Nodo elegido (null = ninguno). Asignarlo expande sus padres y no lanza SelectedChanged.
-        public TreeNode SelectedNode
+        public prop SelectedNode: TreeNode
         {
             get => selectedNode;
             set
@@ -172,7 +172,7 @@ namespace std.ui
         }
 
         // Si se quita el nodo elegido (o uno de sus padres), deja de estar elegido.
-        internal void NodeRemoved(TreeNode node)
+        internal func NodeRemoved(node: TreeNode)
         {
             for (TreeNode p = selectedNode; p != null; p = p.Parent)
                 if (p == node)
@@ -182,9 +182,9 @@ namespace std.ui
                 }
         }
 
-        internal int TreeRowHeight => (int)UiFont.Get(FontSize, Bold).LineHeight + 12;
+        internal prop TreeRowHeight: int => (int)UiFont.Get(FontSize, Bold).LineHeight + 12;
 
-        int TreeVisibleRows
+        prop TreeVisibleRows: int
         {
             get
             {
@@ -195,7 +195,7 @@ namespace std.ui
         }
 
         // Filas visibles (nodos de las ramas expandidas) en orden, con su profundidad.
-        void Flatten(List<TreeNode> nodes, TreeNode parent, int depth, List<TreeNode> rows, List<int> depths)
+        func Flatten(nodes: List<TreeNode>, parent: TreeNode, depth: int, rows: List<TreeNode>, depths: List<int>)
         {
             for (int i = 0; i < nodes.Count; i++)
             {
@@ -208,33 +208,33 @@ namespace std.ui
             }
         }
 
-        List<TreeNode> VisibleNodes(List<int> depths)
+        func VisibleNodes(depths: List<int>) -> List<TreeNode>
         {
-            auto rows = new List<TreeNode>();
+            var rows = new List<TreeNode>();
             Flatten(Nodes, null, 0, rows, depths);
             return rows;
         }
 
-        void ClampTree(int count)
+        func ClampTree(count: int)
         {
             int most = count - TreeVisibleRows;
             if (treeScroll > most) treeScroll = most;
             if (treeScroll < 0) treeScroll = 0;
         }
 
-        internal void ScrollTree(int rows)
+        internal func ScrollTree(rows: int)
         {
             treeScroll += rows;
-            auto depths = new List<int>();
+            var depths = new List<int>();
             ClampTree(VisibleNodes(depths).Count);
             Invalidate();
         }
 
-        void EnsureNodeVisible()
+        func EnsureNodeVisible()
         {
             if (selectedNode == null) return;
-            auto depths = new List<int>();
-            auto rows = VisibleNodes(depths);
+            var depths = new List<int>();
+            var rows = VisibleNodes(depths);
             int i = rows.IndexOf(selectedNode);
             if (i < 0) return;
             if (i < treeScroll) treeScroll = i;
@@ -244,7 +244,7 @@ namespace std.ui
         }
 
         // Fila (índice en VisibleNodes) bajo la coordenada y de la ventana, o -1.
-        int TreeRowAt(int py, int count)
+        func TreeRowAt(py: int, count: int) -> int
         {
             int local = py - ScreenY - 4;
             if (local < 0) return -1;
@@ -252,7 +252,7 @@ namespace std.ui
             return i < count ? i : -1;
         }
 
-        void ChooseNode(TreeNode n)
+        func ChooseNode(n: TreeNode)
         {
             if (n == selectedNode) return;
             selectedNode = n;
@@ -261,18 +261,18 @@ namespace std.ui
             RaiseChanged();
         }
 
-        internal void TreeSelectAt(int py)
+        internal func TreeSelectAt(py: int)
         {
-            auto depths = new List<int>();
-            auto rows = VisibleNodes(depths);
+            var depths = new List<int>();
+            var rows = VisibleNodes(depths);
             int i = TreeRowAt(py, rows.Count);
             if (i >= 0) ChooseNode(rows[i]);
         }
 
-        internal void TreeMouseDown(int px, int py, int clicks)
+        internal func TreeMouseDown(px: int, py: int, clicks: int)
         {
-            auto depths = new List<int>();
-            auto rows = VisibleNodes(depths);
+            var depths = new List<int>();
+            var rows = VisibleNodes(depths);
             int i = TreeRowAt(py, rows.Count);
             if (i < 0) return;
             TreeNode n = rows[i];
@@ -291,10 +291,10 @@ namespace std.ui
             }
         }
 
-        internal void TreeKey(UiEvent e)
+        internal func TreeKey(e: UiEvent)
         {
-            auto depths = new List<int>();
-            auto rows = VisibleNodes(depths);
+            var depths = new List<int>();
+            var rows = VisibleNodes(depths);
             if (rows.Count == 0) return;
             int i = rows.IndexOf(selectedNode);
             TreeNode n = selectedNode;
@@ -340,15 +340,15 @@ namespace std.ui
             ClampTree(VisibleNodes(depths).Count);
         }
 
-        void DrawTreeView(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused,
-                          uint textColor, uint accent)
+        func DrawTreeView(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, focused: bool,
+                          textColor: uint, accent: uint)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 8;
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);
             else c.FillRoundRect(fx, fy, fw, fh, r, p.Input);
             c.StrokeRoundRect(fx, fy, fw, fh, r, focused ? 1.5f : 1, focused ? p.Focus : (BorderColor != 0 ? BorderColor : p.Border));
-            auto depths = new List<int>();
-            auto rows = VisibleNodes(depths);
+            var depths = new List<int>();
+            var rows = VisibleNodes(depths);
             ClampTree(rows.Count);
             int rh = TreeRowHeight, vis = TreeVisibleRows;
             bool bar = rows.Count > vis;

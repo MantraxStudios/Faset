@@ -58,7 +58,7 @@ namespace std.video
     public static class VideoTime
     {
         // "1:05", "12:00" o "1:02:03" para una duración en segundos.
-        public static string Format(double seconds)
+        public static func Format(seconds: double) -> string
         {
             int total = seconds > 0 ? (int)seconds : 0;
             int h = total / 3600, m = (total / 60) % 60, s = total % 60;
@@ -84,48 +84,48 @@ namespace std.ui
     public memory_unsafe class VideoPlayer
     {
         // Reproductores con un vídeo cargado: los actualiza el bucle de la ventana.
-        static List<VideoPlayer> active = new List<VideoPlayer>();
-        static int headless = -1;
+        static var active: List<VideoPlayer> = new List<VideoPlayer>();
+        static var headless: int = -1;
 
-        public Widget View;
-        public bool Loop;
-        public bool ShowControls = true;
-        public VideoStretch Stretch = VideoStretch.Uniform;
+        public var View: Widget;
+        public var Loop: bool;
+        public var ShowControls: bool = true;
+        public var Stretch: VideoStretch = VideoStretch.Uniform;
 
         void* handle;
-        string source = String.Copy("");
-        string error = String.Copy("");
-        bool autoPlay;
-        bool playing;
-        bool ended;
-        bool opened;
-        bool failed;
-        bool hasFrame;
-        float volume = 1;
-        double duration = -1;
-        long lastClock;
-        long lastAction;    // última orden (Play, Seek...): se sigue sondeando un rato tras ella
+        var source: string = String.Copy("");
+        var error: string = String.Copy("");
+        var autoPlay: bool;
+        var playing: bool;
+        var ended: bool;
+        var opened: bool;
+        var failed: bool;
+        var hasFrame: bool;
+        var volume: float = 1;
+        var duration: double = -1;
+        var lastClock: long;
+        var lastAction: long;    // última orden (Play, Seek...): se sigue sondeando un rato tras ella
 
         // Barra de controles: arrastre del deslizador de posición.
-        bool dragging;
-        float dragFraction;
-        long lastDragSeek;
+        var dragging: bool;
+        var dragFraction: float;
+        var lastDragSeek: long;
 
         // Eventos (como Widget.SetEvents): fn(target, View, número).
         delegate*<void*, Widget, int, void> eventFn;
         void* eventTarget;
-        int openedEvent;
-        int endedEvent;
-        int failedEvent;
+        var openedEvent: int;
+        var endedEvent: int;
+        var failedEvent: int;
 
-        public VideoPlayer(Widget view)
+        public init(view: Widget)
         {
             View = view;
             view.Player = this;
         }
 
         // Crea el control y su reproductor (para añadir con window.Add(player.View)).
-        public static VideoPlayer Create(string name, int x, int y, int w, int h)
+        public static func Create(name: string, x: int, y: int, w: int, h: int) -> VideoPlayer
         {
             return new VideoPlayer(Widget.Create(WidgetKind.VideoPlayer, name, x, y, w, h));
         }
@@ -140,7 +140,7 @@ namespace std.ui
             failedEvent = failed;
         }
 
-        void Raise(int ev)
+        func Raise(ev: int)
         {
             if (ev != 0 && eventFn != null) eventFn(eventTarget, View, ev);
         }
@@ -148,7 +148,7 @@ namespace std.ui
         // ------------------------------------------------------------- propiedades
 
         // Archivo o URI del vídeo. Al cambiarlo se carga (en pausa, o en marcha con AutoPlay).
-        public string Source
+        public prop Source: string
         {
             get => source;
             set
@@ -160,7 +160,7 @@ namespace std.ui
         }
 
         // Empieza a reproducir en cuanto se asigna Source.
-        public bool AutoPlay
+        public prop AutoPlay: bool
         {
             get => autoPlay;
             set
@@ -171,7 +171,7 @@ namespace std.ui
         }
 
         // Volumen de 0 a 1.
-        public float Volume
+        public prop Volume: float
         {
             get => volume;
             set
@@ -183,7 +183,7 @@ namespace std.ui
         }
 
         // Posición en segundos (asignarla equivale a Seek).
-        public double Position
+        public prop Position: double
         {
             get
             {
@@ -196,7 +196,7 @@ namespace std.ui
         }
 
         // Duración en segundos (0 si aún no se conoce o es un directo).
-        public double Duration
+        public prop Duration: double
         {
             get
             {
@@ -205,16 +205,16 @@ namespace std.ui
             }
         }
 
-        public bool IsPlaying => playing;
-        public bool IsOpened => opened;
-        public bool HasEnded => ended;
-        public bool HasFailed => failed;
+        public prop IsPlaying: bool => playing;
+        public prop IsOpened: bool => opened;
+        public prop HasEnded: bool => ended;
+        public prop HasFailed: bool => failed;
 
         // Mensaje del último error ("" si no hubo).
-        public string Error => error;
+        public prop Error: string => error;
 
         // Tamaño original del vídeo en píxeles (0 hasta el primer fotograma).
-        public int NaturalWidth
+        public prop NaturalWidth: int
         {
             get
             {
@@ -224,7 +224,7 @@ namespace std.ui
             }
         }
 
-        public int NaturalHeight
+        public prop NaturalHeight: int
         {
             get
             {
@@ -236,7 +236,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- control
 
-        public void Play()
+        public func Play()
         {
             if (handle == null || failed) return;
             VideoNative.faset_video_play(handle);
@@ -245,7 +245,7 @@ namespace std.ui
             Wake();
         }
 
-        public void Pause()
+        public func Pause()
         {
             if (handle == null) return;
             VideoNative.faset_video_pause(handle);
@@ -253,14 +253,14 @@ namespace std.ui
             Wake();
         }
 
-        public void TogglePlay()
+        public func TogglePlay()
         {
             if (playing) Pause();
             else Play();
         }
 
         // Detiene y vuelve al principio (se ve el primer fotograma).
-        public void Stop()
+        public func Stop()
         {
             if (handle == null) return;
             VideoNative.faset_video_pause(handle);
@@ -270,7 +270,7 @@ namespace std.ui
             Wake();
         }
 
-        public void Seek(double seconds)
+        public func Seek(seconds: double)
         {
             if (handle == null) return;
             if (seconds < 0) seconds = 0;
@@ -282,7 +282,7 @@ namespace std.ui
         }
 
         // Libera el vídeo (el control queda vacío). Se llama solo al cerrar la ventana.
-        public void Close()
+        public func Close()
         {
             if (handle != null)
             {
@@ -301,7 +301,7 @@ namespace std.ui
             Wake();
         }
 
-        void Open()
+        func Open()
         {
             if (source.Length == 0) return;
             if (headless < 0)
@@ -323,9 +323,9 @@ namespace std.ui
 
         // Las rutas relativas se buscan en la carpeta actual y, si no están ahí, el runtime de C
         // prueba junto al ejecutable.
-        static string ResolvePath(string s) => String.Copy(s);
+        static func ResolvePath(s: string) -> string => String.Copy(s);
 
-        void Wake()
+        func Wake()
         {
             lastAction = Environment.TickCount64();
             if (View != null) View.Invalidate();
@@ -334,7 +334,7 @@ namespace std.ui
         // ------------------------------------------------------------- bucle
 
         // Atiende eventos y recoge el fotograma más reciente (hilo de la interfaz).
-        internal void Update()
+        internal func Update()
         {
             if (handle == null) return;
             int ev = VideoNative.faset_video_poll(handle);
@@ -395,7 +395,7 @@ namespace std.ui
         }
 
         // Actualiza todos los reproductores; devuelve cuántos ms puede dormir el bucle (-1 = sin límite).
-        public static int Tick()
+        public static func Tick() -> int
         {
             int wait = -1;
             for (int i = active.Count - 1; i >= 0; i--)
@@ -412,7 +412,7 @@ namespace std.ui
         }
 
         // Sin pantalla: espera a que cada vídeo tenga su primer fotograma.
-        public static void PrerollAll(int milliseconds)
+        public static func PrerollAll(milliseconds: int)
         {
             for (int i = 0; i < active.Count; i++)
             {
@@ -424,7 +424,7 @@ namespace std.ui
         }
 
         // Deja pasar el tiempo atendiendo a los vídeos (FASET_UI_SCRIPT: "wait 1500").
-        public static void WaitTicking(int milliseconds)
+        public static func WaitTicking(milliseconds: int)
         {
             long end = Environment.TickCount64() + milliseconds;
             while (Environment.TickCount64() < end)
@@ -436,7 +436,7 @@ namespace std.ui
         }
 
         // Cierra los vídeos de una ventana que se cierra (para el sonido).
-        public static void CloseAll(Window w)
+        public static func CloseAll(w: Window)
         {
             for (int i = active.Count - 1; i >= 0; i--)
             {
@@ -450,9 +450,9 @@ namespace std.ui
 
         const int BarHeight = 44;
 
-        bool BarVisible(Window w) => ShowControls && (w.Hot == View || !playing || dragging || w.Pressed == View);
+        func BarVisible(w: Window) -> bool => ShowControls && (w.Hot == View || !playing || dragging || w.Pressed == View);
 
-        internal void Draw(Canvas c, Palette p, Window w)
+        internal func Draw(c: Canvas, p: Palette, w: Window)
         {
             Widget v = View;
             float fx = v.ScreenX, fy = v.ScreenY, fw = v.ActualWidth, fh = v.ActualHeight;
@@ -466,7 +466,7 @@ namespace std.ui
             if (v.BorderColor != 0) c.StrokeRoundRect(fx, fy, fw, fh, 0, 1, v.BorderColor);
         }
 
-        void DrawFrame(Canvas c)
+        func DrawFrame(c: Canvas)
         {
             int vw = 0, vh = 0;
             VideoNative.faset_video_frame_size(handle, &vw, &vh);
@@ -500,7 +500,7 @@ namespace std.ui
         }
 
         // Icono de película con el nombre del archivo (o el error). También lo usa el diseñador.
-        public static void DrawPlaceholder(Canvas c, Palette p, Widget v, string source, string error, float fx, float fy, float fw, float fh)
+        public static func DrawPlaceholder(c: Canvas, p: Palette, v: Widget, source: string, error: string, fx: float, fy: float, fw: float, fh: float)
         {
             uint fg = Rgb.Alpha(0xffffff, 0.55f);
             float cx = fx + fw / 2, cy = fy + fh / 2 - 10;
@@ -531,14 +531,14 @@ namespace std.ui
         }
 
         // Triángulo de "reproducir" relleno (abanico de segmentos) centrado en cx, cy.
-        static void FillPlayTriangle(Canvas c, float cx, float cy, float r, uint color)
+        static func FillPlayTriangle(c: Canvas, cx: float, cy: float, r: float, color: uint)
         {
             float left = cx - r * 0.75f, right = cx + r;
             for (float k = -r; k <= r; k += 0.75f) c.Line(left, cy + k, right, cy, 1.2f, color);
             c.Line(left, cy - r, left, cy + r, 1.2f, color);
         }
 
-        static void DrawBigPlay(Canvas c, float cx, float cy)
+        static func DrawBigPlay(c: Canvas, cx: float, cy: float)
         {
             c.FillCircle(cx, cy, 28, Rgb.Alpha(0x000000, 0.55f));
             c.StrokeRoundRect(cx - 28, cy - 28, 56, 56, 28, 1.5f, Rgb.Alpha(0xffffff, 0.5f));
@@ -546,7 +546,7 @@ namespace std.ui
         }
 
         // Zona del deslizador dentro de la barra (coordenadas lógicas de la ventana).
-        void SliderRange(UiFont font, out float left, out float right)
+        func SliderRange(font: UiFont, out left: float, out right: float)
         {
             float fx = View.ScreenX, fw = View.ActualWidth;
             string sample = VideoTime.Format(Duration);
@@ -556,7 +556,7 @@ namespace std.ui
             if (right < left + 20) right = left + 20;
         }
 
-        void DrawBar(Canvas c, Palette p, float fx, float fy, float fw, float fh)
+        func DrawBar(c: Canvas, p: Palette, fx: float, fy: float, fw: float, fh: float)
         {
             float top = fy + fh - BarHeight;
             c.FillRoundRectGradient(fx, top - 16, fw, BarHeight + 16, 0, Rgb.Alpha(0x000000, 0), Rgb.Alpha(0x000000, 0.72f), false);
@@ -591,7 +591,7 @@ namespace std.ui
 
         // ------------------------------------------------------------- ratón (lo llama Window)
 
-        internal void MouseDown(int mx, int my)
+        internal func MouseDown(mx: int, my: int)
         {
             if (!ShowControls || handle == null || failed) return;
             float fy = View.ScreenY, fh = View.ActualHeight;
@@ -610,12 +610,12 @@ namespace std.ui
             TogglePlay();
         }
 
-        internal void MouseDrag(int mx)
+        internal func MouseDrag(mx: int)
         {
             if (dragging) DragTo(mx, false);
         }
 
-        internal void MouseUp(int mx)
+        internal func MouseUp(mx: int)
         {
             if (!dragging) return;
             DragTo(mx, true);
@@ -623,7 +623,7 @@ namespace std.ui
             Wake();
         }
 
-        void DragTo(int mx, bool force)
+        func DragTo(mx: int, force: bool)
         {
             float left = 0, right = 0;
             SliderRange(UiFont.Get(12, false), out left, out right);

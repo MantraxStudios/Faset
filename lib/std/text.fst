@@ -16,17 +16,17 @@ namespace std.text
 {
     public memory_unsafe class StringBuilder
     {
-        byte* buffer;
-        int length;
-        int capacity;
+        var buffer: byte*;
+        var length: int;
+        var capacity: int;
 
-        public StringBuilder() { }
-        public StringBuilder(int initialCapacity) { Reserve(initialCapacity); }
-        ~StringBuilder() { Memory.Free(buffer); }
+        public init() { }
+        public init(initialCapacity: int) { Reserve(initialCapacity); }
+        deinit { Memory.Free(buffer); }
 
-        public int Length => length;
+        public prop Length: int => length;
 
-        void Reserve(int n)
+        func Reserve(n: int)
         {
             if (n + 1 <= capacity) return;
             int c = capacity < 32 ? 32 : capacity;
@@ -35,7 +35,7 @@ namespace std.text
             capacity = c;
         }
 
-        public StringBuilder Append(string s)
+        public func Append(s: string) -> StringBuilder
         {
             Reserve(length + s.Length);
             Memory.Copy(buffer + length, s.Ptr, s.Length);
@@ -44,7 +44,7 @@ namespace std.text
             return this;
         }
 
-        public StringBuilder Append(long v)
+        public func Append(v: long) -> StringBuilder
         {
             string s = String.FromInt(v);
             Append(s);
@@ -52,7 +52,7 @@ namespace std.text
             return this;
         }
 
-        public StringBuilder Append(ulong v)
+        public func Append(v: ulong) -> StringBuilder
         {
             string s = String.FromUInt(v);
             Append(s);
@@ -60,7 +60,7 @@ namespace std.text
             return this;
         }
 
-        public StringBuilder Append(double v)
+        public func Append(v: double) -> StringBuilder
         {
             string s = String.FromDouble(v);
             Append(s);
@@ -68,10 +68,10 @@ namespace std.text
             return this;
         }
 
-        public StringBuilder Append(bool v) => Append(v ? "True" : "False");
+        public func Append(v: bool) -> StringBuilder => Append(v ? "True" : "False");
 
         // Añade un carácter Unicode codificado en UTF-8.
-        public StringBuilder Append(char c)
+        public func Append(c: char) -> StringBuilder
         {
             Reserve(length + 4);
             if (c < 0x80)
@@ -101,7 +101,7 @@ namespace std.text
         }
 
         // Añade un byte tal cual (para datos binarios: la cadena resultante puede no ser UTF-8).
-        public StringBuilder AppendByte(int b)
+        public func AppendByte(b: int) -> StringBuilder
         {
             Reserve(length + 1);
             buffer[length++] = (byte)b;
@@ -110,7 +110,7 @@ namespace std.text
         }
 
         // Añade 'count' bytes de 'data'.
-        public memory_unsafe StringBuilder AppendBytes(byte* data, long count)
+        public memory_unsafe func AppendBytes(data: byte*, count: long) -> StringBuilder
         {
             Reserve(length + (int)count);
             Memory.Copy(buffer + length, data, count);
@@ -120,12 +120,12 @@ namespace std.text
         }
 
         // Entero de 16 / 32 / 64 bits en little-endian (formatos binarios: ZIP, WAV...).
-        public StringBuilder AppendUInt16LE(int v) => AppendByte(v & 0xFF).AppendByte((v >> 8) & 0xFF);
-        public StringBuilder AppendUInt32LE(uint v) => AppendUInt16LE((int)(v & 0xFFFF)).AppendUInt16LE((int)(v >> 16));
-        public StringBuilder AppendUInt64LE(ulong v) => AppendUInt32LE((uint)(v & 0xFFFFFFFFUL)).AppendUInt32LE((uint)(v >> 32));
+        public func AppendUInt16LE(v: int) -> StringBuilder => AppendByte(v & 0xFF).AppendByte((v >> 8) & 0xFF);
+        public func AppendUInt32LE(v: uint) -> StringBuilder => AppendUInt16LE((int)(v & 0xFFFF)).AppendUInt16LE((int)(v >> 16));
+        public func AppendUInt64LE(v: ulong) -> StringBuilder => AppendUInt32LE((uint)(v & 0xFFFFFFFFUL)).AppendUInt32LE((uint)(v >> 32));
 
         // Inserta 's' en la posición 'index' (en bytes).
-        [TrackCaller] public StringBuilder Insert(int index, string s)
+        [TrackCaller] public func Insert(index: int, s: string) -> StringBuilder
         {
             if (index < 0 || index > length) throw new ArgumentOutOfRangeException("StringBuilder.Insert: índice fuera del texto", "index");
             Reserve(length + s.Length);
@@ -137,7 +137,7 @@ namespace std.text
         }
 
         // Quita 'count' bytes desde 'start'.
-        [TrackCaller] public StringBuilder Remove(int start, int count)
+        [TrackCaller] public func Remove(start: int, count: int) -> StringBuilder
         {
             if (start < 0 || count < 0 || start + count > length) throw new ArgumentOutOfRangeException("StringBuilder.Remove: rango fuera del texto", "start");
             for (int i = start + count; i < length; i++) buffer[i - count] = buffer[i];
@@ -147,7 +147,7 @@ namespace std.text
         }
 
         // Sustituye todas las apariciones de 'oldValue' por 'newValue'.
-        public StringBuilder Replace(string oldValue, string newValue)
+        public func Replace(oldValue: string, newValue: string) -> StringBuilder
         {
             if (oldValue.Length == 0 || length == 0) return this;
             string r = Text.Replace(View(), oldValue, newValue);
@@ -163,33 +163,33 @@ namespace std.text
             return buffer[index];
         }
 
-        public StringBuilder AppendLine() => Append("\n");
-        public StringBuilder AppendLine(string s) => Append(s).Append("\n");
+        public func AppendLine() -> StringBuilder => Append("\n");
+        public func AppendLine(s: string) -> StringBuilder => Append(s).Append("\n");
 
-        public StringBuilder AppendRepeat(string s, int times)
+        public func AppendRepeat(s: string, times: int) -> StringBuilder
         {
             for (int i = 0; i < times; i++) Append(s);
             return this;
         }
 
-        public void Clear()
+        public func Clear()
         {
             length = 0;
             if (buffer != null) buffer[0] = 0;
         }
 
         // Copia del contenido.
-        public override string ToString() => String.Copy(View());
+        public override func ToString() -> string => String.Copy(View());
 
         // Vista sin copiar: válida hasta la próxima modificación del builder.
-        public string View() => String.FromBytes(buffer, length);
+        public func View() -> string => String.FromBytes(buffer, length);
     }
 
     public memory_unsafe static class Text
     {
         // Divide 's' por 'separator'. Las partes son vistas de 's' (no copian).
         // Devuelve una lista nueva
-        public static List<string> Split(string s, string separator)
+        public static func Split(s: string, separator: string) -> List<string>
         {
             List<string> parts = new List<string>();
             if (separator.Length == 0)
@@ -210,7 +210,7 @@ namespace std.text
         }
 
         // Une las partes con 'separator' (copia nueva).
-        public static string Join(List<string> parts, string separator)
+        public static func Join(parts: List<string>, separator: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < parts.Count; i++)
@@ -223,7 +223,7 @@ namespace std.text
             return r;
         }
 
-        public static string Replace(string s, string oldValue, string newValue)
+        public static func Replace(s: string, oldValue: string, newValue: string) -> string
         {
             if (oldValue.Length == 0) return String.Copy(s);
             StringBuilder sb = new StringBuilder(s.Length);
@@ -241,7 +241,7 @@ namespace std.text
             return r;
         }
 
-        public static string Repeat(string s, int times)
+        public static func Repeat(s: string, times: int) -> string
         {
             StringBuilder sb = new StringBuilder(s.Length * times);
             sb.AppendRepeat(s, times);
@@ -250,7 +250,7 @@ namespace std.text
             return r;
         }
 
-        public static string PadLeft(string s, int width, char pad)
+        public static func PadLeft(s: string, width: int, pad: char) -> string
         {
             StringBuilder sb = new StringBuilder(width);
             for (int i = s.Length; i < width; i++) sb.Append(pad);
@@ -260,7 +260,7 @@ namespace std.text
             return r;
         }
 
-        public static string PadRight(string s, int width, char pad)
+        public static func PadRight(s: string, width: int, pad: char) -> string
         {
             StringBuilder sb = new StringBuilder(width);
             sb.Append(s);
@@ -271,7 +271,7 @@ namespace std.text
         }
 
         // Invierte los bytes (correcto para texto ASCII).
-        public static string Reverse(string s)
+        public static func Reverse(s: string) -> string
         {
             byte* p = (byte*)Memory.Alloc(s.Length + 1);
             for (int i = 0; i < s.Length; i++) p[i] = s[s.Length - 1 - i];
@@ -280,7 +280,7 @@ namespace std.text
         }
 
         // true si la cadena está vacía o solo contiene espacios.
-        public static bool IsNullOrWhiteSpace(string s) => s.Trim().Length == 0;
+        public static func IsNullOrWhiteSpace(s: string) -> bool => s.Trim().Length == 0;
     }
 
     // ---------------------------------------------------------------- Base64
@@ -293,23 +293,23 @@ namespace std.text
         const string UrlSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
         // Codifica bytes en Base64 con relleno '='.
-        public static string Encode(string data) => EncodeWith(data, Standard, true);
+        public static func Encode(data: string) -> string => EncodeWith(data, Standard, true);
 
         // Variante para URL y nombres de archivo: '-' y '_' en vez de '+' y '/', sin '='.
-        public static string EncodeUrl(string data) => EncodeWith(data, UrlSafe, false);
+        public static func EncodeUrl(data: string) -> string => EncodeWith(data, UrlSafe, false);
 
         // Decodifica Base64 (acepta los dos alfabetos, con o sin '=' y con espacios o saltos
         // de línea entre los caracteres). FormatException si el texto no es Base64.
-        [TrackCaller] public static string Decode(string text)
+        [TrackCaller] public static func Decode(text: string) -> string
         {
             string r;
             if (!TryDecode(text, out r)) throw new FormatException("Base64.Decode: el texto no es Base64 válido");
             return r;
         }
 
-        public static string DecodeUrl(string text) => Decode(text);
+        public static func DecodeUrl(text: string) -> string => Decode(text);
 
-        public static bool TryDecode(string text, out string data)
+        public static func TryDecode(text: string, out data: string) -> bool
         {
             byte* p = Memory.AllocBytes(text.Length / 4 * 3 + 4);
             int n = 0;
@@ -360,7 +360,7 @@ namespace std.text
             return true;
         }
 
-        static string EncodeWith(string data, string alphabet, bool padding)
+        static func EncodeWith(data: string, alphabet: string, padding: bool) -> string
         {
             byte* p = Memory.AllocBytes((data.Length + 2) / 3 * 4 + 1);
             int n = 0;
@@ -396,20 +396,20 @@ namespace std.text
     public memory_unsafe static class Hex
     {
         // En minúsculas ("00ff").
-        public static string Encode(string data) => EncodeWith(data, "0123456789abcdef");
+        public static func Encode(data: string) -> string => EncodeWith(data, "0123456789abcdef");
         // En mayúsculas ("00FF"), como Convert.ToHexString de .NET.
-        public static string EncodeUpper(string data) => EncodeWith(data, "0123456789ABCDEF");
+        public static func EncodeUpper(data: string) -> string => EncodeWith(data, "0123456789ABCDEF");
 
         // Acepta mayúsculas y minúsculas. FormatException si la longitud es impar o hay
         // caracteres que no son hexadecimales.
-        [TrackCaller] public static string Decode(string text)
+        [TrackCaller] public static func Decode(text: string) -> string
         {
             string r;
             if (!TryDecode(text, out r)) throw new FormatException("Hex.Decode: el texto no es hexadecimal válido");
             return r;
         }
 
-        public static bool TryDecode(string text, out string data)
+        public static func TryDecode(text: string, out data: string) -> bool
         {
             if (text.Length % 2 != 0)
             {
@@ -432,7 +432,7 @@ namespace std.text
             return true;
         }
 
-        static int Digit(int c)
+        static func Digit(c: int) -> int
         {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -440,7 +440,7 @@ namespace std.text
             return -1;
         }
 
-        static string EncodeWith(string data, string digits)
+        static func EncodeWith(data: string, digits: string) -> string
         {
             byte* p = Memory.AllocBytes((long)data.Length * 2 + 1);
             for (int i = 0; i < data.Length; i++)
@@ -465,14 +465,14 @@ namespace std.text
     //   string utf16 = Encoding.Unicode.GetBytes("hola");    // UTF-16 little-endian
     public abstract class Encoding
     {
-        static Encoding utf8;
-        static Encoding latin1;
-        static Encoding ascii;
-        static Encoding utf16le;
-        static Encoding utf16be;
+        static var utf8: Encoding;
+        static var latin1: Encoding;
+        static var ascii: Encoding;
+        static var utf16le: Encoding;
+        static var utf16be: Encoding;
 
         // UTF-8 (GetBytes copia el texto; GetString sustituye las secuencias no válidas).
-        public static Encoding UTF8
+        public static prop UTF8: Encoding
         {
             get
             {
@@ -481,7 +481,7 @@ namespace std.text
             }
         }
         // ISO-8859-1: un byte por carácter (U+0000 a U+00FF).
-        public static Encoding Latin1
+        public static prop Latin1: Encoding
         {
             get
             {
@@ -490,7 +490,7 @@ namespace std.text
             }
         }
         // ASCII de 7 bits.
-        public static Encoding ASCII
+        public static prop ASCII: Encoding
         {
             get
             {
@@ -499,7 +499,7 @@ namespace std.text
             }
         }
         // UTF-16 little-endian (como Encoding.Unicode de .NET y las API W de Windows).
-        public static Encoding Unicode
+        public static prop Unicode: Encoding
         {
             get
             {
@@ -507,9 +507,9 @@ namespace std.text
                 return utf16le;
             }
         }
-        public static Encoding UTF16 => Unicode;
+        public static prop UTF16: Encoding => Unicode;
         // UTF-16 big-endian.
-        public static Encoding BigEndianUnicode
+        public static prop BigEndianUnicode: Encoding
         {
             get
             {
@@ -520,7 +520,7 @@ namespace std.text
 
         // Codificación por nombre ("utf-8", "latin1", "iso-8859-1", "ascii", "utf-16", "utf-16be"...),
         // sin distinguir mayúsculas. ArgumentException si no se conoce.
-        [TrackCaller] public static Encoding GetEncoding(string name)
+        [TrackCaller] public static func GetEncoding(name: string) -> Encoding
         {
             string n = Text.Replace(name.Trim().ToLower(), "_", "-");
             if (n == "utf-8" || n == "utf8") return UTF8;
@@ -533,7 +533,7 @@ namespace std.text
 
         // Detecta una marca de orden de bytes (BOM) al principio de 'data': devuelve la codificación
         // y en 'bomLength' cuántos bytes ocupa; si no hay BOM, devuelve UTF8 y 0.
-        public static Encoding DetectBom(string data, out int bomLength)
+        public static func DetectBom(data: string, out bomLength: int) -> Encoding
         {
             if (data.Length >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF)
             {
@@ -555,7 +555,7 @@ namespace std.text
         }
 
         // Decodifica 'data' según su BOM (sin incluirla); sin BOM, como UTF-8.
-        public static string DecodeWithBom(string data)
+        public static func DecodeWithBom(data: string) -> string
         {
             int n;
             Encoding e = DetectBom(data, out n);
@@ -569,14 +569,14 @@ namespace std.text
         // Convierte bytes de esta codificación a texto (UTF-8).
         public abstract string GetString(string bytes);
         // Marca de orden de bytes (BOM) de la codificación ("" si no tiene).
-        public virtual string GetPreamble() => "";
+        public virtual func GetPreamble() -> string => "";
         // Número de bytes que ocupa 'text' en esta codificación.
-        public int GetByteCount(string text) => GetBytes(text).Length;
+        public func GetByteCount(text: string) -> int => GetBytes(text).Length;
 
-        public override string ToString() => WebName();
+        public override func ToString() -> string => WebName();
 
         // Decodifica el punto de código UTF-8 que empieza en 'i' y avanza 'i' (U+FFFD si no es válido).
-        public static char NextCodePoint(string s, ref int i)
+        public static func NextCodePoint(s: string, ref i: int) -> char
         {
             uint b = s[i];
             int extra = b < 0x80 ? 0 : (b & 0xE0) == 0xC0 ? 1 : (b & 0xF0) == 0xE0 ? 2 : (b & 0xF8) == 0xF0 ? 3 : -1;
@@ -604,10 +604,10 @@ namespace std.text
 
     class Utf8Encoding : Encoding
     {
-        public override string WebName() => "utf-8";
-        public override string GetBytes(string text) => String.Copy(text);
-        public override string GetPreamble() => "\uFEFF";  // EF BB BF
-        public override string GetString(string bytes)
+        public override func WebName() -> string => "utf-8";
+        public override func GetBytes(text: string) -> string => String.Copy(text);
+        public override func GetPreamble() -> string => "﻿";  // EF BB BF
+        public override func GetString(bytes: string) -> string
         {
             StringBuilder sb = new StringBuilder(bytes.Length);
             int i = 0;
@@ -622,15 +622,15 @@ namespace std.text
 
     class SingleByteEncoding : Encoding
     {
-        string name;
-        int max;
-        public SingleByteEncoding(string n, int m)
+        var name: string;
+        var max: int;
+        public init(n: string, m: int)
         {
             name = n;
             max = m;
         }
-        public override string WebName() => name;
-        public override string GetBytes(string text)
+        public override func WebName() -> string => name;
+        public override func GetBytes(text: string) -> string
         {
             StringBuilder sb = new StringBuilder(text.Length);
             int i = 0;
@@ -641,7 +641,7 @@ namespace std.text
             }
             return sb.ToString();
         }
-        public override string GetString(string bytes)
+        public override func GetString(bytes: string) -> string
         {
             StringBuilder sb = new StringBuilder(bytes.Length);
             for (int i = 0; i < bytes.Length; i++)
@@ -656,21 +656,21 @@ namespace std.text
 
     class Utf16Encoding : Encoding
     {
-        bool bigEndian;
-        public Utf16Encoding(bool be) { bigEndian = be; }
-        public override string WebName() => bigEndian ? "utf-16BE" : "utf-16";
-        public override string GetPreamble()
+        var bigEndian: bool;
+        public init(be: bool) { bigEndian = be; }
+        public override func WebName() -> string => bigEndian ? "utf-16BE" : "utf-16";
+        public override func GetPreamble() -> string
         {
             StringBuilder sb = new StringBuilder(2);
             Unit(sb, 0xFEFF);
             return sb.ToString();
         }
-        void Unit(StringBuilder sb, uint u)
+        func Unit(sb: StringBuilder, u: uint)
         {
             if (bigEndian) sb.AppendByte((int)(u >> 8)).AppendByte((int)(u & 0xFF));
             else sb.AppendByte((int)(u & 0xFF)).AppendByte((int)(u >> 8));
         }
-        public override string GetBytes(string text)
+        public override func GetBytes(text: string) -> string
         {
             StringBuilder sb = new StringBuilder(text.Length * 2);
             int i = 0;
@@ -687,8 +687,8 @@ namespace std.text
             }
             return sb.ToString();
         }
-        uint At(string b, int i) => bigEndian ? ((uint)b[i] << 8) | b[i + 1] : ((uint)b[i + 1] << 8) | b[i];
-        public override string GetString(string bytes)
+        func At(b: string, i: int) -> uint => bigEndian ? ((uint)b[i] << 8) | b[i + 1] : ((uint)b[i + 1] << 8) | b[i];
+        public override func GetString(bytes: string) -> string
         {
             StringBuilder sb = new StringBuilder(bytes.Length);
             int n = bytes.Length / 2;
@@ -728,10 +728,10 @@ namespace std.text
     public static class Csv
     {
         // Todas las filas, separadas por comas.
-        [TrackCaller] public static List<List<string>> Parse(string text) => Parse(text, ',');
+        [TrackCaller] public static func Parse(text: string) -> List<List<string>> => Parse(text, ',');
 
         // Todas las filas, con otro separador (';' en muchas hojas de cálculo europeas, '\t'...).
-        [TrackCaller] public static List<List<string>> Parse(string text, char separator)
+        [TrackCaller] public static func Parse(text: string, separator: char) -> List<List<string>>
         {
             List<List<string>> rows = new List<List<string>>();
             CsvReader r = new CsvReader(text, separator);
@@ -740,9 +740,9 @@ namespace std.text
         }
 
         // Filas como diccionarios: la primera fila da los nombres de las columnas.
-        [TrackCaller] public static List<Dictionary<string, string>> ParseWithHeader(string text) => ParseWithHeader(text, ',');
+        [TrackCaller] public static func ParseWithHeader(text: string) -> List<Dictionary<string, string>> => ParseWithHeader(text, ',');
 
-        [TrackCaller] public static List<Dictionary<string, string>> ParseWithHeader(string text, char separator)
+        [TrackCaller] public static func ParseWithHeader(text: string, separator: char) -> List<Dictionary<string, string>>
         {
             List<Dictionary<string, string>> result = new List<Dictionary<string, string>>();
             List<List<string>> rows = Parse(text, separator);
@@ -758,9 +758,9 @@ namespace std.text
         }
 
         // Texto CSV de las filas (líneas terminadas en \r\n, como pide RFC 4180).
-        public static string Write(List<List<string>> rows) => Write(rows, ',');
+        public static func Write(rows: List<List<string>>) -> string => Write(rows, ',');
 
-        public static string Write(List<List<string>> rows, char separator)
+        public static func Write(rows: List<List<string>>, separator: char) -> string
         {
             CsvWriter w = new CsvWriter(separator);
             foreach (var row in rows) w.WriteRow(row);
@@ -768,9 +768,9 @@ namespace std.text
         }
 
         // Una fila (sin el salto de línea).
-        public static string FormatRow(List<string> fields) => FormatRow(fields, ',');
+        public static func FormatRow(fields: List<string>) -> string => FormatRow(fields, ',');
 
-        public static string FormatRow(List<string> fields, char separator)
+        public static func FormatRow(fields: List<string>, separator: char) -> string
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < fields.Count; i++)
@@ -782,14 +782,14 @@ namespace std.text
         }
 
         // Un campo, entre comillas solo si hace falta.
-        public static string FormatField(string field, char separator)
+        public static func FormatField(field: string, separator: char) -> string
         {
             StringBuilder sb = new StringBuilder();
             AppendField(sb, field, separator);
             return sb.ToString();
         }
 
-        public static void AppendField(StringBuilder sb, string field, char separator)
+        public static func AppendField(sb: StringBuilder, field: string, separator: char)
         {
             bool quote = field.Length > 0 && (field[0] == ' ' || field[field.Length - 1] == ' ');
             for (int i = 0; i < field.Length && !quote; i++)
@@ -813,28 +813,28 @@ namespace std.text
     //   while (r.Read()) println(r.Fields[0]);
     public class CsvReader
     {
-        string text;
-        int pos;
-        int separator;
-        int line = 1;
-        List<string> fields = new List<string>();
+        var text: string;
+        var pos: int;
+        var separator: int;
+        var line: int = 1;
+        var fields: List<string> = new List<string>();
 
-        public CsvReader(string csv) : this(csv, ',') { }
+        public init(csv: string) : this(csv, ',') { }
 
-        public CsvReader(string csv, char separatorChar)
+        public init(csv: string, separatorChar: char)
         {
             text = csv;
             separator = separatorChar;
-            if (text.StartsWith("\uFEFF")) pos = 3;  // EF BB BF  // BOM de UTF-8
+            if (text.StartsWith("﻿")) pos = 3;  // EF BB BF  // BOM de UTF-8
         }
 
         // Campos de la fila actual (una lista nueva en cada Read).
-        public List<string> Fields => fields;
+        public prop Fields: List<string> => fields;
         // Número de línea (desde 1) donde empieza la siguiente fila.
-        public int Line => line;
+        public prop Line: int => line;
 
         // Lee la siguiente fila; false al final del texto.
-        [TrackCaller] public bool Read()
+        [TrackCaller] public func Read() -> bool
         {
             if (pos >= text.Length) return false;
             fields = new List<string>();
@@ -898,16 +898,16 @@ namespace std.text
     //   w.WriteRow("Ana", "9,5");          // se escribe "9,5" entre comillas
     public class CsvWriter
     {
-        StringBuilder sb = new StringBuilder();
-        char separator;
+        var sb: StringBuilder = new StringBuilder();
+        var separator: char;
 
-        public CsvWriter() { separator = ','; }
-        public CsvWriter(char separatorChar) { separator = separatorChar; }
+        public init() { separator = ','; }
+        public init(separatorChar: char) { separator = separatorChar; }
 
         // Final de línea ("\r\n" por defecto, como pide RFC 4180; "\n" también vale).
-        public string NewLine = "\r\n";
+        public var NewLine: string = "\r\n";
 
-        public CsvWriter WriteRow(params string[] fields)
+        public func WriteRow(params fields: string[]) -> CsvWriter
         {
             for (int i = 0; i < fields.Length; i++)
             {
@@ -918,8 +918,8 @@ namespace std.text
             return this;
         }
 
-        public CsvWriter WriteRow(List<string> fields) => WriteRow(fields.ToArray());
+        public func WriteRow(fields: List<string>) -> CsvWriter => WriteRow(fields.ToArray());
 
-        public override string ToString() => sb.ToString();
+        public override func ToString() -> string => sb.ToString();
     }
 }

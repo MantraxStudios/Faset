@@ -27,7 +27,7 @@ namespace std
     public class Attribute
     {
         // Nombre del atributo tal como se escribe ("Rango" para RangoAttribute).
-        public string AttributeName()
+        public func AttributeName() -> string
         {
             string n = GetType().Name;
             if (n.Length > 9 && n.Substring(n.Length - 9) == "Attribute") return n.Substring(0, n.Length - 9);
@@ -39,20 +39,20 @@ namespace std
     [AttributeUsage(AttributeTargets.Class)]
     public sealed class AttributeUsage : Attribute
     {
-        public AttributeTargets ValidOn;
-        public bool AllowMultiple;
-        public bool Inherited = true;
-        public AttributeUsage(AttributeTargets validOn) { ValidOn = validOn; }
+        public var ValidOn: AttributeTargets
+        public var AllowMultiple: bool
+        public var Inherited: bool = true
+        public init(validOn: AttributeTargets) { ValidOn = validOn; }
     }
 
     // [Obsolete("usa Otro")]: aviso al compilar cada uso; [Obsolete("...", true)]: error.
     public sealed class Obsolete : Attribute
     {
-        public string Message = "";
-        public bool IsError;
-        public Obsolete() { }
-        public Obsolete(string message) { Message = message; }
-        public Obsolete(string message, bool isError)
+        public var Message: string = ""
+        public var IsError: bool
+        public init() { }
+        public init(message: string) { Message = message; }
+        public init(message: string, isError: bool)
         {
             Message = message;
             IsError = isError;
@@ -64,8 +64,8 @@ namespace std
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
     public sealed class Conditional : Attribute
     {
-        public string Symbol;
-        public Conditional(string symbol) { Symbol = symbol; }
+        public var Symbol: string
+        public init(symbol: string) { Symbol = symbol; }
     }
 
     // [Reflectable]: la clase (y sus derivadas) o el struct lleva metadatos para la reflexión al
@@ -78,7 +78,7 @@ namespace std
     [AttributeUsage(AttributeTargets.Parameter)]
     public sealed class CallerArgumentExpression : Attribute
     {
-        public string ParameterName;
-        public CallerArgumentExpression(string parameterName) { ParameterName = parameterName; }
+        public var ParameterName: string
+        public init(parameterName: string) { ParameterName = parameterName; }
     }
 }

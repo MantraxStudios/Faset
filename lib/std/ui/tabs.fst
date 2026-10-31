@@ -18,7 +18,7 @@ namespace std.ui
         public const int TabHeaderHeight = 36;
 
         // TabControl: número de páginas, página i y página elegida.
-        public int PageCount
+        public prop PageCount: int
         {
             get
             {
@@ -29,7 +29,7 @@ namespace std.ui
             }
         }
 
-        public Widget Page(int index)
+        public func Page(index: int) -> Widget
         {
             int n = 0;
             for (int i = 0; i < Children.Count; i++)
@@ -41,7 +41,7 @@ namespace std.ui
             return null;
         }
 
-        public Widget SelectedPage
+        public prop SelectedPage: Widget
         {
             get => Page(selectedIndex);
             set
@@ -57,7 +57,7 @@ namespace std.ui
         }
 
         // TabControl: añade una página con ese título y la devuelve.
-        public Widget AddPage(string title)
+        public func AddPage(title: string) -> Widget
         {
             Widget page = Widget.Create(WidgetKind.TabPage, "", 0, 0, width, height - TabHeaderHeight);
             page.Text = title;
@@ -67,7 +67,7 @@ namespace std.ui
         }
 
         // Cambia de página por interacción del usuario (lanza SelectedChanged si cambia).
-        internal void SelectTab(int index, bool wrap)
+        internal func SelectTab(index: int, wrap: bool)
         {
             int n = PageCount;
             if (n == 0) return;
@@ -82,7 +82,7 @@ namespace std.ui
             RaiseChanged();
         }
 
-        internal bool IsAncestorOf(Widget w)
+        internal func IsAncestorOf(w: Widget) -> bool
         {
             for (Widget p = w; p != null; p = p.Parent)
                 if (p == this) return true;
@@ -90,7 +90,7 @@ namespace std.ui
         }
 
         // Las páginas ocupan el área bajo las pestañas y solo se ve la elegida.
-        void LayoutPages()
+        func LayoutPages()
         {
             int n = PageCount;
             if (selectedIndex < 0 && n > 0) selectedIndex = 0;
@@ -114,7 +114,7 @@ namespace std.ui
         }
 
         // Posición x (relativa) y ancho de la pestaña i.
-        void TabRect(int index, out float tx, out float tw)
+        func TabRect(index: int, out tx: float, out tw: float)
         {
             UiFont font = UiFont.Get(FontSize, Bold);
             float x = 6;
@@ -139,7 +139,7 @@ namespace std.ui
         }
 
         // Pestaña bajo el punto (coordenadas de la ventana) o -1.
-        public int TabAt(int px, int py)
+        public func TabAt(px: int, py: int) -> int
         {
             if (py < ScreenY || py >= ScreenY + TabHeaderHeight || px < ScreenX || px >= ScreenX + ActualWidth) return -1;
             int n = PageCount;
@@ -152,14 +152,14 @@ namespace std.ui
             return -1;
         }
 
-        internal void TabMouseDown(int px, int py)
+        internal func TabMouseDown(px: int, py: int)
         {
             int i = TabAt(px, py);
             if (i >= 0) SelectTab(i, false);
         }
 
-        void DrawTabControl(Canvas c, Palette p, Window w, UiFont font, float fx, float fy, float fw, float fh, bool focused,
-                            uint textColor, uint accent)
+        func DrawTabControl(c: Canvas, p: Palette, w: Window, font: UiFont, fx: float, fy: float, fw: float, fh: float, focused: bool,
+                            textColor: uint, accent: uint)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 10;
             uint border = BorderColor != 0 ? BorderColor : p.Border;
@@ -194,7 +194,7 @@ namespace std.ui
     public partial class Window
     {
         // Ctrl+Tab: siguiente página del TabControl que contiene el foco (o del primero de la ventana).
-        void CycleTabs(bool back)
+        func CycleTabs(back: bool)
         {
             Widget tabs = null;
             for (Widget p = Focused; p != null && tabs == null; p = p.Parent)
@@ -205,7 +205,7 @@ namespace std.ui
             tabs.SelectTab(tabs.SelectedIndex + (back ? -1 : 1), true);
         }
 
-        static Widget FirstOfKind(Widget w, WidgetKind kind)
+        static func FirstOfKind(w: Widget, kind: WidgetKind) -> Widget
         {
             if (!w.Visible) return null;
             if (w.Kind == kind) return w;

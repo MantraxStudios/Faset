@@ -38,22 +38,22 @@ namespace std.collections
     // argumentos (cada GetEnumerator() empieza de nuevo, salvo el primero, que es él mismo).
     public sealed class Generador<T> : IEnumerable<T>, IEnumerator<T>
     {
-        public T __actual;  // lo asigna 'yield return'
-        Func<int, bool> paso;
-        Func<Generador<T>> clonar;
-        bool entregado;
+        public var __actual: T;  // lo asigna 'yield return'
+        var paso: Func<int, bool>;
+        var clonar: Func<Generador<T>>;
+        var entregado: bool;
 
-        public Generador(Func<int, bool> paso, Func<Generador<T>> clonar)
+        public init(paso: Func<int, bool>, clonar: Func<Generador<T>>)
         {
             this.paso = paso;
             this.clonar = clonar;
         }
 
-        public T Current => __actual;
-        public bool MoveNext() => paso(0);
-        public void Dispose() { paso(1); }
+        public prop Current: T => __actual;
+        public func MoveNext() -> bool => paso(0);
+        public func Dispose() { paso(1); }
 
-        public IEnumerator<T> GetEnumerator()
+        public func GetEnumerator() -> IEnumerator<T>
         {
             if (!entregado)
             {

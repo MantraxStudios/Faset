@@ -49,25 +49,25 @@ namespace std.regex
     [ExceptionBase("ArgumentException")]
     public class RegexParseException
     {
-        public int Offset;
+        public var Offset: int;
 
-        public RegexParseException() { Message = "El patrón de la expresión regular no es válido."; }
-        public RegexParseException(string message) { Message = message; }
+        public init() { Message = "El patrón de la expresión regular no es válido."; }
+        public init(message: string) { Message = message; }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // La búsqueda superó el tiempo límite o el presupuesto de pasos del motor de retroceso.
     [ExceptionBase("Exception")]
     public class RegexMatchTimeoutException
     {
-        public string Pattern;
-        public string Input;
+        public var Pattern: string;
+        public var Input: string;
 
-        public RegexMatchTimeoutException() { Message = "Se agotó el tiempo de la expresión regular."; }
-        public RegexMatchTimeoutException(string message) { Message = message; }
+        public init() { Message = "Se agotó el tiempo de la expresión regular."; }
+        public init(message: string) { Message = message; }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // Funciones de lib/regex/faset_regex.c.
@@ -85,12 +85,12 @@ namespace std.regex
     // Un grupo de una coincidencia. Si no participó, Success es false y Value "".
     public class Group
     {
-        internal string input;
-        internal int index;     // -1 si no participó
-        internal int length;
-        internal string name;
+        internal var input: string;
+        internal var index: int;     // -1 si no participó
+        internal var length: int;
+        internal var name: string;
 
-        internal Group(string input, int index, int length, string name)
+        internal init(input: string, index: int, length: int, name: string)
         {
             this.input = input;
             this.index = index;
@@ -98,26 +98,26 @@ namespace std.regex
             this.name = name;
         }
 
-        public bool Success => index >= 0;
+        public prop Success: bool => index >= 0;
         // Posición (en bytes) donde empieza en el texto (0 si no participó).
-        public int Index => index >= 0 ? index : 0;
-        public int Length => length;
+        public prop Index: int => index >= 0 ? index : 0;
+        public prop Length: int => length;
         // Nombre del grupo ("1", "2"... para los grupos sin nombre).
-        public string Name => name;
-        public string Value => index >= 0 ? input.Substring(index, length) : "";
+        public prop Name: string => name;
+        public prop Value: string => index >= 0 ? input.Substring(index, length) : "";
 
-        public override string ToString() => Value;
+        public override func ToString() -> string => Value;
     }
 
     // Los grupos de una coincidencia: por número (m.Groups[1]) o por nombre (m.Groups["anio"]).
     // El grupo 0 es la coincidencia completa. Un número o nombre que no existe da un grupo sin éxito.
     public class GroupCollection : IEnumerable<Group>
     {
-        Match match;
+        var match: Match;
 
-        internal GroupCollection(Match m) { match = m; }
+        internal init(m: Match) { match = m; }
 
-        public int Count => match.regex == null ? 1 : match.regex.groupCount;
+        public prop Count: int => match.regex == null ? 1 : match.regex.groupCount;
 
         public Group operator[](int i) => match.GetGroup(i);
 
@@ -128,9 +128,9 @@ namespace std.regex
         }
 
         // ¿Existe un grupo con ese nombre (aunque no haya participado)?
-        public bool ContainsKey(string name) => match.regex != null && match.regex.GroupNumberFromName(name) >= 0;
+        public func ContainsKey(name: string) -> bool => match.regex != null && match.regex.GroupNumberFromName(name) >= 0;
 
-        public bool TryGetValue(string name, out Group g)
+        public func TryGetValue(name: string, out g: Group) -> bool
         {
             g = this[name];
             return ContainsKey(name);
@@ -145,12 +145,12 @@ namespace std.regex
     // Resultado de una búsqueda. Si no hay coincidencia, Success es false.
     public memory_unsafe class Match : Group
     {
-        internal Regex regex;
-        internal long* caps;    // inicio y fin de cada grupo (-1 si no participó)
-        List<Group> cache;
-        GroupCollection groups;
+        internal var regex: Regex;
+        internal var caps: long*;    // inicio y fin de cada grupo (-1 si no participó)
+        var cache: List<Group>;
+        var groups: GroupCollection;
 
-        internal Match(Regex regex, string input, long* caps)
+        internal init(regex: Regex, input: string, caps: long*)
             : base(input, caps == null ? -1 : (int)caps[0], caps == null ? 0 : (int)(caps[1] - caps[0]), "0")
         {
             this.regex = regex;
@@ -158,9 +158,9 @@ namespace std.regex
         }
 
         // Coincidencia vacía sin éxito.
-        public static Match Empty => new Match(null, "", null);
+        public static prop Empty: Match => new Match(null, "", null);
 
-        public GroupCollection Groups
+        public prop Groups: GroupCollection
         {
             get
             {
@@ -169,7 +169,7 @@ namespace std.regex
             }
         }
 
-        internal Group GetGroup(int i)
+        internal func GetGroup(i: int) -> Group
         {
             if (i == 0) return this;
             int n = regex == null ? 1 : regex.groupCount;
@@ -189,7 +189,7 @@ namespace std.regex
         }
 
         // Siguiente coincidencia del mismo patrón a partir de esta (sin éxito si no hay más).
-        public Match NextMatch()
+        public func NextMatch() -> Match
         {
             if (!Success || regex == null) return Empty;
             int from = index + length;
@@ -202,7 +202,7 @@ namespace std.regex
         }
 
         // Aplica una plantilla de reemplazo ($1, ${nombre}...) a esta coincidencia.
-        public string Result(string replacement)
+        public func Result(replacement: string) -> string
         {
             if (!Success) throw new InvalidOperationException("Match.Result: la coincidencia no tuvo éxito");
             StringBuilder sb = new StringBuilder();
@@ -216,26 +216,26 @@ namespace std.regex
     // Una expresión regular compilada. Es inmutable: se puede compartir entre hilos.
     public memory_unsafe class Regex
     {
-        void* handle;
-        string pattern;
-        RegexOptions options;
-        long timeoutMs;          // 0 = sin límite de tiempo (solo el presupuesto de pasos)
-        internal int groupCount;
-        List<string> names;      // nombre de cada grupo ("0", "1"... o el nombre)
+        var handle: void*;
+        var pattern: string;
+        var options: RegexOptions;
+        var timeoutMs: long;          // 0 = sin límite de tiempo (solo el presupuesto de pasos)
+        internal var groupCount: int;
+        var names: List<string>;      // nombre de cada grupo ("0", "1"... o el nombre)
 
-        public Regex(string pattern) { Init(pattern, RegexOptions.None, 0); }
+        public init(pattern: string) { Init(pattern, RegexOptions.None, 0); }
 
-        public Regex(string pattern, RegexOptions options) { Init(pattern, options, 0); }
+        public init(pattern: string, options: RegexOptions) { Init(pattern, options, 0); }
 
         // Con tiempo límite por búsqueda: si se supera se lanza RegexMatchTimeoutException.
-        public Regex(string pattern, RegexOptions options, TimeSpan matchTimeout)
+        public init(pattern: string, options: RegexOptions, matchTimeout: TimeSpan)
         {
             long ms = matchTimeout.TotalMillisecondsLong;
             if (ms <= 0) throw new ArgumentOutOfRangeException("matchTimeout", "Regex: el tiempo límite debe ser positivo");
             Init(pattern, options, ms);
         }
 
-        [TrackCaller] void Init(string p, RegexOptions o, long ms)
+        [TrackCaller] func Init(p: string, o: RegexOptions, ms: long)
         {
             pattern = String.Copy(p);
             options = o;
@@ -258,26 +258,26 @@ namespace std.regex
             }
         }
 
-        ~Regex()
+        deinit
         {
             if (handle != null) RegexNative.faset_regex_free(handle);
             handle = null;
         }
 
-        public RegexOptions Options => options;
-        public override string ToString() => pattern;
+        public prop Options: RegexOptions => options;
+        public override func ToString() -> string => pattern;
 
         // ---------------------------------------------------------------- grupos
 
         // Nombres de los grupos por número: "0", "1"..., y después los grupos con nombre.
-        public List<string> GetGroupNames()
+        public func GetGroupNames() -> List<string>
         {
             List<string> r = new List<string>();
             for (int i = 0; i < groupCount; i++) r.Add(names[i]);
             return r;
         }
 
-        public List<int> GetGroupNumbers()
+        public func GetGroupNumbers() -> List<int>
         {
             List<int> r = new List<int>();
             for (int i = 0; i < groupCount; i++) r.Add(i);
@@ -285,7 +285,7 @@ namespace std.regex
         }
 
         // Número del grupo 'name' ("anio" o "2"); -1 si no existe.
-        public int GroupNumberFromName(string name)
+        public func GroupNumberFromName(name: string) -> int
         {
             for (int i = 0; i < groupCount; i++)
                 if (names[i] == name) return i;
@@ -293,21 +293,21 @@ namespace std.regex
         }
 
         // Nombre del grupo 'i' ("" si no existe).
-        public string GroupNameFromNumber(int i) => i >= 0 && i < groupCount ? names[i] : "";
+        public func GroupNameFromNumber(i: int) -> string => i >= 0 && i < groupCount ? names[i] : "";
 
         // ---------------------------------------------------------------- búsqueda
 
         // ¿Hay alguna coincidencia en 'input'?
-        [TrackCaller] public bool IsMatch(string input) => Run(input, 0) != null;
+        [TrackCaller] public func IsMatch(input: string) -> bool => Run(input, 0) != null;
 
-        [TrackCaller] public bool IsMatch(string input, int startat) => Run(input, CheckStart(input, startat)) != null;
+        [TrackCaller] public func IsMatch(input: string, startat: int) -> bool => Run(input, CheckStart(input, startat)) != null;
 
         // Primera coincidencia (Success es false si no hay ninguna).
-        [TrackCaller] public Match Match(string input) => Match(input, 0);
+        [TrackCaller] public func Match(input: string) -> Match => Match(input, 0);
 
         // Primera coincidencia a partir de 'startat' (^ sigue refiriéndose al principio del texto;
         // \G, a 'startat'; las búsquedas hacia atrás ven el texto anterior).
-        [TrackCaller] public Match Match(string input, int startat)
+        [TrackCaller] public func Match(input: string, startat: int) -> Match
         {
             long* caps = Run(input, CheckStart(input, startat));
             return new Match(this, input, caps);   // sin éxito si caps es null
@@ -315,9 +315,9 @@ namespace std.regex
 
         // Todas las coincidencias que no se solapan, de izquierda a derecha. Tras una coincidencia
         // vacía se avanza un carácter (como .NET: Matches("abc", "x*") da 4 vacías).
-        [TrackCaller] public List<Match> Matches(string input) => Matches(input, 0);
+        [TrackCaller] public func Matches(input: string) -> List<Match> => Matches(input, 0);
 
-        [TrackCaller] public List<Match> Matches(string input, int startat)
+        [TrackCaller] public func Matches(input: string, startat: int) -> List<Match>
         {
             List<Match> r = new List<Match>();
             Match m = Match(input, startat);
@@ -330,19 +330,19 @@ namespace std.regex
         }
 
         // Número de coincidencias.
-        [TrackCaller] public int Count(string input) => Matches(input).Count;
+        [TrackCaller] public func Count(input: string) -> int => Matches(input).Count;
 
         // ---------------------------------------------------------------- reemplazo
 
         // Reemplaza cada coincidencia por 'replacement', que puede usar $0 / $& (la coincidencia),
         // $1..$n, ${nombre}, $` (lo anterior), $' (lo posterior), $+ (último grupo), $_ (todo el
         // texto) y $$ (un '$').
-        [TrackCaller] public string Replace(string input, string replacement) => Replace(input, replacement, -1, 0);
+        [TrackCaller] public func Replace(input: string, replacement: string) -> string => Replace(input, replacement, -1, 0);
 
         // Solo las primeras 'count' coincidencias (-1: todas).
-        [TrackCaller] public string Replace(string input, string replacement, int count) => Replace(input, replacement, count, 0);
+        [TrackCaller] public func Replace(input: string, replacement: string, count: int) -> string => Replace(input, replacement, count, 0);
 
-        [TrackCaller] public string Replace(string input, string replacement, int count, int startat)
+        [TrackCaller] public func Replace(input: string, replacement: string, count: int, startat: int) -> string
         {
             StringBuilder sb = new StringBuilder();
             int last = 0;
@@ -362,9 +362,9 @@ namespace std.regex
         }
 
         // Reemplaza cada coincidencia por lo que devuelva 'evaluator'.
-        [TrackCaller] public string Replace(string input, Func<Match, string> evaluator) => Replace(input, evaluator, -1);
+        [TrackCaller] public func Replace(input: string, evaluator: Func<Match, string>) -> string => Replace(input, evaluator, -1);
 
-        [TrackCaller] public string Replace(string input, Func<Match, string> evaluator, int count)
+        [TrackCaller] public func Replace(input: string, evaluator: Func<Match, string>, count: int) -> string
         {
             StringBuilder sb = new StringBuilder();
             int last = 0;
@@ -387,10 +387,10 @@ namespace std.regex
 
         // Parte 'input' por las coincidencias. Como en .NET, los grupos que capturan se incluyen
         // en el resultado (en orden de número) y una coincidencia vacía parte entre caracteres.
-        [TrackCaller] public List<string> Split(string input) => Split(input, -1);
+        [TrackCaller] public func Split(input: string) -> List<string> => Split(input, -1);
 
         // Como mucho 'count' partes (la última lleva el resto del texto).
-        [TrackCaller] public List<string> Split(string input, int count)
+        [TrackCaller] public func Split(input: string, count: int) -> List<string>
         {
             List<string> r = new List<string>();
             if (count == 1)
@@ -417,23 +417,23 @@ namespace std.regex
 
         // ---------------------------------------------------------------- estáticos
 
-        [TrackCaller] public static bool IsMatch(string input, string pattern) => new Regex(pattern).IsMatch(input);
-        [TrackCaller] public static bool IsMatch(string input, string pattern, RegexOptions options) => new Regex(pattern, options).IsMatch(input);
-        [TrackCaller] public static Match Match(string input, string pattern) => new Regex(pattern).Match(input);
-        [TrackCaller] public static Match Match(string input, string pattern, RegexOptions options) => new Regex(pattern, options).Match(input);
-        [TrackCaller] public static List<Match> Matches(string input, string pattern) => new Regex(pattern).Matches(input);
-        [TrackCaller] public static List<Match> Matches(string input, string pattern, RegexOptions options) => new Regex(pattern, options).Matches(input);
-        [TrackCaller] public static string Replace(string input, string pattern, string replacement) => new Regex(pattern).Replace(input, replacement);
-        [TrackCaller] public static string Replace(string input, string pattern, string replacement, RegexOptions options) =>
+        [TrackCaller] public static func IsMatch(input: string, pattern: string) -> bool => new Regex(pattern).IsMatch(input);
+        [TrackCaller] public static func IsMatch(input: string, pattern: string, options: RegexOptions) -> bool => new Regex(pattern, options).IsMatch(input);
+        [TrackCaller] public static func Match(input: string, pattern: string) -> Match => new Regex(pattern).Match(input);
+        [TrackCaller] public static func Match(input: string, pattern: string, options: RegexOptions) -> Match => new Regex(pattern, options).Match(input);
+        [TrackCaller] public static func Matches(input: string, pattern: string) -> List<Match> => new Regex(pattern).Matches(input);
+        [TrackCaller] public static func Matches(input: string, pattern: string, options: RegexOptions) -> List<Match> => new Regex(pattern, options).Matches(input);
+        [TrackCaller] public static func Replace(input: string, pattern: string, replacement: string) -> string => new Regex(pattern).Replace(input, replacement);
+        [TrackCaller] public static func Replace(input: string, pattern: string, replacement: string, options: RegexOptions) -> string =>
             new Regex(pattern, options).Replace(input, replacement);
-        [TrackCaller] public static string Replace(string input, string pattern, Func<Match, string> evaluator) => new Regex(pattern).Replace(input, evaluator);
-        [TrackCaller] public static string Replace(string input, string pattern, Func<Match, string> evaluator, RegexOptions options) =>
+        [TrackCaller] public static func Replace(input: string, pattern: string, evaluator: Func<Match, string>) -> string => new Regex(pattern).Replace(input, evaluator);
+        [TrackCaller] public static func Replace(input: string, pattern: string, evaluator: Func<Match, string>, options: RegexOptions) -> string =>
             new Regex(pattern, options).Replace(input, evaluator);
-        [TrackCaller] public static List<string> Split(string input, string pattern) => new Regex(pattern).Split(input);
-        [TrackCaller] public static List<string> Split(string input, string pattern, RegexOptions options) => new Regex(pattern, options).Split(input);
+        [TrackCaller] public static func Split(input: string, pattern: string) -> List<string> => new Regex(pattern).Split(input);
+        [TrackCaller] public static func Split(input: string, pattern: string, options: RegexOptions) -> List<string> => new Regex(pattern, options).Split(input);
 
         // Escapa los metacaracteres (\ * + ? | { [ ( ) ^ $ . # y espacios) para buscar 'text' literalmente.
-        public static string Escape(string text)
+        public static func Escape(text: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < text.Length; i++)
@@ -455,7 +455,7 @@ namespace std.regex
         }
 
         // Lo contrario de Escape: quita las barras y convierte \n \t \r \f \e \a \xHH \uHHHH.
-        [TrackCaller] public static string Unescape(string text)
+        [TrackCaller] public static func Unescape(text: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             int i = 0;
@@ -496,7 +496,7 @@ namespace std.regex
 
         // ---------------------------------------------------------------- interno
 
-        static int HexDigit(char c)
+        static func HexDigit(c: char) -> int
         {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -505,7 +505,7 @@ namespace std.regex
         }
 
         // Bytes del carácter UTF-8 que empieza en 'i' (1 si no es una secuencia válida).
-        internal static int CharLength(string s, int i)
+        internal static func CharLength(s: string, i: int) -> int
         {
             int b = s[i];
             int n = (b & 0xE0) == 0xC0 ? 2 : (b & 0xF0) == 0xE0 ? 3 : (b & 0xF8) == 0xF0 ? 4 : 1;
@@ -515,7 +515,7 @@ namespace std.regex
             return n;
         }
 
-        [TrackCaller] static int CheckStart(string input, int startat)
+        [TrackCaller] static func CheckStart(input: string, startat: int) -> int
         {
             if (startat < 0 || startat > input.Length)
                 throw new ArgumentOutOfRangeException("startat", "Regex: la posición inicial está fuera del texto");
@@ -523,7 +523,7 @@ namespace std.regex
         }
 
         // Busca desde 'start'; devuelve las posiciones de los grupos o null si no hay coincidencia.
-        [TrackCaller] long* Run(string input, int start)
+        [TrackCaller] func Run(input: string, start: int) -> long*
         {
             long* caps = Memory.New<long>(2 * groupCount);
             int r = RegexNative.faset_regex_match(handle, input, start, caps, 0, timeoutMs);
@@ -538,7 +538,7 @@ namespace std.regex
         }
 
         // Añade a 'sb' la plantilla 'rep' aplicada a 'm'.
-        internal void Expand(StringBuilder sb, Match m, string rep)
+        internal func Expand(sb: StringBuilder, m: Match, rep: string)
         {
             int i = 0;
             while (i < rep.Length)

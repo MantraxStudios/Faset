@@ -56,17 +56,17 @@ namespace std.task
     // Una tarea cancelada (Task.Delay con un token cancelado, CancellationToken...).
     public class TaskCanceledException : OperationCanceledException
     {
-        public TaskCanceledException() { Message = "Se canceló una tarea."; }
-        public TaskCanceledException(string message) { Message = message; }
+        public init() { Message = "Se canceló una tarea."; }
+        public init(message: string) { Message = message; }
     }
 
     // Varias excepciones (Task.WhenAll guarda aquí todas las de sus tareas; await lanza la primera).
     public class AggregateException : Exception
     {
-        public List<Exception> InnerExceptions = new List<Exception>();
+        public var InnerExceptions: List<Exception> = new List<Exception>();
 
-        public AggregateException() { Message = "Se produjeron uno o varios errores."; }
-        public AggregateException(List<Exception> inner)
+        public init() { Message = "Se produjeron uno o varios errores."; }
+        public init(inner: List<Exception>)
         {
             Message = "Se produjeron uno o varios errores.";
             for (int i = 0; i < inner.Count; i++) InnerExceptions.Add(inner[i]);
@@ -79,16 +79,16 @@ namespace std.task
     // std.ui instala uno propio en el hilo de la interfaz (los 'await' vuelven a ese hilo).
     public memory_unsafe class SynchronizationContext
     {
-        static List<SynchronizationContext> installed;
+        static var installed: List<SynchronizationContext>;
 
         // Ejecuta 'action' en este contexto, más tarde (sin esperar a que termine).
-        public virtual void Post(Action action) { TaskScheduler.Queue(action); }
+        public virtual func Post(action: Action) { TaskScheduler.Queue(action); }
 
         // El contexto del hilo actual (null: ninguno, las continuaciones van al grupo de hilos).
-        public static SynchronizationContext Current => (SynchronizationContext)faset_sync_ctx_get();
+        public static prop Current: SynchronizationContext => (SynchronizationContext)faset_sync_ctx_get();
 
         // Instala 'context' como contexto del hilo actual.
-        public static void SetSynchronizationContext(SynchronizationContext context)
+        public static func SetSynchronizationContext(context: SynchronizationContext)
         {
             if (context != null)
             {
@@ -104,10 +104,10 @@ namespace std.task
     // Grupo de hilos de las tareas (se crea al usarlo por primera vez).
     public memory_unsafe static class TaskScheduler
     {
-        static ThreadPool pool;
+        static var pool: ThreadPool;
 
         // Hilos del grupo: el número de procesadores (al menos 4).
-        public static int ThreadCount
+        public static prop ThreadCount: int
         {
             get
             {
@@ -116,7 +116,7 @@ namespace std.task
             }
         }
 
-        static ThreadPool Pool()
+        static func Pool() -> ThreadPool
         {
             faset_task_lock();
             if (pool == null)
@@ -131,15 +131,15 @@ namespace std.task
         }
 
         // Encola 'action' en el grupo de hilos.
-        public static void Queue(Action action) { Pool().Submit(action); }
+        public static func Queue(action: Action) { Pool().Submit(action); }
     }
 
     // Continuación pendiente de una tarea.
     memory_unsafe class TaskContinuation
     {
-        public Action Fn;
-        public SynchronizationContext Context;  // null: grupo de hilos
-        public TaskContinuation Next;
+        public var Fn: Action;
+        public var Context: SynchronizationContext;  // null: grupo de hilos
+        public var Next: TaskContinuation;
     }
 
     // ---------------------------------------------------------------- Task
@@ -147,21 +147,21 @@ namespace std.task
     {
         // Un cerrojo y una variable de condición para todas las tareas (los cambios son cortos):
         // faset_task_lock / faset_task_wait / faset_task_notify.
-        static Task completed;
+        static var completed: Task;
 
-        internal int state;  // 0 en curso, 1 completada, 2 con error, 3 cancelada
-        internal Exception error;
-        TaskContinuation conts;
+        internal var state: int;  // 0 en curso, 1 completada, 2 con error, 3 cancelada
+        internal var error: Exception;
+        var conts: TaskContinuation;
 
-        public Task() { }
+        public init() { }
 
         // ---- estado
-        public bool IsCompleted => State() != 0;
-        public bool IsCompletedSuccessfully => State() == 1;
-        public bool IsFaulted => State() == 2;
-        public bool IsCanceled => State() == 3;
+        public prop IsCompleted: bool => State() != 0;
+        public prop IsCompletedSuccessfully: bool => State() == 1;
+        public prop IsFaulted: bool => State() == 2;
+        public prop IsCanceled: bool => State() == 3;
 
-        public TaskStatus Status
+        public prop Status: TaskStatus
         {
             get
             {
@@ -172,7 +172,7 @@ namespace std.task
         }
 
         // La excepción que hizo fallar la tarea (null si no falló; también si se canceló).
-        public Exception Exception
+        public prop Exception: Exception
         {
             get
             {
@@ -183,7 +183,7 @@ namespace std.task
             }
         }
 
-        internal int State()
+        internal func State() -> int
         {
             faset_task_lock();
             int s = state;
@@ -192,7 +192,7 @@ namespace std.task
         }
 
         // ---- terminar (TaskCompletionSource también los usa)
-        internal bool Finish(int st, Exception e)
+        internal func Finish(st: int, e: Exception) -> bool
         {
             faset_task_lock();
             if (state != 0)
@@ -223,44 +223,44 @@ namespace std.task
             return true;
         }
 
-        static void Dispatch(Action fn, SynchronizationContext ctx)
+        static func Dispatch(fn: Action, ctx: SynchronizationContext)
         {
             if (ctx != null) ctx.Post(fn);
             else TaskScheduler.Queue(fn);
         }
 
-        public bool TrySetResult() => Finish(1, null);
+        public func TrySetResult() -> bool => Finish(1, null);
 
-        public void SetResult()
+        public func SetResult()
         {
             if (!Finish(1, null)) throw new InvalidOperationException("La tarea ya había terminado.");
         }
 
         // Una OperationCanceledException deja la tarea cancelada; cualquier otra, con error.
-        public bool TrySetException(Exception e)
+        public func TrySetException(e: Exception) -> bool
         {
             if (e == null) e = new Exception("Excepción nula en una tarea.");
             return Finish(faset_exc_is_named((void*)e, "OperationCanceledException") ? 3 : 2, e);
         }
 
-        public void SetException(Exception e)
+        public func SetException(e: Exception)
         {
             if (!TrySetException(e)) throw new InvalidOperationException("La tarea ya había terminado.");
         }
 
-        public bool TrySetCanceled() => Finish(3, new TaskCanceledException());
+        public func TrySetCanceled() -> bool => Finish(3, new TaskCanceledException());
 
         // ---- await (el patrón que usa el compilador)
-        public Task GetAwaiter() => this;
+        public func GetAwaiter() -> Task => this;
 
         // Registra la continuación de un 'await': correrá en el SynchronizationContext actual (o en el
         // grupo de hilos) cuando la tarea termine; si ya terminó, se encola enseguida.
-        public void OnCompleted(Action continuation) { AddContinuation(continuation, SynchronizationContext.Current); }
+        public func OnCompleted(continuation: Action) { AddContinuation(continuation, SynchronizationContext.Current); }
 
         // Como OnCompleted, pero siempre en el grupo de hilos (ConfigureAwait(false)).
-        public void OnCompletedAnywhere(Action continuation) { AddContinuation(continuation, null); }
+        public func OnCompletedAnywhere(continuation: Action) { AddContinuation(continuation, null); }
 
-        internal void AddContinuation(Action fn, SynchronizationContext ctx)
+        internal func AddContinuation(fn: Action, ctx: SynchronizationContext)
         {
             faset_task_lock();
             if (state == 0)
@@ -278,18 +278,18 @@ namespace std.task
         }
 
         // Fin de un 'await': lanza la excepción de la tarea si falló o se canceló.
-        public void GetResult()
+        public func GetResult()
         {
             Wait();
         }
 
-        internal void ThrowIfFailed()
+        internal func ThrowIfFailed()
         {
             if (state >= 2) faset_exc_rethrow_obj((void*)error);
         }
 
         // ---- esperar bloqueando (¡no en el hilo de la interfaz si la tarea necesita volver a él!)
-        public void Wait()
+        public func Wait()
         {
             faset_task_lock();
             while (state == 0) faset_task_wait(-1);
@@ -298,7 +298,7 @@ namespace std.task
         }
 
         // Espera como mucho 'milliseconds'; false si la tarea no terminó a tiempo.
-        public bool Wait(int milliseconds)
+        public func Wait(milliseconds: int) -> bool
         {
             long deadline = faset_ticks_ms() + milliseconds;
             faset_task_lock();
@@ -315,14 +315,14 @@ namespace std.task
         }
 
         // await t.ConfigureAwait(false): la continuación no vuelve al contexto (sigue en el grupo de hilos).
-        public ConfiguredTaskAwaitable ConfigureAwait(bool continueOnCapturedContext)
+        public func ConfigureAwait(continueOnCapturedContext: bool) -> ConfiguredTaskAwaitable
         {
             return new ConfiguredTaskAwaitable(this, continueOnCapturedContext);
         }
 
         // ---- continuaciones
         // 'action' se ejecuta (en el grupo de hilos) cuando esta tarea termine, haya ido bien o no.
-        public Task ContinueWith(Action<Task> action)
+        public func ContinueWith(action: Action<Task>) -> Task
         {
             Task next = new Task();
             Task self = this;
@@ -341,7 +341,7 @@ namespace std.task
             return next;
         }
 
-        public Task<R> ContinueWith<R>(Func<Task, R> fn)
+        public func ContinueWith<R>(fn: Func<Task, R>) -> Task<R>
         {
             Task<R> next = new Task<R>();
             Task self = this;
@@ -360,7 +360,7 @@ namespace std.task
         }
 
         // ---- fábricas
-        public static Task CompletedTask
+        public static prop CompletedTask: Task
         {
             get
             {
@@ -376,21 +376,21 @@ namespace std.task
             }
         }
 
-        public static Task<T> FromResult<T>(T value)
+        public static func FromResult<T>(value: T) -> Task<T>
         {
             Task<T> t = new Task<T>();
             t.TrySetResult(value);
             return t;
         }
 
-        public static Task FromException(Exception e)
+        public static func FromException(e: Exception) -> Task
         {
             Task t = new Task();
             t.TrySetException(e);
             return t;
         }
 
-        public static Task FromCanceled()
+        public static func FromCanceled() -> Task
         {
             Task t = new Task();
             t.TrySetCanceled();
@@ -398,7 +398,7 @@ namespace std.task
         }
 
         // Ejecuta 'action' en el grupo de hilos.
-        public static Task Run(Action action)
+        public static func Run(action: Action) -> Task
         {
             Task t = new Task();
             TaskScheduler.Queue(() =>
@@ -416,7 +416,7 @@ namespace std.task
             return t;
         }
 
-        public static Task<T> Run<T>(Func<T> fn)
+        public static func Run<T>(fn: Func<T>) -> Task<T>
         {
             Task<T> t = new Task<T>();
             TaskScheduler.Queue(() =>
@@ -434,7 +434,7 @@ namespace std.task
         }
 
         // Task.Run(async () => { ... }): la tarea devuelta termina cuando termina la interior.
-        public static Task Run(Func<Task> fn)
+        public static func Run(fn: Func<Task>) -> Task
         {
             Task t = new Task();
             TaskScheduler.Queue(() =>
@@ -452,7 +452,7 @@ namespace std.task
             return t;
         }
 
-        public static Task<T> Run<T>(Func<Task<T>> fn)
+        public static func Run<T>(fn: Func<Task<T>>) -> Task<T>
         {
             Task<T> t = new Task<T>();
             TaskScheduler.Queue(() =>
@@ -470,7 +470,7 @@ namespace std.task
             return t;
         }
 
-        internal void CopyFrom(Task other)
+        internal func CopyFrom(other: Task)
         {
             int s = other.State();
             if (s == 1) TrySetResult();
@@ -478,7 +478,7 @@ namespace std.task
         }
 
         // Tarea que termina dentro de 'milliseconds' (la completa el hilo de los temporizadores).
-        public static Task Delay(int milliseconds)
+        public static func Delay(milliseconds: int) -> Task
         {
             Task t = new Task();
             if (milliseconds <= 0)
@@ -491,7 +491,7 @@ namespace std.task
         }
 
         // Igual, pero se cancela (TaskCanceledException) si se cancela el token antes del plazo.
-        public static Task Delay(int milliseconds, CancellationToken token)
+        public static func Delay(milliseconds: int, token: CancellationToken) -> Task
         {
             if (token.IsCancellationRequested) return FromCanceled();
             Task t = Delay(milliseconds);
@@ -501,10 +501,10 @@ namespace std.task
 
         // Cede el hilo: 'await Task.Yield()' suspende siempre y el resto del método sigue más tarde
         // (en el contexto actual o en el grupo de hilos).
-        public static YieldAwaitable Yield() => new YieldAwaitable();
+        public static func Yield() -> YieldAwaitable => new YieldAwaitable();
 
         // Termina cuando terminan todas (con error si alguna falla: la primera excepción).
-        public static Task WhenAll(params List<Task> tasks)
+        public static func WhenAll(params tasks: List<Task>) -> Task
         {
             Task all = new Task();
             int n = tasks.Count;
@@ -523,7 +523,7 @@ namespace std.task
         }
 
         // Con resultados: una lista con el de cada tarea, en el mismo orden.
-        public static Task<List<T>> WhenAll<T>(params List<Task<T>> tasks)
+        public static func WhenAll<T>(params tasks: List<Task<T>>) -> Task<List<T>>
         {
             Task<List<T>> all = new Task<List<T>>();
             List<Task> plain = new List<Task>();
@@ -547,7 +547,7 @@ namespace std.task
         }
 
         // Termina cuando termina la primera; su resultado es esa tarea.
-        public static Task<Task> WhenAny(params List<Task> tasks)
+        public static func WhenAny(params tasks: List<Task>) -> Task<Task>
         {
             Task<Task> any = new Task<Task>();
             for (int i = 0; i < tasks.Count; i++)
@@ -559,17 +559,17 @@ namespace std.task
         }
 
         // Main async (lo llama el main de C generado): espera y relanza la excepción si falló.
-        public static void RunMain(Task t) { t.Wait(); }
+        public static func RunMain(t: Task) { t.Wait(); }
     }
 
     // Estado compartido de Task.WhenAll.
     memory_unsafe class WhenAllState
     {
-        public int Pending;
-        public Task All;
-        public List<Task> Tasks;
+        public var Pending: int;
+        public var All: Task;
+        public var Tasks: List<Task>;
 
-        public void OneDone()
+        public func OneDone()
         {
             faset_task_lock();
             Pending--;
@@ -593,26 +593,26 @@ namespace std.task
     // Task.Yield(): nunca está completa, así que 'await' siempre suspende y sigue más tarde.
     public memory_unsafe class YieldAwaitable
     {
-        public YieldAwaitable GetAwaiter() => this;
-        public bool IsCompleted => false;
-        public void OnCompleted(Action continuation)
+        public func GetAwaiter() -> YieldAwaitable => this;
+        public prop IsCompleted: bool => false;
+        public func OnCompleted(continuation: Action)
         {
             SynchronizationContext ctx = SynchronizationContext.Current;
             if (ctx != null) ctx.Post(continuation);
             else TaskScheduler.Queue(continuation);
         }
-        public void GetResult() { }
+        public func GetResult() { }
     }
 
     // ---------------------------------------------------------------- Task<T>
     public memory_unsafe class Task<T> : Task
     {
-        internal T value;
+        internal var value: T;
 
-        public Task() { }
+        public init() { }
 
         // El resultado (espera bloqueando si aún no terminó; lanza la excepción si falló).
-        public T Result
+        public prop Result: T
         {
             get
             {
@@ -621,15 +621,15 @@ namespace std.task
             }
         }
 
-        public new Task<T> GetAwaiter() => this;
+        public new func GetAwaiter() -> Task<T> => this;
 
-        public new T GetResult()
+        public new func GetResult() -> T
         {
             Wait();
             return value;
         }
 
-        public bool TrySetResult(T v)
+        public func TrySetResult(v: T) -> bool
         {
             faset_task_lock();
             if (state != 0)
@@ -642,24 +642,24 @@ namespace std.task
             return Finish(1, null);
         }
 
-        public void SetResult(T v)
+        public func SetResult(v: T)
         {
             if (!TrySetResult(v)) throw new InvalidOperationException("La tarea ya había terminado.");
         }
 
-        internal void CopyFrom(Task<T> other)
+        internal func CopyFrom(other: Task<T>)
         {
             int s = other.State();
             if (s == 1) TrySetResult(other.value);
             else Finish(s, other.error);
         }
 
-        public new ConfiguredTaskAwaitable<T> ConfigureAwait(bool continueOnCapturedContext)
+        public new func ConfigureAwait(continueOnCapturedContext: bool) -> ConfiguredTaskAwaitable<T>
         {
             return new ConfiguredTaskAwaitable<T>(this, continueOnCapturedContext);
         }
 
-        public Task ContinueWith(Action<Task<T>> action)
+        public func ContinueWith(action: Action<Task<T>>) -> Task
         {
             Task next = new Task();
             Task<T> self = this;
@@ -678,7 +678,7 @@ namespace std.task
             return next;
         }
 
-        public Task<R> ContinueWith<R>(Func<Task<T>, R> fn)
+        public func ContinueWith<R>(fn: Func<Task<T>, R>) -> Task<R>
         {
             Task<R> next = new Task<R>();
             Task<T> self = this;
@@ -701,58 +701,58 @@ namespace std.task
     // Un 'awaitable' propio: GetAwaiter/IsCompleted/OnCompleted/GetResult (el mismo patrón que Task).
     public memory_unsafe class ConfiguredTaskAwaitable
     {
-        Task task;
-        bool capture;
+        var task: Task;
+        var capture: bool;
 
-        public ConfiguredTaskAwaitable(Task task, bool capture)
+        public init(task: Task, capture: bool)
         {
             this.task = task;
             this.capture = capture;
         }
 
-        public ConfiguredTaskAwaitable GetAwaiter() => this;
-        public bool IsCompleted => task.IsCompleted;
-        public void OnCompleted(Action continuation)
+        public func GetAwaiter() -> ConfiguredTaskAwaitable => this;
+        public prop IsCompleted: bool => task.IsCompleted;
+        public func OnCompleted(continuation: Action)
         {
             if (capture) task.OnCompleted(continuation);
             else task.OnCompletedAnywhere(continuation);
         }
-        public void GetResult() { task.GetResult(); }
+        public func GetResult() { task.GetResult(); }
     }
 
     public memory_unsafe class ConfiguredTaskAwaitable<T>
     {
-        Task<T> task;
-        bool capture;
+        var task: Task<T>;
+        var capture: bool;
 
-        public ConfiguredTaskAwaitable(Task<T> task, bool capture)
+        public init(task: Task<T>, capture: bool)
         {
             this.task = task;
             this.capture = capture;
         }
 
-        public ConfiguredTaskAwaitable<T> GetAwaiter() => this;
-        public bool IsCompleted => task.IsCompleted;
-        public void OnCompleted(Action continuation)
+        public func GetAwaiter() -> ConfiguredTaskAwaitable<T> => this;
+        public prop IsCompleted: bool => task.IsCompleted;
+        public func OnCompleted(continuation: Action)
         {
             if (capture) task.OnCompleted(continuation);
             else task.OnCompletedAnywhere(continuation);
         }
-        public T GetResult() => task.GetResult();
+        public func GetResult() -> T => task.GetResult();
     }
 
     // ---------------------------------------------------------------- TaskCompletionSource<T>
     // Una tarea que completa el propio programa (para envolver APIs con callbacks).
     public memory_unsafe class TaskCompletionSource<T>
     {
-        Task<T> task = new Task<T>();
+        var task: Task<T> = new Task<T>();
 
-        public Task<T> Task => task;
-        public void SetResult(T value) { task.SetResult(value); }
-        public bool TrySetResult(T value) => task.TrySetResult(value);
-        public void SetException(Exception e) { task.SetException(e); }
-        public bool TrySetException(Exception e) => task.TrySetException(e);
-        public bool TrySetCanceled() => task.TrySetCanceled();
+        public prop Task: Task<T> => task;
+        public func SetResult(value: T) { task.SetResult(value); }
+        public func TrySetResult(value: T) -> bool => task.TrySetResult(value);
+        public func SetException(e: Exception) { task.SetException(e); }
+        public func TrySetException(e: Exception) -> bool => task.TrySetException(e);
+        public func TrySetCanceled() -> bool => task.TrySetCanceled();
     }
 
     // ---------------------------------------------------------------- temporizadores
@@ -760,16 +760,16 @@ namespace std.task
     // (ningún hilo del grupo se queda bloqueado esperando).
     memory_unsafe class DelayEntry
     {
-        public long Due;
-        public Task Task;
+        public var Due: long;
+        public var Task: Task;
     }
 
     memory_unsafe static class TaskTimers
     {
-        static List<DelayEntry> entries;  // ordenadas por vencimiento
-        static Thread worker;
+        static var entries: List<DelayEntry>;  // ordenadas por vencimiento
+        static var worker: Thread;
 
-        public static void Add(Task t, long due)
+        public static func Add(t: Task, due: long)
         {
             DelayEntry e = new DelayEntry();
             e.Due = due;
@@ -785,7 +785,7 @@ namespace std.task
         }
 
         // Comparte el cerrojo y la condición de las tareas (cualquier aviso lo despierta y revisa).
-        static void Loop()
+        static func Loop()
         {
             faset_task_lock();
             for (;;)
@@ -815,15 +815,15 @@ namespace std.task
     // IsCancellationRequested o llama a ThrowIfCancellationRequested() (OperationCanceledException).
     public memory_unsafe class CancellationTokenSource
     {
-        bool canceled;
-        List<Action> callbacks = new List<Action>();
+        var canceled: bool;
+        var callbacks: List<Action> = new List<Action>();
 
-        public CancellationTokenSource() { }
+        public init() { }
 
         // Se cancela sola pasados 'milliseconds'.
-        public CancellationTokenSource(int milliseconds) { CancelAfter(milliseconds); }
+        public init(milliseconds: int) { CancelAfter(milliseconds); }
 
-        public bool IsCancellationRequested
+        public prop IsCancellationRequested: bool
         {
             get
             {
@@ -834,10 +834,10 @@ namespace std.task
             }
         }
 
-        public CancellationToken Token => new CancellationToken(this);
+        public prop Token: CancellationToken => new CancellationToken(this);
 
         // Pide la cancelación y ejecuta las acciones registradas (en este hilo, en orden).
-        public void Cancel()
+        public func Cancel()
         {
             faset_task_lock();
             if (canceled)
@@ -852,13 +852,13 @@ namespace std.task
             for (int i = 0; i < run.Count; i++) run[i]();
         }
 
-        public void CancelAfter(int milliseconds)
+        public func CancelAfter(milliseconds: int)
         {
             CancellationTokenSource self = this;
             Task.Delay(milliseconds).AddContinuation(() => self.Cancel(), null);
         }
 
-        internal void Register(Action callback)
+        internal func Register(callback: Action)
         {
             faset_task_lock();
             if (!canceled)
@@ -874,23 +874,23 @@ namespace std.task
 
     public memory_unsafe struct CancellationToken
     {
-        CancellationTokenSource source;
+        var source: CancellationTokenSource;
 
-        public CancellationToken(CancellationTokenSource source) { this.source = source; }
+        public init(source: CancellationTokenSource) { this.source = source; }
 
         // Un token que nunca se cancela.
-        public static CancellationToken None => new CancellationToken(null);
+        public static prop None: CancellationToken => new CancellationToken(null);
 
-        public bool CanBeCanceled => source != null;
-        public bool IsCancellationRequested => source != null && source.IsCancellationRequested;
+        public prop CanBeCanceled: bool => source != null;
+        public prop IsCancellationRequested: bool => source != null && source.IsCancellationRequested;
 
-        public void ThrowIfCancellationRequested()
+        public func ThrowIfCancellationRequested()
         {
             if (IsCancellationRequested) throw new OperationCanceledException("Se canceló la operación.");
         }
 
         // 'callback' se ejecuta al cancelar (enseguida si ya estaba cancelado).
-        public void Register(Action callback)
+        public func Register(callback: Action)
         {
             if (source != null) source.Register(callback);
         }

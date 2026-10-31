@@ -64,55 +64,55 @@ namespace std.thread
 #if WINDOWS
     static class Win32Threads
     {
-        public static extern void* CreateThread(void* attributes, ulong stackSize, delegate*<void*, uint> start, void* arg,
-                                                uint flags, uint* threadId);
-        public static extern uint WaitForSingleObject(void* handle, uint milliseconds);
-        public static extern int CloseHandle(void* handle);
-        public static extern uint GetCurrentThreadId();
-        public static extern int SwitchToThread();
+        public static extern func CreateThread(attributes: void*, stackSize: ulong, start: delegate*<void*, uint>, arg: void*,
+                                                flags: uint, threadId: uint*) -> void*;
+        public static extern func WaitForSingleObject(handle: void*, milliseconds: uint) -> uint;
+        public static extern func CloseHandle(handle: void*) -> int;
+        public static extern func GetCurrentThreadId() -> uint;
+        public static extern func SwitchToThread() -> int;
 
-        public static extern void InitializeSRWLock(void* lock);
-        public static extern void AcquireSRWLockExclusive(void* lock);
-        public static extern byte TryAcquireSRWLockExclusive(void* lock);
-        public static extern void ReleaseSRWLockExclusive(void* lock);
+        public static extern func InitializeSRWLock(lock: void*);
+        public static extern func AcquireSRWLockExclusive(lock: void*);
+        public static extern func TryAcquireSRWLockExclusive(lock: void*) -> byte;
+        public static extern func ReleaseSRWLockExclusive(lock: void*);
 
-        public static extern void InitializeCriticalSection(void* cs);
-        public static extern void DeleteCriticalSection(void* cs);
-        public static extern void EnterCriticalSection(void* cs);
-        public static extern int TryEnterCriticalSection(void* cs);
-        public static extern void LeaveCriticalSection(void* cs);
+        public static extern func InitializeCriticalSection(cs: void*);
+        public static extern func DeleteCriticalSection(cs: void*);
+        public static extern func EnterCriticalSection(cs: void*);
+        public static extern func TryEnterCriticalSection(cs: void*) -> int;
+        public static extern func LeaveCriticalSection(cs: void*);
 
-        public static extern void InitializeConditionVariable(void* cv);
-        public static extern int SleepConditionVariableSRW(void* cv, void* lock, uint milliseconds, uint flags);
-        public static extern void WakeConditionVariable(void* cv);
-        public static extern void WakeAllConditionVariable(void* cv);
+        public static extern func InitializeConditionVariable(cv: void*);
+        public static extern func SleepConditionVariableSRW(cv: void*, lock: void*, milliseconds: uint, flags: uint) -> int;
+        public static extern func WakeConditionVariable(cv: void*);
+        public static extern func WakeAllConditionVariable(cv: void*);
 
         public const uint Infinite = 0xFFFFFFFF;
     }
 #else
     static class Posix
     {
-        public static extern int pthread_create(ulong* thread, void* attr, delegate*<void*, void*> start, void* arg);
-        public static extern int pthread_join(ulong thread, void** result);
-        public static extern int pthread_detach(ulong thread);
-        public static extern ulong pthread_self();
-        public static extern int sched_yield();
+        public static extern func pthread_create(thread: ulong*, attr: void*, start: delegate*<void*, void*>, arg: void*) -> int;
+        public static extern func pthread_join(thread: ulong, result: void**) -> int;
+        public static extern func pthread_detach(thread: ulong) -> int;
+        public static extern func pthread_self() -> ulong;
+        public static extern func sched_yield() -> int;
 
-        public static extern int pthread_mutex_init(void* mutex, void* attr);
-        public static extern int pthread_mutex_destroy(void* mutex);
-        public static extern int pthread_mutex_lock(void* mutex);
-        public static extern int pthread_mutex_trylock(void* mutex);
-        public static extern int pthread_mutex_unlock(void* mutex);
-        public static extern int pthread_mutexattr_init(void* attr);
-        public static extern int pthread_mutexattr_settype(void* attr, int kind);
-        public static extern int pthread_mutexattr_destroy(void* attr);
+        public static extern func pthread_mutex_init(mutex: void*, attr: void*) -> int;
+        public static extern func pthread_mutex_destroy(mutex: void*) -> int;
+        public static extern func pthread_mutex_lock(mutex: void*) -> int;
+        public static extern func pthread_mutex_trylock(mutex: void*) -> int;
+        public static extern func pthread_mutex_unlock(mutex: void*) -> int;
+        public static extern func pthread_mutexattr_init(attr: void*) -> int;
+        public static extern func pthread_mutexattr_settype(attr: void*, kind: int) -> int;
+        public static extern func pthread_mutexattr_destroy(attr: void*) -> int;
 
-        public static extern int pthread_cond_init(void* cond, void* attr);
-        public static extern int pthread_cond_destroy(void* cond);
-        public static extern int pthread_cond_wait(void* cond, void* mutex);
-        public static extern int pthread_cond_timedwait(void* cond, void* mutex, void* abstime);
-        public static extern int pthread_cond_signal(void* cond);
-        public static extern int pthread_cond_broadcast(void* cond);
+        public static extern func pthread_cond_init(cond: void*, attr: void*) -> int;
+        public static extern func pthread_cond_destroy(cond: void*) -> int;
+        public static extern func pthread_cond_wait(cond: void*, mutex: void*) -> int;
+        public static extern func pthread_cond_timedwait(cond: void*, mutex: void*, abstime: void*) -> int;
+        public static extern func pthread_cond_signal(cond: void*) -> int;
+        public static extern func pthread_cond_broadcast(cond: void*) -> int;
 
         // Tamaños generosos para los tipos opacos de pthreads (glibc/bionic, 32 y 64 bits).
         public const int MutexSize = 64;
@@ -128,10 +128,10 @@ namespace std.thread
     // Copia el valor de T, así que vale cualquier tipo (clases, structs, enteros, string).
     memory_unsafe class ThreadStart<T>
     {
-        public delegate*<T, void> Fn;
-        public T Arg;
+        public var Fn: delegate*<T, void>;
+        public var Arg: T;
 
-        public static void Run(void* self)
+        public static func Run(self: void*)
         {
             ThreadStart<T> b = (ThreadStart<T>)self;
             delegate*<T, void> fn = b.Fn;
@@ -144,9 +144,9 @@ namespace std.thread
     // Caja con un delegado (lambdas): viaja como void* hasta el hilo.
     memory_unsafe class ActionStart
     {
-        public Action Fn;
+        public var Fn: Action;
 
-        public static void Run(void* self)
+        public static func Run(self: void*)
         {
             ActionStart b = (ActionStart)self;
             Action fn = b.Fn;
@@ -157,9 +157,9 @@ namespace std.thread
 
     memory_unsafe class ThreadStart0
     {
-        public delegate*<void> Fn;
+        public var Fn: delegate*<void>;
 
-        public static void Run(void* self)
+        public static func Run(self: void*)
         {
             ThreadStart0 b = (ThreadStart0)self;
             delegate*<void> fn = b.Fn;
@@ -171,15 +171,15 @@ namespace std.thread
     // ---------------------------------------------------------------- Thread
     public memory_unsafe class Thread
     {
-        delegate*<void*, void> start;
-        void* arg;
-        ulong handle;   // pthread_t o HANDLE
-        bool started;
-        bool finished;  // ya se hizo Join o Detach
+        var start: delegate*<void*, void>;
+        var arg: void*;
+        var handle: ulong;   // pthread_t o HANDLE
+        var started: bool;
+        var finished: bool;  // ya se hizo Join o Detach
 
         // Prepara un hilo que ejecutará start(arg); se lanza con Start. memory_unsafe: el
         // argumento es un puntero sin tipo (desde código seguro usa Thread.Run<T>).
-        public memory_unsafe Thread(delegate*<void*, void> start, void* arg)
+        public memory_unsafe init(start: delegate*<void*, void>, arg: void*)
         {
             this.start = start;
             this.arg = arg;
@@ -187,13 +187,13 @@ namespace std.thread
 
         // Si nadie hizo Join, el hilo se desacopla: sigue ejecutándose y sus recursos
         // se liberan solos al terminar (no borres 'arg' mientras el hilo lo use).
-        ~Thread()
+        deinit
         {
             if (started && !finished) Detach();
         }
 
         // Crea y lanza un hilo en un solo paso (null si el sistema no pudo crearlo).
-        public memory_unsafe static Thread Run(delegate*<void*, void> start, void* arg)
+        public memory_unsafe static func Run(start: delegate*<void*, void>, arg: void*) -> Thread
         {
             Thread t = new Thread(start, arg);
             if (!t.Start())
@@ -206,7 +206,7 @@ namespace std.thread
 
         // Versión segura: lanza start(arg) con un argumento tipado (se copia; si es un objeto,
         // debe seguir vivo hasta que el hilo termine). null si el sistema no pudo crearlo.
-        public static Thread Run<T>(delegate*<T, void> start, T arg)
+        public static func Run<T>(start: delegate*<T, void>, arg: T) -> Thread
         {
             ThreadStart<T> b = new ThreadStart<T>();
             b.Fn = start;
@@ -217,7 +217,7 @@ namespace std.thread
         }
 
         // Lanza un delegado o una lambda: Thread.Run(() => Trabajo(x)).
-        public static Thread Run(Action start)
+        public static func Run(start: Action) -> Thread
         {
             ActionStart b = new ActionStart();
             b.Fn = start;
@@ -227,7 +227,7 @@ namespace std.thread
         }
 
         // Lanza start sin argumentos.
-        public static Thread Run(delegate*<void> start)
+        public static func Run(start: delegate*<void>) -> Thread
         {
             ThreadStart0 b = new ThreadStart0();
             b.Fn = start;
@@ -236,11 +236,11 @@ namespace std.thread
             return t;
         }
 
-        public bool IsStarted => started;
+        public prop IsStarted: bool => started;
 
         // El hilo recibe su propia copia de (start, arg): el objeto Thread puede
         // borrarse mientras el hilo sigue ejecutándose.
-        WorkItem* NewBlock()
+        func NewBlock() -> WorkItem*
         {
             WorkItem* b = Memory.New<WorkItem>(1);
             b->Fn = start;
@@ -248,7 +248,7 @@ namespace std.thread
             return b;
         }
 
-        static void RunBlock(void* p)
+        static func RunBlock(p: void*)
         {
             WorkItem* b = (WorkItem*)p;
             delegate*<void*, void> fn = b->Fn;
@@ -259,7 +259,7 @@ namespace std.thread
 
 #if WINDOWS
         // Lanza el hilo; devuelve false si ya estaba lanzado o el sistema falló.
-        public bool Start()
+        public func Start() -> bool
         {
             if (started) return false;
             WorkItem* block = NewBlock();
@@ -271,7 +271,7 @@ namespace std.thread
         }
 
         // Espera a que el hilo termine.
-        public void Join()
+        public func Join()
         {
             if (!started || finished) return;
             Win32Threads.WaitForSingleObject((void*)handle, Win32Threads.Infinite);
@@ -280,7 +280,7 @@ namespace std.thread
         }
 
         // Deja que el hilo termine por su cuenta (ya no se podrá hacer Join).
-        public void Detach()
+        public func Detach()
         {
             if (!started || finished) return;
             Win32Threads.CloseHandle((void*)handle);
@@ -288,13 +288,13 @@ namespace std.thread
         }
 
         // Identificador del hilo actual.
-        public static long CurrentId => (long)Win32Threads.GetCurrentThreadId();
+        public static prop CurrentId: long => (long)Win32Threads.GetCurrentThreadId();
 
         // Cede el procesador a otro hilo.
-        public static void Yield() { Win32Threads.SwitchToThread(); }
+        public static func Yield() { Win32Threads.SwitchToThread(); }
 #else
         // Lanza el hilo; devuelve false si ya estaba lanzado o el sistema falló.
-        public bool Start()
+        public func Start() -> bool
         {
             if (started) return false;
             WorkItem* block = NewBlock();
@@ -306,7 +306,7 @@ namespace std.thread
         }
 
         // Espera a que el hilo termine.
-        public void Join()
+        public func Join()
         {
             if (!started || finished) return;
             Posix.pthread_join(handle, null);
@@ -314,7 +314,7 @@ namespace std.thread
         }
 
         // Deja que el hilo termine por su cuenta (ya no se podrá hacer Join).
-        public void Detach()
+        public func Detach()
         {
             if (!started || finished) return;
             Posix.pthread_detach(handle);
@@ -322,82 +322,82 @@ namespace std.thread
         }
 
         // Identificador del hilo actual.
-        public static long CurrentId => (long)Posix.pthread_self();
+        public static prop CurrentId: long => (long)Posix.pthread_self();
 
         // Cede el procesador a otro hilo.
-        public static void Yield() { Posix.sched_yield(); }
+        public static func Yield() { Posix.sched_yield(); }
 #endif
 
         // Duerme el hilo actual.
-        public static void Sleep(long milliseconds) { faset_sleep_ms(milliseconds); }
+        public static func Sleep(milliseconds: long) { faset_sleep_ms(milliseconds); }
 
         // Número de procesadores lógicos disponibles.
-        public static int HardwareConcurrency => faset_cpu_count();
+        public static prop HardwareConcurrency: int => faset_cpu_count();
     }
 
     // ---------------------------------------------------------------- Mutex
     public memory_unsafe class Mutex
     {
-        void* handle;
+        var handle: void*;
 
 #if WINDOWS
-        public Mutex()
+        public init()
         {
             handle = Memory.AllocZeroed(16);  // SRWLOCK (SRWLOCK_INIT = 0)
             Win32Threads.InitializeSRWLock(handle);
         }
 
-        ~Mutex() { Memory.Free(handle); }
+        deinit { Memory.Free(handle); }
 
-        public void Lock() { Win32Threads.AcquireSRWLockExclusive(handle); }
-        public bool TryLock() => Win32Threads.TryAcquireSRWLockExclusive(handle) != 0;
-        public void Unlock() { Win32Threads.ReleaseSRWLockExclusive(handle); }
+        public func Lock() { Win32Threads.AcquireSRWLockExclusive(handle); }
+        public func TryLock() -> bool => Win32Threads.TryAcquireSRWLockExclusive(handle) != 0;
+        public func Unlock() { Win32Threads.ReleaseSRWLockExclusive(handle); }
 #else
-        public Mutex()
+        public init()
         {
             handle = Memory.AllocZeroed(Posix.MutexSize);
             Posix.pthread_mutex_init(handle, null);
         }
 
-        ~Mutex()
+        deinit
         {
             Posix.pthread_mutex_destroy(handle);
             Memory.Free(handle);
         }
 
-        public void Lock() { Posix.pthread_mutex_lock(handle); }
-        public bool TryLock() => Posix.pthread_mutex_trylock(handle) == 0;
-        public void Unlock() { Posix.pthread_mutex_unlock(handle); }
+        public func Lock() { Posix.pthread_mutex_lock(handle); }
+        public func TryLock() -> bool => Posix.pthread_mutex_trylock(handle) == 0;
+        public func Unlock() { Posix.pthread_mutex_unlock(handle); }
 #endif
 
         // Objeto del sistema (pthread_mutex_t* o SRWLOCK*).
-        public void* NativeHandle => handle;
+        public prop NativeHandle: void* => handle;
     }
 
     // ---------------------------------------------------------------- RecursiveMutex
     // El hilo que lo tiene puede volver a bloquearlo; hay que desbloquearlo las mismas veces.
     public memory_unsafe class RecursiveMutex
     {
-        void* handle;
+        var handle: void*;
 
 #if WINDOWS
-        public RecursiveMutex()
+        public init()
         {
             handle = Memory.AllocZeroed(64);  // CRITICAL_SECTION
             Win32Threads.InitializeCriticalSection(handle);
         }
 
-        ~RecursiveMutex()
+        deinit
         {
             Win32Threads.DeleteCriticalSection(handle);
             Memory.Free(handle);
         }
 
-        public void Lock() { Win32Threads.EnterCriticalSection(handle); }
-        public bool TryLock() => Win32Threads.TryEnterCriticalSection(handle) != 0;
-        public void Unlock() { Win32Threads.LeaveCriticalSection(handle); }
+        public func Lock() { Win32Threads.EnterCriticalSection(handle); }
+        public func TryLock() -> bool => Win32Threads.TryEnterCriticalSection(handle) != 0;
+        public func Unlock() { Win32Threads.LeaveCriticalSection(handle); }
 #else
-        public RecursiveMutex()
+        public init()
         {
             handle = Memory.AllocZeroed(Posix.MutexSize);
             void* attr = Memory.AllocZeroed(Posix.AttrSize);
@@ -408,15 +408,15 @@ namespace std.thread
             Memory.Free(attr);
         }
 
-        ~RecursiveMutex()
+        deinit
         {
             Posix.pthread_mutex_destroy(handle);
             Memory.Free(handle);
         }
 
-        public void Lock() { Posix.pthread_mutex_lock(handle); }
-        public bool TryLock() => Posix.pthread_mutex_trylock(handle) == 0;
-        public void Unlock() { Posix.pthread_mutex_unlock(handle); }
+        public func Lock() { Posix.pthread_mutex_lock(handle); }
+        public func TryLock() -> bool => Posix.pthread_mutex_trylock(handle) == 0;
+        public func Unlock() { Posix.pthread_mutex_unlock(handle); }
 #endif
     }
 
@@ -429,45 +429,45 @@ namespace std.thread
     //    m.Unlock;
     public memory_unsafe class ConditionVariable
     {
-        void* handle;
+        var handle: void*;
 
 #if WINDOWS
-        public ConditionVariable()
+        public init()
         {
             handle = Memory.AllocZeroed(16);  // CONDITION_VARIABLE
             Win32Threads.InitializeConditionVariable(handle);
         }
 
-        ~ConditionVariable() { Memory.Free(handle); }
+        deinit { Memory.Free(handle); }
 
-        public void Wait(Mutex m) { Win32Threads.SleepConditionVariableSRW(handle, m.NativeHandle, Win32Threads.Infinite, 0); }
+        public func Wait(m: Mutex) { Win32Threads.SleepConditionVariableSRW(handle, m.NativeHandle, Win32Threads.Infinite, 0); }
 
         // Espera como mucho 'milliseconds'; devuelve false si venció el plazo.
-        public bool Wait(Mutex m, long milliseconds)
+        public func Wait(m: Mutex, milliseconds: long) -> bool
         {
             uint ms = milliseconds <= 0 ? 0 : (milliseconds >= 0xFFFFFFFE ? 0xFFFFFFFE : (uint)milliseconds);
             return Win32Threads.SleepConditionVariableSRW(handle, m.NativeHandle, ms, 0) != 0;
         }
 
-        public void NotifyOne() { Win32Threads.WakeConditionVariable(handle); }
-        public void NotifyAll() { Win32Threads.WakeAllConditionVariable(handle); }
+        public func NotifyOne() { Win32Threads.WakeConditionVariable(handle); }
+        public func NotifyAll() { Win32Threads.WakeAllConditionVariable(handle); }
 #else
-        public ConditionVariable()
+        public init()
         {
             handle = Memory.AllocZeroed(Posix.CondSize);
             Posix.pthread_cond_init(handle, null);
         }
 
-        ~ConditionVariable()
+        deinit
         {
             Posix.pthread_cond_destroy(handle);
             Memory.Free(handle);
         }
 
-        public void Wait(Mutex m) { Posix.pthread_cond_wait(handle, m.NativeHandle); }
+        public func Wait(m: Mutex) { Posix.pthread_cond_wait(handle, m.NativeHandle); }
 
         // Espera como mucho 'milliseconds'; devuelve false si venció el plazo.
-        public bool Wait(Mutex m, long milliseconds)
+        public func Wait(m: Mutex, milliseconds: long) -> bool
         {
             void* ts = Memory.AllocZeroed(Posix.TimespecSize);  // struct timespec (plazo absoluto)
             faset_timespec_after_ms(ts, milliseconds);
@@ -476,8 +476,8 @@ namespace std.thread
             return ok;
         }
 
-        public void NotifyOne() { Posix.pthread_cond_signal(handle); }
-        public void NotifyAll() { Posix.pthread_cond_broadcast(handle); }
+        public func NotifyOne() { Posix.pthread_cond_signal(handle); }
+        public func NotifyAll() { Posix.pthread_cond_broadcast(handle); }
 #endif
     }
 
@@ -486,20 +486,20 @@ namespace std.thread
     //  puede borrar el objeto en cuanto vuelve, sin que el otro hilo lo siga usando.)
     public memory_unsafe class Semaphore
     {
-        Mutex mutex = new Mutex();
-        ConditionVariable cv = new ConditionVariable();
-        long count;
+        var mutex: Mutex = new Mutex();
+        var cv: ConditionVariable = new ConditionVariable();
+        var count: long;
 
-        public Semaphore(long initialCount) { count = initialCount; }
+        public init(initialCount: long) { count = initialCount; }
 
-        ~Semaphore()
+        deinit
         {
             delete cv;
             delete mutex;
         }
 
         // Resta uno al contador; si es cero, espera a que otro hilo llame a Release.
-        public void Wait()
+        public func Wait()
         {
             mutex.Lock();
             while (count <= 0) cv.Wait(mutex);
@@ -508,7 +508,7 @@ namespace std.thread
         }
 
         // Como Wait, pero como mucho 'milliseconds'; devuelve false si venció el plazo.
-        public bool Wait(long milliseconds)
+        public func Wait(milliseconds: long) -> bool
         {
             long deadline = faset_ticks_ms() + milliseconds;
             mutex.Lock();
@@ -527,7 +527,7 @@ namespace std.thread
             return true;
         }
 
-        public bool TryWait()
+        public func TryWait() -> bool
         {
             mutex.Lock();
             bool ok = count > 0;
@@ -536,9 +536,9 @@ namespace std.thread
             return ok;
         }
 
-        public void Release() { Release(1); }
+        public func Release() { Release(1); }
 
-        public void Release(long n)
+        public func Release(n: long)
         {
             if (n <= 0) return;
             mutex.Lock();
@@ -548,7 +548,7 @@ namespace std.thread
             mutex.Unlock();
         }
 
-        public long Count
+        public prop Count: long
         {
             get
             {
@@ -567,68 +567,68 @@ namespace std.thread
     public memory_unsafe static class Atomic
     {
         // Devuelven el valor nuevo.
-        public static int Increment(int* p) => faset_atomic_add_i32(p, 1);
-        public static long Increment(long* p) => faset_atomic_add_i64(p, 1);
-        public static int Decrement(int* p) => faset_atomic_add_i32(p, -1);
-        public static long Decrement(long* p) => faset_atomic_add_i64(p, -1);
-        public static int Add(int* p, int v) => faset_atomic_add_i32(p, v);
-        public static long Add(long* p, long v) => faset_atomic_add_i64(p, v);
+        public static func Increment(p: int*) -> int => faset_atomic_add_i32(p, 1);
+        public static func Increment(p: long*) -> long => faset_atomic_add_i64(p, 1);
+        public static func Decrement(p: int*) -> int => faset_atomic_add_i32(p, -1);
+        public static func Decrement(p: long*) -> long => faset_atomic_add_i64(p, -1);
+        public static func Add(p: int*, v: int) -> int => faset_atomic_add_i32(p, v);
+        public static func Add(p: long*, v: long) -> long => faset_atomic_add_i64(p, v);
 
-        public static int Load(int* p) => faset_atomic_load_i32(p);
-        public static long Load(long* p) => faset_atomic_load_i64(p);
-        public static void* Load(void** p) => faset_atomic_load_ptr(p);
-        public static void Store(int* p, int v) { faset_atomic_store_i32(p, v); }
-        public static void Store(long* p, long v) { faset_atomic_store_i64(p, v); }
-        public static void Store(void** p, void* v) { faset_atomic_store_ptr(p, v); }
+        public static func Load(p: int*) -> int => faset_atomic_load_i32(p);
+        public static func Load(p: long*) -> long => faset_atomic_load_i64(p);
+        public static func Load(p: void**) -> void* => faset_atomic_load_ptr(p);
+        public static func Store(p: int*, v: int) { faset_atomic_store_i32(p, v); }
+        public static func Store(p: long*, v: long) { faset_atomic_store_i64(p, v); }
+        public static func Store(p: void**, v: void*) { faset_atomic_store_ptr(p, v); }
 
         // Escriben 'v' y devuelven el valor anterior.
-        public static int Exchange(int* p, int v) => faset_atomic_xchg_i32(p, v);
-        public static long Exchange(long* p, long v) => faset_atomic_xchg_i64(p, v);
-        public static void* Exchange(void** p, void* v) => faset_atomic_xchg_ptr(p, v);
+        public static func Exchange(p: int*, v: int) -> int => faset_atomic_xchg_i32(p, v);
+        public static func Exchange(p: long*, v: long) -> long => faset_atomic_xchg_i64(p, v);
+        public static func Exchange(p: void**, v: void*) -> void* => faset_atomic_xchg_ptr(p, v);
 
         // Si *p == comparand, escribe 'value'. Siempre devuelve el valor anterior (como en C#).
-        public static int CompareExchange(int* p, int value, int comparand) => faset_atomic_cas_i32(p, value, comparand);
-        public static long CompareExchange(long* p, long value, long comparand) => faset_atomic_cas_i64(p, value, comparand);
-        public static void* CompareExchange(void** p, void* value, void* comparand) => faset_atomic_cas_ptr(p, value, comparand);
+        public static func CompareExchange(p: int*, value: int, comparand: int) -> int => faset_atomic_cas_i32(p, value, comparand);
+        public static func CompareExchange(p: long*, value: long, comparand: long) -> long => faset_atomic_cas_i64(p, value, comparand);
+        public static func CompareExchange(p: void**, value: void*, comparand: void*) -> void* => faset_atomic_cas_ptr(p, value, comparand);
 
         // Barrera de memoria completa.
-        public static void Fence() { faset_atomic_fence(); }
+        public static func Fence() { faset_atomic_fence(); }
     }
 
     // Contador atómico de 32 bits.
     public memory_unsafe class AtomicInt
     {
-        int value;
+        var value: int;
 
-        public AtomicInt() { }
-        public AtomicInt(int initial) { value = initial; }
+        public init() { }
+        public init(initial: int) { value = initial; }
 
-        public int Value => faset_atomic_load_i32(&value);
-        public void Set(int v) { faset_atomic_store_i32(&value, v); }
-        public int Increment() => faset_atomic_add_i32(&value, 1);
-        public int Decrement() => faset_atomic_add_i32(&value, -1);
-        public int Add(int v) => faset_atomic_add_i32(&value, v);
-        public int Exchange(int v) => faset_atomic_xchg_i32(&value, v);
-        public int CompareExchange(int v, int comparand) => faset_atomic_cas_i32(&value, v, comparand);
-        public int* Pointer => &value;
+        public prop Value: int => faset_atomic_load_i32(&value);
+        public func Set(v: int) { faset_atomic_store_i32(&value, v); }
+        public func Increment() -> int => faset_atomic_add_i32(&value, 1);
+        public func Decrement() -> int => faset_atomic_add_i32(&value, -1);
+        public func Add(v: int) -> int => faset_atomic_add_i32(&value, v);
+        public func Exchange(v: int) -> int => faset_atomic_xchg_i32(&value, v);
+        public func CompareExchange(v: int, comparand: int) -> int => faset_atomic_cas_i32(&value, v, comparand);
+        public prop Pointer: int* => &value;
     }
 
     // Contador atómico de 64 bits.
     public memory_unsafe class AtomicLong
     {
-        long value;
+        var value: long;
 
-        public AtomicLong() { }
-        public AtomicLong(long initial) { value = initial; }
+        public init() { }
+        public init(initial: long) { value = initial; }
 
-        public long Value => faset_atomic_load_i64(&value);
-        public void Set(long v) { faset_atomic_store_i64(&value, v); }
-        public long Increment() => faset_atomic_add_i64(&value, 1);
-        public long Decrement() => faset_atomic_add_i64(&value, -1);
-        public long Add(long v) => faset_atomic_add_i64(&value, v);
-        public long Exchange(long v) => faset_atomic_xchg_i64(&value, v);
-        public long CompareExchange(long v, long comparand) => faset_atomic_cas_i64(&value, v, comparand);
-        public long* Pointer => &value;
+        public prop Value: long => faset_atomic_load_i64(&value);
+        public func Set(v: long) { faset_atomic_store_i64(&value, v); }
+        public func Increment() -> long => faset_atomic_add_i64(&value, 1);
+        public func Decrement() -> long => faset_atomic_add_i64(&value, -1);
+        public func Add(v: long) -> long => faset_atomic_add_i64(&value, v);
+        public func Exchange(v: long) -> long => faset_atomic_xchg_i64(&value, v);
+        public func CompareExchange(v: long, comparand: long) -> long => faset_atomic_cas_i64(&value, v, comparand);
+        public prop Pointer: long* => &value;
     }
 
     // ---------------------------------------------------------------- ThreadPool
@@ -639,26 +639,26 @@ namespace std.thread
     //    delete pool;         // termina lo pendiente y une los hilos
     public memory_unsafe struct WorkItem
     {
-        public delegate*<void*, void> Fn;
-        public void* Arg;
+        public var Fn: delegate*<void*, void>;
+        public var Arg: void*;
     }
 
     public memory_unsafe class ThreadPool
     {
-        Mutex mutex = new Mutex();
-        ConditionVariable hasWork = new ConditionVariable();
-        ConditionVariable idle = new ConditionVariable();
-        Queue<WorkItem> queue = new Queue<WorkItem>();
-        Thread* workers;
-        int workerCount;
-        int active;      // trabajos en ejecución
-        bool stopping;
+        var mutex: Mutex = new Mutex();
+        var hasWork: ConditionVariable = new ConditionVariable();
+        var idle: ConditionVariable = new ConditionVariable();
+        var queue: Queue<WorkItem> = new Queue<WorkItem>();
+        var workers: Thread*;
+        var workerCount: int;
+        var active: int;      // trabajos en ejecución
+        var stopping: bool;
 
         // Un hilo por procesador lógico.
-        public ThreadPool() { Init(faset_cpu_count()); }
-        public ThreadPool(int threads) { Init(threads); }
+        public init() { Init(faset_cpu_count()); }
+        public init(threads: int) { Init(threads); }
 
-        ~ThreadPool()
+        deinit
         {
             Shutdown();
             delete queue;
@@ -667,7 +667,7 @@ namespace std.thread
             delete mutex;
         }
 
-        void Init(int threads)
+        func Init(threads: int)
         {
             if (threads < 1) threads = 1;
             workers = new Thread[threads];
@@ -675,10 +675,10 @@ namespace std.thread
             for (int i = 0; i < threads; i++) workers[i] = Thread.Run(&WorkerLoop, (void*)this);
         }
 
-        public int ThreadCount => workerCount;
+        public prop ThreadCount: int => workerCount;
 
         // Encola fn(arg) con un argumento tipado; false si el grupo ya se está cerrando.
-        public bool Submit<T>(delegate*<T, void> fn, T arg)
+        public func Submit<T>(fn: delegate*<T, void>, arg: T) -> bool
         {
             ThreadStart<T> b = new ThreadStart<T>();
             b.Fn = fn;
@@ -689,7 +689,7 @@ namespace std.thread
         }
 
         // Encola un delegado o una lambda: pool.Submit(() => Procesar(dato)).
-        public bool Submit(Action job)
+        public func Submit(job: Action) -> bool
         {
             ActionStart b = new ActionStart();
             b.Fn = job;
@@ -699,7 +699,7 @@ namespace std.thread
         }
 
         // Encola fn(arg); devuelve false si el grupo ya se está cerrando.
-        public memory_unsafe bool Submit(delegate*<void*, void> fn, void* arg)
+        public memory_unsafe func Submit(fn: delegate*<void*, void>, arg: void*) -> bool
         {
             WorkItem w = new WorkItem();
             w.Fn = fn;
@@ -717,7 +717,7 @@ namespace std.thread
         }
 
         // Trabajos en cola o en ejecución.
-        public int Pending
+        public prop Pending: int
         {
             get
             {
@@ -729,7 +729,7 @@ namespace std.thread
         }
 
         // Espera a que la cola esté vacía y ningún trabajo se esté ejecutando.
-        public void WaitIdle()
+        public func WaitIdle()
         {
             mutex.Lock();
             while (queue.Count > 0 || active > 0) idle.Wait(mutex);
@@ -737,7 +737,7 @@ namespace std.thread
         }
 
         // Ejecuta lo que quede en la cola y une los hilos (lo llama el destructor).
-        public void Shutdown()
+        public func Shutdown()
         {
             if (workers == null) return;
             mutex.Lock();
@@ -755,7 +755,7 @@ namespace std.thread
             workerCount = 0;
         }
 
-        static void WorkerLoop(void* self)
+        static func WorkerLoop(self: void*)
         {
             ThreadPool p = (ThreadPool)self;
             p.mutex.Lock();
@@ -778,10 +778,10 @@ namespace std.thread
     // ---------------------------------------------------------------- Parallel
     memory_unsafe class ParallelBody<T>
     {
-        public delegate*<int, T, void> Fn;
-        public T Arg;
+        public var Fn: delegate*<int, T, void>;
+        public var Arg: T;
 
-        public static void Call(int i, void* self)
+        public static func Call(i: int, self: void*)
         {
             ParallelBody<T> b = (ParallelBody<T>)self;
             b.Fn(i, b.Arg);
@@ -790,9 +790,9 @@ namespace std.thread
 
     memory_unsafe class ParallelAction
     {
-        public Action<int> Fn;
+        public var Fn: Action<int>;
 
-        public static void Call(int i, void* self)
+        public static func Call(i: int, self: void*)
         {
             ParallelAction b = (ParallelAction)self;
             b.Fn(i);
@@ -803,12 +803,12 @@ namespace std.thread
     {
         // Ejecuta body(i) para cada i en [fromInclusive, toExclusive) en varios hilos (el orden no
         // está definido): Parallel.For(0, n, i => datos[i] = Calcular(i)).
-        public static void For(int fromInclusive, int toExclusive, Action<int> body)
+        public static func For(fromInclusive: int, toExclusive: int, body: Action<int>)
         {
             For(fromInclusive, toExclusive, body, faset_cpu_count());
         }
 
-        public static void For(int fromInclusive, int toExclusive, Action<int> body, int maxThreads)
+        public static func For(fromInclusive: int, toExclusive: int, body: Action<int>, maxThreads: int)
         {
             ParallelAction b = new ParallelAction();
             b.Fn = body;
@@ -817,7 +817,7 @@ namespace std.thread
         }
 
         // body(elemento) para cada elemento de la lista, en varios hilos.
-        public static void ForEach<T>(List<T> items, Action<T> body)
+        public static func ForEach<T>(items: List<T>, body: Action<T>)
         {
             For(0, items.Count, i => body(items[i]));
         }
@@ -826,13 +826,13 @@ namespace std.thread
         // índices entre los procesadores; vuelve cuando han terminado todos. El orden no está
         // definido. 'arg' se comparte entre los hilos: si es un objeto, protégelo (Mutex,
         // AtomicLong...) o escribe en posiciones distintas.
-        public static void For<T>(int fromInclusive, int toExclusive, delegate*<int, T, void> body, T arg)
+        public static func For<T>(fromInclusive: int, toExclusive: int, body: delegate*<int, T, void>, arg: T)
         {
             For<T>(fromInclusive, toExclusive, body, arg, faset_cpu_count());
         }
 
         // Igual, con un número máximo de hilos (incluido el que llama).
-        public static void For<T>(int fromInclusive, int toExclusive, delegate*<int, T, void> body, T arg, int maxThreads)
+        public static func For<T>(fromInclusive: int, toExclusive: int, body: delegate*<int, T, void>, arg: T, maxThreads: int)
         {
             ParallelBody<T> b = new ParallelBody<T>();
             b.Fn = body;
@@ -842,12 +842,12 @@ namespace std.thread
         }
 
         // Versiones con puntero sin tipo (memory_unsafe).
-        public memory_unsafe static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg)
+        public memory_unsafe static func For(fromInclusive: int, toExclusive: int, body: delegate*<int, void*, void>, arg: void*)
         {
             For(fromInclusive, toExclusive, body, arg, faset_cpu_count());
         }
 
-        public memory_unsafe static void For(int fromInclusive, int toExclusive, delegate*<int, void*, void> body, void* arg, int maxThreads)
+        public memory_unsafe static func For(fromInclusive: int, toExclusive: int, body: delegate*<int, void*, void>, arg: void*, maxThreads: int)
         {
             int n = toExclusive - fromInclusive;
             if (n <= 0) return;
@@ -876,13 +876,13 @@ namespace std.thread
 
     memory_unsafe class ParallelRange
     {
-        public long Next;
-        public int End;
-        public int Chunk;
-        public delegate*<int, void*, void> Body;
-        public void* Arg;
+        public var Next: long;
+        public var End: int;
+        public var Chunk: int;
+        public var Body: delegate*<int, void*, void>;
+        public var Arg: void*;
 
-        public static void Run(void* self)
+        public static func Run(self: void*)
         {
             ParallelRange r = (ParallelRange)self;
             for (;;)
@@ -907,24 +907,24 @@ namespace std.thread
     //    while (ch.Receive(out v)) { ... }    // consumidor
     public memory_unsafe class Channel<T>
     {
-        Mutex mutex = new Mutex();
-        ConditionVariable notEmpty = new ConditionVariable();
-        ConditionVariable notFull = new ConditionVariable();
-        T* items;
-        int head;
-        int count;
-        int capacity;  // tamaño del búfer
-        int limit;     // 0 = sin límite
-        bool closed;
+        var mutex: Mutex = new Mutex();
+        var notEmpty: ConditionVariable = new ConditionVariable();
+        var notFull: ConditionVariable = new ConditionVariable();
+        var items: T*;
+        var head: int;
+        var count: int;
+        var capacity: int;  // tamaño del búfer
+        var limit: int;     // 0 = sin límite
+        var closed: bool;
 
-        public Channel() { }
-        public Channel(int capacity)
+        public init() { }
+        public init(capacity: int)
         {
             limit = capacity < 0 ? 0 : capacity;
             if (limit > 0) Grow(limit);
         }
 
-        ~Channel()
+        deinit
         {
             Memory.Free(items);
             delete notFull;
@@ -932,7 +932,7 @@ namespace std.thread
             delete mutex;
         }
 
-        void Grow(int n)
+        func Grow(n: int)
         {
             T* fresh = Memory.New<T>(n);
             for (int i = 0; i < count; i++) fresh[i] = items[(head + i) % capacity];
@@ -942,7 +942,7 @@ namespace std.thread
             capacity = n;
         }
 
-        void Push(T item)
+        func Push(item: T)
         {
             if (count == capacity) Grow(capacity < 8 ? 8 : capacity * 2);
             items[(head + count) % capacity] = item;
@@ -950,7 +950,7 @@ namespace std.thread
         }
 
         // Envía (esperando si la cola está llena); devuelve false si el canal está cerrado.
-        public bool Send(T item)
+        public func Send(item: T) -> bool
         {
             mutex.Lock();
             while (limit > 0 && count >= limit && !closed) notFull.Wait(mutex);
@@ -966,7 +966,7 @@ namespace std.thread
         }
 
         // Envía sin esperar; false si está llena o cerrada.
-        public bool TrySend(T item)
+        public func TrySend(item: T) -> bool
         {
             mutex.Lock();
             if (closed || (limit > 0 && count >= limit))
@@ -981,7 +981,7 @@ namespace std.thread
         }
 
         // Recibe (esperando si está vacía); false si está cerrada y vacía.
-        public bool Receive(out T item)
+        public func Receive(out item: T) -> bool
         {
             mutex.Lock();
             while (count == 0 && !closed) notEmpty.Wait(mutex);
@@ -989,7 +989,7 @@ namespace std.thread
         }
 
         // Como Receive, pero espera como mucho 'milliseconds'.
-        public bool Receive(out T item, long milliseconds)
+        public func Receive(out item: T, milliseconds: long) -> bool
         {
             long deadline = faset_ticks_ms() + milliseconds;
             mutex.Lock();
@@ -1003,14 +1003,14 @@ namespace std.thread
         }
 
         // Recibe sin esperar; false si no hay nada.
-        public bool TryReceive(out T item)
+        public func TryReceive(out item: T) -> bool
         {
             mutex.Lock();
             return Take(out item);
         }
 
         // Se llama con el mutex bloqueado y lo desbloquea.
-        bool Take(out T item)
+        func Take(out item: T) -> bool
         {
             if (count == 0)
             {
@@ -1027,7 +1027,7 @@ namespace std.thread
         }
 
         // Cierra el canal: Send falla y los receptores terminan cuando se vacía.
-        public void Close()
+        public func Close()
         {
             mutex.Lock();
             closed = true;
@@ -1036,7 +1036,7 @@ namespace std.thread
             mutex.Unlock();
         }
 
-        public bool IsClosed
+        public prop IsClosed: bool
         {
             get
             {
@@ -1047,7 +1047,7 @@ namespace std.thread
             }
         }
 
-        public int Count
+        public prop Count: int
         {
             get
             {
@@ -1059,6 +1059,6 @@ namespace std.thread
         }
 
         // Capacidad máxima (0 = sin límite).
-        public int Capacity => limit;
+        public prop Capacity: int => limit;
     }
 }

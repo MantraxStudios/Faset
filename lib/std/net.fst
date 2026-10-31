@@ -132,8 +132,8 @@ namespace std.net
 
         // struct addrinfo: ai_flags, ai_family, ai_socktype, ai_protocol, size_t ai_addrlen,
         // char* ai_canonname, sockaddr* ai_addr, addrinfo* ai_next.
-        public static int AiAddr => 16 + 2 * sizeof(void*);
-        public static int AiNext => 16 + 3 * sizeof(void*);
+        public static prop AiAddr: int => 16 + 2 * sizeof(void*);
+        public static prop AiNext: int => 16 + 3 * sizeof(void*);
     }
 #else
     memory_unsafe static class K
@@ -195,13 +195,13 @@ namespace std.net
 #if ANDROID
         // struct addrinfo de bionic (orden BSD): 4 int, socklen_t ai_addrlen, char* ai_canonname,
         // sockaddr* ai_addr, addrinfo* ai_next (los punteros van alineados a su tamaño).
-        public static int AiAddr => sizeof(void*) == 8 ? 32 : 24;
-        public static int AiNext => AiAddr + sizeof(void*);
+        public static prop AiAddr: int => sizeof(void*) == 8 ? 32 : 24;
+        public static prop AiNext: int => AiAddr + sizeof(void*);
 #else
         // struct addrinfo de glibc: 4 int, socklen_t ai_addrlen, sockaddr* ai_addr, char* ai_canonname,
         // addrinfo* ai_next (el puntero ai_addr va alineado al tamaño de puntero).
-        public static int AiAddr => sizeof(void*) == 8 ? 24 : 20;
-        public static int AiNext => AiAddr + 2 * sizeof(void*);
+        public static prop AiAddr: int => sizeof(void*) == 8 ? 24 : 20;
+        public static prop AiNext: int => AiAddr + 2 * sizeof(void*);
 #endif
     }
 #endif
@@ -234,9 +234,9 @@ namespace std.net
         static extern void freeaddrinfo(byte* ai);
         static extern int gethostname(byte* name, int len);
 
-        static bool started;
+        static var started: bool;
 
-        public static void Startup()
+        public static func Startup()
         {
             if (started) return;
             byte* data = (byte*)Memory.AllocZeroed(512);   // WSADATA
@@ -245,40 +245,40 @@ namespace std.net
             started = true;
         }
 
-        public static int LastError() => WSAGetLastError();
+        public static func LastError() -> int => WSAGetLastError();
 
-        public static long Open(int af, int type, int proto)
+        public static func Open(af: int, type: int, proto: int) -> long
         {
             ulong s = WSASocketW(af, type, proto, null, 0, K.WSA_FLAG_OVERLAPPED | K.WSA_FLAG_NO_HANDLE_INHERIT);
             return s == 0xffffffffffffffff ? -1 : (long)s;
         }
 
-        public static int Close(long h) => closesocket((ulong)h);
-        public static int Connect(long h, byte* a, int len) => connect((ulong)h, a, len);
-        public static int Bind(long h, byte* a, int len) => bind((ulong)h, a, len);
-        public static int Listen(long h, int backlog) => listen((ulong)h, backlog);
+        public static func Close(h: long) -> int => closesocket((ulong)h);
+        public static func Connect(h: long, a: byte*, len: int) -> int => connect((ulong)h, a, len);
+        public static func Bind(h: long, a: byte*, len: int) -> int => bind((ulong)h, a, len);
+        public static func Listen(h: long, backlog: int) -> int => listen((ulong)h, backlog);
 
-        public static long Accept(long h, byte* a, int* len)
+        public static func Accept(h: long, a: byte*, len: int*) -> long
         {
             ulong s = accept((ulong)h, a, len);
             return s == 0xffffffffffffffff ? -1 : (long)s;
         }
 
-        public static int Send(long h, byte* b, int n) => send((ulong)h, b, n, 0);
-        public static int Recv(long h, byte* b, int n) => recv((ulong)h, b, n, 0);
-        public static int SendTo(long h, byte* b, int n, byte* a, int alen) => sendto((ulong)h, b, n, 0, a, alen);
+        public static func Send(h: long, b: byte*, n: int) -> int => send((ulong)h, b, n, 0);
+        public static func Recv(h: long, b: byte*, n: int) -> int => recv((ulong)h, b, n, 0);
+        public static func SendTo(h: long, b: byte*, n: int, a: byte*, alen: int) -> int => sendto((ulong)h, b, n, 0, a, alen);
 
-        public static int RecvFrom(long h, byte* b, int n, byte* a, int* alen)
+        public static func RecvFrom(h: long, b: byte*, n: int, a: byte*, alen: int*) -> int
         {
             int r = recvfrom((ulong)h, b, n, 0, a, alen);
             if (r < 0 && WSAGetLastError() == K.EMSGSIZE) return n;   // datagrama truncado (como en Linux)
             return r;
         }
 
-        public static int Shutdown(long h, int how) => shutdown((ulong)h, how);
-        public static int SetOption(long h, int level, int name, int value) => setsockopt((ulong)h, level, name, (byte*)&value, 4);
+        public static func Shutdown(h: long, how: int) -> int => shutdown((ulong)h, how);
+        public static func SetOption(h: long, level: int, name: int, value: int) -> int => setsockopt((ulong)h, level, name, (byte*)&value, 4);
 
-        public static int GetOption(long h, int level, int name, out int value)
+        public static func GetOption(h: long, level: int, name: int, out value: int) -> int
         {
             int v = 0;
             int len = 4;
@@ -287,16 +287,16 @@ namespace std.net
             return r;
         }
 
-        public static int LocalName(long h, byte* a, int* len) => getsockname((ulong)h, a, len);
-        public static int PeerName(long h, byte* a, int* len) => getpeername((ulong)h, a, len);
+        public static func LocalName(h: long, a: byte*, len: int*) -> int => getsockname((ulong)h, a, len);
+        public static func PeerName(h: long, a: byte*, len: int*) -> int => getpeername((ulong)h, a, len);
 
-        public static bool SetBlocking(long h, bool on)
+        public static func SetBlocking(h: long, on: bool) -> bool
         {
             uint arg = on ? (uint)0 : (uint)1;
             return ioctlsocket((ulong)h, K.FIONBIO, &arg) == 0;
         }
 
-        public static int Available(long h)
+        public static func Available(h: long) -> int
         {
             uint n = 0;
             if (ioctlsocket((ulong)h, K.FIONREAD, &n) != 0) return -1;
@@ -305,7 +305,7 @@ namespace std.net
 
         // 1 = listo, 0 = tiempo agotado, -1 = error. mode: 0 leer, 1 escribir, 2 error.
         // Se usa select (WSAPoll no informa de los connect fallidos).
-        public static int Wait(long h, int mode, int timeoutMs)
+        public static func Wait(h: long, mode: int, timeoutMs: int) -> int
         {
             byte* rs = (byte*)Memory.AllocZeroed(16);   // fd_set { u_int fd_count; SOCKET fd_array[]; }
             byte* ws = (byte*)Memory.AllocZeroed(16);
@@ -328,9 +328,9 @@ namespace std.net
             return r > 0 ? 1 : r;
         }
 
-        public static int GetAddrInfo(byte* node, byte* hints, byte** result) => getaddrinfo(node, null, hints, result);
-        public static void FreeAddrInfo(byte* ai) { freeaddrinfo(ai); }
-        public static int HostName(byte* buf, int len) => gethostname(buf, len);
+        public static func GetAddrInfo(node: byte*, hints: byte*, result: byte**) -> int => getaddrinfo(node, null, hints, result);
+        public static func FreeAddrInfo(ai: byte*) { freeaddrinfo(ai); }
+        public static func HostName(buf: byte*, len: int) -> int => gethostname(buf, len);
     }
 #else
     memory_unsafe static class Sys
@@ -364,33 +364,33 @@ namespace std.net
         static extern void freeaddrinfo(byte* ai);
         static extern int gethostname(byte* name, void* len);
 
-        public static void Startup() { }
+        public static func Startup() { }
 
 #if ANDROID
-        public static int LastError() => *__errno();
+        public static func LastError() -> int => *__errno();
 #else
-        public static int LastError() => *__errno_location();
+        public static func LastError() -> int => *__errno_location();
 #endif
 
-        public static long Open(int af, int type, int proto) => socket(af, type | K.SOCK_CLOEXEC, proto);
-        public static int Close(long h) => close((int)h);
-        public static int Connect(long h, byte* a, int len) => connect((int)h, a, (uint)len);
-        public static int Bind(long h, byte* a, int len) => bind((int)h, a, (uint)len);
-        public static int Listen(long h, int backlog) => listen((int)h, backlog);
-        public static long Accept(long h, byte* a, int* len) => accept4((int)h, a, (uint*)len, K.SOCK_CLOEXEC);
-        public static int Send(long h, byte* b, int n) => (int)(long)send((int)h, b, (void*)(long)n, K.MSG_NOSIGNAL);
-        public static int Recv(long h, byte* b, int n) => (int)(long)recv((int)h, b, (void*)(long)n, 0);
+        public static func Open(af: int, type: int, proto: int) -> long => socket(af, type | K.SOCK_CLOEXEC, proto);
+        public static func Close(h: long) -> int => close((int)h);
+        public static func Connect(h: long, a: byte*, len: int) -> int => connect((int)h, a, (uint)len);
+        public static func Bind(h: long, a: byte*, len: int) -> int => bind((int)h, a, (uint)len);
+        public static func Listen(h: long, backlog: int) -> int => listen((int)h, backlog);
+        public static func Accept(h: long, a: byte*, len: int*) -> long => accept4((int)h, a, (uint*)len, K.SOCK_CLOEXEC);
+        public static func Send(h: long, b: byte*, n: int) -> int => (int)(long)send((int)h, b, (void*)(long)n, K.MSG_NOSIGNAL);
+        public static func Recv(h: long, b: byte*, n: int) -> int => (int)(long)recv((int)h, b, (void*)(long)n, 0);
 
-        public static int SendTo(long h, byte* b, int n, byte* a, int alen) =>
+        public static func SendTo(h: long, b: byte*, n: int, a: byte*, alen: int) -> int =>
             (int)(long)sendto((int)h, b, (void*)(long)n, K.MSG_NOSIGNAL, a, (uint)alen);
 
-        public static int RecvFrom(long h, byte* b, int n, byte* a, int* alen) =>
+        public static func RecvFrom(h: long, b: byte*, n: int, a: byte*, alen: int*) -> int =>
             (int)(long)recvfrom((int)h, b, (void*)(long)n, 0, a, (uint*)alen);
 
-        public static int Shutdown(long h, int how) => shutdown((int)h, how);
-        public static int SetOption(long h, int level, int name, int value) => setsockopt((int)h, level, name, (byte*)&value, 4);
+        public static func Shutdown(h: long, how: int) -> int => shutdown((int)h, how);
+        public static func SetOption(h: long, level: int, name: int, value: int) -> int => setsockopt((int)h, level, name, (byte*)&value, 4);
 
-        public static int GetOption(long h, int level, int name, out int value)
+        public static func GetOption(h: long, level: int, name: int, out value: int) -> int
         {
             int v = 0;
             uint len = 4;
@@ -399,10 +399,10 @@ namespace std.net
             return r;
         }
 
-        public static int LocalName(long h, byte* a, int* len) => getsockname((int)h, a, (uint*)len);
-        public static int PeerName(long h, byte* a, int* len) => getpeername((int)h, a, (uint*)len);
+        public static func LocalName(h: long, a: byte*, len: int*) -> int => getsockname((int)h, a, (uint*)len);
+        public static func PeerName(h: long, a: byte*, len: int*) -> int => getpeername((int)h, a, (uint*)len);
 
-        public static bool SetBlocking(long h, bool on)
+        public static func SetBlocking(h: long, on: bool) -> bool
         {
             int flags = fcntl((int)h, K.F_GETFL);
             if (flags < 0) return false;
@@ -410,7 +410,7 @@ namespace std.net
             return fcntl((int)h, K.F_SETFL, flags) == 0;
         }
 
-        public static int Available(long h)
+        public static func Available(h: long) -> int
         {
             int n = 0;
             if (ioctl((int)h, (void*)(long)K.FIONREAD, &n) != 0) return -1;
@@ -418,7 +418,7 @@ namespace std.net
         }
 
         // 1 = listo, 0 = tiempo agotado, -1 = error. mode: 0 leer, 1 escribir, 2 error.
-        public static int Wait(long h, int mode, int timeoutMs)
+        public static func Wait(h: long, mode: int, timeoutMs: int) -> int
         {
             byte* pfd = (byte*)Memory.AllocZeroed(8);   // struct pollfd { int fd; short events; short revents; }
             *(int*)pfd = (int)h;
@@ -440,9 +440,9 @@ namespace std.net
             return r > 0 ? 1 : r;
         }
 
-        public static int GetAddrInfo(byte* node, byte* hints, byte** result) => getaddrinfo(node, null, hints, result);
-        public static void FreeAddrInfo(byte* ai) { freeaddrinfo(ai); }
-        public static int HostName(byte* buf, int len) => gethostname(buf, (void*)(long)len);
+        public static func GetAddrInfo(node: byte*, hints: byte*, result: byte**) -> int => getaddrinfo(node, null, hints, result);
+        public static func FreeAddrInfo(ai: byte*) { freeaddrinfo(ai); }
+        public static func HostName(buf: byte*, len: int) -> int => gethostname(buf, (void*)(long)len);
     }
 #endif
 
@@ -451,7 +451,7 @@ namespace std.net
     public static class Net
     {
         // Traduce un código de errno / WSAGetLastError / getaddrinfo.
-        public static SocketError FromNative(int code)
+        public static func FromNative(code: int) -> SocketError
         {
             if (code == 0) return SocketError.Success;
             if (code == K.EWOULDBLOCK || code == K.EAGAIN) return SocketError.WouldBlock;
@@ -477,7 +477,7 @@ namespace std.net
         }
 
         // Descripción en español (cadena constante: no se libera).
-        public static string Describe(SocketError e)
+        public static func Describe(e: SocketError) -> string
         {
             switch (e)
             {
@@ -510,10 +510,10 @@ namespace std.net
         }
 
         // Inicializa la red (WSAStartup en Windows). Se llama sola al crear sockets o resolver nombres.
-        public static void Startup() { Sys.Startup(); }
+        public static func Startup() { Sys.Startup(); }
 
         // Valor de un dígito hexadecimal (-1 si no lo es).
-        public static int Hex(byte c)
+        public static func Hex(c: byte) -> int
         {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -522,7 +522,7 @@ namespace std.net
         }
 
         // Entero decimal sin signo (solo dígitos). false si está vacío, tiene otros caracteres o supera 'max'.
-        public static bool ParseDecimal(string s, long max, out long value)
+        public static func ParseDecimal(s: string, max: long, out value: long) -> bool
         {
             value = 0;
             if (s.Length == 0 || s.Length > 18) return false;
@@ -544,20 +544,20 @@ namespace std.net
     // una IPv4 ocupa los 4 primeros.
     public memory_unsafe struct IPAddress
     {
-        private AddressFamily family;
-        private ulong hi;
-        private ulong lo;
-        private uint scope;
+        private var family: AddressFamily;
+        private var hi: ulong;
+        private var lo: ulong;
+        private var scope: uint;
 
-        public AddressFamily Family => family;
-        public bool IsIPv4 => family == AddressFamily.InterNetwork;
-        public bool IsIPv6 => family == AddressFamily.InterNetworkV6;
-        public bool IsValid => family != AddressFamily.Unspecified;
+        public prop Family: AddressFamily => family;
+        public prop IsIPv4: bool => family == AddressFamily.InterNetwork;
+        public prop IsIPv6: bool => family == AddressFamily.InterNetworkV6;
+        public prop IsValid: bool => family != AddressFamily.Unspecified;
         // Índice de interfaz de IPv6 (la parte '%n' de "fe80::1%2").
-        public uint ScopeId => scope;
-        public int ByteCount => family == AddressFamily.InterNetworkV6 ? 16 : (family == AddressFamily.InterNetwork ? 4 : 0);
+        public prop ScopeId: uint => scope;
+        public prop ByteCount: int => family == AddressFamily.InterNetworkV6 ? 16 : (family == AddressFamily.InterNetwork ? 4 : 0);
 
-        public static IPAddress V4(int a, int b, int c, int d)
+        public static func V4(a: int, b: int, c: int, d: int) -> IPAddress
         {
             IPAddress r = new IPAddress();
             r.family = AddressFamily.InterNetwork;
@@ -566,7 +566,7 @@ namespace std.net
         }
 
         // IPv6 a partir de sus dos mitades de 64 bits (orden de red).
-        public static IPAddress V6(ulong high, ulong low)
+        public static func V6(high: ulong, low: ulong) -> IPAddress
         {
             IPAddress r = new IPAddress();
             r.family = AddressFamily.InterNetworkV6;
@@ -576,7 +576,7 @@ namespace std.net
         }
 
         // 4 bytes = IPv4, 16 bytes = IPv6 (orden de red). Otro tamaño devuelve una dirección no válida.
-        public static IPAddress FromBytes(byte* bytes, int count)
+        public static func FromBytes(bytes: byte*, count: int) -> IPAddress
         {
             IPAddress r = new IPAddress();
             if (count != 4 && count != 16) return r;
@@ -589,43 +589,43 @@ namespace std.net
             return r;
         }
 
-        public static IPAddress Any => V4(0, 0, 0, 0);
-        public static IPAddress Loopback => V4(127, 0, 0, 1);
-        public static IPAddress Broadcast => V4(255, 255, 255, 255);
-        public static IPAddress IPv6Any => V6(0, 0);
-        public static IPAddress IPv6Loopback => V6(0, 1);
-        public static IPAddress None => new IPAddress();
+        public static prop Any: IPAddress => V4(0, 0, 0, 0);
+        public static prop Loopback: IPAddress => V4(127, 0, 0, 1);
+        public static prop Broadcast: IPAddress => V4(255, 255, 255, 255);
+        public static prop IPv6Any: IPAddress => V6(0, 0);
+        public static prop IPv6Loopback: IPAddress => V6(0, 1);
+        public static prop None: IPAddress => new IPAddress();
 
         // Byte 'i' en orden de red (0..ByteCount-1).
-        public int GetByte(int i)
+        public func GetByte(i: int) -> int
         {
             if (i < 0 || i >= 16) return 0;
             return i < 8 ? (int)((hi >> ((7 - i) * 8)) & 255) : (int)((lo >> ((15 - i) * 8)) & 255);
         }
 
         // Copia los bytes en 'dst' (ByteCount bytes).
-        public void CopyTo(byte* dst)
+        public func CopyTo(dst: byte*)
         {
             int n = ByteCount;
             for (int i = 0; i < n; i++) dst[i] = (byte)GetByte(i);
         }
 
-        public IPAddress WithScope(uint scopeId)
+        public func WithScope(scopeId: uint) -> IPAddress
         {
             IPAddress r = this;
             r.scope = scopeId;
             return r;
         }
 
-        public bool IsLoopback => (family == AddressFamily.InterNetwork && (hi >> 56) == 127) ||
+        public prop IsLoopback: bool => (family == AddressFamily.InterNetwork && (hi >> 56) == 127) ||
                                   (family == AddressFamily.InterNetworkV6 && hi == 0 && lo == 1) ||
                                   (IsIPv4MappedToIPv6 && ((lo >> 24) & 255) == 127);
-        public bool IsAny => family != AddressFamily.Unspecified && hi == 0 && lo == 0;
-        public bool IsIPv4MappedToIPv6 => family == AddressFamily.InterNetworkV6 && hi == 0 && (lo >> 32) == 0xffff;
-        public bool IsIPv6LinkLocal => family == AddressFamily.InterNetworkV6 && (hi >> 54) == 0x3fa;
+        public prop IsAny: bool => family != AddressFamily.Unspecified && hi == 0 && lo == 0;
+        public prop IsIPv4MappedToIPv6: bool => family == AddressFamily.InterNetworkV6 && hi == 0 && (lo >> 32) == 0xffff;
+        public prop IsIPv6LinkLocal: bool => family == AddressFamily.InterNetworkV6 && (hi >> 54) == 0x3fa;
 
         // ::ffff:a.b.c.d -> a.b.c.d (las demás direcciones se devuelven igual).
-        public IPAddress MapToIPv4()
+        public func MapToIPv4() -> IPAddress
         {
             if (!IsIPv4MappedToIPv6) return this;
             IPAddress r = new IPAddress();
@@ -635,20 +635,20 @@ namespace std.net
         }
 
         // a.b.c.d -> ::ffff:a.b.c.d
-        public IPAddress MapToIPv6()
+        public func MapToIPv6() -> IPAddress
         {
             if (family != AddressFamily.InterNetwork) return this;
             return V6(0, (ulong)0xffff00000000 | (hi >> 32));
         }
 
-        public static bool operator ==(IPAddress a, IPAddress b) => a.family == b.family && a.hi == b.hi && a.lo == b.lo && a.scope == b.scope;
-        public static bool operator !=(IPAddress a, IPAddress b) => !(a == b);
-        public bool Equals(IPAddress other) => this == other;
+        public operator ==(a: IPAddress, b: IPAddress) -> bool => a.family == b.family && a.hi == b.hi && a.lo == b.lo && a.scope == b.scope;
+        public operator !=(a: IPAddress, b: IPAddress) -> bool => !(a == b);
+        public func Equals(other: IPAddress) -> bool => this == other;
 
         // ---------------------------------------------------------------- análisis
 
         // Acepta "a.b.c.d", IPv6 ("::1", "fe80::1%3", "::ffff:1.2.3.4") y IPv6 entre corchetes.
-        public static bool TryParse(string text, out IPAddress address)
+        public static func TryParse(text: string, out address: IPAddress) -> bool
         {
             address = new IPAddress();
             string s = text;
@@ -686,7 +686,7 @@ namespace std.net
         }
 
         // Como TryParse, pero lanza FormatException si el texto no es una dirección.
-        public static IPAddress Parse(string text)
+        public static func Parse(text: string) -> IPAddress
         {
             IPAddress a;
             if (!TryParse(text, out a)) throw new FormatException("IPAddress.Parse: dirección no válida");
@@ -694,7 +694,7 @@ namespace std.net
         }
 
         // IPv4 decimal estricta: cuatro partes 0..255 sin ceros a la izquierda. Resultado en 32 bits.
-        static bool ParseV4(string s, out ulong bits)
+        static func ParseV4(s: string, out bits: ulong) -> bool
         {
             bits = 0;
             ulong v = 0;
@@ -723,7 +723,7 @@ namespace std.net
         }
 
         // Grupos hexadecimales separados por ':' (sin '::'). Devuelve cuántas palabras escribió o -1.
-        static int ParseGroups(string part, int* words, bool allowV4)
+        static func ParseGroups(part: string, words: int*, allowV4: bool) -> int
         {
             if (part.Length == 0) return 0;
             int n = 0, start = 0;
@@ -753,7 +753,7 @@ namespace std.net
             return n;
         }
 
-        static bool ParseV6(string s, out ulong high, out ulong low)
+        static func ParseV6(s: string, out high: ulong, out low: ulong) -> bool
         {
             high = 0;
             low = 0;
@@ -787,7 +787,7 @@ namespace std.net
         // ---------------------------------------------------------------- formato
 
         // Texto de la dirección (copia). IPv6 en forma canónica (RFC 5952).
-        public string ToString()
+        public func ToString() -> string
         {
             StringBuilder sb = new StringBuilder();
             AppendTo(sb);
@@ -796,7 +796,7 @@ namespace std.net
             return r;
         }
 
-        public void AppendTo(StringBuilder sb)
+        public func AppendTo(sb: StringBuilder)
         {
             if (family == AddressFamily.InterNetwork)
             {
@@ -859,13 +859,13 @@ namespace std.net
             }
         }
 
-        static void AppendV4(StringBuilder sb, uint v)
+        static func AppendV4(sb: StringBuilder, v: uint)
         {
             sb.Append((long)((v >> 24) & 255)).Append(".").Append((long)((v >> 16) & 255)).Append(".");
             sb.Append((long)((v >> 8) & 255)).Append(".").Append((long)(v & 255));
         }
 
-        static void AppendHex(StringBuilder sb, int v)
+        static func AppendHex(sb: StringBuilder, v: int)
         {
             string digits = "0123456789abcdef";
             bool started = false;
@@ -882,22 +882,22 @@ namespace std.net
     // Dirección + puerto.
     public struct IPEndPoint
     {
-        public IPAddress Address;
-        public int Port;
+        public var Address: IPAddress;
+        public var Port: int;
 
-        public IPEndPoint(IPAddress address, int port)
+        public init(address: IPAddress, port: int)
         {
             Address = address;
             Port = port;
         }
 
-        public AddressFamily Family => Address.Family;
+        public prop Family: AddressFamily => Address.Family;
 
-        public static bool operator ==(IPEndPoint a, IPEndPoint b) => a.Address == b.Address && a.Port == b.Port;
-        public static bool operator !=(IPEndPoint a, IPEndPoint b) => !(a == b);
+        public operator ==(a: IPEndPoint, b: IPEndPoint) -> bool => a.Address == b.Address && a.Port == b.Port;
+        public operator !=(a: IPEndPoint, b: IPEndPoint) -> bool => !(a == b);
 
         // "1.2.3.4:80" o "[::1]:80" (copia).
-        public string ToString()
+        public func ToString() -> string
         {
             StringBuilder sb = new StringBuilder();
             if (Address.IsIPv6) sb.Append("[");
@@ -910,7 +910,7 @@ namespace std.net
         }
 
         // Acepta "1.2.3.4:80" y "[::1]:80" (solo direcciones numéricas).
-        public static bool TryParse(string text, out IPEndPoint endPoint)
+        public static func TryParse(text: string, out endPoint: IPEndPoint) -> bool
         {
             endPoint = new IPEndPoint(IPAddress.None, 0);
             int colon = text.LastIndexOf(":");
@@ -930,7 +930,7 @@ namespace std.net
     {
         public const int Size = 128;   // sockaddr_storage
 
-        public static int Write(IPEndPoint ep, byte* p)
+        public static func Write(ep: IPEndPoint, p: byte*) -> int
         {
             Memory.Set(p, 0, Size);
             p[2] = (byte)((ep.Port >> 8) & 255);
@@ -947,7 +947,7 @@ namespace std.net
             return 16;
         }
 
-        public static bool Read(byte* p, out IPEndPoint ep)
+        public static func Read(p: byte*, out ep: IPEndPoint) -> bool
         {
             int family = *(ushort*)p;
             int port = (p[2] << 8) | p[3];
@@ -965,23 +965,23 @@ namespace std.net
             return false;
         }
 
-        public static int FamilyCode(AddressFamily f) => f == AddressFamily.InterNetworkV6 ? K.AF_INET6 : K.AF_INET;
+        public static func FamilyCode(f: AddressFamily) -> int => f == AddressFamily.InterNetworkV6 ? K.AF_INET6 : K.AF_INET;
     }
 
     // ======================================================================= DNS
 
     public memory_unsafe static class Dns
     {
-        static SocketError lastError;
-        static int lastNative;
+        static var lastError: SocketError;
+        static var lastNative: int;
 
-        public static SocketError LastError => lastError;
-        public static int NativeError => lastNative;
-        public static string ErrorMessage => Net.Describe(lastError);
+        public static prop LastError: SocketError => lastError;
+        public static prop NativeError: int => lastNative;
+        public static prop ErrorMessage: string => Net.Describe(lastError);
 
         // Añade a 'results' todas las direcciones de 'host' (IPv4 e IPv6, sin repetir, en el orden
         // del sistema). Una dirección numérica se devuelve tal cual sin consultar el DNS.
-        public static bool GetHostAddresses(string host, List<IPAddress> results)
+        public static func GetHostAddresses(host: string, results: List<IPAddress>) -> bool
         {
             lastError = SocketError.Success;
             lastNative = 0;
@@ -1034,10 +1034,10 @@ namespace std.net
         }
 
         // Primera dirección de 'host', preferentemente IPv4.
-        public static bool TryResolve(string host, out IPAddress address) => TryResolve(host, AddressFamily.Unspecified, out address);
+        public static func TryResolve(host: string, out address: IPAddress) -> bool => TryResolve(host, AddressFamily.Unspecified, out address);
 
         // Primera dirección de la familia pedida (Unspecified = IPv4 si hay, si no IPv6).
-        public static bool TryResolve(string host, AddressFamily family, out IPAddress address)
+        public static func TryResolve(host: string, family: AddressFamily, out address: IPAddress) -> bool
         {
             address = IPAddress.None;
             List<IPAddress> all = new List<IPAddress>();
@@ -1064,7 +1064,7 @@ namespace std.net
         }
 
         // Nombre de este equipo (copia).
-        public static string GetHostName()
+        public static func GetHostName() -> string
         {
             Sys.Startup();
             byte* buf = (byte*)Memory.AllocZeroed(257);
@@ -1083,16 +1083,16 @@ namespace std.net
     // completarse fallan con SocketError.WouldBlock (o InProgress en Connect): usa Poll para esperar.
     public memory_unsafe class Socket
     {
-        long handle = -1;
-        AddressFamily family;
-        SocketType type;
-        bool blocking = true;
-        int receiveTimeout = -1;
-        int sendTimeout = -1;
-        SocketError error;
-        int nativeError;
+        var handle: long = -1;
+        var family: AddressFamily;
+        var type: SocketType;
+        var blocking: bool = true;
+        var receiveTimeout: int = -1;
+        var sendTimeout: int = -1;
+        var error: SocketError;
+        var nativeError: int;
 
-        public Socket(AddressFamily addressFamily, SocketType socketType)
+        public init(addressFamily: AddressFamily, socketType: SocketType)
         {
             family = addressFamily == AddressFamily.InterNetworkV6 ? AddressFamily.InterNetworkV6 : AddressFamily.InterNetwork;
             type = socketType;
@@ -1102,29 +1102,29 @@ namespace std.net
             if (handle == -1) FailNative();
         }
 
-        Socket(long acceptedHandle, AddressFamily addressFamily, SocketType socketType)
+        init(acceptedHandle: long, addressFamily: AddressFamily, socketType: SocketType)
         {
             handle = acceptedHandle;
             family = addressFamily;
             type = socketType;
         }
 
-        ~Socket() { Close(); }
+        deinit { Close(); }
 
-        public bool IsValid => handle != -1;
+        public prop IsValid: bool => handle != -1;
         // Descriptor (Linux) o SOCKET (Windows); -1 si está cerrado.
-        public long Handle => handle;
-        public AddressFamily Family => family;
-        public SocketType Type => type;
-        public SocketError Error => error;
-        public int NativeError => nativeError;
-        public string ErrorMessage => Net.Describe(error);
+        public prop Handle: long => handle;
+        public prop Family: AddressFamily => family;
+        public prop Type: SocketType => type;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
+        public prop ErrorMessage: string => Net.Describe(error);
 
         // Tiempos de espera en milisegundos (-1 = sin límite).
-        public int ReceiveTimeout { get => receiveTimeout; set { receiveTimeout = value; } }
-        public int SendTimeout { get => sendTimeout; set { sendTimeout = value; } }
+        public prop ReceiveTimeout: int { get => receiveTimeout; set { receiveTimeout = value; } }
+        public prop SendTimeout: int { get => sendTimeout; set { sendTimeout = value; } }
 
-        public bool Blocking
+        public prop Blocking: bool
         {
             get => blocking;
             set
@@ -1135,26 +1135,26 @@ namespace std.net
             }
         }
 
-        void Fail(SocketError e, int native)
+        func Fail(e: SocketError, native: int)
         {
             error = e;
             nativeError = native;
         }
 
-        void FailNative()
+        func FailNative()
         {
             int code = Sys.LastError();
             Fail(Net.FromNative(code), code);
         }
 
-        bool Check()
+        func Check() -> bool
         {
             if (handle != -1) return true;
             Fail(SocketError.InvalidSocket, 0);
             return false;
         }
 
-        bool WaitFor(SelectMode mode, int timeoutMs)
+        func WaitFor(mode: SelectMode, timeoutMs: int) -> bool
         {
             int r = Sys.Wait(handle, (int)mode, timeoutMs);
             if (r > 0) return true;
@@ -1166,7 +1166,7 @@ namespace std.net
         // Espera hasta 'timeoutMs' (-1 = sin límite, 0 = consultar) a que el socket esté listo:
         // Read = hay datos, una conexión que aceptar o el otro extremo cerró; Write = se puede
         // enviar o terminó un Connect no bloqueante; Error = hay una condición de error o datos urgentes.
-        public bool Poll(int timeoutMs, SelectMode mode)
+        public func Poll(timeoutMs: int, mode: SelectMode) -> bool
         {
             if (!Check()) return false;
             int r = Sys.Wait(handle, (int)mode, timeoutMs);
@@ -1179,12 +1179,12 @@ namespace std.net
             return r > 0;
         }
 
-        public bool Connect(IPEndPoint remote) => Connect(remote, -1);
+        public func Connect(remote: IPEndPoint) -> bool => Connect(remote, -1);
 
         // Conecta esperando como mucho 'timeoutMs' (-1 = lo que tarde el sistema). En modo no bloqueante
         // y sin tiempo de espera devuelve false con SocketError.InProgress: espera con Poll(.., Write)
         // y consulta el resultado con FinishConnect. Tras un fallo, cierra el socket.
-        public bool Connect(IPEndPoint remote, int timeoutMs)
+        public func Connect(remote: IPEndPoint, timeoutMs: int) -> bool
         {
             if (!Check()) return false;
             byte* sa = (byte*)Memory.Alloc(SockAddr.Size);
@@ -1214,7 +1214,7 @@ namespace std.net
         }
 
         // Resultado de un Connect no bloqueante después de que Poll(.., Write) devolviera true.
-        public bool FinishConnect()
+        public func FinishConnect() -> bool
         {
             if (!Check()) return false;
             int so = 0;
@@ -1232,7 +1232,7 @@ namespace std.net
             return true;
         }
 
-        public bool Bind(IPEndPoint local)
+        public func Bind(local: IPEndPoint) -> bool
         {
             if (!Check()) return false;
             byte* sa = (byte*)Memory.Alloc(SockAddr.Size);
@@ -1248,7 +1248,7 @@ namespace std.net
             return true;
         }
 
-        public bool Listen(int backlog)
+        public func Listen(backlog: int) -> bool
         {
             if (!Check()) return false;
             if (Sys.Listen(handle, backlog) != 0)
@@ -1261,7 +1261,7 @@ namespace std.net
         }
 
         // Acepta una conexión entrante (null si falla). El socket devuelto es bloqueante.
-        public Socket Accept()
+        public func Accept() -> Socket
         {
             if (!Check()) return null;
             if (blocking && receiveTimeout >= 0 && !WaitFor(SelectMode.Read, receiveTimeout)) return null;
@@ -1285,7 +1285,7 @@ namespace std.net
         }
 
         // Envía hasta 'length' bytes; devuelve cuántos se enviaron o -1.
-        public int Send(byte* data, int length)
+        public func Send(data: byte*, length: int) -> int
         {
             if (!Check()) return -1;
             if (blocking && sendTimeout >= 0 && !WaitFor(SelectMode.Write, sendTimeout)) return -1;
@@ -1305,7 +1305,7 @@ namespace std.net
         }
 
         // Envía todos los bytes (en modo no bloqueante espera con Poll lo que haga falta).
-        public bool SendAll(byte* data, int length)
+        public func SendAll(data: byte*, length: int) -> bool
         {
             int sent = 0;
             while (sent < length)
@@ -1321,11 +1321,11 @@ namespace std.net
             return true;
         }
 
-        public bool SendAll(string text) => SendAll(text.Ptr, (int)text.Length);
+        public func SendAll(text: string) -> bool => SendAll(text.Ptr, (int)text.Length);
 
         // Recibe hasta 'capacity' bytes. Devuelve cuántos llegaron, 0 si el otro extremo cerró
         // la conexión o -1 si hubo un error (WouldBlock en modo no bloqueante, TimedOut...).
-        public int Receive(byte* buffer, int capacity)
+        public func Receive(buffer: byte*, capacity: int) -> int
         {
             if (!Check()) return -1;
             if (blocking && receiveTimeout >= 0 && !WaitFor(SelectMode.Read, receiveTimeout)) return -1;
@@ -1345,7 +1345,7 @@ namespace std.net
         }
 
         // Datagramas (UDP).
-        public int SendTo(byte* data, int length, IPEndPoint remote)
+        public func SendTo(data: byte*, length: int, remote: IPEndPoint) -> int
         {
             if (!Check()) return -1;
             if (blocking && sendTimeout >= 0 && !WaitFor(SelectMode.Write, sendTimeout)) return -1;
@@ -1364,7 +1364,7 @@ namespace std.net
         }
 
         // Recibe un datagrama (si no cabe, se trunca a 'capacity'). -1 si hay error.
-        public int ReceiveFrom(byte* buffer, int capacity, out IPEndPoint remote)
+        public func ReceiveFrom(buffer: byte*, capacity: int, out remote: IPEndPoint) -> int
         {
             remote = new IPEndPoint(IPAddress.None, 0);
             if (!Check()) return -1;
@@ -1388,7 +1388,7 @@ namespace std.net
         }
 
         // Bytes que se pueden leer sin bloquear (-1 si hay error).
-        public int Available
+        public prop Available: int
         {
             get
             {
@@ -1399,7 +1399,7 @@ namespace std.net
             }
         }
 
-        bool SetFlag(int level, int name, bool on)
+        func SetFlag(level: int, name: int, on: bool) -> bool
         {
             if (!Check()) return false;
             if (Sys.SetOption(handle, level, name, on ? 1 : 0) != 0)
@@ -1411,14 +1411,14 @@ namespace std.net
         }
 
         // Desactiva el algoritmo de Nagle (envía los paquetes pequeños sin esperar).
-        public bool SetNoDelay(bool on) => SetFlag(K.IPPROTO_TCP, K.TCP_NODELAY, on);
-        public bool SetReuseAddress(bool on) => SetFlag(K.SOL_SOCKET, K.SO_REUSEADDR, on);
-        public bool SetBroadcast(bool on) => SetFlag(K.SOL_SOCKET, K.SO_BROADCAST, on);
-        public bool SetKeepAlive(bool on) => SetFlag(K.SOL_SOCKET, K.SO_KEEPALIVE, on);
+        public func SetNoDelay(on: bool) -> bool => SetFlag(K.IPPROTO_TCP, K.TCP_NODELAY, on);
+        public func SetReuseAddress(on: bool) -> bool => SetFlag(K.SOL_SOCKET, K.SO_REUSEADDR, on);
+        public func SetBroadcast(on: bool) -> bool => SetFlag(K.SOL_SOCKET, K.SO_BROADCAST, on);
+        public func SetKeepAlive(on: bool) -> bool => SetFlag(K.SOL_SOCKET, K.SO_KEEPALIVE, on);
         // Socket IPv6 que también acepta IPv4 (::ffff:a.b.c.d). Llamar antes de Bind.
-        public bool SetDualMode(bool on) => SetFlag(K.IPPROTO_IPV6, K.IPV6_V6ONLY, !on);
+        public func SetDualMode(on: bool) -> bool => SetFlag(K.IPPROTO_IPV6, K.IPV6_V6ONLY, !on);
 
-        IPEndPoint Name(bool peer)
+        func Name(peer: bool) -> IPEndPoint
         {
             IPEndPoint ep = new IPEndPoint(IPAddress.None, 0);
             if (!Check()) return ep;
@@ -1432,10 +1432,10 @@ namespace std.net
         }
 
         // Dirección local (tras Bind con puerto 0, contiene el puerto asignado) y remota.
-        public IPEndPoint LocalEndPoint => Name(false);
-        public IPEndPoint RemoteEndPoint => Name(true);
+        public prop LocalEndPoint: IPEndPoint => Name(false);
+        public prop RemoteEndPoint: IPEndPoint => Name(true);
 
-        public bool Shutdown(SocketShutdown how)
+        public func Shutdown(how: SocketShutdown) -> bool
         {
             if (!Check()) return false;
             if (Sys.Shutdown(handle, (int)how) != 0)
@@ -1446,7 +1446,7 @@ namespace std.net
             return true;
         }
 
-        public void Close()
+        public func Close()
         {
             if (handle == -1) return;
             Sys.Close(handle);
@@ -1459,39 +1459,39 @@ namespace std.net
     // Conexión TCP con lectura por líneas o hasta el final.
     public memory_unsafe class TcpClient
     {
-        Socket socket;
-        int receiveTimeout = -1;
-        int sendTimeout = -1;
-        SocketError error;
-        int nativeError;
-        byte* pending;       // bytes recibidos y aún no entregados (ReadLine)
-        int pendingStart;
-        int pendingEnd;
-        int pendingCap;
+        var socket: Socket;
+        var receiveTimeout: int = -1;
+        var sendTimeout: int = -1;
+        var error: SocketError;
+        var nativeError: int;
+        var pending: byte*;       // bytes recibidos y aún no entregados (ReadLine)
+        var pendingStart: int;
+        var pendingEnd: int;
+        var pendingCap: int;
 
-        public TcpClient() { }
+        public init() { }
 
         // Envuelve un socket ya conectado (por ejemplo, el de Socket.Accept); pasa a ser su dueño.
-        public TcpClient(Socket connected)
+        public init(connected: Socket)
         {
             socket = connected;
             receiveTimeout = connected.ReceiveTimeout;
             sendTimeout = connected.SendTimeout;
         }
 
-        ~TcpClient()
+        deinit
         {
             Close();
             Memory.Free(pending);
         }
 
-        public Socket Client => socket;
-        public bool Connected => socket != null && socket.IsValid;
-        public SocketError Error => error;
-        public int NativeError => nativeError;
-        public string ErrorMessage => Net.Describe(error);
+        public prop Client: Socket => socket;
+        public prop Connected: bool => socket != null && socket.IsValid;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
+        public prop ErrorMessage: string => Net.Describe(error);
 
-        public int ReceiveTimeout
+        public prop ReceiveTimeout: int
         {
             get => receiveTimeout;
             set
@@ -1501,7 +1501,7 @@ namespace std.net
             }
         }
 
-        public int SendTimeout
+        public prop SendTimeout: int
         {
             get => sendTimeout;
             set
@@ -1511,26 +1511,26 @@ namespace std.net
             }
         }
 
-        public IPEndPoint RemoteEndPoint => socket != null ? socket.RemoteEndPoint : new IPEndPoint(IPAddress.None, 0);
-        public IPEndPoint LocalEndPoint => socket != null ? socket.LocalEndPoint : new IPEndPoint(IPAddress.None, 0);
+        public prop RemoteEndPoint: IPEndPoint => socket != null ? socket.RemoteEndPoint : new IPEndPoint(IPAddress.None, 0);
+        public prop LocalEndPoint: IPEndPoint => socket != null ? socket.LocalEndPoint : new IPEndPoint(IPAddress.None, 0);
 
-        void TakeError(Socket s)
+        func TakeError(s: Socket)
         {
             error = s.Error;
             nativeError = s.NativeError;
         }
 
-        bool FailWith(SocketError e)
+        func FailWith(e: SocketError) -> bool
         {
             error = e;
             nativeError = 0;
             return false;
         }
 
-        public bool Connect(string host, int port) => Connect(host, port, -1);
+        public func Connect(host: string, port: int) -> bool => Connect(host, port, -1);
 
         // Resuelve 'host' y prueba sus direcciones en orden; 'timeoutMs' se aplica a cada intento.
-        public bool Connect(string host, int port, int timeoutMs)
+        public func Connect(host: string, port: int, timeoutMs: int) -> bool
         {
             Close();
             List<IPAddress> addresses = new List<IPAddress>();
@@ -1548,9 +1548,9 @@ namespace std.net
             return ok;
         }
 
-        public bool Connect(IPEndPoint remote) => Connect(remote, -1);
+        public func Connect(remote: IPEndPoint) -> bool => Connect(remote, -1);
 
-        public bool Connect(IPEndPoint remote, int timeoutMs)
+        public func Connect(remote: IPEndPoint, timeoutMs: int) -> bool
         {
             Close();
             if (remote.Port <= 0 || remote.Port > 65535 || !remote.Address.IsValid) return FailWith(SocketError.InvalidArgument);
@@ -1568,7 +1568,7 @@ namespace std.net
             return true;
         }
 
-        public bool SetNoDelay(bool on)
+        public func SetNoDelay(on: bool) -> bool
         {
             if (socket == null) return FailWith(SocketError.NotConnected);
             if (socket.SetNoDelay(on)) return true;
@@ -1577,7 +1577,7 @@ namespace std.net
         }
 
         // Envía hasta 'length' bytes; devuelve cuántos o -1.
-        public int Send(byte* data, int length)
+        public func Send(data: byte*, length: int) -> int
         {
             if (socket == null)
             {
@@ -1590,7 +1590,7 @@ namespace std.net
         }
 
         // Envía todos los bytes o el texto completo.
-        public bool Write(byte* data, int length)
+        public func Write(data: byte*, length: int) -> bool
         {
             if (socket == null) return FailWith(SocketError.NotConnected);
             if (socket.SendAll(data, length)) return true;
@@ -1598,12 +1598,12 @@ namespace std.net
             return false;
         }
 
-        public bool Write(string text) => Write(text.Ptr, (int)text.Length);
+        public func Write(text: string) -> bool => Write(text.Ptr, (int)text.Length);
 
-        public bool WriteLine(string text) => Write(text) && Write("\r\n");
+        public func WriteLine(text: string) -> bool => Write(text) && Write("\r\n");
 
         // Recibe hasta 'capacity' bytes: >0 bytes recibidos, 0 = conexión cerrada, -1 = error.
-        public int Receive(byte* buffer, int capacity)
+        public func Receive(buffer: byte*, capacity: int) -> int
         {
             if (pendingEnd > pendingStart)
             {
@@ -1624,7 +1624,7 @@ namespace std.net
         }
 
         // Una lectura: añade a 'output' lo recibido. Devuelve los bytes añadidos (0 = cerrada, -1 = error).
-        public int Read(StringBuilder output)
+        public func Read(output: StringBuilder) -> int
         {
             byte* buf = (byte*)Memory.Alloc(8192);
             int n = Receive(buf, 8192);
@@ -1635,7 +1635,7 @@ namespace std.net
 
         // Lee hasta que el otro extremo cierre la conexión (copia).
         // Si se corta por un error, devuelve lo leído y Error lo indica.
-        public string ReadToEnd()
+        public func ReadToEnd() -> string
         {
             StringBuilder sb = new StringBuilder();
             while (Read(sb) > 0) { }
@@ -1647,26 +1647,26 @@ namespace std.net
         // ---- async (std.task). Implementación con hilos: cada operación bloqueante corre en un hilo
         // del grupo de tareas y 'await' no bloquea a quien espera. No uses el mismo TcpClient desde
         // dos operaciones a la vez (como en C#, una lectura y una escritura simultáneas sí valen).
-        public Task<bool> ConnectAsync(string host, int port)
+        public func ConnectAsync(host: string, port: int) -> Task<bool>
         {
             TcpClient self = this;
             return Task.Run(() => self.Connect(host, port));
         }
 
         // Una lectura: añade a 'output' lo recibido (bytes añadidos; 0 = cerrada, -1 = error).
-        public Task<int> ReadAsync(StringBuilder output)
+        public func ReadAsync(output: StringBuilder) -> Task<int>
         {
             TcpClient self = this;
             return Task.Run(() => self.Read(output));
         }
 
-        public Task<string> ReadToEndAsync()
+        public func ReadToEndAsync() -> Task<string>
         {
             TcpClient self = this;
             return Task.Run(() => self.ReadToEnd());
         }
 
-        public Task<bool> WriteAsync(string text)
+        public func WriteAsync(text: string) -> Task<bool>
         {
             TcpClient self = this;
             return Task.Run(() => self.Write(text));
@@ -1674,7 +1674,7 @@ namespace std.net
 
         // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia).
         // Devuelve false si la conexión se cerró sin más datos o hubo un error.
-        public bool ReadLine(out string line)
+        public func ReadLine(out line: string) -> bool
         {
             int scanFrom = pendingStart;
             for (;;)
@@ -1725,7 +1725,7 @@ namespace std.net
         }
 
         // Bytes listos para leer sin bloquear (incluye los que ya están en el búfer de ReadLine).
-        public int Available
+        public prop Available: int
         {
             get
             {
@@ -1736,7 +1736,7 @@ namespace std.net
         }
 
         // Cierra el envío (el otro extremo verá el final de los datos) o la recepción.
-        public bool Shutdown(SocketShutdown how)
+        public func Shutdown(how: SocketShutdown) -> bool
         {
             if (socket == null) return FailWith(SocketError.NotConnected);
             if (socket.Shutdown(how)) return true;
@@ -1744,7 +1744,7 @@ namespace std.net
             return false;
         }
 
-        public void Close()
+        public func Close()
         {
             if (socket != null) delete socket;
             socket = null;
@@ -1756,36 +1756,36 @@ namespace std.net
     // Servidor TCP: escucha en una dirección y acepta conexiones.
     public class TcpListener
     {
-        Socket socket;
-        IPEndPoint endpoint;
-        SocketError error;
-        int nativeError;
+        var socket: Socket;
+        var endpoint: IPEndPoint;
+        var error: SocketError;
+        var nativeError: int;
 
-        public TcpListener(IPEndPoint local) { endpoint = local; }
-        public TcpListener(IPAddress address, int port) { endpoint = new IPEndPoint(address, port); }
+        public init(local: IPEndPoint) { endpoint = local; }
+        public init(address: IPAddress, port: int) { endpoint = new IPEndPoint(address, port); }
         // Todas las interfaces IPv4.
-        public TcpListener(int port) { endpoint = new IPEndPoint(IPAddress.Any, port); }
+        public init(port: int) { endpoint = new IPEndPoint(IPAddress.Any, port); }
 
-        ~TcpListener() { Stop(); }
+        deinit { Stop(); }
 
-        public Socket Server => socket;
-        public bool Active => socket != null;
+        public prop Server: Socket => socket;
+        public prop Active: bool => socket != null;
         // Tras Start, el puerto real (útil con el puerto 0 = cualquiera libre).
-        public IPEndPoint LocalEndPoint => endpoint;
-        public SocketError Error => error;
-        public int NativeError => nativeError;
-        public string ErrorMessage => Net.Describe(error);
+        public prop LocalEndPoint: IPEndPoint => endpoint;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
+        public prop ErrorMessage: string => Net.Describe(error);
 
-        bool Fail(Socket s)
+        func Fail(s: Socket) -> bool
         {
             error = s.Error;
             nativeError = s.NativeError;
             return false;
         }
 
-        public bool Start() => Start(128);
+        public func Start() -> bool => Start(128);
 
-        public bool Start(int backlog)
+        public func Start(backlog: int) -> bool
         {
             Stop();
             Socket s = new Socket(endpoint.Address.Family, SocketType.Stream);
@@ -1809,19 +1809,19 @@ namespace std.net
         }
 
         // true si hay una conexión esperando (sin bloquear, o esperando hasta 'timeoutMs').
-        public bool Pending() => Pending(0);
+        public func Pending() -> bool => Pending(0);
 
-        public bool Pending(int timeoutMs)
+        public func Pending(timeoutMs: int) -> bool
         {
             if (socket == null) return false;
             return socket.Poll(timeoutMs, SelectMode.Read);
         }
 
         // Acepta un socket (bloquea; null si falla).
-        public Socket AcceptSocket() => AcceptSocket(-1);
+        public func AcceptSocket() -> Socket => AcceptSocket(-1);
 
         // Espera como mucho 'timeoutMs' (-1 = sin límite). null con Error = TimedOut si no llega nadie.
-        public Socket AcceptSocket(int timeoutMs)
+        public func AcceptSocket(timeoutMs: int) -> Socket
         {
             if (socket == null)
             {
@@ -1840,15 +1840,15 @@ namespace std.net
             return s;
         }
 
-        public TcpClient AcceptTcpClient() => AcceptTcpClient(-1);
+        public func AcceptTcpClient() -> TcpClient => AcceptTcpClient(-1);
 
-        public TcpClient AcceptTcpClient(int timeoutMs)
+        public func AcceptTcpClient(timeoutMs: int) -> TcpClient
         {
             Socket s = AcceptSocket(timeoutMs);
             return s == null ? null : new TcpClient(s);
         }
 
-        public void Stop()
+        public func Stop()
         {
             if (socket != null) delete socket;
             socket = null;
@@ -1859,26 +1859,26 @@ namespace std.net
 
     public memory_unsafe class UdpClient
     {
-        Socket socket;
-        SocketError error;
-        int nativeError;
+        var socket: Socket;
+        var error: SocketError;
+        var nativeError: int;
 
         // Socket IPv4 sin enlazar (el sistema elige el puerto al enviar).
-        public UdpClient() { socket = new Socket(AddressFamily.InterNetwork, SocketType.Datagram); }
-        public UdpClient(AddressFamily family) { socket = new Socket(family, SocketType.Datagram); }
+        public init() { socket = new Socket(AddressFamily.InterNetwork, SocketType.Datagram); }
+        public init(family: AddressFamily) { socket = new Socket(family, SocketType.Datagram); }
 
-        ~UdpClient() { delete socket; }
+        deinit { delete socket; }
 
-        public Socket Client => socket;
-        public SocketError Error => error;
-        public int NativeError => nativeError;
-        public string ErrorMessage => Net.Describe(error);
-        public IPEndPoint LocalEndPoint => socket.LocalEndPoint;
+        public prop Client: Socket => socket;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
+        public prop ErrorMessage: string => Net.Describe(error);
+        public prop LocalEndPoint: IPEndPoint => socket.LocalEndPoint;
 
-        public int ReceiveTimeout { get => socket.ReceiveTimeout; set { socket.ReceiveTimeout = value; } }
-        public int SendTimeout { get => socket.SendTimeout; set { socket.SendTimeout = value; } }
+        public prop ReceiveTimeout: int { get => socket.ReceiveTimeout; set { socket.ReceiveTimeout = value; } }
+        public prop SendTimeout: int { get => socket.SendTimeout; set { socket.SendTimeout = value; } }
 
-        bool Result(bool ok)
+        func Result(ok: bool) -> bool
         {
             error = socket.Error;
             nativeError = socket.NativeError;
@@ -1886,29 +1886,29 @@ namespace std.net
             return ok;
         }
 
-        int Count(int n)
+        func Count(n: int) -> int
         {
             Result(n >= 0);
             return n;
         }
 
-        public bool Bind(IPEndPoint local) => Result(socket.Bind(local));
-        public bool Bind(int port) => Result(socket.Bind(new IPEndPoint(socket.Family == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, port)));
-        public bool SetBroadcast(bool on) => Result(socket.SetBroadcast(on));
+        public func Bind(local: IPEndPoint) -> bool => Result(socket.Bind(local));
+        public func Bind(port: int) -> bool => Result(socket.Bind(new IPEndPoint(socket.Family == AddressFamily.InterNetworkV6 ? IPAddress.IPv6Any : IPAddress.Any, port)));
+        public func SetBroadcast(on: bool) -> bool => Result(socket.SetBroadcast(on));
 
         // Fija el destino por defecto: Send sin dirección y solo se reciben datagramas de él.
-        public bool Connect(IPEndPoint remote) => Result(socket.Connect(remote));
+        public func Connect(remote: IPEndPoint) -> bool => Result(socket.Connect(remote));
 
-        public int Send(byte* data, int length, IPEndPoint remote) => Count(socket.SendTo(data, length, remote));
-        public int Send(string text, IPEndPoint remote) => Count(socket.SendTo(text.Ptr, (int)text.Length, remote));
-        public int Send(byte* data, int length) => Count(socket.Send(data, length));
-        public int Send(string text) => Count(socket.Send(text.Ptr, (int)text.Length));
+        public func Send(data: byte*, length: int, remote: IPEndPoint) -> int => Count(socket.SendTo(data, length, remote));
+        public func Send(text: string, remote: IPEndPoint) -> int => Count(socket.SendTo(text.Ptr, (int)text.Length, remote));
+        public func Send(data: byte*, length: int) -> int => Count(socket.Send(data, length));
+        public func Send(text: string) -> int => Count(socket.Send(text.Ptr, (int)text.Length));
 
         // Recibe un datagrama en 'buffer'; -1 si hay error (TimedOut si vence ReceiveTimeout).
-        public int Receive(byte* buffer, int capacity, out IPEndPoint remote) => Count(socket.ReceiveFrom(buffer, capacity, out remote));
+        public func Receive(buffer: byte*, capacity: int, out remote: IPEndPoint) -> int => Count(socket.ReceiveFrom(buffer, capacity, out remote));
 
         // Recibe un datagrama como texto (copia.Free; "" si falla).
-        public bool Receive(out string text, out IPEndPoint remote)
+        public func Receive(out text: string, out remote: IPEndPoint) -> bool
         {
             byte* buf = (byte*)Memory.Alloc(65536);
             int n = socket.ReceiveFrom(buf, 65536, out remote);
@@ -1917,7 +1917,7 @@ namespace std.net
             return Result(n >= 0);
         }
 
-        public void Close() { socket.Close(); }
+        public func Close() { socket.Close(); }
     }
 
     // ======================================================================= TLS
@@ -1967,30 +1967,30 @@ namespace std.net
     // (Linux y Android; en Windows no está disponible).
     public memory_unsafe class TlsStream
     {
-        TcpClient tcp;          // propio: se cierra al cerrar el TlsStream
-        void* native;           // estado de C (faset_tls.c)
-        bool validate = true;
-        string caFile;          // copias propias
-        string message;
-        string protocol;
-        string cipher;
-        int receiveTimeout = -1;
-        int sendTimeout = -1;
-        bool authenticated;
-        bool server;
-        SocketError error;
-        int nativeError;
-        byte* pending;          // texto descifrado aún no entregado (ReadLine)
-        int pendingStart;
-        int pendingEnd;
-        int pendingCap;
+        var tcp: TcpClient;          // propio: se cierra al cerrar el TlsStream
+        var native: void*;           // estado de C (faset_tls.c)
+        var validate: bool = true;
+        var caFile: string;          // copias propias
+        var message: string;
+        var protocol: string;
+        var cipher: string;
+        var receiveTimeout: int = -1;
+        var sendTimeout: int = -1;
+        var authenticated: bool;
+        var server: bool;
+        var error: SocketError;
+        var nativeError: int;
+        var pending: byte*;          // texto descifrado aún no entregado (ReadLine)
+        var pendingStart: int;
+        var pendingEnd: int;
+        var pendingCap: int;
 
         // Sin conexión: usa Connect.
-        public TlsStream() { Init(); }
+        public init() { Init(); }
 
         // Sobre una conexión TCP ya abierta (por ejemplo, la de TcpListener.AcceptTcpClient):
         // el TlsStream pasa a ser su dueño. Después llama a AuthenticateAsClient o AuthenticateAsServer.
-        public TlsStream(TcpClient connected)
+        public init(connected: TcpClient)
         {
             Init();
             tcp = connected;
@@ -1998,7 +1998,7 @@ namespace std.net
             sendTimeout = connected.SendTimeout;
         }
 
-        void Init()
+        func Init()
         {
             caFile = String.Copy("");
             message = String.Copy("");
@@ -2006,7 +2006,7 @@ namespace std.net
             cipher = String.Copy("");
         }
 
-        ~TlsStream()
+        deinit
         {
             Close();
             String.Free(caFile);
@@ -2017,24 +2017,24 @@ namespace std.net
         }
 
         // Motor TLS de esta plataforma: "OpenSSL (libssl.so.3)", "Schannel" o "BearSSL".
-        public static string Backend => String.FromCString(TlsNative.faset_tls_backend());
+        public static prop Backend: string => String.FromCString(TlsNative.faset_tls_backend());
         // false si no hay motor (Linux sin OpenSSL instalado).
-        public static bool IsSupported => TlsNative.faset_tls_available() != 0;
+        public static prop IsSupported: bool => TlsNative.faset_tls_available() != 0;
 
         // Verificar el certificado del otro extremo (true por defecto). Ponerlo a false acepta
         // CUALQUIER certificado, incluso el de un atacante: solo para pruebas.
-        public bool ValidateCertificate { get => validate; set { validate = value; } }
+        public prop ValidateCertificate: bool { get => validate; set { validate = value; } }
 
         // Archivo PEM con autoridades de confianza adicionales (además de las del sistema), por
         // ejemplo la de una red interna o la de unas pruebas. "" = solo las del sistema. No disponible en Windows.
-        public string CertificateAuthorityFile
+        public prop CertificateAuthorityFile: string
         {
             get => caFile;
             set { SetText(ref caFile, value); }
         }
 
         // Milisegundos de espera de cada lectura o escritura, también durante la negociación (-1 = sin límite).
-        public int ReceiveTimeout
+        public prop ReceiveTimeout: int
         {
             get => receiveTimeout;
             set
@@ -2044,7 +2044,7 @@ namespace std.net
             }
         }
 
-        public int SendTimeout
+        public prop SendTimeout: int
         {
             get => sendTimeout;
             set
@@ -2054,25 +2054,25 @@ namespace std.net
             }
         }
 
-        public TcpClient Client => tcp;
-        public bool IsAuthenticated => authenticated;
-        public bool IsServer => server;
+        public prop Client: TcpClient => tcp;
+        public prop IsAuthenticated: bool => authenticated;
+        public prop IsServer: bool => server;
         // Versión negociada ("TLSv1.3", "TLSv1.2") y suite de cifrado (nombre del motor); "" antes de negociar.
-        public string Protocol => protocol;
-        public string CipherSuite => cipher;
-        public SocketError Error => error;
-        public int NativeError => nativeError;
+        public prop Protocol: string => protocol;
+        public prop CipherSuite: string => cipher;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
         // Motivo del último fallo, en español (vista: no la liberes).
-        public string ErrorMessage => message;
+        public prop ErrorMessage: string => message;
 
-        static void SetText(ref string field, string value)
+        static func SetText(ref field: string, value: string)
         {
             string v = String.Copy(value);
             String.Free(field);
             field = v;
         }
 
-        bool FailWith(SocketError e, int code, string text)
+        func FailWith(e: SocketError, code: int, text: string) -> bool
         {
             error = e;
             nativeError = code;
@@ -2081,7 +2081,7 @@ namespace std.net
         }
 
         // Toma el error de la última llamada a faset_tls_*.
-        bool FailNative()
+        func FailNative() -> bool
         {
             int kind = TlsNative.faset_tls_error_kind(native);
             int code = TlsNative.faset_tls_native_error(native);
@@ -2095,7 +2095,7 @@ namespace std.net
             return FailWith(e, code, String.FromCString(TlsNative.faset_tls_error_text(native)));
         }
 
-        bool Ok()
+        func Ok() -> bool
         {
             error = SocketError.Success;
             nativeError = 0;
@@ -2103,10 +2103,10 @@ namespace std.net
         }
 
         // Conecta por TCP con 'host' y negocia TLS como cliente con ese nombre.
-        public bool Connect(string host, int port) => Connect(host, port, receiveTimeout);
+        public func Connect(host: string, port: int) -> bool => Connect(host, port, receiveTimeout);
 
         // 'timeoutMs' se aplica a la conexión TCP (cada dirección); la negociación usa ReceiveTimeout.
-        public bool Connect(string host, int port, int timeoutMs)
+        public func Connect(host: string, port: int, timeoutMs: int) -> bool
         {
             Close();
             TcpClient c = new TcpClient();
@@ -2122,7 +2122,7 @@ namespace std.net
             return AuthenticateAsClient(host);
         }
 
-        bool Prepare()
+        func Prepare() -> bool
         {
             if (tcp == null || !tcp.Connected) return FailWith(SocketError.NotConnected, 0, Net.Describe(SocketError.NotConnected));
             if (authenticated || native != null) return FailWith(SocketError.InvalidArgument, 0, "la conexión TLS ya está negociada");
@@ -2131,7 +2131,7 @@ namespace std.net
             return true;
         }
 
-        void Negotiated()
+        func Negotiated()
         {
             authenticated = true;
             SetText(ref protocol, String.FromCString(TlsNative.faset_tls_protocol(native)));
@@ -2140,7 +2140,7 @@ namespace std.net
 
         // Negocia TLS como cliente. 'host' es el nombre que se envía (SNI) y con el que se
         // compara el certificado (puede ser una dirección IP).
-        public bool AuthenticateAsClient(string host)
+        public func AuthenticateAsClient(host: string) -> bool
         {
             if (!Prepare()) return false;
             server = false;
@@ -2156,7 +2156,7 @@ namespace std.net
 
         // Negocia TLS como servidor con un certificado (PEM; puede traer detrás la cadena de
         // autoridades intermedias) y su clave privada (PEM, RSA o EC).
-        public bool AuthenticateAsServer(string certificateFile, string privateKeyFile)
+        public func AuthenticateAsServer(certificateFile: string, privateKeyFile: string) -> bool
         {
             if (!Prepare()) return false;
             server = true;
@@ -2170,14 +2170,14 @@ namespace std.net
             return Ok();
         }
 
-        bool Check()
+        func Check() -> bool
         {
             if (authenticated) return true;
             return FailWith(SocketError.NotConnected, 0, "la conexión TLS no está negociada");
         }
 
         // Cifra y envía todos los bytes; devuelve 'length' o -1.
-        public int Send(byte* data, int length)
+        public func Send(data: byte*, length: int) -> int
         {
             if (!Check()) return -1;
             int n = TlsNative.faset_tls_send(native, data, length, sendTimeout);
@@ -2190,11 +2190,11 @@ namespace std.net
             return n;
         }
 
-        public bool Write(byte* data, int length) => Send(data, length) >= 0;
-        public bool Write(string text) => Send(text.Ptr, (int)text.Length) >= 0;
-        public bool WriteLine(string text) => Write(text) && Write("\r\n");
+        public func Write(data: byte*, length: int) -> bool => Send(data, length) >= 0;
+        public func Write(text: string) -> bool => Send(text.Ptr, (int)text.Length) >= 0;
+        public func WriteLine(text: string) -> bool => Write(text) && Write("\r\n");
 
-        int RecvRaw(byte* buffer, int capacity)
+        func RecvRaw(buffer: byte*, capacity: int) -> int
         {
             int n = TlsNative.faset_tls_recv(native, buffer, capacity, receiveTimeout);
             if (n < 0) FailNative();
@@ -2203,7 +2203,7 @@ namespace std.net
         }
 
         // Recibe hasta 'capacity' bytes descifrados: >0 bytes, 0 = el otro extremo cerró, -1 = error.
-        public int Receive(byte* buffer, int capacity)
+        public func Receive(buffer: byte*, capacity: int) -> int
         {
             if (pendingEnd > pendingStart)
             {
@@ -2217,7 +2217,7 @@ namespace std.net
         }
 
         // Una lectura: añade a 'output' lo recibido. Devuelve los bytes añadidos (0 = cerrada, -1 = error).
-        public int Read(StringBuilder output)
+        public func Read(output: StringBuilder) -> int
         {
             byte* buf = (byte*)Memory.Alloc(16384);
             int n = Receive(buf, 16384);
@@ -2227,7 +2227,7 @@ namespace std.net
         }
 
         // Lee hasta que el otro extremo cierre (copia). Si se corta por un error, devuelve lo leído y Error lo indica.
-        public string ReadToEnd()
+        public func ReadToEnd() -> string
         {
             StringBuilder sb = new StringBuilder();
             while (Read(sb) > 0) { }
@@ -2238,7 +2238,7 @@ namespace std.net
 
         // Lee una línea terminada en "\n" o "\r\n" (sin el terminador; copia).
         // Devuelve false si la conexión se cerró sin más datos o hubo un error.
-        public bool ReadLine(out string line)
+        public func ReadLine(out line: string) -> bool
         {
             int scanFrom = pendingStart;
             for (;;)
@@ -2287,10 +2287,10 @@ namespace std.net
         }
 
         // Bytes descifrados que se pueden leer sin esperar.
-        public int Available => pendingEnd - pendingStart + (native != null ? TlsNative.faset_tls_pending(native) : 0);
+        public prop Available: int => pendingEnd - pendingStart + (native != null ? TlsNative.faset_tls_pending(native) : 0);
 
         // Avisa al otro extremo (close_notify) y cierra la conexión TCP.
-        public void Close()
+        public func Close()
         {
             if (native != null)
             {
@@ -2312,45 +2312,45 @@ namespace std.net
     // Las propiedades son vistas de una copia interna (válidas mientras viva el objeto).
     public memory_unsafe class Uri
     {
-        string original;     // copia propia
-        string scheme;       // copia propia, en minúsculas
-        string userInfo;
-        string host;
-        string path;
-        string query;
-        string fragment;
-        int port = -1;
-        bool explicitPort;
-        bool hasAuthority;
-        bool hasQuery;
-        bool hasFragment;
-        bool ipv6Host;
+        var original: string;     // copia propia
+        var scheme: string;       // copia propia, en minúsculas
+        var userInfo: string;
+        var host: string;
+        var path: string;
+        var query: string;
+        var fragment: string;
+        var port: int = -1;
+        var explicitPort: bool;
+        var hasAuthority: bool;
+        var hasQuery: bool;
+        var hasFragment: bool;
+        var ipv6Host: bool;
 
-        Uri() { }
+        init() { }
 
-        ~Uri()
+        deinit
         {
             String.Free(original);
             String.Free(scheme);
         }
 
-        public string OriginalString => original;
-        public string Scheme => scheme;
-        public string UserInfo => userInfo;
+        public prop OriginalString: string => original;
+        public prop Scheme: string => scheme;
+        public prop UserInfo: string => userInfo;
         // Sin corchetes en IPv6 ("::1").
-        public string Host => host;
+        public prop Host: string => host;
         // Puerto explícito o el de su esquema (80 en http, 443 en https...); -1 si no se conoce.
-        public int Port => port;
-        public bool IsDefaultPort => !explicitPort || port == DefaultPort(scheme);
-        public string Path => path;
+        public prop Port: int => port;
+        public prop IsDefaultPort: bool => !explicitPort || port == DefaultPort(scheme);
+        public prop Path: string => path;
         // Sin el '?' inicial.
-        public string Query => query;
+        public prop Query: string => query;
         // Sin el '#' inicial.
-        public string Fragment => fragment;
-        public bool HasAuthority => hasAuthority;
-        public bool HostIsIPv6 => ipv6Host;
+        public prop Fragment: string => fragment;
+        public prop HasAuthority: bool => hasAuthority;
+        public prop HostIsIPv6: bool => ipv6Host;
 
-        public static int DefaultPort(string scheme)
+        public static func DefaultPort(scheme: string) -> int
         {
             if (scheme == "http" || scheme == "ws") return 80;
             if (scheme == "https" || scheme == "wss") return 443;
@@ -2359,7 +2359,7 @@ namespace std.net
         }
 
         // Analiza una URL absoluta. null si no es válida. Libera el resultado con delete.
-        public static Uri Parse(string text)
+        public static func Parse(text: string) -> Uri
         {
             Uri u = new Uri();
             if (!u.Init(text))
@@ -2370,13 +2370,13 @@ namespace std.net
             return u;
         }
 
-        public static bool TryCreate(string text, out Uri uri)
+        public static func TryCreate(text: string, out uri: Uri) -> bool
         {
             uri = Parse(text);
             return uri != null;
         }
 
-        bool Init(string text)
+        func Init(text: string) -> bool
         {
             for (int i = 0; i < text.Length; i++)
                 if (text[i] <= ' ' || text[i] == 127) return false;
@@ -2470,7 +2470,7 @@ namespace std.net
 
         // Ruta y consulta para la línea de petición HTTP ("/" si la ruta está vacía).
         // Copia
-        public string PathAndQuery()
+        public func PathAndQuery() -> string
         {
             StringBuilder sb = new StringBuilder();
             sb.Append(path.Length == 0 ? "/" : path);
@@ -2482,7 +2482,7 @@ namespace std.net
 
         // "equipo[:puerto]" con corchetes en IPv6 y el puerto solo si no es el del esquema
         // (es el valor de la cabecera Host). Copia
-        public string Authority()
+        public func Authority() -> string
         {
             StringBuilder sb = new StringBuilder();
             AppendAuthority(sb);
@@ -2491,7 +2491,7 @@ namespace std.net
             return r;
         }
 
-        void AppendAuthority(StringBuilder sb)
+        func AppendAuthority(sb: StringBuilder)
         {
             if (ipv6Host) sb.Append("[").Append(host).Append("]");
             else sb.Append(host);
@@ -2500,7 +2500,7 @@ namespace std.net
 
         // Resuelve una referencia (como la cabecera Location) respecto a esta URL.
         // Copia. No elimina los segmentos '.' y '..'.
-        public string Resolve(string reference)
+        public func Resolve(reference: string) -> string
         {
             int i = 0;
             while (i < reference.Length && reference[i] != ':' && reference[i] != '/' && reference[i] != '?' && reference[i] != '#') i++;
@@ -2543,11 +2543,11 @@ namespace std.net
 
         // ---------------------------------------------------------------- codificación por porcentajes
 
-        static bool Unreserved(byte c) =>
+        static func Unreserved(c: byte) -> bool =>
             (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_' || c == '~';
 
         // Codifica todo salvo A-Z a-z 0-9 - . _ ~ (como encodeURIComponent). Copia: String.Free.
-        public static string Escape(string s)
+        public static func Escape(s: string) -> string
         {
             string digits = "0123456789ABCDEF";
             StringBuilder sb = new StringBuilder(s.Length);
@@ -2567,12 +2567,12 @@ namespace std.net
         }
 
         // Decodifica %XX (las secuencias no válidas se dejan igual). Copia: String.Free.
-        public static string Unescape(string s) => Decode(s, false);
+        public static func Unescape(s: string) -> string => Decode(s, false);
 
         // Como Unescape, y además '+' significa espacio (formularios y consultas).
-        public static string UnescapeForm(string s) => Decode(s, true);
+        public static func UnescapeForm(s: string) -> string => Decode(s, true);
 
-        static string Decode(string s, bool plusIsSpace)
+        static func Decode(s: string, plusIsSpace: bool) -> string
         {
             byte* p = (byte*)Memory.Alloc(s.Length + 1);
             int n = 0;
@@ -2593,7 +2593,7 @@ namespace std.net
 
         // Busca 'name' en una consulta "a=1&b=2" (nombres y valores decodificados como formulario).
         // 'value' es siempre una copia.
-        public static bool GetQueryParameter(string query, string name, out string value)
+        public static func GetQueryParameter(query: string, name: string, out value: string) -> bool
         {
             int start = 0;
             while (start <= query.Length)
@@ -2623,39 +2623,39 @@ namespace std.net
     // Lista de cabeceras (nombre y valor). Los nombres no distinguen mayúsculas.
     public class HttpHeaders
     {
-        List<string> names = new List<string>();     // copias propias
-        List<string> values = new List<string>();
+        var names: List<string> = new List<string>();     // copias propias
+        var values: List<string> = new List<string>();
 
-        public HttpHeaders() { }
+        public init() { }
 
-        ~HttpHeaders()
+        deinit
         {
             Clear();
             delete names;
             delete values;
         }
 
-        public int Count => names.Count;
-        public string NameAt(int i) => names[i];
-        public string ValueAt(int i) => values[i];
+        public prop Count: int => names.Count;
+        public func NameAt(i: int) -> string => names[i];
+        public func ValueAt(i: int) -> string => values[i];
 
-        public int IndexOf(string name)
+        public func IndexOf(name: string) -> int
         {
             for (int i = 0; i < names.Count; i++)
                 if (names[i].EqualsIgnoreCase(name)) return i;
             return -1;
         }
 
-        public bool Contains(string name) => IndexOf(name) >= 0;
+        public func Contains(name: string) -> bool => IndexOf(name) >= 0;
 
         // Valor de la primera cabecera con ese nombre ("" si no existe). Vista: no la liberes.
-        public string Get(string name)
+        public func Get(name: string) -> string
         {
             int i = IndexOf(name);
             return i < 0 ? "" : values[i];
         }
 
-        public bool TryGet(string name, out string value)
+        public func TryGet(name: string, out value: string) -> bool
         {
             int i = IndexOf(name);
             value = i < 0 ? "" : values[i];
@@ -2663,20 +2663,20 @@ namespace std.net
         }
 
         // Añade (permite repetidas, como Set-Cookie).
-        public void Add(string name, string value)
+        public func Add(name: string, value: string)
         {
             names.Add(String.Copy(name));
             values.Add(String.Copy(value));
         }
 
         // Sustituye todas las cabeceras con ese nombre por una sola.
-        public void Set(string name, string value)
+        public func Set(name: string, value: string)
         {
             Remove(name);
             Add(name, value);
         }
 
-        public bool Remove(string name)
+        public func Remove(name: string) -> bool
         {
             bool any = false;
             for (int i = names.Count - 1; i >= 0; i--)
@@ -2691,7 +2691,7 @@ namespace std.net
             return any;
         }
 
-        public void Clear()
+        public func Clear()
         {
             for (int i = 0; i < names.Count; i++)
             {
@@ -2703,7 +2703,7 @@ namespace std.net
         }
 
         // Une una línea de continuación (obs-fold) a la última cabecera.
-        public void AppendToLast(string more)
+        public func AppendToLast(more: string)
         {
             if (names.Count == 0) return;
             int i = names.Count - 1;
@@ -2713,7 +2713,7 @@ namespace std.net
         }
 
         // Escribe "Nombre: valor\r\n" por cada cabecera.
-        public void WriteTo(StringBuilder sb)
+        public func WriteTo(sb: StringBuilder)
         {
             for (int i = 0; i < names.Count; i++) sb.Append(names[i]).Append(": ").Append(values[i]).Append("\r\n");
         }
@@ -2721,19 +2721,19 @@ namespace std.net
 
     public class HttpRequest
     {
-        string method;      // copias propias
-        string url;
-        string body;
-        HttpHeaders headers = new HttpHeaders();
+        var method: string;      // copias propias
+        var url: string;
+        var body: string;
+        var headers: HttpHeaders = new HttpHeaders();
 
-        public HttpRequest(string requestMethod, string requestUrl)
+        public init(requestMethod: string, requestUrl: string)
         {
             method = String.Copy(requestMethod);
             url = String.Copy(requestUrl);
             body = String.Copy("");
         }
 
-        ~HttpRequest()
+        deinit
         {
             String.Free(method);
             String.Free(url);
@@ -2741,13 +2741,13 @@ namespace std.net
             delete headers;
         }
 
-        public string Method => method;
-        public string Url => url;
-        public string Body => body;
-        public HttpHeaders Headers => headers;
+        public prop Method: string => method;
+        public prop Url: string => url;
+        public prop Body: string => body;
+        public prop Headers: HttpHeaders => headers;
 
         // Cuerpo de la petición; 'contentType' vacío no añade la cabecera Content-Type.
-        public void SetBody(string content, string contentType)
+        public func SetBody(content: string, contentType: string)
         {
             String.Free(body);
             body = String.Copy(content);
@@ -2757,20 +2757,20 @@ namespace std.net
 
     public class HttpResponse
     {
-        int statusCode;
-        string version;     // copias propias
-        string reason;
-        string body;
-        HttpHeaders headers = new HttpHeaders();
+        var statusCode: int;
+        var version: string;     // copias propias
+        var reason: string;
+        var body: string;
+        var headers: HttpHeaders = new HttpHeaders();
 
-        public HttpResponse()
+        public init()
         {
             version = String.Copy("");
             reason = String.Copy("");
             body = String.Copy("");
         }
 
-        ~HttpResponse()
+        deinit
         {
             String.Free(version);
             String.Free(reason);
@@ -2778,19 +2778,19 @@ namespace std.net
             delete headers;
         }
 
-        public int StatusCode => statusCode;
+        public prop StatusCode: int => statusCode;
         // "HTTP/1.1"
-        public string Version => version;
+        public prop Version: string => version;
         // "OK", "Not Found"...
-        public string ReasonPhrase => reason;
+        public prop ReasonPhrase: string => reason;
         // Cuerpo ya decodificado (sin el formato chunked). Puede contener bytes binarios.
-        public string Body => body;
-        public HttpHeaders Headers => headers;
-        public bool IsSuccess => statusCode >= 200 && statusCode <= 299;
-        public bool IsRedirect => statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308;
-        public string ContentType => headers.Get("Content-Type");
+        public prop Body: string => body;
+        public prop Headers: HttpHeaders => headers;
+        public prop IsSuccess: bool => statusCode >= 200 && statusCode <= 299;
+        public prop IsRedirect: bool => statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308;
+        public prop ContentType: string => headers.Get("Content-Type");
 
-        public void SetBody(string content)
+        public func SetBody(content: string)
         {
             String.Free(body);
             body = String.Copy(content);
@@ -2798,10 +2798,10 @@ namespace std.net
 
         // Analiza una respuesta HTTP completa (línea de estado, cabeceras y cuerpo con
         // Content-Length, chunked o hasta el final del texto). null si no es válida o está incompleta.
-        public static HttpResponse Parse(string raw) => Parse(raw, false);
+        public static func Parse(raw: string) -> HttpResponse => Parse(raw, false);
 
         // 'headRequest': la respuesta es a una petición HEAD (no tiene cuerpo).
-        public static HttpResponse Parse(string raw, bool headRequest)
+        public static func Parse(raw: string, headRequest: bool) -> HttpResponse
         {
             HttpResponseReader reader = new HttpResponseReader(headRequest);
             int r = reader.Feed(raw);
@@ -2812,7 +2812,7 @@ namespace std.net
         }
 
         // Analiza la línea de estado y las cabeceras (texto hasta la línea vacía, incluida).
-        public bool ParseHead(string head)
+        public func ParseHead(head: string) -> bool
         {
             int start = 0;
             bool first = true;
@@ -2845,7 +2845,7 @@ namespace std.net
             return !first;
         }
 
-        bool ParseStatusLine(string line)
+        func ParseStatusLine(line: string) -> bool
         {
             if (!line.StartsWith("HTTP/")) return false;
             int sp = line.IndexOf(" ");
@@ -2863,7 +2863,7 @@ namespace std.net
         }
 
         // Decodifica un cuerpo "chunked" completo (copia en 'body').
-        public static bool DecodeChunked(string chunked, out string body)
+        public static func DecodeChunked(chunked: string, out body: string) -> bool
         {
             StringBuilder sb = new StringBuilder();
             int pos = 0;
@@ -2875,7 +2875,7 @@ namespace std.net
 
         // Decodifica los bloques completos a partir de 'pos' (que avanza) y los añade a 'body'.
         // 1 = terminado (tras el bloque 0 y los trailers), 0 = faltan datos, -1 = formato no válido.
-        public static int DecodeChunks(string data, ref int pos, StringBuilder body)
+        public static func DecodeChunks(data: string, ref pos: int, body: StringBuilder) -> int
         {
             for (;;)
             {
@@ -2933,20 +2933,20 @@ namespace std.net
     // Lector incremental de respuestas HTTP: se le dan los bytes según llegan.
     public class HttpResponseReader
     {
-        StringBuilder raw = new StringBuilder();
-        StringBuilder chunks = new StringBuilder();
-        HttpResponse response;
-        bool headRequest;
-        int offset;          // inicio de la respuesta actual (se saltan las 1xx)
-        int bodyStart = -1;
-        int mode;            // 0 sin cuerpo, 1 Content-Length, 2 chunked, 3 hasta el cierre
-        long contentLength;
-        int chunkPos;
-        bool done;
+        var raw: StringBuilder = new StringBuilder();
+        var chunks: StringBuilder = new StringBuilder();
+        var response: HttpResponse;
+        var headRequest: bool;
+        var offset: int;          // inicio de la respuesta actual (se saltan las 1xx)
+        var bodyStart: int = -1;
+        var mode: int;            // 0 sin cuerpo, 1 Content-Length, 2 chunked, 3 hasta el cierre
+        var contentLength: long;
+        var chunkPos: int;
+        var done: bool;
 
-        public HttpResponseReader(bool isHeadRequest) { headRequest = isHeadRequest; }
+        public init(isHeadRequest: bool) { headRequest = isHeadRequest; }
 
-        ~HttpResponseReader()
+        deinit
         {
             delete raw;
             delete chunks;
@@ -2954,7 +2954,7 @@ namespace std.net
         }
 
         // Añade datos. 1 = respuesta completa, 0 = faltan datos, -1 = respuesta no válida.
-        public int Feed(string data)
+        public func Feed(data: string) -> int
         {
             if (done) return 1;
             raw.Append(data);
@@ -2962,21 +2962,21 @@ namespace std.net
         }
 
         // El servidor cerró la conexión: completa la respuesta si es posible (1) o falla (-1).
-        public int Finish()
+        public func Finish() -> int
         {
             if (done) return 1;
             return Step(true);
         }
 
         // Entrega la respuesta (pasa a ser tuya).
-        public HttpResponse Take()
+        public func Take() -> HttpResponse
         {
             HttpResponse r = done ? response : null;
             if (done) response = null;
             return r;
         }
 
-        static int FindHeaderEnd(string d, int from)
+        static func FindHeaderEnd(d: string, from: int) -> int
         {
             for (int i = from; i + 1 < d.Length; i++)
             {
@@ -2987,7 +2987,7 @@ namespace std.net
             return -1;
         }
 
-        int Step(bool eof)
+        func Step(eof: bool) -> int
         {
             string d = raw.View();
             while (response == null)
@@ -3034,7 +3034,7 @@ namespace std.net
             return c;
         }
 
-        int Complete(string body)
+        func Complete(body: string) -> int
         {
             response.SetBody(body);
             done = true;
@@ -3042,7 +3042,7 @@ namespace std.net
         }
 
         // Transfer-Encoding incluye "chunked" (sin distinguir mayúsculas).
-        static bool IsChunked(string te)
+        static func IsChunked(te: string) -> bool
         {
             string l = te.ToLower();
             bool r = l.Contains("chunked");
@@ -3054,8 +3054,8 @@ namespace std.net
     // Error de una petición de HttpClient.GetAsync / GetStringAsync / PostAsync / SendAsync.
     public class HttpRequestException : IOException
     {
-        public int StatusCode;  // 0 si no hubo respuesta (no se pudo conectar, TLS...)
-        public HttpRequestException(string message, int statusCode)
+        public var StatusCode: int;  // 0 si no hubo respuesta (no se pudo conectar, TLS...)
+        public init(message: string, statusCode: int)
         {
             Message = message;
             StatusCode = statusCode;
@@ -3066,25 +3066,25 @@ namespace std.net
     // verificado contra las autoridades del sistema; las redirecciones pueden cambiar de esquema).
     public memory_unsafe class HttpClient
     {
-        HttpHeaders defaultHeaders = new HttpHeaders();
-        string userAgent;      // copias propias
-        string caFile;
-        string message;
-        int timeout = 30000;
-        bool followRedirects = true;
-        int maxRedirects = 5;
-        bool validateCertificate = true;
-        SocketError error;
-        int nativeError;
+        var defaultHeaders: HttpHeaders = new HttpHeaders();
+        var userAgent: string;      // copias propias
+        var caFile: string;
+        var message: string;
+        var timeout: int = 30000;
+        var followRedirects: bool = true;
+        var maxRedirects: int = 5;
+        var validateCertificate: bool = true;
+        var error: SocketError;
+        var nativeError: int;
 
-        public HttpClient()
+        public init()
         {
             userAgent = String.Copy("Faset/1.0");
             caFile = String.Copy("");
             message = String.Copy("");
         }
 
-        ~HttpClient()
+        deinit
         {
             delete defaultHeaders;
             String.Free(userAgent);
@@ -3093,8 +3093,8 @@ namespace std.net
         }
 
         // Cabeceras que se envían en todas las peticiones.
-        public HttpHeaders DefaultHeaders => defaultHeaders;
-        public string UserAgent
+        public prop DefaultHeaders: HttpHeaders => defaultHeaders;
+        public prop UserAgent: string
         {
             get => userAgent;
             set
@@ -3105,14 +3105,14 @@ namespace std.net
             }
         }
         // Milisegundos para conectar y para cada lectura o escritura (-1 = sin límite).
-        public int Timeout { get => timeout; set { timeout = value; } }
-        public bool FollowRedirects { get => followRedirects; set { followRedirects = value; } }
-        public int MaxRedirects { get => maxRedirects; set { maxRedirects = value; } }
+        public prop Timeout: int { get => timeout; set { timeout = value; } }
+        public prop FollowRedirects: bool { get => followRedirects; set { followRedirects = value; } }
+        public prop MaxRedirects: int { get => maxRedirects; set { maxRedirects = value; } }
         // https://: verificar el certificado del servidor (true por defecto). false acepta
         // CUALQUIER certificado, también el de un atacante que se ponga en medio: solo para pruebas.
-        public bool ValidateCertificate { get => validateCertificate; set { validateCertificate = value; } }
+        public prop ValidateCertificate: bool { get => validateCertificate; set { validateCertificate = value; } }
         // https://: archivo PEM con autoridades de confianza adicionales ("" = solo las del sistema).
-        public string CertificateAuthorityFile
+        public prop CertificateAuthorityFile: string
         {
             get => caFile;
             set
@@ -3122,12 +3122,12 @@ namespace std.net
                 caFile = v;
             }
         }
-        public SocketError Error => error;
-        public int NativeError => nativeError;
+        public prop Error: SocketError => error;
+        public prop NativeError: int => nativeError;
         // Motivo del último fallo, en español (vista: no la liberes).
-        public string ErrorMessage => message;
+        public prop ErrorMessage: string => message;
 
-        HttpResponse Fail(SocketError e, int native, string text)
+        func Fail(e: SocketError, native: int, text: string) -> HttpResponse
         {
             error = e;
             nativeError = native;
@@ -3137,7 +3137,7 @@ namespace std.net
             return null;
         }
 
-        public HttpResponse Get(string url)
+        public func Get(url: string) -> HttpResponse
         {
             HttpRequest req = new HttpRequest("GET", url);
             HttpResponse r = Send(req);
@@ -3145,7 +3145,7 @@ namespace std.net
             return r;
         }
 
-        public HttpResponse Post(string url, string body, string contentType)
+        public func Post(url: string, body: string, contentType: string) -> HttpResponse
         {
             HttpRequest req = new HttpRequest("POST", url);
             req.SetBody(body, contentType);
@@ -3159,26 +3159,26 @@ namespace std.net
         // resto del manejador sigue en el hilo de la interfaz. Si falla, la tarea lanza
         // HttpRequestException al hacer 'await' (Error y ErrorMessage se comparten entre peticiones:
         // usa un HttpClient por petición simultánea si los necesitas).
-        public Task<HttpResponse> GetAsync(string url)
+        public func GetAsync(url: string) -> Task<HttpResponse>
         {
             HttpClient self = this;
             return Task.Run(() => self.OrThrow(self.Get(url), url));
         }
 
-        public Task<HttpResponse> PostAsync(string url, string body, string contentType)
+        public func PostAsync(url: string, body: string, contentType: string) -> Task<HttpResponse>
         {
             HttpClient self = this;
             return Task.Run(() => self.OrThrow(self.Post(url, body, contentType), url));
         }
 
-        public Task<HttpResponse> SendAsync(HttpRequest request)
+        public func SendAsync(request: HttpRequest) -> Task<HttpResponse>
         {
             HttpClient self = this;
             return Task.Run(() => self.OrThrow(self.Send(request), request.Url));
         }
 
         // El cuerpo de la respuesta; un código de estado de error (4xx, 5xx) también es una excepción.
-        public Task<string> GetStringAsync(string url)
+        public func GetStringAsync(url: string) -> Task<string>
         {
             HttpClient self = this;
             return Task.Run(() =>
@@ -3190,7 +3190,7 @@ namespace std.net
             });
         }
 
-        HttpResponse OrThrow(HttpResponse r, string url)
+        func OrThrow(r: HttpResponse, url: string) -> HttpResponse
         {
             if (r == null) throw new HttpRequestException(url + ": " + message, 0);
             return r;
@@ -3198,7 +3198,7 @@ namespace std.net
 
         // Envía la petición siguiendo las redirecciones (si FollowRedirects). null si falla:
         // consulta Error y ErrorMessage. Libera la respuesta con delete.
-        public HttpResponse Send(HttpRequest request)
+        public func Send(request: HttpRequest) -> HttpResponse
         {
             string url = String.Copy(request.Url);
             string method = String.Copy(request.Method);
@@ -3255,7 +3255,7 @@ namespace std.net
             return result;
         }
 
-        HttpResponse SendOnce(string method, Uri uri, HttpHeaders extra, string body)
+        func SendOnce(method: string, uri: Uri, extra: HttpHeaders, body: string) -> HttpResponse
         {
             HttpHeaders h = new HttpHeaders();
             if (!extra.Contains("User-Agent") && !defaultHeaders.Contains("User-Agent") && userAgent.Length > 0) h.Add("User-Agent", userAgent);
@@ -3328,7 +3328,7 @@ namespace std.net
 
         // Texto exacto de una petición HTTP/1.1 (copia). Añade Host,
         // Content-Length y 'Connection: close' si 'headers' no los trae.
-        public static string BuildRequest(string method, Uri uri, HttpHeaders headers, string body)
+        public static func BuildRequest(method: string, uri: Uri, headers: HttpHeaders, body: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             string target = uri.PathAndQuery();

@@ -22,9 +22,9 @@ namespace std.io
 {
     public struct DirEntry
     {
-        public string Name;       // copia propia
-        public bool IsDirectory;  // carpeta (o enlace a una carpeta)
-        public bool IsSymlink;    // enlace simbólico (o punto de reanálisis en Windows)
+        public var Name: string       // copia propia
+        public var IsDirectory: bool  // carpeta (o enlace a una carpeta)
+        public var IsSymlink: bool    // enlace simbólico (o punto de reanálisis en Windows)
     }
 
     public enum FileKind { None, File, Directory, Other }
@@ -45,21 +45,21 @@ namespace std.io
     // Metadatos de un archivo o carpeta (sigue los enlaces simbólicos, salvo IsSymlink).
     public memory_unsafe struct FileInfo
     {
-        public bool Exists;
-        public FileKind Kind;
-        public bool IsSymlink;
-        public long Length;            // bytes (0 para carpetas)
-        public long LastWriteTimeMs;   // ms Unix
-        public long LastAccessTimeMs;
-        public long CreationTimeMs;    // Windows: creación; POSIX: último cambio de estado (ctime)
-        public int Mode;               // permisos Unix (0644...); en Windows se emulan (0444 / 0666)
-        public bool IsReadOnly;
+        public var Exists: bool
+        public var Kind: FileKind
+        public var IsSymlink: bool
+        public var Length: long            // bytes (0 para carpetas)
+        public var LastWriteTimeMs: long   // ms Unix
+        public var LastAccessTimeMs: long
+        public var CreationTimeMs: long    // Windows: creación; POSIX: último cambio de estado (ctime)
+        public var Mode: int               // permisos Unix (0644...); en Windows se emulan (0444 / 0666)
+        public var IsReadOnly: bool
 
-        public bool IsFile => Kind == FileKind.File;
-        public bool IsDirectory => Kind == FileKind.Directory;
+        public prop IsFile: bool => Kind == FileKind.File;
+        public prop IsDirectory: bool => Kind == FileKind.Directory;
 
         // Metadatos de 'path' (Exists = false si no existe).
-        public static FileInfo Get(string path)
+        public static func Get(path: string) -> FileInfo
         {
             FileInfo info = new FileInfo();
             Native.Stat(path, &info);
@@ -104,18 +104,18 @@ namespace std.io
         public const bool IsWindows = true;
         public const bool IgnoreCase = true;
 
-        static uint U32(byte* p, int offset) =>
+        static func U32(p: byte*, offset: int) -> uint =>
             (uint)p[offset] | ((uint)p[offset + 1] << 8) | ((uint)p[offset + 2] << 16) | ((uint)p[offset + 3] << 24);
 
         // FILETIME (100 ns desde 1601) -> ms Unix.
-        static long FileTimeMs(byte* p, int offset)
+        static func FileTimeMs(p: byte*, offset: int) -> long
         {
             ulong ft = ((ulong)U32(p, offset + 4) << 32) | (ulong)U32(p, offset);
             if (ft == 0) return 0;
             return ((long)ft - 116444736000000000) / 10000;
         }
 
-        static void Fill(FileInfo* info, uint attrs, byte* data, int sizeOffset)
+        static func Fill(info: FileInfo*, attrs: uint, data: byte*, sizeOffset: int)
         {
             bool dir = (attrs & 0x10) != 0;
             info->Exists = true;
@@ -128,7 +128,7 @@ namespace std.io
             info->Mode = (info->IsReadOnly ? 0x124 : 0x1B6) | (dir ? 0x49 : 0);   // 0444 / 0666, + 0111 (Faset no tiene literales octales)
         }
 
-        public static bool Stat(string path, FileInfo* info)
+        public static func Stat(path: string, info: FileInfo*) -> bool
         {
             ushort* w = Utf16.Encode(path);
             byte* data = (byte*)Memory.AllocZeroed(64);   // WIN32_FILE_ATTRIBUTE_DATA
@@ -156,7 +156,7 @@ namespace std.io
             return ok;
         }
 
-        public static int MkDir(string path)
+        public static func MkDir(path: string) -> int
         {
             ushort* w = Utf16.Encode(path);
             int r = CreateDirectoryW(w, null) != 0 ? 0 : GetLastError() == 183 ? 1 : 2;
@@ -164,7 +164,7 @@ namespace std.io
             return r;
         }
 
-        public static bool RmDir(string path)
+        public static func RmDir(path: string) -> bool
         {
             ushort* w = Utf16.Encode(path);
             bool ok = RemoveDirectoryW(w) != 0;
@@ -172,7 +172,7 @@ namespace std.io
             return ok;
         }
 
-        public static bool Unlink(string path)
+        public static func Unlink(path: string) -> bool
         {
             ushort* w = Utf16.Encode(path);
             bool ok = DeleteFileW(w) != 0;
@@ -181,7 +181,7 @@ namespace std.io
         }
 
         // Borra aunque tenga el atributo de solo lectura (para el borrado recursivo).
-        public static bool ForceUnlink(string path)
+        public static func ForceUnlink(path: string) -> bool
         {
             if (Unlink(path)) return true;
             ushort* w = Utf16.Encode(path);
@@ -193,7 +193,7 @@ namespace std.io
             return ok;
         }
 
-        public static int Rename(string from, string to, bool overwrite)
+        public static func Rename(from: string, to: string, overwrite: bool) -> int
         {
             ushort* a = Utf16.Encode(from);
             ushort* b = Utf16.Encode(to);
@@ -203,7 +203,7 @@ namespace std.io
             return r;
         }
 
-        public static bool CopyFile(string from, string to, bool overwrite)
+        public static func CopyFile(from: string, to: string, overwrite: bool) -> bool
         {
             ushort* a = Utf16.Encode(from);
             ushort* b = Utf16.Encode(to);
@@ -213,7 +213,7 @@ namespace std.io
             return ok;
         }
 
-        public static bool SetReadOnly(string path, bool readOnly)
+        public static func SetReadOnly(path: string, readOnly: bool) -> bool
         {
             ushort* w = Utf16.Encode(path);
             uint attrs = GetFileAttributesW(w);
@@ -228,9 +228,9 @@ namespace std.io
         }
 
         // Windows solo tiene "solo lectura": se usa el bit de escritura del propietario.
-        public static bool SetMode(string path, int mode) => SetReadOnly(path, (mode & 0x80) == 0);
+        public static func SetMode(path: string, mode: int) -> bool => SetReadOnly(path, (mode & 0x80) == 0);
 
-        public static bool SetMTime(string path, long ms)
+        public static func SetMTime(path: string, ms: long) -> bool
         {
             ushort* w = Utf16.Encode(path);
             void* h = CreateFileW(w, 0x100, 7, null, 3, 0x02000000, null);   // FILE_WRITE_ATTRIBUTES
@@ -242,7 +242,7 @@ namespace std.io
             return ok;
         }
 
-        public static long Open(string path, int flags)
+        public static func Open(path: string, flags: int) -> long
         {
             uint access = 0;
             if ((flags & 1) != 0) access |= 0x80000000;   // GENERIC_READ
@@ -258,7 +258,7 @@ namespace std.io
             return (long)h == -1 ? -1 : (long)h;
         }
 
-        public static long Read(long h, byte* buffer, long count)
+        public static func Read(h: long, buffer: byte*, count: long) -> long
         {
             uint done = 0;
             uint n = count > 0x40000000 ? (uint)0x40000000 : (uint)count;
@@ -266,7 +266,7 @@ namespace std.io
             return done;
         }
 
-        public static bool Write(long h, byte* data, long count)
+        public static func Write(h: long, data: byte*, count: long) -> bool
         {
             while (count > 0)
             {
@@ -279,14 +279,14 @@ namespace std.io
             return true;
         }
 
-        public static long Seek(long h, long offset, int whence)
+        public static func Seek(h: long, offset: long, whence: int) -> long
         {
             long pos = 0;
             if (SetFilePointerEx((void*)h, offset, &pos, (uint)whence) == 0) return -1;
             return pos;
         }
 
-        public static bool Truncate(long h, long length)
+        public static func Truncate(h: long, length: long) -> bool
         {
             long cur = Seek(h, 0, 1);
             bool ok = Seek(h, length, 0) >= 0 && SetEndOfFile((void*)h) != 0;
@@ -294,10 +294,10 @@ namespace std.io
             return ok;
         }
 
-        public static bool Sync(long h) => FlushFileBuffers((void*)h) != 0;
-        public static void Close(long h) { if (h != -1) CloseHandle((void*)h); }
+        public static func Sync(h: long) -> bool => FlushFileBuffers((void*)h) != 0;
+        public static func Close(h: long) { if (h != -1) CloseHandle((void*)h); }
 
-        public static string ListDir(string path, out bool ok)
+        public static func ListDir(path: string, out ok: bool) -> string
         {
             StringBuilder sb = new StringBuilder();
             string pattern = path.EndsWith("/") || path.EndsWith("\\") ? String.Concat(path, "*") : String.Concat(path, "\\*");
@@ -332,7 +332,7 @@ namespace std.io
             return r;
         }
 
-        public static string GetCwd()
+        public static func GetCwd() -> string
         {
             uint n = GetCurrentDirectoryW(0, null);
             ushort* buf = Memory.New<ushort>(n + 1);
@@ -342,7 +342,7 @@ namespace std.io
             return s;
         }
 
-        public static bool SetCwd(string path)
+        public static func SetCwd(path: string) -> bool
         {
             ushort* w = Utf16.Encode(path);
             bool ok = SetCurrentDirectoryW(w) != 0;
@@ -351,7 +351,7 @@ namespace std.io
         }
 
         // Ruta absoluta (resuelve '.', '..' y la unidad actual; no exige que exista). Copia.
-        public static string FullPath(string path)
+        public static func FullPath(path: string) -> string
         {
             ushort* w = Utf16.Encode(path);
             uint n = GetFullPathNameW(w, 0, null, null);
@@ -368,7 +368,7 @@ namespace std.io
             return s;
         }
 
-        public static string TempDir()
+        public static func TempDir() -> string
         {
             uint n = GetTempPathW(0, null);
             ushort* buf = Memory.New<ushort>(n + 1);
@@ -407,7 +407,7 @@ namespace std.io
         public const bool IsWindows = false;
         public const bool IgnoreCase = false;
 
-        public static bool Stat(string path, FileInfo* info)
+        public static func Stat(path: string, info: FileInfo*) -> bool
         {
             long* d = Memory.New<long>(8);
             bool ok = faset_px_stat(path, d);
@@ -427,31 +427,31 @@ namespace std.io
             return ok;
         }
 
-        public static int MkDir(string path) => faset_px_mkdir(path, 0x1FF);   // 0777;
-        public static bool RmDir(string path) => faset_px_rmdir(path);
-        public static bool Unlink(string path) => faset_px_unlink(path);
-        public static bool ForceUnlink(string path) => faset_px_unlink(path);
-        public static int Rename(string from, string to, bool overwrite) => faset_px_rename(from, to, overwrite);
-        public static bool CopyFile(string from, string to, bool overwrite) => faset_px_copy_file(from, to, overwrite);
-        public static bool SetMode(string path, int mode) => faset_px_chmod(path, mode);
+        public static func MkDir(path: string) -> int => faset_px_mkdir(path, 0x1FF);   // 0777;
+        public static func RmDir(path: string) -> bool => faset_px_rmdir(path);
+        public static func Unlink(path: string) -> bool => faset_px_unlink(path);
+        public static func ForceUnlink(path: string) -> bool => faset_px_unlink(path);
+        public static func Rename(from: string, to: string, overwrite: bool) -> int => faset_px_rename(from, to, overwrite);
+        public static func CopyFile(from: string, to: string, overwrite: bool) -> bool => faset_px_copy_file(from, to, overwrite);
+        public static func SetMode(path: string, mode: int) -> bool => faset_px_chmod(path, mode);
 
-        public static bool SetReadOnly(string path, bool readOnly)
+        public static func SetReadOnly(path: string, readOnly: bool) -> bool
         {
             FileInfo info = new FileInfo();
             if (!Stat(path, &info)) return false;
             return faset_px_chmod(path, readOnly ? info.Mode & ~0x92 : info.Mode | 0x80);
         }
 
-        public static bool SetMTime(string path, long ms) => faset_px_set_mtime(path, ms);
-        public static long Open(string path, int flags) => faset_px_open(path, flags);
-        public static long Read(long h, byte* buffer, long count) => faset_px_read(h, buffer, count);
-        public static bool Write(long h, byte* data, long count) => faset_px_write(h, data, count);
-        public static long Seek(long h, long offset, int whence) => faset_px_seek(h, offset, whence);
-        public static bool Truncate(long h, long length) => faset_px_truncate(h, length);
-        public static bool Sync(long h) => faset_px_fsync(h);
-        public static void Close(long h) { faset_px_close(h); }
+        public static func SetMTime(path: string, ms: long) -> bool => faset_px_set_mtime(path, ms);
+        public static func Open(path: string, flags: int) -> long => faset_px_open(path, flags);
+        public static func Read(h: long, buffer: byte*, count: long) -> long => faset_px_read(h, buffer, count);
+        public static func Write(h: long, data: byte*, count: long) -> bool => faset_px_write(h, data, count);
+        public static func Seek(h: long, offset: long, whence: int) -> long => faset_px_seek(h, offset, whence);
+        public static func Truncate(h: long, length: long) -> bool => faset_px_truncate(h, length);
+        public static func Sync(h: long) -> bool => faset_px_fsync(h);
+        public static func Close(h: long) { faset_px_close(h); }
 
-        public static string ListDir(string path, out bool ok)
+        public static func ListDir(path: string, out ok: bool) -> string
         {
             bool good = false;
             string r = faset_px_list_dir(path, &good);
@@ -459,12 +459,12 @@ namespace std.io
             return r;
         }
 
-        public static string GetCwd() => faset_get_cwd();
-        public static bool SetCwd(string path) => faset_px_chdir(path);
-        public static string TempDir() => faset_px_temp_dir();
+        public static func GetCwd() -> string => faset_get_cwd();
+        public static func SetCwd(path: string) -> bool => faset_px_chdir(path);
+        public static func TempDir() -> string => faset_px_temp_dir();
 
         // Ruta canónica (resuelve enlaces); "" si no existe.
-        public static string FullPath(string path)
+        public static func FullPath(path: string) -> string
         {
             FileInfo info = new FileInfo();
             if (!Stat(path, &info)) return String.Copy("");
@@ -480,7 +480,7 @@ namespace std.io
         // ---------------------------------------------------------------- texto y bytes
 
         // Lee todo el archivo. Devuelve una cadena nueva.
-        public static bool TryReadAllText(string path, out string content)
+        public static func TryReadAllText(path: string, out content: string) -> bool
         {
             byte* data;
             long length;
@@ -491,14 +491,14 @@ namespace std.io
 
         // Como TryReadAllText, pero si no se puede leer lanza FileNotFoundException (no existe)
         // o IOException.
-        [TrackCaller] public static string ReadAllText(string path)
+        [TrackCaller] public static func ReadAllText(path: string) -> string
         {
             string s;
             if (!TryReadAllText(path, out s)) ThrowReadError("File.ReadAllText", path);
             return s;
         }
 
-        [TrackCaller] static void ThrowReadError(string what, string path)
+        [TrackCaller] static func ThrowReadError(what: string, path: string)
         {
             if (!Exists(path)) throw new FileNotFoundException(what + ": no se encontró el archivo '" + path + "'", path);
             throw new IOException(what + ": no se puede leer el archivo '" + path + "'");
@@ -506,7 +506,7 @@ namespace std.io
 
         // Lee todos los bytes. 'data' es memoria nueva terminada en 0,
         // también si falla (vacía).
-        public static bool TryReadAllBytes(string path, out byte* data, out long length)
+        public static func TryReadAllBytes(path: string, out data: byte*, out length: long) -> bool
         {
             long h = Native.Open(path, 1);
             long cap = 0, len = 0;
@@ -540,16 +540,16 @@ namespace std.io
             return ok;
         }
 
-        public static bool WriteAllText(string path, string text) => WriteAllBytes(path, text.Ptr, text.Length);
-        public static bool AppendAllText(string path, string text) => AppendAllBytes(path, text.Ptr, text.Length);
+        public static func WriteAllText(path: string, text: string) -> bool => WriteAllBytes(path, text.Ptr, text.Length);
+        public static func AppendAllText(path: string, text: string) -> bool => AppendAllBytes(path, text.Ptr, text.Length);
 
         // ---------------------------------------------------------------- async (std.task)
         // No hay E/S de archivos no bloqueante portátil (Linux, Windows y Android): la operación
         // corre en un hilo del grupo de tareas y 'await' no bloquea a quien espera (ni a la interfaz).
         // Los errores llegan como excepciones al hacer 'await' (FileNotFoundException, IOException).
-        public static Task<string> ReadAllTextAsync(string path) => Task.Run(() => ReadAllText(path));
+        public static func ReadAllTextAsync(path: string) -> Task<string> => Task.Run(() => ReadAllText(path));
 
-        public static Task WriteAllTextAsync(string path, string text)
+        public static func WriteAllTextAsync(path: string, text: string) -> Task
         {
             return Task.Run(() =>
             {
@@ -557,17 +557,17 @@ namespace std.io
             });
         }
 
-        public static Task AppendAllTextAsync(string path, string text)
+        public static func AppendAllTextAsync(path: string, text: string) -> Task
         {
             return Task.Run(() =>
             {
                 if (!AppendAllText(path, text)) throw new IOException("File.AppendAllTextAsync: no se puede escribir el archivo '" + path + "'");
             });
         }
-        public static bool WriteAllBytes(string path, byte* data, long length) => WriteRaw(path, data, length, 2 | 4 | 8);
-        public static bool AppendAllBytes(string path, byte* data, long length) => WriteRaw(path, data, length, 2 | 4 | 32);
+        public static func WriteAllBytes(path: string, data: byte*, length: long) -> bool => WriteRaw(path, data, length, 2 | 4 | 8);
+        public static func AppendAllBytes(path: string, data: byte*, length: long) -> bool => WriteRaw(path, data, length, 2 | 4 | 32);
 
-        static bool WriteRaw(string path, byte* data, long length, int flags)
+        static func WriteRaw(path: string, data: byte*, length: long, flags: int) -> bool
         {
             long h = Native.Open(path, flags);
             if (h == -1) return false;
@@ -582,7 +582,7 @@ namespace std.io
         // ---------------------------------------------------------------- líneas
 
         // Líneas del archivo ('\n' o "\r\n"), sin el salto. Copias
-        public static bool TryReadAllLines(string path, out List<string> lines)
+        public static func TryReadAllLines(path: string, out lines: List<string>) -> bool
         {
             string text;
             bool ok = TryReadAllText(path, out text);
@@ -603,7 +603,7 @@ namespace std.io
         }
 
         // Como TryReadAllLines, pero lanza FileNotFoundException o IOException si no se puede leer.
-        [TrackCaller] public static List<string> ReadAllLines(string path)
+        [TrackCaller] public static func ReadAllLines(path: string) -> List<string>
         {
             List<string> lines;
             if (!TryReadAllLines(path, out lines)) ThrowReadError("File.ReadAllLines", path);
@@ -611,10 +611,10 @@ namespace std.io
         }
 
         // Escribe cada línea seguida de '\n'.
-        public static bool WriteAllLines(string path, List<string> lines) => WriteRawLines(path, lines, false);
-        public static bool AppendAllLines(string path, List<string> lines) => WriteRawLines(path, lines, true);
+        public static func WriteAllLines(path: string, lines: List<string>) -> bool => WriteRawLines(path, lines, false);
+        public static func AppendAllLines(path: string, lines: List<string>) -> bool => WriteRawLines(path, lines, true);
 
-        static bool WriteRawLines(string path, List<string> lines, bool append)
+        static func WriteRawLines(path: string, lines: List<string>, append: bool) -> bool
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < lines.Count; i++) sb.Append(lines[i]).Append("\n");
@@ -625,7 +625,7 @@ namespace std.io
         }
 
         // Libera una lista de cadenas copiadas (ReadAllLines, Directory.GetFiles...).
-        public static void FreeLines(List<string> lines)
+        public static func FreeLines(lines: List<string>)
         {
             for (int i = 0; i < lines.Count; i++) String.Free(lines[i]);
             delete lines;
@@ -633,19 +633,19 @@ namespace std.io
 
         // ---------------------------------------------------------------- operaciones
 
-        public static bool Exists(string path)
+        public static func Exists(path: string) -> bool
         {
             FileInfo info = new FileInfo();
             return Native.Stat(path, &info) && info.Kind != FileKind.Directory && info.Kind != FileKind.None;
         }
 
-        public static bool Delete(string path) => Native.Unlink(path);
+        public static func Delete(path: string) -> bool => Native.Unlink(path);
 
         // Mueve o renombra un archivo. Falla si el destino existe (salvo con overwrite = true).
         // Entre sistemas de archivos distintos copia y borra el original.
-        public static bool Move(string from, string to) => Move(from, to, false);
+        public static func Move(from: string, to: string) -> bool => Move(from, to, false);
 
-        public static bool Move(string from, string to, bool overwrite)
+        public static func Move(from: string, to: string, overwrite: bool) -> bool
         {
             int r = Native.Rename(from, to, overwrite);
             if (r == 2 && Exists(from) && Native.CopyFile(from, to, overwrite)) return Native.Unlink(from);
@@ -653,48 +653,48 @@ namespace std.io
         }
 
         // Copia un archivo (con sus permisos). Falla si el destino existe (salvo con overwrite = true).
-        public static bool Copy(string from, string to) => Native.CopyFile(from, to, false);
-        public static bool Copy(string from, string to, bool overwrite) => Native.CopyFile(from, to, overwrite);
+        public static func Copy(from: string, to: string) -> bool => Native.CopyFile(from, to, false);
+        public static func Copy(from: string, to: string, overwrite: bool) -> bool => Native.CopyFile(from, to, overwrite);
 
         // ---------------------------------------------------------------- metadatos
 
-        public static FileInfo GetInfo(string path) => FileInfo.Get(path);
+        public static func GetInfo(path: string) -> FileInfo => FileInfo.Get(path);
 
         // Tamaño en bytes (-1 si no existe).
-        public static long GetSize(string path)
+        public static func GetSize(path: string) -> long
         {
             FileInfo info = FileInfo.Get(path);
             return info.Exists ? info.Length : -1;
         }
 
         // Fecha de la última escritura en ms Unix (-1 si no existe).
-        public static long GetLastWriteTime(string path)
+        public static func GetLastWriteTime(path: string) -> long
         {
             FileInfo info = FileInfo.Get(path);
             return info.Exists ? info.LastWriteTimeMs : -1;
         }
 
-        public static bool SetLastWriteTime(string path, long unixMs) => Native.SetMTime(path, unixMs);
+        public static func SetLastWriteTime(path: string, unixMs: long) -> bool => Native.SetMTime(path, unixMs);
 
-        public static bool IsReadOnly(string path) => FileInfo.Get(path).IsReadOnly;
-        public static bool SetReadOnly(string path, bool readOnly) => Native.SetReadOnly(path, readOnly);
+        public static func IsReadOnly(path: string) -> bool => FileInfo.Get(path).IsReadOnly;
+        public static func SetReadOnly(path: string, readOnly: bool) -> bool => Native.SetReadOnly(path, readOnly);
 
         // Permisos Unix (-1 si no existe). En Windows: 0444 o 0666 según el atributo de solo lectura.
-        public static int GetUnixMode(string path)
+        public static func GetUnixMode(path: string) -> int
         {
             FileInfo info = FileInfo.Get(path);
             return info.Exists ? info.Mode : -1;
         }
 
-        public static bool SetUnixMode(string path, int mode) => Native.SetMode(path, mode);
+        public static func SetUnixMode(path: string, mode: int) -> bool => Native.SetMode(path, mode);
 
         // ---------------------------------------------------------------- flujos (null si falla)
 
-        public static FileStream Open(string path, FileMode mode, FileAccess access) => FileStream.Open(path, mode, access);
-        public static FileStream OpenRead(string path) => FileStream.Open(path, FileMode.Open, FileAccess.Read);
-        public static FileStream OpenWrite(string path) => FileStream.Open(path, FileMode.Create, FileAccess.Write);
-        public static FileStream OpenAppend(string path) => FileStream.Open(path, FileMode.Append, FileAccess.Write);
-        public static FileStream Create(string path) => FileStream.Open(path, FileMode.Create, FileAccess.ReadWrite);
+        public static func Open(path: string, mode: FileMode, access: FileAccess) -> FileStream => FileStream.Open(path, mode, access);
+        public static func OpenRead(path: string) -> FileStream => FileStream.Open(path, FileMode.Open, FileAccess.Read);
+        public static func OpenWrite(path: string) -> FileStream => FileStream.Open(path, FileMode.Create, FileAccess.Write);
+        public static func OpenAppend(path: string) -> FileStream => FileStream.Open(path, FileMode.Append, FileAccess.Write);
+        public static func Create(path: string) -> FileStream => FileStream.Open(path, FileMode.Create, FileAccess.ReadWrite);
     }
 
     // ======================================================================= FileStream
@@ -707,21 +707,21 @@ namespace std.io
     public memory_unsafe class FileStream
     {
         const int BufferSize = 65536;
-        long handle = -1;
-        bool canRead;
-        bool canWrite;
-        bool append;
-        byte* buffer;
-        int readPos;     // siguiente byte por leer del búfer
-        int readLen;     // bytes válidos de lectura en el búfer
-        int writeLen;    // bytes pendientes de escribir en el búfer
-        long osPos;      // posición del sistema operativo
-        bool failed;
+        var handle: long = -1;
+        var canRead: bool
+        var canWrite: bool
+        var append: bool
+        var buffer: byte*
+        var readPos: int     // siguiente byte por leer del búfer
+        var readLen: int     // bytes válidos de lectura en el búfer
+        var writeLen: int    // bytes pendientes de escribir en el búfer
+        var osPos: long      // posición del sistema operativo
+        var failed: bool
 
-        ~FileStream() { Close(); }
+        deinit { Close(); }
 
         // Abre un archivo. Devuelve null si no se puede.
-        public static FileStream Open(string path, FileMode mode, FileAccess access)
+        public static func Open(path: string, mode: FileMode, access: FileAccess) -> FileStream
         {
             int flags = (int)access;
             if (mode == FileMode.CreateNew) flags |= 4 | 16;
@@ -742,21 +742,21 @@ namespace std.io
             return f;
         }
 
-        public bool IsOpen => handle != -1;
-        public bool CanRead => handle != -1 && canRead;
-        public bool CanWrite => handle != -1 && canWrite;
+        public prop IsOpen: bool => handle != -1;
+        public prop CanRead: bool => handle != -1 && canRead;
+        public prop CanWrite: bool => handle != -1 && canWrite;
         // true si alguna operación de lectura o escritura falló.
-        public bool HasError => failed;
+        public prop HasError: bool => failed;
 
         // ---------------------------------------------------------------- posición
 
-        public long Position
+        public prop Position: long
         {
             get => osPos + writeLen - (readLen - readPos);
             set { Seek(value, SeekOrigin.Begin); }
         }
 
-        public long Length
+        public prop Length: long
         {
             get
             {
@@ -769,7 +769,7 @@ namespace std.io
         }
 
         // Cambia la posición; devuelve la nueva (-1 si falla).
-        public long Seek(long offset, SeekOrigin origin)
+        public func Seek(offset: long, origin: SeekOrigin) -> long
         {
             if (handle == -1) return -1;
             if (!FlushWrite()) return -1;
@@ -787,7 +787,7 @@ namespace std.io
         }
 
         // Cambia el tamaño del archivo (la posición no cambia).
-        public bool SetLength(long length)
+        public func SetLength(length: long) -> bool
         {
             if (!CanWrite || !FlushWrite()) return false;
             long pos = Position;
@@ -800,7 +800,7 @@ namespace std.io
         // ---------------------------------------------------------------- lectura
 
         // true si no quedan bytes por leer.
-        public bool EndOfStream
+        public prop EndOfStream: bool
         {
             get
             {
@@ -811,7 +811,7 @@ namespace std.io
         }
 
         // Lee hasta 'count' bytes. Devuelve los leídos (0 al final, -1 si falla).
-        public int Read(byte* destination, int count)
+        public func Read(destination: byte*, count: int) -> int
         {
             if (!CanRead || !FlushWrite()) return -1;
             if (count <= 0) return 0;
@@ -835,7 +835,7 @@ namespace std.io
         }
 
         // Siguiente byte (0-255) o -1 al final.
-        public int ReadByte()
+        public func ReadByte() -> int
         {
             if (!CanRead || !FlushWrite()) return -1;
             if (readPos >= readLen && !Fill()) return -1;
@@ -844,7 +844,7 @@ namespace std.io
 
         // Lee una línea ('\n' o "\r\n", sin el salto). 'line' es una copia;
         // devuelve false al final del archivo.
-        public bool ReadLine(out string line)
+        public func ReadLine(out line: string) -> bool
         {
             line = String.FromBytes(null, 0);
             if (!CanRead || !FlushWrite()) return false;
@@ -882,7 +882,7 @@ namespace std.io
         }
 
         // Lee desde la posición actual hasta el final (copia).
-        public string ReadToEnd()
+        public func ReadToEnd() -> string
         {
             StringBuilder sb = new StringBuilder();
             if (CanRead && FlushWrite())
@@ -898,7 +898,7 @@ namespace std.io
             return s;
         }
 
-        bool Fill()
+        func Fill() -> bool
         {
             readPos = 0;
             readLen = 0;
@@ -911,7 +911,7 @@ namespace std.io
         }
 
         // Si hay datos leídos sin consumir, vuelve a colocar el sistema en la posición lógica.
-        void DiscardRead()
+        func DiscardRead()
         {
             int unread = readLen - readPos;
             if (unread > 0)
@@ -924,7 +924,7 @@ namespace std.io
 
         // ---------------------------------------------------------------- escritura
 
-        public bool Write(byte* data, long count)
+        public func Write(data: byte*, count: long) -> bool
         {
             if (!CanWrite) return false;
             if (readLen > 0) DiscardRead();
@@ -939,27 +939,27 @@ namespace std.io
             return true;
         }
 
-        public bool Write(string text) => Write(text.Ptr, text.Length);
-        public bool WriteLine(string text) => Write(text.Ptr, text.Length) && Write("\n");
-        public bool WriteLine() => Write("\n");
+        public func Write(text: string) -> bool => Write(text.Ptr, text.Length);
+        public func WriteLine(text: string) -> bool => Write(text.Ptr, text.Length) && Write("\n");
+        public func WriteLine() -> bool => Write("\n");
 
-        public bool WriteByte(byte value)
+        public func WriteByte(value: byte) -> bool
         {
             byte b = value;
             return Write(&b, 1);
         }
 
         // Escribe el búfer en el sistema operativo.
-        public bool Flush() => FlushWrite();
+        public func Flush() -> bool => FlushWrite();
 
         // Igual, y con toDisk = true espera a que los datos lleguen al disco (fsync).
-        public bool Flush(bool toDisk)
+        public func Flush(toDisk: bool) -> bool
         {
             if (!FlushWrite()) return false;
             return !toDisk || handle == -1 || Native.Sync(handle);
         }
 
-        bool FlushWrite()
+        func FlushWrite() -> bool
         {
             if (writeLen == 0 || handle == -1) return true;
             int n = writeLen;
@@ -967,7 +967,7 @@ namespace std.io
             return WriteThrough(buffer, n);
         }
 
-        bool WriteThrough(byte* data, long count)
+        func WriteThrough(data: byte*, count: long) -> bool
         {
             if (append) osPos = Native.Seek(handle, 0, 2);
             if (!Native.Write(handle, data, count))
@@ -980,7 +980,7 @@ namespace std.io
         }
 
         // Escribe lo pendiente y cierra el archivo (también lo hace delete).
-        public void Close()
+        public func Close()
         {
             if (handle == -1) return;
             FlushWrite();
@@ -997,14 +997,14 @@ namespace std.io
 
     public memory_unsafe static class Directory
     {
-        public static bool Exists(string path)
+        public static func Exists(path: string) -> bool
         {
             FileInfo info = new FileInfo();
             return Native.Stat(path, &info) && info.Kind == FileKind.Directory;
         }
 
         // Crea la carpeta y las carpetas intermedias que falten. true si existe al terminar.
-        public static bool Create(string path)
+        public static func Create(path: string) -> bool
         {
             if (path.Length == 0) return false;
             int r = Native.MkDir(path);
@@ -1016,10 +1016,10 @@ namespace std.io
         }
 
         // Borra una carpeta con todo su contenido. Los enlaces simbólicos se borran sin seguirlos.
-        public static bool Delete(string path) => Delete(path, true);
+        public static func Delete(path: string) -> bool => Delete(path, true);
 
         // Con recursive = false solo borra carpetas vacías.
-        public static bool Delete(string path, bool recursive)
+        public static func Delete(path: string, recursive: bool) -> bool
         {
             FileInfo info = FileInfo.Get(path);
             if (!info.Exists) return false;
@@ -1028,7 +1028,7 @@ namespace std.io
             return recursive ? DeleteTree(path) : Native.RmDir(path);
         }
 
-        static bool DeleteTree(string path)
+        static func DeleteTree(path: string) -> bool
         {
             bool ok;
             string raw = Native.ListDir(path, out ok);
@@ -1049,15 +1049,15 @@ namespace std.io
         }
 
         // Mueve o renombra una carpeta (falla si el destino existe).
-        public static bool Move(string from, string to) => Native.Rename(from, to, false) == 1;
+        public static func Move(from: string, to: string) -> bool => Native.Rename(from, to, false) == 1;
 
         // Carpeta de trabajo actual (copia).
-        public static string GetCurrent() => Native.GetCwd();
-        public static bool SetCurrent(string path) => Native.SetCwd(path);
+        public static func GetCurrent() -> string => Native.GetCwd();
+        public static func SetCurrent(path: string) -> bool => Native.SetCwd(path);
 
         // Crea una carpeta nueva y única dentro de la carpeta temporal y devuelve su ruta
         // (copia; "" si falla). Bórrala con Directory.Delete al terminar.
-        public static string CreateTemp(string prefix)
+        public static func CreateTemp(prefix: string) -> string
         {
             string tmp = Path.GetTempPath();
             for (int attempt = 0; attempt < 100; attempt++)
@@ -1081,7 +1081,7 @@ namespace std.io
         // ---------------------------------------------------------------- enumeración
 
         // Contenido de una carpeta: primero subcarpetas y luego archivos, por nombre.
-        public static List<DirEntry> GetEntries(string path)
+        public static func GetEntries(path: string) -> List<DirEntry>
         {
             List<DirEntry> dirs = new List<DirEntry>();
             List<DirEntry> files = new List<DirEntry>();
@@ -1111,7 +1111,7 @@ namespace std.io
             return dirs;
         }
 
-        public static void FreeEntries(List<DirEntry> entries)
+        public static func FreeEntries(entries: List<DirEntry>)
         {
             for (int i = 0; i < entries.Count; i++) String.Free(entries[i].Name);
             delete entries;
@@ -1120,28 +1120,28 @@ namespace std.io
         // Rutas (Path.Combine(path, nombre)) de los archivos de la carpeta, ordenadas por nombre.
         // 'pattern' admite '*' y '?' ("*.fst"); con recursive = true recorre las subcarpetas
         // (sin entrar en enlaces simbólicos).
-        public static List<string> GetFiles(string path) => Enumerate(path, "*", false, true, false);
-        public static List<string> GetFiles(string path, string pattern) => Enumerate(path, pattern, false, true, false);
-        public static List<string> GetFiles(string path, string pattern, bool recursive) => Enumerate(path, pattern, recursive, true, false);
+        public static func GetFiles(path: string) -> List<string> => Enumerate(path, "*", false, true, false);
+        public static func GetFiles(path: string, pattern: string) -> List<string> => Enumerate(path, pattern, false, true, false);
+        public static func GetFiles(path: string, pattern: string, recursive: bool) -> List<string> => Enumerate(path, pattern, recursive, true, false);
 
         // Igual que GetFiles, para subcarpetas.
-        public static List<string> GetDirectories(string path) => Enumerate(path, "*", false, false, true);
-        public static List<string> GetDirectories(string path, string pattern) => Enumerate(path, pattern, false, false, true);
-        public static List<string> GetDirectories(string path, string pattern, bool recursive) => Enumerate(path, pattern, recursive, false, true);
+        public static func GetDirectories(path: string) -> List<string> => Enumerate(path, "*", false, false, true);
+        public static func GetDirectories(path: string, pattern: string) -> List<string> => Enumerate(path, pattern, false, false, true);
+        public static func GetDirectories(path: string, pattern: string, recursive: bool) -> List<string> => Enumerate(path, pattern, recursive, false, true);
 
         // Archivos y carpetas a la vez (en cada carpeta: primero subcarpetas, luego archivos).
-        public static List<string> GetFileSystemEntries(string path, string pattern, bool recursive) => Enumerate(path, pattern, recursive, true, true);
+        public static func GetFileSystemEntries(path: string, pattern: string, recursive: bool) -> List<string> => Enumerate(path, pattern, recursive, true, true);
 
-        public static void FreeList(List<string> paths) { File.FreeLines(paths); }
+        public static func FreeList(paths: List<string>) { File.FreeLines(paths); }
 
-        static List<string> Enumerate(string path, string pattern, bool recursive, bool files, bool dirs)
+        static func Enumerate(path: string, pattern: string, recursive: bool, files: bool, dirs: bool) -> List<string>
         {
             List<string> result = new List<string>();
             Walk(path, pattern, recursive, files, dirs, result);
             return result;
         }
 
-        static void Walk(string path, string pattern, bool recursive, bool files, bool dirs, List<string> result)
+        static func Walk(path: string, pattern: string, recursive: bool, files: bool, dirs: bool, result: List<string>)
         {
             List<DirEntry> entries = GetEntries(path);
             for (int i = 0; i < entries.Count; i++)
@@ -1167,7 +1167,7 @@ namespace std.io
             FreeEntries(entries);
         }
 
-        static int CompareEntries(DirEntry a, DirEntry b)
+        static func CompareEntries(a: DirEntry, b: DirEntry) -> int
         {
             string x = a.Name.ToLower(), y = b.Name.ToLower();
             int c = x.CompareTo(y);
@@ -1184,30 +1184,30 @@ namespace std.io
     public memory_unsafe static class Path
     {
 #if WINDOWS
-        public static char DirectorySeparatorChar => '\\';
-        public static char PathSeparator => ';';
+        public static prop DirectorySeparatorChar: char => '\\';
+        public static prop PathSeparator: char => ';';
 #else
-        public static char DirectorySeparatorChar => '/';
-        public static char PathSeparator => ':';
+        public static prop DirectorySeparatorChar: char => '/';
+        public static prop PathSeparator: char => ':';
 #endif
-        public static char AltDirectorySeparatorChar => '/';
+        public static prop AltDirectorySeparatorChar: char => '/';
 
-        static bool IsSep(byte c) => c == '/' || (Native.IsWindows && c == '\\');
+        static func IsSep(c: byte) -> bool => c == '/' || (Native.IsWindows && c == '\\');
 
         // true para '/' (y '\' en Windows).
-        public static bool IsSeparator(char c) => c == '/' || (Native.IsWindows && c == '\\');
+        public static func IsSeparator(c: char) -> bool => c == '/' || (Native.IsWindows && c == '\\');
 
-        static int LastSeparator(string path)
+        static func LastSeparator(path: string) -> int
         {
             for (int i = path.Length - 1; i >= 0; i--)
                 if (path[i] == '/' || path[i] == '\\') return i;
             return -1;
         }
 
-        public static string GetFileName(string path) => path.Substring(LastSeparator(path) + 1);
+        public static func GetFileName(path: string) -> string => path.Substring(LastSeparator(path) + 1);
 
         // Carpeta que contiene 'path' ("" si no tiene; "/" para "/archivo").
-        public static string GetDirectoryName(string path)
+        public static func GetDirectoryName(path: string) -> string
         {
             int i = LastSeparator(path);
             if (i < 0) return "";
@@ -1218,16 +1218,16 @@ namespace std.io
             return path.Substring(0, end > 0 ? end : root);
         }
 
-        public static string GetExtension(string path)
+        public static func GetExtension(path: string) -> string
         {
             string name = GetFileName(path);
             int dot = name.LastIndexOf(".");
             return dot <= 0 ? "" : name.Substring(dot);
         }
 
-        public static bool HasExtension(string path) => GetExtension(path).Length > 1;
+        public static func HasExtension(path: string) -> bool => GetExtension(path).Length > 1;
 
-        public static string GetFileNameWithoutExtension(string path)
+        public static func GetFileNameWithoutExtension(path: string) -> string
         {
             string name = GetFileName(path);
             int dot = name.LastIndexOf(".");
@@ -1235,7 +1235,7 @@ namespace std.io
         }
 
         // Cambia la extensión ("txt" o ".txt"; "" la quita). Copia.
-        public static string ChangeExtension(string path, string extension)
+        public static func ChangeExtension(path: string, extension: string) -> string
         {
             string name = GetFileName(path);
             int dot = name.LastIndexOf(".");
@@ -1246,7 +1246,7 @@ namespace std.io
         }
 
         // Raíz de la ruta (vista): "/" en POSIX; "C:\", "C:", "\" o "\\servidor\recurso\" en Windows.
-        public static string GetPathRoot(string path)
+        public static func GetPathRoot(path: string) -> string
         {
             if (path.Length == 0) return "";
 #if WINDOWS
@@ -1267,11 +1267,11 @@ namespace std.io
         }
 
         // true si la ruta empieza por una raíz ("/", "C:\", "\\servidor"...).
-        public static bool IsPathRooted(string path) => GetPathRoot(path).Length > 0;
-        public static bool IsRooted(string path) => IsPathRooted(path);
+        public static func IsPathRooted(path: string) -> bool => GetPathRoot(path).Length > 0;
+        public static func IsRooted(path: string) -> bool => IsPathRooted(path);
 
         // Une dos partes con '/' (copia). Si 'b' tiene raíz, devuelve una copia de 'b'.
-        public static string Combine(string a, string b)
+        public static func Combine(a: string, b: string) -> string
         {
             if (a.Length == 0 || IsPathRooted(b)) return String.Copy(b);
             if (b.Length == 0) return String.Copy(a);
@@ -1279,7 +1279,7 @@ namespace std.io
             return String.Concat(a, "/", b);
         }
 
-        public static string Combine(string a, string b, string c)
+        public static func Combine(a: string, b: string, c: string) -> string
         {
             string ab = Combine(a, b);
             string r = Combine(ab, c);
@@ -1288,7 +1288,7 @@ namespace std.io
         }
 
         // Quita los separadores finales (vista), salvo el de la raíz.
-        public static string TrimEndingSeparators(string path)
+        public static func TrimEndingSeparators(path: string) -> string
         {
             int root = GetPathRoot(path).Length;
             int n = path.Length;
@@ -1297,7 +1297,7 @@ namespace std.io
         }
 
         // Cambia todos los separadores por el del sistema (copia).
-        public static string NormalizeSeparators(string path)
+        public static func NormalizeSeparators(path: string) -> string
         {
             byte* p = (byte*)Memory.Alloc(path.Length + 1);
             byte sep = (byte)DirectorySeparatorChar;
@@ -1308,7 +1308,7 @@ namespace std.io
 
         // Normaliza una ruta sin tocar el disco: separadores del sistema, sin repetidos,
         // sin '.', y con los '..' resueltos (copia). "" -> ".".
-        public static string Normalize(string path)
+        public static func Normalize(path: string) -> string
         {
             string root = GetPathRoot(path);
             string rest = path.Substring(root.Length);
@@ -1349,7 +1349,7 @@ namespace std.io
 
         // Ruta absoluta (copia). En POSIX, si existe, es la canónica (sin enlaces simbólicos);
         // si no existe se resuelve sin tocar el disco.
-        public static string GetFullPath(string path)
+        public static func GetFullPath(path: string) -> string
         {
             string full = Native.FullPath(path);
             if (full.Length > 0) return full;
@@ -1358,7 +1358,7 @@ namespace std.io
         }
 
         // Ruta absoluta resuelta sin tocar el disco (copia).
-        static string Absolute(string path)
+        static func Absolute(path: string) -> string
         {
 #if WINDOWS
             string full = Native.FullPath(path);
@@ -1376,7 +1376,7 @@ namespace std.io
 
         // Ruta de 'path' relativa a la carpeta 'relativeTo' (copia), p. ej. "../b/c.txt".
         // Si no comparten raíz devuelve la ruta absoluta de 'path'.
-        public static string GetRelativePath(string relativeTo, string path)
+        public static func GetRelativePath(relativeTo: string, path: string) -> string
         {
             string from = Absolute(relativeTo), to = Absolute(path);
             List<string> a = Segments(from), b = Segments(to);
@@ -1410,7 +1410,7 @@ namespace std.io
         }
 
         // Partes (vistas) de una ruta normalizada, sin la raíz.
-        static List<string> Segments(string path)
+        static func Segments(path: string) -> List<string>
         {
             List<string> parts = new List<string>();
             string rest = path.Substring(GetPathRoot(path).Length);
@@ -1424,13 +1424,13 @@ namespace std.io
             return parts;
         }
 
-        static bool SameText(string a, string b) => Native.IgnoreCase ? a.EqualsIgnoreCase(b) : a == b;
+        static func SameText(a: string, b: string) -> bool => Native.IgnoreCase ? a.EqualsIgnoreCase(b) : a == b;
 
         // Carpeta temporal del sistema, sin separador final (copia).
-        public static string GetTempPath() => Native.TempDir();
+        public static func GetTempPath() -> string => Native.TempDir();
 
         // Nombre aleatorio de 8 + 3 caracteres, p. ej. "k3x9q0ab.r2t" (copia).
-        public static string GetRandomFileName()
+        public static func GetRandomFileName() -> string
         {
             byte* p = (byte*)Memory.Alloc(13);
             for (int i = 0; i < 12; i++)
@@ -1448,7 +1448,7 @@ namespace std.io
         }
 
         // Crea un archivo vacío y único en la carpeta temporal y devuelve su ruta (copia; "" si falla).
-        public static string GetTempFileName()
+        public static func GetTempFileName() -> string
         {
             string tmp = GetTempPath();
             for (int attempt = 0; attempt < 100; attempt++)
@@ -1471,9 +1471,9 @@ namespace std.io
             return String.Copy("");
         }
 
-        static ulong randomState;
+        static var randomState: ulong
 
-        static ulong NextRandom()
+        static func NextRandom() -> ulong
         {
             if (randomState == 0)
             {
@@ -1488,7 +1488,7 @@ namespace std.io
 
         // Comprueba un nombre contra un patrón con '*' (cualquier texto) y '?' (un carácter).
         // "*" y "*.*" aceptan todo. En Windows no distingue mayúsculas (ASCII).
-        public static bool MatchesPattern(string name, string pattern)
+        public static func MatchesPattern(name: string, pattern: string) -> bool
         {
             if (pattern.Length == 0 || pattern == "*" || pattern == "*.*") return true;
             int n = 0, p = 0, starP = -1, starN = 0;
@@ -1517,14 +1517,14 @@ namespace std.io
             return p == pattern.Length;
         }
 
-        static int NextChar(string s, int i)
+        static func NextChar(s: string, i: int) -> int
         {
             i++;
             while (i < s.Length && (s[i] & 0xC0) == 0x80) i++;
             return i;
         }
 
-        static bool SameByte(byte a, byte b) =>
+        static func SameByte(a: byte, b: byte) -> bool =>
             a == b || (Native.IgnoreCase && Char.ToLower((char)a) == Char.ToLower((char)b));
     }
 
@@ -1534,16 +1534,16 @@ namespace std.io
 
     public struct FileChange
     {
-        public WatcherChangeKind Kind;
-        public string Path;        // copia (FileWatcher.FreeChanges)
-        public bool IsDirectory;
+        public var Kind: WatcherChangeKind
+        public var Path: string        // copia (FileWatcher.FreeChanges)
+        public var IsDirectory: bool
     }
 
     struct WatchStamp
     {
-        public long Time;
-        public long Length;
-        public bool IsDirectory;
+        public var Time: long
+        public var Length: long
+        public var IsDirectory: bool
     }
 
 #if !WINDOWS
@@ -1566,20 +1566,20 @@ namespace std.io
     // cada PollIntervalMs. Los renombrados aparecen como Deleted + Created.
     public memory_unsafe class FileWatcher
     {
-        string root;
-        bool recursive;
-        int fd = -1;
-        Dictionary<int, string> watches;          // inotify: descriptor -> carpeta
-        Dictionary<string, WatchStamp> snapshot;  // sondeo: ruta -> fecha y tamaño
-        long lastScan;
-        public int PollIntervalMs = 500;
+        var root: string
+        var recursive: bool
+        var fd: int = -1;
+        var watches: Dictionary<int, string>          // inotify: descriptor -> carpeta
+        var snapshot: Dictionary<string, WatchStamp>  // sondeo: ruta -> fecha y tamaño
+        var lastScan: long
+        public var PollIntervalMs: int = 500;
 
-        public FileWatcher(string path, bool includeSubdirectories) { Init(path, includeSubdirectories, false); }
+        public init(path: string, includeSubdirectories: bool) { Init(path, includeSubdirectories, false); }
 
         // Con usePolling = true compara instantáneas aunque haya inotify (p. ej. carpetas de red).
-        public FileWatcher(string path, bool includeSubdirectories, bool usePolling) { Init(path, includeSubdirectories, usePolling); }
+        public init(path: string, includeSubdirectories: bool, usePolling: bool) { Init(path, includeSubdirectories, usePolling); }
 
-        void Init(string path, bool includeSubdirectories, bool usePolling)
+        func Init(path: string, includeSubdirectories: bool, usePolling: bool)
         {
             root = String.Copy(path);
             recursive = includeSubdirectories;
@@ -1609,7 +1609,7 @@ namespace std.io
             }
         }
 
-        ~FileWatcher()
+        deinit
         {
 #if !WINDOWS
             if (fd >= 0) Inotify.faset_px_close(fd);
@@ -1620,12 +1620,12 @@ namespace std.io
         }
 
         // true si usa avisos del sistema (inotify) en lugar de sondeo.
-        public bool IsNative => fd >= 0;
-        public string WatchedPath => root;
+        public prop IsNative: bool => fd >= 0;
+        public prop WatchedPath: string => root;
 
         // Añade a 'changes' los cambios ocurridos desde la última llamada, sin esperar.
         // Devuelve cuántos añadió.
-        public int Poll(List<FileChange> changes)
+        public func Poll(changes: List<FileChange>) -> int
         {
             int before = changes.Count;
 #if !WINDOWS
@@ -1659,7 +1659,7 @@ namespace std.io
         }
 
         // Espera hasta 'timeoutMs' (-1 = sin límite) a que haya cambios y los añade a 'changes'.
-        public int WaitForChanges(List<FileChange> changes, int timeoutMs)
+        public func WaitForChanges(changes: List<FileChange>, timeoutMs: int) -> int
         {
             long start = Environment.TickCount64();
             for (;;)
@@ -1683,13 +1683,13 @@ namespace std.io
         }
 
         // Libera las rutas de los cambios y vacía la lista (no la borra).
-        public static void FreeChanges(List<FileChange> changes)
+        public static func FreeChanges(changes: List<FileChange>)
         {
             for (int i = 0; i < changes.Count; i++) String.Free(changes[i].Path);
             changes.Clear();
         }
 
-        static void Add(List<FileChange> changes, WatcherChangeKind kind, string path, bool isDir)
+        static func Add(changes: List<FileChange>, kind: WatcherChangeKind, path: string, isDir: bool)
         {
             // Une los avisos repetidos seguidos (varias escrituras al mismo archivo).
             for (int i = changes.Count - 1; i >= 0 && i >= changes.Count - 4; i--)
@@ -1703,7 +1703,7 @@ namespace std.io
 
         // ---------------------------------------------------------------- inotify
 #if !WINDOWS
-        bool AddWatch(string dir)
+        func AddWatch(dir: string) -> bool
         {
             int wd = Inotify.faset_px_watch_add(fd, dir);
             if (wd < 0) return false;
@@ -1713,7 +1713,7 @@ namespace std.io
             return true;
         }
 
-        void ReadEvents(List<FileChange> changes)
+        func ReadEvents(changes: List<FileChange>)
         {
             string raw = Inotify.faset_px_watch_read(fd);
             int start = 0;
@@ -1761,7 +1761,7 @@ namespace std.io
         }
 #endif
 
-        void FreeWatches()
+        func FreeWatches()
         {
             if (watches == null) return;
             List<string> dirs = watches.Values();
@@ -1773,7 +1773,7 @@ namespace std.io
 
         // ---------------------------------------------------------------- sondeo
 
-        Dictionary<string, WatchStamp> Scan()
+        func Scan() -> Dictionary<string, WatchStamp>
         {
             Dictionary<string, WatchStamp> map = new Dictionary<string, WatchStamp>();
             FileInfo info = FileInfo.Get(root);
@@ -1802,7 +1802,7 @@ namespace std.io
             return map;
         }
 
-        static void FreeSnapshot(Dictionary<string, WatchStamp> map)
+        static func FreeSnapshot(map: Dictionary<string, WatchStamp>)
         {
             List<string> keys = map.Keys();
             for (int i = 0; i < keys.Count; i++) String.Free(keys[i]);

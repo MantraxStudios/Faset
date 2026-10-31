@@ -32,15 +32,15 @@ namespace std.crypto
     [ExceptionBase("Exception")]
     public class CryptographicException
     {
-        public CryptographicException() { Message = "Error en una operación criptográfica."; }
-        public CryptographicException(string message) { Message = message; }
-        public CryptographicException(string message, Exception innerException)
+        public init() { Message = "Error en una operación criptográfica."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // Funciones de lib/crypto/faset_crypto.c.
@@ -56,7 +56,7 @@ namespace std.crypto
         public static extern int faset_random_bytes(byte* output, long n);
         public static extern int faset_fixed_time_equals(byte* a, long aLength, byte* b, long bLength);
 
-        public static int DigestSize(HashAlgorithm a)
+        public static func DigestSize(a: HashAlgorithm) -> int
         {
             if (a == HashAlgorithm.MD5) return 16;
             if (a == HashAlgorithm.SHA1) return 20;
@@ -77,13 +77,13 @@ namespace std.crypto
     // Las clases Sha256, HmacSha256... derivan de esta.
     public memory_unsafe class IncrementalHash
     {
-        byte* ctx;
-        HashAlgorithm algorithm;
-        bool isHmac;
-        string hmacKey;
-        int size;
+        var ctx: byte*;
+        var algorithm: HashAlgorithm;
+        var isHmac: bool;
+        var hmacKey: string;
+        var size: int;
 
-        protected IncrementalHash(HashAlgorithm a, bool hmac, string key)
+        protected init(a: HashAlgorithm, hmac: bool, key: string)
         {
             algorithm = a;
             isHmac = hmac;
@@ -93,26 +93,26 @@ namespace std.crypto
         }
 
         // Hash simple (SHA-256, SHA-512...).
-        public static IncrementalHash CreateHash(HashAlgorithm a) => new IncrementalHash(a, false, "");
+        public static func CreateHash(a: HashAlgorithm) -> IncrementalHash => new IncrementalHash(a, false, "");
         // HMAC con la clave 'key'.
-        public static IncrementalHash CreateHmac(HashAlgorithm a, string key) => new IncrementalHash(a, true, key);
+        public static func CreateHmac(a: HashAlgorithm, key: string) -> IncrementalHash => new IncrementalHash(a, true, key);
 
-        public HashAlgorithm Algorithm => algorithm;
+        public prop Algorithm: HashAlgorithm => algorithm;
         // Tamaño del resultado en bytes (32 para SHA-256).
-        public int HashLengthInBytes => size;
+        public prop HashLengthInBytes: int => size;
 
         // Añade datos (se puede llamar tantas veces como haga falta).
-        public void AppendData(string data) { CryptoNative.faset_hash_update(ctx, data.Ptr, data.Length); }
+        public func AppendData(data: string) { CryptoNative.faset_hash_update(ctx, data.Ptr, data.Length); }
 
         // Igual que AppendData, pero encadenable: h.Update("a").Update("b").Final().
-        public IncrementalHash Update(string data)
+        public func Update(data: string) -> IncrementalHash
         {
             AppendData(data);
             return this;
         }
 
         // Resultado de los datos añadidos hasta ahora (se puede seguir añadiendo).
-        public string GetCurrentHash()
+        public func GetCurrentHash() -> string
         {
             byte* p = Memory.AllocBytes(size + 1);
             CryptoNative.faset_hash_final(ctx, p);
@@ -121,7 +121,7 @@ namespace std.crypto
         }
 
         // Resultado, y vuelve a empezar (como si fuera nuevo).
-        public string GetHashAndReset()
+        public func GetHashAndReset() -> string
         {
             string r = GetCurrentHash();
             Reset();
@@ -129,18 +129,18 @@ namespace std.crypto
         }
 
         // Atajos: resultado en bytes o en hexadecimal (minúsculas).
-        public string Final() => GetCurrentHash();
-        public string FinalHex() => Hex.Encode(GetCurrentHash());
+        public func Final() -> string => GetCurrentHash();
+        public func FinalHex() -> string => Hex.Encode(GetCurrentHash());
 
         // Olvida los datos añadidos.
-        public void Reset()
+        public func Reset()
         {
             if (!isHmac) size = CryptoNative.faset_hash_init(ctx, (int)algorithm);
             else size = CryptoNative.faset_hmac_init(ctx, (int)algorithm, hmacKey.Ptr, hmacKey.Length);
         }
 
         // Hash de una sola vez.
-        public static string HashData(HashAlgorithm a, string data)
+        public static func HashData(a: HashAlgorithm, data: string) -> string
         {
             IncrementalHash h = new IncrementalHash(a, false, "");
             h.AppendData(data);
@@ -148,7 +148,7 @@ namespace std.crypto
         }
 
         // HMAC de una sola vez.
-        public static string HmacData(HashAlgorithm a, string key, string data)
+        public static func HmacData(a: HashAlgorithm, key: string, data: string) -> string
         {
             IncrementalHash h = new IncrementalHash(a, true, key);
             h.AppendData(data);
@@ -156,7 +156,7 @@ namespace std.crypto
         }
 
         // Hash de un archivo, leído por bloques (sirve para archivos grandes).
-        [TrackCaller] public static string HashFile(HashAlgorithm a, string path)
+        [TrackCaller] public static func HashFile(a: HashAlgorithm, path: string) -> string
         {
             IncrementalHash h = new IncrementalHash(a, false, "");
             FileStream f = File.OpenRead(path);
@@ -182,49 +182,49 @@ namespace std.crypto
     // SHA-256 (FIPS 180-4): resumen de 32 bytes. La elección habitual.
     public class Sha256 : IncrementalHash
     {
-        public Sha256() : base(HashAlgorithm.SHA256, false, "") { }
+        public init() : base(HashAlgorithm.SHA256, false, "") { }
         public const int HashSizeInBytes = 32;
-        public static string Hash(string data) => HashData(HashAlgorithm.SHA256, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
-        [TrackCaller] public static string HashFile(string path) => HashFile(HashAlgorithm.SHA256, path);
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.SHA256, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
+        [TrackCaller] public static func HashFile(path: string) -> string => HashFile(HashAlgorithm.SHA256, path);
     }
 
     // SHA-224: SHA-256 truncado a 28 bytes.
     public class Sha224 : IncrementalHash
     {
-        public Sha224() : base(HashAlgorithm.SHA224, false, "") { }
+        public init() : base(HashAlgorithm.SHA224, false, "") { }
         public const int HashSizeInBytes = 28;
-        public static string Hash(string data) => HashData(HashAlgorithm.SHA224, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.SHA224, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
     }
 
     // SHA-384: resumen de 48 bytes.
     public class Sha384 : IncrementalHash
     {
-        public Sha384() : base(HashAlgorithm.SHA384, false, "") { }
+        public init() : base(HashAlgorithm.SHA384, false, "") { }
         public const int HashSizeInBytes = 48;
-        public static string Hash(string data) => HashData(HashAlgorithm.SHA384, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.SHA384, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
     }
 
     // SHA-512: resumen de 64 bytes.
     public class Sha512 : IncrementalHash
     {
-        public Sha512() : base(HashAlgorithm.SHA512, false, "") { }
+        public init() : base(HashAlgorithm.SHA512, false, "") { }
         public const int HashSizeInBytes = 64;
-        public static string Hash(string data) => HashData(HashAlgorithm.SHA512, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
-        [TrackCaller] public static string HashFile(string path) => HashFile(HashAlgorithm.SHA512, path);
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.SHA512, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
+        [TrackCaller] public static func HashFile(path: string) -> string => HashFile(HashAlgorithm.SHA512, path);
     }
 
     // SHA-1: resumen de 20 bytes. OBSOLETO para seguridad (hay colisiones prácticas desde
     // 2017): úsalo solo para compatibilidad (Git, WebSocket, formatos antiguos).
     public class Sha1 : IncrementalHash
     {
-        public Sha1() : base(HashAlgorithm.SHA1, false, "") { }
+        public init() : base(HashAlgorithm.SHA1, false, "") { }
         public const int HashSizeInBytes = 20;
-        public static string Hash(string data) => HashData(HashAlgorithm.SHA1, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.SHA1, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
     }
 
     // MD5: resumen de 16 bytes. INSEGURO: está roto (colisiones en segundos). Úsalo solo
@@ -232,10 +232,10 @@ namespace std.crypto
     // firmas ni integridad frente a manipulaciones.
     public class Md5 : IncrementalHash
     {
-        public Md5() : base(HashAlgorithm.MD5, false, "") { }
+        public init() : base(HashAlgorithm.MD5, false, "") { }
         public const int HashSizeInBytes = 16;
-        public static string Hash(string data) => HashData(HashAlgorithm.MD5, data);
-        public static string HashHex(string data) => Hex.Encode(Hash(data));
+        public static func Hash(data: string) -> string => HashData(HashAlgorithm.MD5, data);
+        public static func HashHex(data: string) -> string => Hex.Encode(Hash(data));
     }
 
     // ---------------------------------------------------------------- HMAC (RFC 2104)
@@ -245,45 +245,45 @@ namespace std.crypto
     //   bool ok = CryptographicOperations.FixedTimeEquals(mac, macRecibido);
     public class HmacSha256 : IncrementalHash
     {
-        public HmacSha256(string key) : base(HashAlgorithm.SHA256, true, key) { }
-        public static string Hash(string key, string data) => HmacData(HashAlgorithm.SHA256, key, data);
-        public static string HashHex(string key, string data) => Hex.Encode(Hash(key, data));
+        public init(key: string) : base(HashAlgorithm.SHA256, true, key) { }
+        public static func Hash(key: string, data: string) -> string => HmacData(HashAlgorithm.SHA256, key, data);
+        public static func HashHex(key: string, data: string) -> string => Hex.Encode(Hash(key, data));
     }
 
     public class HmacSha384 : IncrementalHash
     {
-        public HmacSha384(string key) : base(HashAlgorithm.SHA384, true, key) { }
-        public static string Hash(string key, string data) => HmacData(HashAlgorithm.SHA384, key, data);
-        public static string HashHex(string key, string data) => Hex.Encode(Hash(key, data));
+        public init(key: string) : base(HashAlgorithm.SHA384, true, key) { }
+        public static func Hash(key: string, data: string) -> string => HmacData(HashAlgorithm.SHA384, key, data);
+        public static func HashHex(key: string, data: string) -> string => Hex.Encode(Hash(key, data));
     }
 
     public class HmacSha512 : IncrementalHash
     {
-        public HmacSha512(string key) : base(HashAlgorithm.SHA512, true, key) { }
-        public static string Hash(string key, string data) => HmacData(HashAlgorithm.SHA512, key, data);
-        public static string HashHex(string key, string data) => Hex.Encode(Hash(key, data));
+        public init(key: string) : base(HashAlgorithm.SHA512, true, key) { }
+        public static func Hash(key: string, data: string) -> string => HmacData(HashAlgorithm.SHA512, key, data);
+        public static func HashHex(key: string, data: string) -> string => Hex.Encode(Hash(key, data));
     }
 
     // HMAC-SHA1 (aceptable en HMAC, pero prefiere HMAC-SHA256 en diseños nuevos).
     public class HmacSha1 : IncrementalHash
     {
-        public HmacSha1(string key) : base(HashAlgorithm.SHA1, true, key) { }
-        public static string Hash(string key, string data) => HmacData(HashAlgorithm.SHA1, key, data);
-        public static string HashHex(string key, string data) => Hex.Encode(Hash(key, data));
+        public init(key: string) : base(HashAlgorithm.SHA1, true, key) { }
+        public static func Hash(key: string, data: string) -> string => HmacData(HashAlgorithm.SHA1, key, data);
+        public static func HashHex(key: string, data: string) -> string => Hex.Encode(Hash(key, data));
     }
 
     // HMAC-MD5: solo para compatibilidad con protocolos antiguos.
     public class HmacMd5 : IncrementalHash
     {
-        public HmacMd5(string key) : base(HashAlgorithm.MD5, true, key) { }
-        public static string Hash(string key, string data) => HmacData(HashAlgorithm.MD5, key, data);
-        public static string HashHex(string key, string data) => Hex.Encode(Hash(key, data));
+        public init(key: string) : base(HashAlgorithm.MD5, true, key) { }
+        public static func Hash(key: string, data: string) -> string => HmacData(HashAlgorithm.MD5, key, data);
+        public static func HashHex(key: string, data: string) -> string => Hex.Encode(Hash(key, data));
     }
 
     // HMAC con el algoritmo como parámetro: Hmac.Compute(HashAlgorithm.SHA512, clave, datos).
     public static class Hmac
     {
-        public static string Compute(HashAlgorithm algorithm, string key, string data) => IncrementalHash.HmacData(algorithm, key, data);
+        public static func Compute(algorithm: HashAlgorithm, key: string, data: string) -> string => IncrementalHash.HmacData(algorithm, key, data);
     }
 
     // ---------------------------------------------------------------- PBKDF2 (RFC 8018)
@@ -293,10 +293,10 @@ namespace std.crypto
     public memory_unsafe static class Pbkdf2
     {
         // PBKDF2-HMAC-SHA256: 'length' bytes derivados.
-        [TrackCaller] public static string DeriveKey(string password, string salt, int iterations, int length) =>
+        [TrackCaller] public static func DeriveKey(password: string, salt: string, iterations: int, length: int) -> string =>
             DeriveKey(password, salt, iterations, length, HashAlgorithm.SHA256);
 
-        [TrackCaller] public static string DeriveKey(string password, string salt, int iterations, int length, HashAlgorithm algorithm)
+        [TrackCaller] public static func DeriveKey(password: string, salt: string, iterations: int, length: int, algorithm: HashAlgorithm) -> string
         {
             if (iterations < 1) throw new ArgumentOutOfRangeException("Pbkdf2: 'iterations' debe ser al menos 1", "iterations");
             if (length < 1) throw new ArgumentOutOfRangeException("Pbkdf2: 'length' debe ser al menos 1", "length");
@@ -314,9 +314,9 @@ namespace std.crypto
     {
         public const int DefaultIterations = 600000;
 
-        public static string Hash(string password) => Hash(password, DefaultIterations);
+        public static func Hash(password: string) -> string => Hash(password, DefaultIterations);
 
-        public static string Hash(string password, int iterations)
+        public static func Hash(password: string, iterations: int) -> string
         {
             string salt = RandomNumberGenerator.GetBytes(16);
             string key = Pbkdf2.DeriveKey(password, salt, iterations, 32);
@@ -325,7 +325,7 @@ namespace std.crypto
 
         // true si 'password' corresponde a 'stored' (comparación en tiempo constante). Un
         // texto con otro formato devuelve false.
-        public static bool Verify(string password, string stored)
+        public static func Verify(password: string, stored: string) -> bool
         {
             List<string> parts = Text.Split(stored, "$");
             if (parts.Count != 4 || parts[0] != "pbkdf2-sha256") return false;
@@ -344,13 +344,13 @@ namespace std.crypto
     // uno aleatorio en cada llamada.
     public memory_unsafe class AesGcm
     {
-        string key;
+        var key: string;
 
         public const int NonceSize = 12;
         public const int TagSize = 16;
 
         // ArgumentException si la clave no tiene 16, 24 o 32 bytes.
-        public AesGcm(string key)
+        public init(key: string)
         {
             if (key.Length != 16 && key.Length != 24 && key.Length != 32)
                 throw new ArgumentException("AesGcm: la clave debe tener 16, 24 o 32 bytes (tiene " + key.Length + ")", "key");
@@ -358,13 +358,13 @@ namespace std.crypto
         }
 
         // Clave aleatoria de 32 bytes (AES-256).
-        public static string GenerateKey() => RandomNumberGenerator.GetBytes(32);
+        public static func GenerateKey() -> string => RandomNumberGenerator.GetBytes(32);
 
         // Cifra 'plaintext': devuelve el texto cifrado seguido de la etiqueta (16 bytes).
-        public string Encrypt(string nonce, string plaintext) => Encrypt(nonce, plaintext, "");
+        public func Encrypt(nonce: string, plaintext: string) -> string => Encrypt(nonce, plaintext, "");
 
         // Igual, autenticando además 'associatedData' (datos que no se cifran pero no se pueden cambiar).
-        [TrackCaller] public string Encrypt(string nonce, string plaintext, string associatedData)
+        [TrackCaller] public func Encrypt(nonce: string, plaintext: string, associatedData: string) -> string
         {
             CheckNonce(nonce);
             byte* p = Memory.AllocBytes(plaintext.Length + TagSize + 1);
@@ -376,9 +376,9 @@ namespace std.crypto
         }
 
         // Descifra lo que devolvió Encrypt. CryptographicException si la etiqueta no coincide.
-        [TrackCaller] public string Decrypt(string nonce, string ciphertextAndTag) => Decrypt(nonce, ciphertextAndTag, "");
+        [TrackCaller] public func Decrypt(nonce: string, ciphertextAndTag: string) -> string => Decrypt(nonce, ciphertextAndTag, "");
 
-        [TrackCaller] public string Decrypt(string nonce, string ciphertextAndTag, string associatedData)
+        [TrackCaller] public func Decrypt(nonce: string, ciphertextAndTag: string, associatedData: string) -> string
         {
             CheckNonce(nonce);
             if (ciphertextAndTag.Length < TagSize) throw new CryptographicException("AesGcm: el texto cifrado es demasiado corto");
@@ -388,14 +388,14 @@ namespace std.crypto
 
         // Variante con la etiqueta aparte (como AesGcm.Encrypt de .NET): devuelve el texto
         // cifrado (mismo tamaño que el original) y la etiqueta en 'tag'.
-        [TrackCaller] public string EncryptDetached(string nonce, string plaintext, string associatedData, out string tag)
+        [TrackCaller] public func EncryptDetached(nonce: string, plaintext: string, associatedData: string, out tag: string) -> string
         {
             string all = Encrypt(nonce, plaintext, associatedData);
             tag = all.Substring(plaintext.Length);
             return all.Substring(0, plaintext.Length);
         }
 
-        [TrackCaller] public string DecryptDetached(string nonce, string ciphertext, string tag, string associatedData)
+        [TrackCaller] public func DecryptDetached(nonce: string, ciphertext: string, tag: string, associatedData: string) -> string
         {
             CheckNonce(nonce);
             if (tag.Length != TagSize) throw new CryptographicException("AesGcm: la etiqueta debe tener 16 bytes");
@@ -411,24 +411,24 @@ namespace std.crypto
         }
 
         // Cifra con un nonce aleatorio nuevo: devuelve nonce (12) + cifrado + etiqueta (16).
-        public string Seal(string plaintext) => Seal(plaintext, "");
+        public func Seal(plaintext: string) -> string => Seal(plaintext, "");
 
-        public string Seal(string plaintext, string associatedData)
+        public func Seal(plaintext: string, associatedData: string) -> string
         {
             string nonce = RandomNumberGenerator.GetBytes(NonceSize);
             return nonce + Encrypt(nonce, plaintext, associatedData);
         }
 
         // Descifra lo que devolvió Seal. CryptographicException si se manipuló.
-        [TrackCaller] public string Open(string sealedData) => Open(sealedData, "");
+        [TrackCaller] public func Open(sealedData: string) -> string => Open(sealedData, "");
 
-        [TrackCaller] public string Open(string sealedData, string associatedData)
+        [TrackCaller] public func Open(sealedData: string, associatedData: string) -> string
         {
             if (sealedData.Length < NonceSize + TagSize) throw new CryptographicException("AesGcm.Open: los datos son demasiado cortos");
             return Decrypt(sealedData.Substring(0, NonceSize), sealedData.Substring(NonceSize), associatedData);
         }
 
-        [TrackCaller] static void CheckNonce(string nonce)
+        [TrackCaller] static func CheckNonce(nonce: string)
         {
             if (nonce.Length == 0) throw new ArgumentException("AesGcm: el nonce no puede estar vacío (usa 12 bytes)", "nonce");
         }
@@ -441,7 +441,7 @@ namespace std.crypto
     public memory_unsafe static class RandomNumberGenerator
     {
         // 'count' bytes aleatorios.
-        [TrackCaller] public static string GetBytes(int count)
+        [TrackCaller] public static func GetBytes(count: int) -> string
         {
             if (count < 0) throw new ArgumentOutOfRangeException("RandomNumberGenerator.GetBytes: 'count' no puede ser negativo", "count");
             byte* p = Memory.AllocBytes(count + 1);
@@ -450,7 +450,7 @@ namespace std.crypto
             return String.FromBytes(p, count);
         }
 
-        public static ulong GetUInt64()
+        public static func GetUInt64() -> ulong
         {
             ulong v = 0;
             if (CryptoNative.faset_random_bytes((byte*)&v, 8) != 0) throw new CryptographicException("RandomNumberGenerator: el sistema no proporcionó números aleatorios");
@@ -458,10 +458,10 @@ namespace std.crypto
         }
 
         // Entero uniforme en [0, toExclusive), sin sesgo.
-        [TrackCaller] public static int GetInt32(int toExclusive) => GetInt32(0, toExclusive);
+        [TrackCaller] public static func GetInt32(toExclusive: int) -> int => GetInt32(0, toExclusive);
 
         // Entero uniforme en [fromInclusive, toExclusive), sin sesgo.
-        [TrackCaller] public static int GetInt32(int fromInclusive, int toExclusive)
+        [TrackCaller] public static func GetInt32(fromInclusive: int, toExclusive: int) -> int
         {
             if (toExclusive <= fromInclusive) throw new ArgumentException("RandomNumberGenerator.GetInt32: el intervalo está vacío", "toExclusive");
             ulong range = (ulong)((long)toExclusive - fromInclusive);
@@ -472,14 +472,14 @@ namespace std.crypto
         }
 
         // Texto hexadecimal aleatorio de 'length' caracteres (tokens, identificadores).
-        public static string GetHexString(int length)
+        public static func GetHexString(length: int) -> string
         {
             string h = Hex.Encode(GetBytes((length + 1) / 2));
             return h.Substring(0, length);
         }
 
         // Texto aleatorio de 'length' caracteres tomados de 'alphabet' (ASCII), sin sesgo.
-        [TrackCaller] public static string GetString(string alphabet, int length)
+        [TrackCaller] public static func GetString(alphabet: string, length: int) -> string
         {
             if (alphabet.Length == 0) throw new ArgumentException("RandomNumberGenerator.GetString: el alfabeto está vacío", "alphabet");
             StringBuilder sb = new StringBuilder(length);
@@ -494,6 +494,6 @@ namespace std.crypto
     {
         // Compara en tiempo constante (el tiempo no revela dónde está la primera diferencia):
         // úsalo para comparar MAC, etiquetas y resúmenes de contraseñas.
-        public static bool FixedTimeEquals(string a, string b) => CryptoNative.faset_fixed_time_equals(a.Ptr, a.Length, b.Ptr, b.Length) != 0;
+        public static func FixedTimeEquals(a: string, b: string) -> bool => CryptoNative.faset_fixed_time_equals(a.Ptr, a.Length, b.Ptr, b.Length) != 0;
     }
 }

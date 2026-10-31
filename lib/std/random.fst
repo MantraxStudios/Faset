@@ -8,14 +8,14 @@ namespace std.random
 {
     public memory_unsafe struct Random
     {
-        ulong state;
+        var state: ulong
 
-        public Random(ulong seed) { state = seed == 0 ? 0x9E3779B97F4A7C15UL : seed; }
+        public init(seed: ulong) { state = seed == 0 ? 0x9E3779B97F4A7C15UL : seed; }
 
         // Semilla a partir del reloj.
-        public static Random FromTime() => new Random((ulong)Time.NowUnixMs() * 6364136223846793005UL + 1442695040888963407UL);
+        public static func FromTime() -> Random => new Random((ulong)Time.NowUnixMs() * 6364136223846793005UL + 1442695040888963407UL);
 
-        public ulong NextULong()
+        public func NextULong() -> ulong
         {
             state ^= state >> 12;
             state ^= state << 25;
@@ -24,31 +24,31 @@ namespace std.random
         }
 
         // Entero no negativo.
-        public int Next() => (int)(NextULong() >> 33);
+        public func Next() -> int => (int)(NextULong() >> 33);
 
         // Entero en [0, max).
-        public int Next(int max)
+        public func Next(max: int) -> int
         {
             if (max <= 0) return 0;
             return (int)(NextULong() % (ulong)max);
         }
 
         // Entero en [min, max).
-        public int Next(int min, int max)
+        public func Next(min: int, max: int) -> int
         {
             if (max <= min) return min;
             return min + (int)(NextULong() % (ulong)(max - min));
         }
 
         // Real en [0, 1).
-        public double NextDouble() => (NextULong() >> 11) * (1.0 / 9007199254740992.0);
+        public func NextDouble() -> double => (NextULong() >> 11) * (1.0 / 9007199254740992.0);
 
-        public double NextDouble(double min, double max) => min + (max - min) * NextDouble();
+        public func NextDouble(min: double, max: double) -> double => min + (max - min) * NextDouble();
 
-        public bool NextBool() => (NextULong() & 1UL) != 0;
+        public func NextBool() -> bool => (NextULong() & 1UL) != 0;
 
         // Mezcla un arreglo (Fisher-Yates).
-        public void Shuffle<T>(T* data, int n)
+        public func Shuffle<T>(data: T*, n: int)
         {
             for (int i = n - 1; i > 0; i--)
             {

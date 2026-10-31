@@ -37,19 +37,19 @@ namespace std.sqlite
     [ExceptionBase("Exception")]
     public class SqliteException
     {
-        public int ErrorCode;
+        public var ErrorCode: int;
 
-        public SqliteException() { Message = "Error de SQLite."; }
-        public SqliteException(string message) { Message = message; }
-        public SqliteException(string message, int errorCode)
+        public init() { Message = "Error de SQLite."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, errorCode: int)
         {
             Message = message;
             ErrorCode = errorCode;
         }
 
-        public int PrimaryCode => ErrorCode & 0xFF;
+        public prop PrimaryCode: int => ErrorCode & 0xFF;
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // Funciones de SQLite (sqlite3.c) y de lib/sqlite/faset_sqlite.c.
@@ -93,7 +93,7 @@ namespace std.sqlite
         public const int DONE = 101;
 
         // Mensaje y código del último error de 'db'.
-        public static SqliteException Error(void* db, string what)
+        public static func Error(db: void*, what: string) -> SqliteException
         {
             int code = db != null ? sqlite3_extended_errcode(db) : 1;
             string msg = db != null ? faset_sqlite_cstr(sqlite3_errmsg(db)) : "error de SQLite";
@@ -104,11 +104,11 @@ namespace std.sqlite
     // Un valor de parámetro.
     struct SqliteParam
     {
-        public string Name;     // "" = por posición
-        public int Kind;        // 1 entero, 2 real, 3 texto, 4 blob, 5 null
-        public long I;
-        public double D;
-        public string S;
+        public var Name: string;     // "" = por posición
+        public var Kind: int;        // 1 entero, 2 real, 3 texto, 4 blob, 5 null
+        public var I: long;
+        public var D: double;
+        public var S: string;
     }
 
     // Parámetros de una consulta, por nombre (@id, :id, $id o "id") o por posición (?):
@@ -117,14 +117,14 @@ namespace std.sqlite
     // Los parámetros por posición se numeran en el orden en que se añaden (?1, ?2...).
     public class SqliteParameters
     {
-        internal List<SqliteParam> items = new List<SqliteParam>();
-        int positional;
+        internal var items: List<SqliteParam> = new List<SqliteParam>();
+        var positional: int;
 
-        public SqliteParameters() { }
+        public init() { }
 
-        public int Count => items.Count;
+        public prop Count: int => items.Count;
 
-        SqliteParameters Put(string name, int kind, long i, double d, string s)
+        func Put(name: string, kind: int, i: long, d: double, s: string) -> SqliteParameters
         {
             SqliteParam p;
             p.Name = name;
@@ -138,45 +138,45 @@ namespace std.sqlite
         }
 
         // Por nombre.
-        public SqliteParameters Add(string name, long value) => Put(name, 1, value, 0, "");
-        public SqliteParameters Add(string name, int value) => Put(name, 1, value, 0, "");
-        public SqliteParameters Add(string name, double value) => Put(name, 2, 0, value, "");
-        public SqliteParameters Add(string name, bool value) => Put(name, 1, value ? 1 : 0, 0, "");
-        public SqliteParameters Add(string name, string value) => Put(name, 3, 0, 0, value);
-        public SqliteParameters Add(string name, long? value) => value.HasValue ? Add(name, value.Value) : AddNull(name);
-        public SqliteParameters Add(string name, int? value) => value.HasValue ? Add(name, value.Value) : AddNull(name);
-        public SqliteParameters Add(string name, double? value) => value.HasValue ? Add(name, value.Value) : AddNull(name);
-        public SqliteParameters AddNull(string name) => Put(name, 5, 0, 0, "");
+        public func Add(name: string, value: long) -> SqliteParameters => Put(name, 1, value, 0, "");
+        public func Add(name: string, value: int) -> SqliteParameters => Put(name, 1, value, 0, "");
+        public func Add(name: string, value: double) -> SqliteParameters => Put(name, 2, 0, value, "");
+        public func Add(name: string, value: bool) -> SqliteParameters => Put(name, 1, value ? 1 : 0, 0, "");
+        public func Add(name: string, value: string) -> SqliteParameters => Put(name, 3, 0, 0, value);
+        public func Add(name: string, value: long?) -> SqliteParameters => value.HasValue ? Add(name, value.Value) : AddNull(name);
+        public func Add(name: string, value: int?) -> SqliteParameters => value.HasValue ? Add(name, value.Value) : AddNull(name);
+        public func Add(name: string, value: double?) -> SqliteParameters => value.HasValue ? Add(name, value.Value) : AddNull(name);
+        public func AddNull(name: string) -> SqliteParameters => Put(name, 5, 0, 0, "");
         // Datos binarios (BLOB).
-        public SqliteParameters AddBlob(string name, string bytes) => Put(name, 4, 0, 0, bytes);
+        public func AddBlob(name: string, bytes: string) -> SqliteParameters => Put(name, 4, 0, 0, bytes);
 
         // Por posición (?).
-        public SqliteParameters Add(long value) => Put("", 1, value, 0, "");
-        public SqliteParameters Add(int value) => Put("", 1, value, 0, "");
-        public SqliteParameters Add(double value) => Put("", 2, 0, value, "");
-        public SqliteParameters Add(bool value) => Put("", 1, value ? 1 : 0, 0, "");
-        public SqliteParameters Add(string value) => Put("", 3, 0, 0, value);
-        public SqliteParameters AddNull() => Put("", 5, 0, 0, "");
-        public SqliteParameters AddBlob(string bytes) => Put("", 4, 0, 0, bytes);
+        public func Add(value: long) -> SqliteParameters => Put("", 1, value, 0, "");
+        public func Add(value: int) -> SqliteParameters => Put("", 1, value, 0, "");
+        public func Add(value: double) -> SqliteParameters => Put("", 2, 0, value, "");
+        public func Add(value: bool) -> SqliteParameters => Put("", 1, value ? 1 : 0, 0, "");
+        public func Add(value: string) -> SqliteParameters => Put("", 3, 0, 0, value);
+        public func AddNull() -> SqliteParameters => Put("", 5, 0, 0, "");
+        public func AddBlob(bytes: string) -> SqliteParameters => Put("", 4, 0, 0, bytes);
     }
 
     // Conexión con una base de datos SQLite. Se cierra con Close(), con 'using var' o cuando
     // el recolector la recupera.
     public memory_unsafe class SqliteConnection
     {
-        void* db;
-        string path;
-        internal int txDepth;      // 1 si hay una transacción de BeginTransaction abierta
-        internal int txSerial;     // identifica la transacción actual
+        var db: void*;
+        var path: string;
+        internal var txDepth: int;      // 1 si hay una transacción de BeginTransaction abierta
+        internal var txSerial: int;     // identifica la transacción actual
 
         // Abre (o crea) la base de datos 'path'. ":memory:" crea una base de datos en memoria.
         // También acepta URI ("file:datos.db?mode=ro").
-        public SqliteConnection(string path) { Open(path, 0); }
+        public init(path: string) { Open(path, 0); }
 
         // Solo lectura: no se puede modificar y el archivo debe existir.
-        public SqliteConnection(string path, bool readOnly) { Open(path, readOnly ? 1 : 0); }
+        public init(path: string, readOnly: bool) { Open(path, readOnly ? 1 : 0); }
 
-        void Open(string p, int flags)
+        func Open(p: string, flags: int)
         {
             path = String.Copy(p);
             void* h = null;
@@ -191,31 +191,31 @@ namespace std.sqlite
             db = h;
         }
 
-        ~SqliteConnection() { Close(); }
+        deinit { Close(); }
 
         // Cierra la conexión (se puede llamar varias veces). Las consultas sin terminar se
         // cierran cuando se recogen sus lectores.
-        public void Close()
+        public func Close()
         {
             if (db != null) Sql3.sqlite3_close_v2(db);
             db = null;
         }
 
-        public bool IsOpen => db != null;
-        public string DataSource => path;
+        public prop IsOpen: bool => db != null;
+        public prop DataSource: string => path;
         // Versión de SQLite ("3.54.1").
-        public static string Version => Sql3.faset_sqlite_cstr(Sql3.sqlite3_libversion());
+        public static prop Version: string => Sql3.faset_sqlite_cstr(Sql3.sqlite3_libversion());
         // Filas cambiadas por la última sentencia INSERT, UPDATE o DELETE.
-        public long Changes => Sql3.sqlite3_changes64(Handle());
+        public prop Changes: long => Sql3.sqlite3_changes64(Handle());
         // rowid de la última fila insertada.
-        public long LastInsertRowId => Sql3.sqlite3_last_insert_rowid(Handle());
+        public prop LastInsertRowId: long => Sql3.sqlite3_last_insert_rowid(Handle());
         // true si hay una transacción abierta (BEGIN sin COMMIT/ROLLBACK).
-        public bool InTransaction => Sql3.sqlite3_get_autocommit(Handle()) == 0;
+        public prop InTransaction: bool => Sql3.sqlite3_get_autocommit(Handle()) == 0;
 
         // Cuánto esperar (en milisegundos) si otra conexión tiene la base de datos bloqueada (5000 por defecto).
-        public void SetBusyTimeout(int milliseconds) { Sql3.sqlite3_busy_timeout(Handle(), milliseconds); }
+        public func SetBusyTimeout(milliseconds: int) { Sql3.sqlite3_busy_timeout(Handle(), milliseconds); }
 
-        [TrackCaller] internal void* Handle()
+        [TrackCaller] internal func Handle() -> void*
         {
             if (db == null) throw new InvalidOperationException("SqliteConnection: la conexión está cerrada");
             return db;
@@ -225,11 +225,11 @@ namespace std.sqlite
 
         // Ejecuta una o varias sentencias separadas por ';' (sin parámetros). Devuelve las filas
         // cambiadas por la última.
-        [TrackCaller] public int Execute(string sql) => Execute(sql, null);
+        [TrackCaller] public func Execute(sql: string) -> int => Execute(sql, null);
 
         // Ejecuta con parámetros. Si hay varias sentencias, cada una toma los parámetros con
         // nombre que use (los de posición solo valen para una sentencia).
-        [TrackCaller] public int Execute(string sql, SqliteParameters parameters)
+        [TrackCaller] public func Execute(sql: string, parameters: SqliteParameters) -> int
         {
             void* h = Handle();
             long offset = 0;
@@ -259,9 +259,9 @@ namespace std.sqlite
 
         // Ejecuta una consulta y devuelve un lector de sus filas (ciérralo con 'using var' o
         // leyéndolo hasta el final). Solo la primera sentencia de 'sql'.
-        [TrackCaller] public SqliteDataReader Query(string sql) => Query(sql, null);
+        [TrackCaller] public func Query(sql: string) -> SqliteDataReader => Query(sql, null);
 
-        [TrackCaller] public SqliteDataReader Query(string sql, SqliteParameters parameters)
+        [TrackCaller] public func Query(sql: string, parameters: SqliteParameters) -> SqliteDataReader
         {
             void* h = Handle();
             void* st = null;
@@ -285,9 +285,9 @@ namespace std.sqlite
 
         // Consulta y convierte cada fila con 'map':
         //   List<Persona> p = db.Query<Persona>("SELECT nombre, edad FROM gente", f => new Persona(f.GetString(0), f.GetInt(1)));
-        [TrackCaller] public List<T> Query<T>(string sql, Func<SqliteDataReader, T> map) => Query<T>(sql, null, map);
+        [TrackCaller] public func Query<T>(sql: string, map: Func<SqliteDataReader, T>) -> List<T> => Query<T>(sql, null, map);
 
-        [TrackCaller] public List<T> Query<T>(string sql, SqliteParameters parameters, Func<SqliteDataReader, T> map)
+        [TrackCaller] public func Query<T>(sql: string, parameters: SqliteParameters, map: Func<SqliteDataReader, T>) -> List<T>
         {
             List<T> result = new List<T>();
             SqliteDataReader r = Query(sql, parameters);
@@ -301,9 +301,9 @@ namespace std.sqlite
 
         // Primera columna de la primera fila como entero (0 si no hay filas o es NULL):
         //   long n = db.ExecuteScalarInt64("SELECT COUNT(*) FROM gente");
-        [TrackCaller] public long ExecuteScalarInt64(string sql) => ExecuteScalarInt64(sql, null);
+        [TrackCaller] public func ExecuteScalarInt64(sql: string) -> long => ExecuteScalarInt64(sql, null);
 
-        [TrackCaller] public long ExecuteScalarInt64(string sql, SqliteParameters parameters)
+        [TrackCaller] public func ExecuteScalarInt64(sql: string, parameters: SqliteParameters) -> long
         {
             SqliteDataReader r = Query(sql, parameters);
             long v = r.Read() && !r.IsNull(0) ? r.GetInt64(0) : 0;
@@ -312,9 +312,9 @@ namespace std.sqlite
         }
 
         // Primera columna de la primera fila como texto ("" si no hay filas o es NULL).
-        [TrackCaller] public string ExecuteScalarString(string sql) => ExecuteScalarString(sql, null);
+        [TrackCaller] public func ExecuteScalarString(sql: string) -> string => ExecuteScalarString(sql, null);
 
-        [TrackCaller] public string ExecuteScalarString(string sql, SqliteParameters parameters)
+        [TrackCaller] public func ExecuteScalarString(sql: string, parameters: SqliteParameters) -> string
         {
             SqliteDataReader r = Query(sql, parameters);
             string v = r.Read() && !r.IsNull(0) ? r.GetString(0) : "";
@@ -323,9 +323,9 @@ namespace std.sqlite
         }
 
         // Primera columna de la primera fila como número real (0 si no hay filas o es NULL).
-        [TrackCaller] public double ExecuteScalarDouble(string sql) => ExecuteScalarDouble(sql, null);
+        [TrackCaller] public func ExecuteScalarDouble(sql: string) -> double => ExecuteScalarDouble(sql, null);
 
-        [TrackCaller] public double ExecuteScalarDouble(string sql, SqliteParameters parameters)
+        [TrackCaller] public func ExecuteScalarDouble(sql: string, parameters: SqliteParameters) -> double
         {
             SqliteDataReader r = Query(sql, parameters);
             double v = r.Read() && !r.IsNull(0) ? r.GetDouble(0) : 0;
@@ -339,9 +339,9 @@ namespace std.sqlite
         // se confirma, se deshace al salir del bloque. Ojo: hoy 'using' no llama al destructor
         // si el bloque sale por una excepción; para eso usa RunInTransaction o try/catch.
         //   immediate = true usa BEGIN IMMEDIATE (toma el bloqueo de escritura desde el principio).
-        [TrackCaller] public SqliteTransaction BeginTransaction() => BeginTransaction(false);
+        [TrackCaller] public func BeginTransaction() -> SqliteTransaction => BeginTransaction(false);
 
-        [TrackCaller] public SqliteTransaction BeginTransaction(bool immediate)
+        [TrackCaller] public func BeginTransaction(immediate: bool) -> SqliteTransaction
         {
             if (txDepth > 0) throw new InvalidOperationException("SqliteConnection: ya hay una transacción abierta (SQLite no las anida; usa SAVEPOINT)");
             Execute(immediate ? "BEGIN IMMEDIATE" : "BEGIN");
@@ -353,7 +353,7 @@ namespace std.sqlite
         // Ejecuta 'body' dentro de una transacción: la confirma si termina bien y la deshace
         // (y relanza la excepción) si lanza. Es la forma más segura ante excepciones.
         //   db.RunInTransaction(() => { db.Execute(...); db.Execute(...); });
-        [TrackCaller] public void RunInTransaction(Action body)
+        [TrackCaller] public func RunInTransaction(body: Action)
         {
             SqliteTransaction tx = BeginTransaction();
             try
@@ -369,7 +369,7 @@ namespace std.sqlite
         }
 
         // Igual, devolviendo el resultado de 'body'.
-        [TrackCaller] public T RunInTransaction<T>(Func<T> body)
+        [TrackCaller] public func RunInTransaction<T>(body: Func<T>) -> T
         {
             SqliteTransaction tx = BeginTransaction();
             T result;
@@ -389,19 +389,19 @@ namespace std.sqlite
         // ---------------------------------------------------------------- async
 
         // Versiones asíncronas: se ejecutan en el grupo de tareas (la conexión es segura con hilos).
-        public Task<int> ExecuteAsync(string sql) => Task.Run<int>(() => Execute(sql, null));
-        public Task<int> ExecuteAsync(string sql, SqliteParameters parameters) => Task.Run<int>(() => Execute(sql, parameters));
-        public Task<List<T>> QueryAsync<T>(string sql, Func<SqliteDataReader, T> map) => Task.Run<List<T>>(() => Query<T>(sql, null, map));
-        public Task<List<T>> QueryAsync<T>(string sql, SqliteParameters parameters, Func<SqliteDataReader, T> map) =>
+        public func ExecuteAsync(sql: string) -> Task<int> => Task.Run<int>(() => Execute(sql, null));
+        public func ExecuteAsync(sql: string, parameters: SqliteParameters) -> Task<int> => Task.Run<int>(() => Execute(sql, parameters));
+        public func QueryAsync<T>(sql: string, map: Func<SqliteDataReader, T>) -> Task<List<T>> => Task.Run<List<T>>(() => Query<T>(sql, null, map));
+        public func QueryAsync<T>(sql: string, parameters: SqliteParameters, map: Func<SqliteDataReader, T>) -> Task<List<T>> =>
             Task.Run<List<T>>(() => Query<T>(sql, parameters, map));
-        public Task<long> ExecuteScalarInt64Async(string sql, SqliteParameters parameters) =>
+        public func ExecuteScalarInt64Async(sql: string, parameters: SqliteParameters) -> Task<long> =>
             Task.Run<long>(() => ExecuteScalarInt64(sql, parameters));
 
         // ---------------------------------------------------------------- privado
 
-        static bool* MakeUsed(SqliteParameters p) => new bool[p == null ? 1 : p.items.Count + 1];
+        static func MakeUsed(p: SqliteParameters) -> bool* => new bool[p == null ? 1 : p.items.Count + 1];
 
-        static void Bind(void* h, void* st, SqliteParameters p, bool* used)
+        static func Bind(h: void*, st: void*, p: SqliteParameters, used: bool*)
         {
             if (p == null) return;
             int count = Sql3.sqlite3_bind_parameter_count(st);
@@ -433,7 +433,7 @@ namespace std.sqlite
         }
 
         // Un parámetro con nombre que no aparece en ninguna sentencia suele ser una errata.
-        static void CheckUsed(SqliteParameters p, bool* used)
+        static func CheckUsed(p: SqliteParameters, used: bool*)
         {
             if (p == null) return;
             for (int k = 0; k < p.items.Count; k++)
@@ -447,22 +447,22 @@ namespace std.sqlite
     // sentencia.
     public memory_unsafe class SqliteDataReader
     {
-        SqliteConnection conn;   // la mantiene viva mientras haya un lector
-        void* stmt;
-        bool hasRow;
-        bool done;
-        List<string> names;
+        var conn: SqliteConnection;   // la mantiene viva mientras haya un lector
+        var stmt: void*;
+        var hasRow: bool;
+        var done: bool;
+        var names: List<string>;
 
-        internal SqliteDataReader(SqliteConnection c, void* st)
+        internal init(c: SqliteConnection, st: void*)
         {
             conn = c;
             stmt = st;
         }
 
-        ~SqliteDataReader() { Close(); }
+        deinit { Close(); }
 
         // Avanza a la siguiente fila. false cuando no quedan.
-        [TrackCaller] public bool Read()
+        [TrackCaller] public func Read() -> bool
         {
             if (done) return false;
             int rc = Sql3.sqlite3_step(stmt);
@@ -484,7 +484,7 @@ namespace std.sqlite
         }
 
         // Libera la sentencia (se puede llamar varias veces).
-        public void Close()
+        public func Close()
         {
             if (stmt != null) Sql3.sqlite3_finalize(stmt);
             stmt = null;
@@ -492,18 +492,18 @@ namespace std.sqlite
             hasRow = false;
         }
 
-        public bool IsClosed => stmt == null;
-        public int FieldCount => stmt == null ? 0 : Sql3.sqlite3_column_count(stmt);
+        public prop IsClosed: bool => stmt == null;
+        public prop FieldCount: int => stmt == null ? 0 : Sql3.sqlite3_column_count(stmt);
 
         // Nombre de la columna 'i' (el alias de AS si lo hay).
-        [TrackCaller] public string GetName(int i)
+        [TrackCaller] public func GetName(i: int) -> string
         {
             CheckColumn(i);
             return Sql3.faset_sqlite_cstr(Sql3.sqlite3_column_name(stmt, i));
         }
 
         // Índice de la columna 'name' (sin distinguir mayúsculas). IndexOutOfRangeException si no existe.
-        [TrackCaller] public int GetOrdinal(string name)
+        [TrackCaller] public func GetOrdinal(name: string) -> int
         {
             if (stmt == null) throw new InvalidOperationException("SqliteDataReader: el lector está cerrado");
             if (names == null)
@@ -519,71 +519,71 @@ namespace std.sqlite
         }
 
         // Tipo del valor de la columna en la fila actual.
-        [TrackCaller] public SqliteType GetFieldType(int i)
+        [TrackCaller] public func GetFieldType(i: int) -> SqliteType
         {
             CheckRow(i);
             return (SqliteType)Sql3.sqlite3_column_type(stmt, i);
         }
 
-        [TrackCaller] public bool IsNull(int i) => GetFieldType(i) == SqliteType.Null;
-        [TrackCaller] public bool IsNull(string name) => IsNull(GetOrdinal(name));
+        [TrackCaller] public func IsNull(i: int) -> bool => GetFieldType(i) == SqliteType.Null;
+        [TrackCaller] public func IsNull(name: string) -> bool => IsNull(GetOrdinal(name));
 
         // Valores. Las conversiones son las de SQLite: un texto numérico se lee como número y
         // NULL como 0 o "" (comprueba IsNull si necesitas distinguirlo).
-        [TrackCaller] public long GetInt64(int i)
+        [TrackCaller] public func GetInt64(i: int) -> long
         {
             CheckRow(i);
             return Sql3.sqlite3_column_int64(stmt, i);
         }
-        [TrackCaller] public int GetInt32(int i) => (int)GetInt64(i);
-        [TrackCaller] public int GetInt(int i) => (int)GetInt64(i);
-        [TrackCaller] public bool GetBoolean(int i) => GetInt64(i) != 0;
-        [TrackCaller] public double GetDouble(int i)
+        [TrackCaller] public func GetInt32(i: int) -> int => (int)GetInt64(i);
+        [TrackCaller] public func GetInt(i: int) -> int => (int)GetInt64(i);
+        [TrackCaller] public func GetBoolean(i: int) -> bool => GetInt64(i) != 0;
+        [TrackCaller] public func GetDouble(i: int) -> double
         {
             CheckRow(i);
             return Sql3.sqlite3_column_double(stmt, i);
         }
         // Texto (copia).
-        [TrackCaller] public string GetString(int i)
+        [TrackCaller] public func GetString(i: int) -> string
         {
             CheckRow(i);
             return Sql3.faset_sqlite_column_text(stmt, i);
         }
         // Bytes de un BLOB (copia).
-        [TrackCaller] public string GetBlob(int i)
+        [TrackCaller] public func GetBlob(i: int) -> string
         {
             CheckRow(i);
             return Sql3.faset_sqlite_column_blob(stmt, i);
         }
         // null si la celda es NULL.
-        [TrackCaller] public long? GetNullableInt64(int i)
+        [TrackCaller] public func GetNullableInt64(i: int) -> long?
         {
             if (IsNull(i)) return null;
             return GetInt64(i);
         }
-        [TrackCaller] public double? GetNullableDouble(int i)
+        [TrackCaller] public func GetNullableDouble(i: int) -> double?
         {
             if (IsNull(i)) return null;
             return GetDouble(i);
         }
 
-        [TrackCaller] public long GetInt64(string name) => GetInt64(GetOrdinal(name));
-        [TrackCaller] public int GetInt32(string name) => GetInt32(GetOrdinal(name));
-        [TrackCaller] public int GetInt(string name) => GetInt(GetOrdinal(name));
-        [TrackCaller] public bool GetBoolean(string name) => GetBoolean(GetOrdinal(name));
-        [TrackCaller] public double GetDouble(string name) => GetDouble(GetOrdinal(name));
-        [TrackCaller] public string GetString(string name) => GetString(GetOrdinal(name));
-        [TrackCaller] public string GetBlob(string name) => GetBlob(GetOrdinal(name));
-        [TrackCaller] public long? GetNullableInt64(string name) => GetNullableInt64(GetOrdinal(name));
-        [TrackCaller] public double? GetNullableDouble(string name) => GetNullableDouble(GetOrdinal(name));
+        [TrackCaller] public func GetInt64(name: string) -> long => GetInt64(GetOrdinal(name));
+        [TrackCaller] public func GetInt32(name: string) -> int => GetInt32(GetOrdinal(name));
+        [TrackCaller] public func GetInt(name: string) -> int => GetInt(GetOrdinal(name));
+        [TrackCaller] public func GetBoolean(name: string) -> bool => GetBoolean(GetOrdinal(name));
+        [TrackCaller] public func GetDouble(name: string) -> double => GetDouble(GetOrdinal(name));
+        [TrackCaller] public func GetString(name: string) -> string => GetString(GetOrdinal(name));
+        [TrackCaller] public func GetBlob(name: string) -> string => GetBlob(GetOrdinal(name));
+        [TrackCaller] public func GetNullableInt64(name: string) -> long? => GetNullableInt64(GetOrdinal(name));
+        [TrackCaller] public func GetNullableDouble(name: string) -> double? => GetNullableDouble(GetOrdinal(name));
 
-        [TrackCaller] void CheckColumn(int i)
+        [TrackCaller] func CheckColumn(i: int)
         {
             if (stmt == null) throw new InvalidOperationException("SqliteDataReader: el lector está cerrado");
             if (i < 0 || i >= Sql3.sqlite3_column_count(stmt)) throw new IndexOutOfRangeException("SqliteDataReader: columna " + i + " fuera de rango");
         }
 
-        [TrackCaller] void CheckRow(int i)
+        [TrackCaller] func CheckRow(i: int)
         {
             CheckColumn(i);
             if (!hasRow) throw new InvalidOperationException("SqliteDataReader: no hay fila actual (llama a Read() y comprueba que devuelve true)");
@@ -594,40 +594,40 @@ namespace std.sqlite
     // recolector) la deshace.
     public class SqliteTransaction
     {
-        SqliteConnection conn;
-        int serial;
-        bool finished;
+        var conn: SqliteConnection;
+        var serial: int;
+        var finished: bool;
 
-        internal SqliteTransaction(SqliteConnection c, int s)
+        internal init(c: SqliteConnection, s: int)
         {
             conn = c;
             serial = s;
         }
 
-        ~SqliteTransaction()
+        deinit
         {
             // Solo si sigue siendo la transacción actual de la conexión.
             if (!finished && conn.IsOpen && conn.txDepth > 0 && conn.txSerial == serial) Rollback();
         }
 
-        public SqliteConnection Connection => conn;
-        public bool IsFinished => finished;
+        public prop Connection: SqliteConnection => conn;
+        public prop IsFinished: bool => finished;
 
         // Confirma los cambios.
-        [TrackCaller] public void Commit()
+        [TrackCaller] public func Commit()
         {
             Finish();
             conn.Execute("COMMIT");
         }
 
         // Deshace los cambios.
-        [TrackCaller] public void Rollback()
+        [TrackCaller] public func Rollback()
         {
             Finish();
             if (conn.InTransaction) conn.Execute("ROLLBACK");
         }
 
-        [TrackCaller] void Finish()
+        [TrackCaller] func Finish()
         {
             if (finished) throw new InvalidOperationException("SqliteTransaction: la transacción ya terminó");
             finished = true;

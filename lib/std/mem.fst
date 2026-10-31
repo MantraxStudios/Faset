@@ -9,16 +9,16 @@ namespace std.mem
 {
     public memory_unsafe struct Span<T>
     {
-        public T* Data;
-        public int Length;
+        public var Data: T*
+        public var Length: int
 
-        public Span(T* data, int length)
+        public init(data: T*, length: int)
         {
             Data = data;
             Length = length;
         }
 
-        public bool IsEmpty => Length == 0;
+        public prop IsEmpty: bool => Length == 0;
 
         [TrackCaller] public T& operator[](int index)
         {
@@ -26,42 +26,42 @@ namespace std.mem
             return Data[index];
         }
 
-        [TrackCaller] public Span<T> Slice(int start, int length)
+        [TrackCaller] public func Slice(start: int, length: int) -> Span<T>
         {
             if (start < 0 || length < 0 || start + length > Length) throw new ArgumentOutOfRangeException("Span.Slice: rango fuera de la vista", null);
             return new Span<T>(Data + start, length);
         }
 
-        [TrackCaller] public Span<T> Slice(int start) => Slice(start, Length - start);
+        [TrackCaller] public func Slice(start: int) -> Span<T> => Slice(start, Length - start);
 
-        public void Fill(T value)
+        public func Fill(value: T)
         {
             for (int i = 0; i < Length; i++) Data[i] = value;
         }
 
-        [TrackCaller] public void CopyTo(Span<T> destination)
+        [TrackCaller] public func CopyTo(destination: Span<T>)
         {
             if (destination.Length < Length) throw new ArgumentException("Span.CopyTo: destino demasiado pequeño");
             Memory.CopyItems<T>(destination.Data, Data, Length);
         }
 
-        public SpanEnumerator<T> GetEnumerator() => new SpanEnumerator<T>(this);
+        public func GetEnumerator() -> SpanEnumerator<T> => new SpanEnumerator<T>(this);
     }
 
     // Enumerador de Span<T> para foreach.
     public memory_unsafe struct SpanEnumerator<T>
     {
-        Span<T> span;
-        int index;
+        var span: Span<T>
+        var index: int
 
-        public SpanEnumerator(Span<T> s)
+        public init(s: Span<T>)
         {
             span = s;
             index = -1;
         }
 
-        public T Current => span.Data[index];
-        public bool MoveNext()
+        public prop Current: T => span.Data[index];
+        public func MoveNext() -> bool
         {
             index++;
             return index < span.Length;
@@ -71,30 +71,30 @@ namespace std.mem
     // Reserva memoria de bloques grandes; todo se libera junto con Reset o delete.
     public memory_unsafe class Arena
     {
-        byte* block;
-        long used;
-        long size;
-        Arena previous;  // bloques anteriores (lista enlazada)
+        var block: byte*
+        var used: long
+        var size: long
+        var previous: Arena  // bloques anteriores (lista enlazada)
 
-        public Arena() { Init(64 * 1024); }
-        public Arena(long blockSize) { Init(blockSize); }
+        public init() { Init(64 * 1024); }
+        public init(blockSize: long) { Init(blockSize); }
 
-        void Init(long blockSize)
+        func Init(blockSize: long)
         {
             size = blockSize < 256 ? 256 : blockSize;
             block = (byte*)Memory.Alloc(size);
             used = 0;
         }
 
-        ~Arena()
+        deinit
         {
             Memory.Free(block);
             delete previous;
         }
 
-        public long BytesUsed => used + (previous != null ? previous.BytesUsed : 0);
+        public prop BytesUsed: long => used + (previous != null ? previous.BytesUsed : 0);
 
-        public void* Alloc(long bytes)
+        public func Alloc(bytes: long) -> void*
         {
             long aligned = (bytes + 15) & ~15L;
             if (used + aligned > size)
@@ -114,10 +114,10 @@ namespace std.mem
             return p;
         }
 
-        public T* New<T>() => (T*)Alloc(sizeof(T));
-        public T* NewArray<T>(int count) => (T*)Alloc((long)sizeof(T) * count);
+        public func New<T>() -> T* => (T*)Alloc(sizeof(T));
+        public func NewArray<T>(count: int) -> T* => (T*)Alloc((long)sizeof(T) * count);
 
-        public void Reset()
+        public func Reset()
         {
             delete previous;
             previous = null;
@@ -128,21 +128,21 @@ namespace std.mem
     // Propietario único de un valor en el heap: lo libera en Reset o al hacer delete.
     public memory_unsafe class Box<T>
     {
-        T* value;
+        var value: T*
 
-        public Box(T v)
+        public init(v: T)
         {
             value = Memory.New<T>(1);
             *value = v;
         }
 
-        ~Box() { Memory.Free(value); }
+        deinit { Memory.Free(value); }
 
-        public T* Get() => value;
-        public T& Value() => *value;
-        public bool HasValue => value != null;
+        public func Get() -> T* => value;
+        public func Value() -> T& => *value;
+        public prop HasValue: bool => value != null;
 
-        public void Reset()
+        public func Reset()
         {
             Memory.Free(value);
             value = null;

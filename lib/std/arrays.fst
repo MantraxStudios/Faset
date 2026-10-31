@@ -27,9 +27,9 @@ namespace std
         [TrackCaller] static extern void faset_panic_index(long index, long length);
 
         // IndexOutOfRangeException dentro de un 'try'; si no, panic (igual que a[i] fuera de rango).
-        [TrackCaller] public static void IndexError(long index, long length) { faset_panic_index(index, length); }
+        [TrackCaller] public static func IndexError(index: long, length: long) { faset_panic_index(index, length); }
 
-        [TrackCaller] public static void CheckSize(long size)
+        [TrackCaller] public static func CheckSize(size: long)
         {
             if (size < 0) throw new OverflowException("el tamaño de un arreglo no puede ser negativo: " + size);
             if (size > 2147483647) throw new OverflowException("el arreglo es demasiado grande: " + size + " elementos");
@@ -39,51 +39,51 @@ namespace std
     // ---------------------------------------------------------------- Index: ^n
     public struct Index
     {
-        int value;
-        bool fromEnd;
+        var value: int;
+        var fromEnd: bool;
 
-        public Index(int value, bool fromEnd)
+        public init(value: int, fromEnd: bool)
         {
             if (value < 0) throw new ArgumentOutOfRangeException("value", "Index: el valor no puede ser negativo (" + value + ")");
             this.value = value;
             this.fromEnd = fromEnd;
         }
 
-        public Index(int value) : this(value, false) { }
+        public init(value: int) : this(value, false) { }
 
-        public int Value => value;
-        public bool IsFromEnd => fromEnd;
-        public static Index Start => new Index(0, false);
-        public static Index End => new Index(0, true);
-        [TrackCaller] public static Index FromStart(int value) => new Index(value, false);
-        [TrackCaller] public static Index FromEnd(int value) => new Index(value, true);
+        public prop Value: int => value;
+        public prop IsFromEnd: bool => fromEnd;
+        public static prop Start: Index => new Index(0, false);
+        public static prop End: Index => new Index(0, true);
+        [TrackCaller] public static func FromStart(value: int) -> Index => new Index(value, false);
+        [TrackCaller] public static func FromEnd(value: int) -> Index => new Index(value, true);
 
         // Posición dentro de una secuencia de 'length' elementos.
-        public int GetOffset(int length) => fromEnd ? length - value : value;
+        public func GetOffset(length: int) -> int => fromEnd ? length - value : value;
 
-        public string ToString() => fromEnd ? "^" + value : "" + value;
+        public func ToString() -> string => fromEnd ? "^" + value : "" + value;
     }
 
     // ---------------------------------------------------------------- Range: a..b
     public struct Range
     {
-        Index start;
-        Index end;
+        var start: Index;
+        var end: Index;
 
-        public Range(Index start, Index end)
+        public init(start: Index, end: Index)
         {
             this.start = start;
             this.end = end;
         }
 
-        public Index Start => start;
-        public Index End => end;
-        public static Range All => new Range(Index.Start, Index.End);
-        public static Range StartAt(Index start) => new Range(start, Index.End);
-        public static Range EndAt(Index end) => new Range(Index.Start, end);
+        public prop Start: Index => start;
+        public prop End: Index => end;
+        public static prop All: Range => new Range(Index.Start, Index.End);
+        public static func StartAt(start: Index) -> Range => new Range(start, Index.End);
+        public static func EndAt(end: Index) -> Range => new Range(Index.Start, end);
 
         // (inicio, longitud) dentro de una secuencia de 'length' elementos.
-        [TrackCaller] public (int, int) GetOffsetAndLength(int length)
+        [TrackCaller] public func GetOffsetAndLength(length: int) -> (int, int)
         {
             int s = start.GetOffset(length);
             int e = end.GetOffset(length);
@@ -92,30 +92,30 @@ namespace std
             return (s, e - s);
         }
 
-        public string ToString() => start.ToString() + ".." + end.ToString();
+        public func ToString() -> string => start.ToString() + ".." + end.ToString();
     }
 
     // ---------------------------------------------------------------- T[]
     public sealed memory_unsafe class Array<T> : IEnumerable<T>
     {
-        T* items;
-        int length;
+        var items: T*;
+        var length: int;
 
-        public Array(long length)
+        public init(length: long)
         {
             ArrayRuntime.CheckSize(length);
             items = new T[length];
             this.length = (int)length;
         }
 
-        public int Length => length;
-        public long LongLength => length;
-        public int Rank => 1;
+        public prop Length: int => length;
+        public prop LongLength: long => length;
+        public prop Rank: int => 1;
         // Como List<T>.Count: el código escrito para listas (y 'params') sigue funcionando.
-        public int Count => length;
-        public bool IsEmpty => length == 0;
+        public prop Count: int => length;
+        public prop IsEmpty: bool => length == 0;
         // Puntero a los elementos (solo desde memory_unsafe). El arreglo no cambia de tamaño.
-        public T* Data => items;
+        public prop Data: T* => items;
 
         [TrackCaller] public T& operator[](int index)
         {
@@ -143,22 +143,22 @@ namespace std
             return Copy(s, n);
         }
 
-        T[] Copy(int start, int count)
+        func Copy(start: int, count: int) -> T[]
         {
             T[] r = new T[count];
             Memory.CopyItems<T>(r.items, items + start, count);
             return r;
         }
 
-        public ArrayEnumerator<T> GetEnumerator() => new ArrayEnumerator<T>(this);
+        public func GetEnumerator() -> ArrayEnumerator<T> => new ArrayEnumerator<T>(this);
         // Como IEnumerable<T> (LINQ perezoso, parámetros IEnumerable<T>): ver collections/iteradores.fst.
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { for (int i = 0; i < length; i++) yield return items[i]; }
 
         // Copia superficial (los elementos de clase se comparten).
-        public T[] Clone() => Copy(0, length);
-        public T[] ToArray() => Copy(0, length);
+        public func Clone() -> T[] => Copy(0, length);
+        public func ToArray() -> T[] => Copy(0, length);
 
-        public List<T> ToList()
+        public func ToList() -> List<T>
         {
             List<T> r = new List<T>(length);
             for (int i = 0; i < length; i++) r.Add(items[i]);
@@ -166,38 +166,38 @@ namespace std
         }
 
         // Vistas sin copia.
-        public Span<T> AsSpan() => new Span<T>(this);
-        [TrackCaller] public Span<T> AsSpan(int start) => new Span<T>(this, start, length - start);
-        [TrackCaller] public Span<T> AsSpan(int start, int count) => new Span<T>(this, start, count);
-        [TrackCaller] public Span<T> AsSpan(Range range)
+        public func AsSpan() -> Span<T> => new Span<T>(this);
+        [TrackCaller] public func AsSpan(start: int) -> Span<T> => new Span<T>(this, start, length - start);
+        [TrackCaller] public func AsSpan(start: int, count: int) -> Span<T> => new Span<T>(this, start, count);
+        [TrackCaller] public func AsSpan(range: Range) -> Span<T>
         {
             var (s, n) = range.GetOffsetAndLength(length);
             return new Span<T>(this, s, n);
         }
 
-        [TrackCaller] public void CopyTo(T[] destination, int index)
+        [TrackCaller] public func CopyTo(destination: T[], index: int)
         {
             if (index < 0 || index > destination.Length || length > destination.Length - index)
                 throw new ArgumentException("CopyTo: el destino es demasiado pequeño");
             Memory.CopyItems<T>(destination.items + index, items, length);
         }
 
-        public void Fill(T value)
+        public func Fill(value: T)
         {
             for (int i = 0; i < length; i++) items[i] = value;
         }
 
-        public int IndexOf(T item)
+        public func IndexOf(item: T) -> int
         {
             for (int i = 0; i < length; i++)
                 if (items[i] == item) return i;
             return -1;
         }
 
-        public bool Contains(T item) => IndexOf(item) >= 0;
+        public func Contains(item: T) -> bool => IndexOf(item) >= 0;
 
         // Mismos elementos en el mismo orden (con ==).
-        public bool SequenceEqual(T[] other)
+        public func SequenceEqual(other: T[]) -> bool
         {
             if (other == null || other.length != length) return false;
             for (int i = 0; i < length; i++)
@@ -209,7 +209,7 @@ namespace std
         //  Como en List<T>: evaluación inmediata; las operaciones que producen una secuencia
         //  devuelven una List<T> nueva (usa .ToArray() para volver a un arreglo).
 
-        public List<T> Where(Func<T, bool> predicate)
+        public func Where(predicate: Func<T, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < length; i++)
@@ -217,7 +217,7 @@ namespace std
             return r;
         }
 
-        public List<T> Where(Func<T, int, bool> predicate)
+        public func Where(predicate: Func<T, int, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < length; i++)
@@ -225,49 +225,49 @@ namespace std
             return r;
         }
 
-        public List<U> Select<U>(Func<T, U> selector)
+        public func Select<U>(selector: Func<T, U>) -> List<U>
         {
             List<U> r = new List<U>(length);
             for (int i = 0; i < length; i++) r.Add(selector(items[i]));
             return r;
         }
 
-        public List<U> Select<U>(Func<T, int, U> selector)
+        public func Select<U>(selector: Func<T, int, U>) -> List<U>
         {
             List<U> r = new List<U>(length);
             for (int i = 0; i < length; i++) r.Add(selector(items[i], i));
             return r;
         }
 
-        public List<U> SelectMany<U>(Func<T, List<U>> selector)
+        public func SelectMany<U>(selector: Func<T, List<U>>) -> List<U>
         {
             List<U> r = new List<U>();
             for (int i = 0; i < length; i++) r.AddRange(selector(items[i]));
             return r;
         }
 
-        public void ForEach(Action<T> action)
+        public func ForEach(action: Action<T>)
         {
             for (int i = 0; i < length; i++) action(items[i]);
         }
 
-        public bool Any() => length > 0;
+        public func Any() -> bool => length > 0;
 
-        public bool Any(Func<T, bool> predicate)
+        public func Any(predicate: Func<T, bool>) -> bool
         {
             for (int i = 0; i < length; i++)
                 if (predicate(items[i])) return true;
             return false;
         }
 
-        public bool All(Func<T, bool> predicate)
+        public func All(predicate: Func<T, bool>) -> bool
         {
             for (int i = 0; i < length; i++)
                 if (!predicate(items[i])) return false;
             return true;
         }
 
-        public int Count(Func<T, bool> predicate)
+        public func Count(predicate: Func<T, bool>) -> int
         {
             int n = 0;
             for (int i = 0; i < length; i++)
@@ -275,65 +275,65 @@ namespace std
             return n;
         }
 
-        [TrackCaller] public T First()
+        [TrackCaller] public func First() -> T
         {
             if (length == 0) throw new InvalidOperationException("First: el arreglo está vacío");
             return items[0];
         }
 
-        [TrackCaller] public T First(Func<T, bool> predicate)
+        [TrackCaller] public func First(predicate: Func<T, bool>) -> T
         {
             for (int i = 0; i < length; i++)
                 if (predicate(items[i])) return items[i];
             throw new InvalidOperationException("First: ningún elemento cumple la condición");
         }
 
-        public T FirstOrDefault() => length > 0 ? items[0] : default(T);
+        public func FirstOrDefault() -> T => length > 0 ? items[0] : default(T);
 
-        public T FirstOrDefault(Func<T, bool> predicate)
+        public func FirstOrDefault(predicate: Func<T, bool>) -> T
         {
             for (int i = 0; i < length; i++)
                 if (predicate(items[i])) return items[i];
             return default(T);
         }
 
-        [TrackCaller] public T Last()
+        [TrackCaller] public func Last() -> T
         {
             if (length == 0) throw new InvalidOperationException("Last: el arreglo está vacío");
             return items[length - 1];
         }
 
-        [TrackCaller] public T Last(Func<T, bool> predicate)
+        [TrackCaller] public func Last(predicate: Func<T, bool>) -> T
         {
             for (int i = length - 1; i >= 0; i--)
                 if (predicate(items[i])) return items[i];
             throw new InvalidOperationException("Last: ningún elemento cumple la condición");
         }
 
-        public T LastOrDefault() => length > 0 ? items[length - 1] : default(T);
+        public func LastOrDefault() -> T => length > 0 ? items[length - 1] : default(T);
 
-        public T LastOrDefault(Func<T, bool> predicate)
+        public func LastOrDefault(predicate: Func<T, bool>) -> T
         {
             for (int i = length - 1; i >= 0; i--)
                 if (predicate(items[i])) return items[i];
             return default(T);
         }
 
-        public T Sum()
+        public func Sum() -> T
         {
             T s = default(T);
             for (int i = 0; i < length; i++) s += items[i];
             return s;
         }
 
-        public U Sum<U>(Func<T, U> selector)
+        public func Sum<U>(selector: Func<T, U>) -> U
         {
             U s = default(U);
             for (int i = 0; i < length; i++) s += selector(items[i]);
             return s;
         }
 
-        [TrackCaller] public T Min()
+        [TrackCaller] public func Min() -> T
         {
             T m = First();
             for (int i = 1; i < length; i++)
@@ -341,7 +341,7 @@ namespace std
             return m;
         }
 
-        [TrackCaller] public T Max()
+        [TrackCaller] public func Max() -> T
         {
             T m = First();
             for (int i = 1; i < length; i++)
@@ -349,45 +349,45 @@ namespace std
             return m;
         }
 
-        [TrackCaller] public U Min<U>(Func<T, U> selector) => ToList().Min<U>(selector);
-        [TrackCaller] public U Max<U>(Func<T, U> selector) => ToList().Max<U>(selector);
-        [TrackCaller] public T MinBy<K>(Func<T, K> key) => ToList().MinBy<K>(key);
-        [TrackCaller] public T MaxBy<K>(Func<T, K> key) => ToList().MaxBy<K>(key);
-        [TrackCaller] public double Average() => ToList().Average();
-        [TrackCaller] public double Average<U>(Func<T, U> selector) => ToList().Average<U>(selector);
-        public List<T> OrderBy<K>(Func<T, K> key) => ToList().OrderBy<K>(key);
-        public List<T> OrderByDescending<K>(Func<T, K> key) => ToList().OrderByDescending<K>(key);
-        public List<T> Distinct() => ToList().Distinct();
-        public List<T> TakeWhile(Func<T, bool> predicate) => ToList().TakeWhile(predicate);
-        public List<T> SkipWhile(Func<T, bool> predicate) => ToList().SkipWhile(predicate);
-        public List<Grouping<K, T>> GroupBy<K>(Func<T, K> key) => ToList().GroupBy<K>(key);
-        public Dictionary<K, T> ToDictionary<K>(Func<T, K> key) => ToList().ToDictionary<K>(key);
-        public Dictionary<K, V> ToDictionary<K, V>(Func<T, K> key, Func<T, V> value) => ToList().ToDictionary<K, V>(key, value);
+        [TrackCaller] public func Min<U>(selector: Func<T, U>) -> U => ToList().Min<U>(selector);
+        [TrackCaller] public func Max<U>(selector: Func<T, U>) -> U => ToList().Max<U>(selector);
+        [TrackCaller] public func MinBy<K>(key: Func<T, K>) -> T => ToList().MinBy<K>(key);
+        [TrackCaller] public func MaxBy<K>(key: Func<T, K>) -> T => ToList().MaxBy<K>(key);
+        [TrackCaller] public func Average() -> double => ToList().Average();
+        [TrackCaller] public func Average<U>(selector: Func<T, U>) -> double => ToList().Average<U>(selector);
+        public func OrderBy<K>(key: Func<T, K>) -> List<T> => ToList().OrderBy<K>(key);
+        public func OrderByDescending<K>(key: Func<T, K>) -> List<T> => ToList().OrderByDescending<K>(key);
+        public func Distinct() -> List<T> => ToList().Distinct();
+        public func TakeWhile(predicate: Func<T, bool>) -> List<T> => ToList().TakeWhile(predicate);
+        public func SkipWhile(predicate: Func<T, bool>) -> List<T> => ToList().SkipWhile(predicate);
+        public func GroupBy<K>(key: Func<T, K>) -> List<Grouping<K, T>> => ToList().GroupBy<K>(key);
+        public func ToDictionary<K>(key: Func<T, K>) -> Dictionary<K, T> => ToList().ToDictionary<K>(key);
+        public func ToDictionary<K, V>(key: Func<T, K>, value: Func<T, V>) -> Dictionary<K, V> => ToList().ToDictionary<K, V>(key, value);
         [TrackCaller] public T Aggregate(Func<T, T, T> func) => ToList().Aggregate(func);
         public A Aggregate<A>(A seed, Func<A, T, A> func) => ToList().Aggregate<A>(seed, func);
 
-        public List<T> Take(int n)
+        public func Take(n: int) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < length && i < n; i++) r.Add(items[i]);
             return r;
         }
 
-        public List<T> Skip(int n)
+        public func Skip(n: int) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = n < 0 ? 0 : n; i < length; i++) r.Add(items[i]);
             return r;
         }
 
-        public List<T> Concat(T[] other)
+        public func Concat(other: T[]) -> List<T>
         {
             List<T> r = ToList();
             r.AddRange(other);
             return r;
         }
 
-        public List<R> Zip<U, R>(U[] other, Func<T, U, R> f)
+        public func Zip<U, R>(other: U[], f: Func<T, U, R>) -> List<R>
         {
             List<R> r = new List<R>();
             for (int i = 0; i < length && i < other.Length; i++) r.Add(f(items[i], other[i]));
@@ -399,18 +399,18 @@ namespace std
     // este enumerador lo usan las llamadas explícitas a GetEnumerator()).
     public struct ArrayEnumerator<T>
     {
-        T[] array;
-        int index;
+        var array: T[];
+        var index: int;
 
-        public ArrayEnumerator(T[] source)
+        public init(source: T[])
         {
             array = source;
             index = -1;
         }
 
-        public T Current => array[index];
+        public prop Current: T => array[index];
 
-        public bool MoveNext()
+        public func MoveNext() -> bool
         {
             index++;
             return index < array.Length;
@@ -421,11 +421,11 @@ namespace std
     //  Los elementos están seguidos por filas (el último índice cambia más rápido).
     public sealed class Array2D<T>
     {
-        T[] data;
-        int n0;
-        int n1;
+        var data: T[];
+        var n0: int;
+        var n1: int;
 
-        public Array2D(int length0, int length1)
+        public init(length0: int, length1: int)
         {
             ArrayRuntime.CheckSize(length0);
             ArrayRuntime.CheckSize(length1);
@@ -435,18 +435,18 @@ namespace std
             data = new T[length0 * length1];
         }
 
-        public int Length => data.Length;
-        public int Rank => 2;
+        public prop Length: int => data.Length;
+        public prop Rank: int => 2;
 
-        [TrackCaller] public int GetLength(int dimension)
+        [TrackCaller] public func GetLength(dimension: int) -> int
         {
             if (dimension == 0) return n0;
             if (dimension == 1) return n1;
             throw new IndexOutOfRangeException("GetLength: la dimensión " + dimension + " no existe (el arreglo tiene 2)");
         }
 
-        [TrackCaller] public int GetUpperBound(int dimension) => GetLength(dimension) - 1;
-        [TrackCaller] public int GetLowerBound(int dimension) => GetLength(dimension) * 0;
+        [TrackCaller] public func GetUpperBound(dimension: int) -> int => GetLength(dimension) - 1;
+        [TrackCaller] public func GetLowerBound(dimension: int) -> int => GetLength(dimension) * 0;
 
         [TrackCaller] public T& operator[]((int, int) index)
         {
@@ -457,10 +457,10 @@ namespace std
             return data[i * n1 + j];
         }
 
-        public ArrayEnumerator<T> GetEnumerator() => data.GetEnumerator();
-        public void Fill(T value) { data.Fill(value); }
+        public func GetEnumerator() -> ArrayEnumerator<T> => data.GetEnumerator();
+        public func Fill(value: T) { data.Fill(value); }
 
-        public T[,] Clone()
+        public func Clone() -> T[,]
         {
             T[,] r = new T[n0, n1];
             for (int i = 0; i < data.Length; i++) r.data[i] = data[i];
@@ -468,17 +468,17 @@ namespace std
         }
 
         // Los elementos en orden de filas, en un arreglo de una dimensión.
-        public T[] ToArray() => data.Clone();
+        public func ToArray() -> T[] => data.Clone();
     }
 
     public sealed class Array3D<T>
     {
-        T[] data;
-        int n0;
-        int n1;
-        int n2;
+        var data: T[];
+        var n0: int;
+        var n1: int;
+        var n2: int;
 
-        public Array3D(int length0, int length1, int length2)
+        public init(length0: int, length1: int, length2: int)
         {
             ArrayRuntime.CheckSize(length0);
             ArrayRuntime.CheckSize(length1);
@@ -490,10 +490,10 @@ namespace std
             data = new T[length0 * length1 * length2];
         }
 
-        public int Length => data.Length;
-        public int Rank => 3;
+        public prop Length: int => data.Length;
+        public prop Rank: int => 3;
 
-        [TrackCaller] public int GetLength(int dimension)
+        [TrackCaller] public func GetLength(dimension: int) -> int
         {
             if (dimension == 0) return n0;
             if (dimension == 1) return n1;
@@ -501,8 +501,8 @@ namespace std
             throw new IndexOutOfRangeException("GetLength: la dimensión " + dimension + " no existe (el arreglo tiene 3)");
         }
 
-        [TrackCaller] public int GetUpperBound(int dimension) => GetLength(dimension) - 1;
-        [TrackCaller] public int GetLowerBound(int dimension) => GetLength(dimension) * 0;
+        [TrackCaller] public func GetUpperBound(dimension: int) -> int => GetLength(dimension) - 1;
+        [TrackCaller] public func GetLowerBound(dimension: int) -> int => GetLength(dimension) * 0;
 
         [TrackCaller] public T& operator[]((int, int, int) index)
         {
@@ -515,39 +515,39 @@ namespace std
             return data[(i * n1 + j) * n2 + k];
         }
 
-        public ArrayEnumerator<T> GetEnumerator() => data.GetEnumerator();
-        public void Fill(T value) { data.Fill(value); }
-        public T[] ToArray() => data.Clone();
+        public func GetEnumerator() -> ArrayEnumerator<T> => data.GetEnumerator();
+        public func Fill(value: T) { data.Fill(value); }
+        public func ToArray() -> T[] => data.Clone();
     }
 
     // ---------------------------------------------------------------- Array (estática)
     public memory_unsafe static class Array
     {
-        public static T[] Empty<T>() => new T[0];
+        public static func Empty<T>() -> T[] => new T[0];
 
         // Ordena con 'operator<' (string compara por orden).
-        public static void Sort<T>(T[] array) { Algorithms.Sort<T>(array.Data, array.Length); }
+        public static func Sort<T>(array: T[]) { Algorithms.Sort<T>(array.Data, array.Length); }
 
         // Ordena con una comparación (negativo, cero o positivo). Estable.
-        public static void Sort<T>(T[] array, Comparison<T> comparison) { Algorithms.StableSort<T>(array.Data, array.Length, comparison); }
+        public static func Sort<T>(array: T[], comparison: Comparison<T>) { Algorithms.StableSort<T>(array.Data, array.Length, comparison); }
 
-        [TrackCaller] public static void Sort<T>(T[] array, int index, int length)
+        [TrackCaller] public static func Sort<T>(array: T[], index: int, length: int)
         {
             CheckSegment(array.Length, index, length);
             Algorithms.Sort<T>(array.Data + index, length);
         }
 
-        public static void Reverse<T>(T[] array) { Algorithms.Reverse<T>(array.Data, array.Length); }
+        public static func Reverse<T>(array: T[]) { Algorithms.Reverse<T>(array.Data, array.Length); }
 
-        [TrackCaller] public static void Reverse<T>(T[] array, int index, int length)
+        [TrackCaller] public static func Reverse<T>(array: T[], index: int, length: int)
         {
             CheckSegment(array.Length, index, length);
             Algorithms.Reverse<T>(array.Data + index, length);
         }
 
-        public static int IndexOf<T>(T[] array, T value) => array.IndexOf(value);
+        public static func IndexOf<T>(array: T[], value: T) -> int => array.IndexOf(value);
 
-        [TrackCaller] public static int IndexOf<T>(T[] array, T value, int startIndex)
+        [TrackCaller] public static func IndexOf<T>(array: T[], value: T, startIndex: int) -> int
         {
             CheckSegment(array.Length, startIndex, array.Length - startIndex);
             for (int i = startIndex; i < array.Length; i++)
@@ -555,26 +555,26 @@ namespace std
             return -1;
         }
 
-        public static int LastIndexOf<T>(T[] array, T value)
+        public static func LastIndexOf<T>(array: T[], value: T) -> int
         {
             for (int i = array.Length - 1; i >= 0; i--)
                 if (array[i] == value) return i;
             return -1;
         }
 
-        public static void Fill<T>(T[] array, T value) { array.Fill(value); }
+        public static func Fill<T>(array: T[], value: T) { array.Fill(value); }
 
-        [TrackCaller] public static void Fill<T>(T[] array, T value, int startIndex, int count)
+        [TrackCaller] public static func Fill<T>(array: T[], value: T, startIndex: int, count: int)
         {
             CheckSegment(array.Length, startIndex, count);
             for (int i = 0; i < count; i++) array[startIndex + i] = value;
         }
 
         // Copia 'length' elementos del principio de 'source' al principio de 'destination'.
-        [TrackCaller] public static void Copy<T>(T[] source, T[] destination, int length) { Copy<T>(source, 0, destination, 0, length); }
+        [TrackCaller] public static func Copy<T>(source: T[], destination: T[], length: int) { Copy<T>(source, 0, destination, 0, length); }
 
         // Admite que origen y destino sean el mismo arreglo y se solapen.
-        [TrackCaller] public static void Copy<T>(T[] source, int sourceIndex, T[] destination, int destinationIndex, int length)
+        [TrackCaller] public static func Copy<T>(source: T[], sourceIndex: int, destination: T[], destinationIndex: int, length: int)
         {
             CheckSegment(source.Length, sourceIndex, length);
             CheckSegment(destination.Length, destinationIndex, length);
@@ -582,7 +582,7 @@ namespace std
         }
 
         // Cambia el tamaño: crea un arreglo nuevo con los elementos que caben (Array.Resize(ref a, n)).
-        [TrackCaller] public static void Resize<T>(T[]& array, int newSize)
+        [TrackCaller] public static func Resize<T>(array: T[]&, newSize: int)
         {
             T[] r = new T[newSize];
             if (array != null) Copy<T>(array, r, array.Length < newSize ? array.Length : newSize);
@@ -591,7 +591,7 @@ namespace std
 
         // Búsqueda binaria en un arreglo ordenado: el índice, o el complemento (~) del lugar donde
         // iría si no está (un número negativo).
-        public static int BinarySearch<T>(T[] array, T value)
+        public static func BinarySearch<T>(array: T[], value: T) -> int
         {
             int lo = 0;
             int hi = array.Length - 1;
@@ -606,47 +606,47 @@ namespace std
         }
 
         // Pone los elementos a su valor por defecto (0, null, false...).
-        public static void Clear<T>(T[] array) { array.Fill(default(T)); }
+        public static func Clear<T>(array: T[]) { array.Fill(default(T)); }
 
-        [TrackCaller] public static void Clear<T>(T[] array, int index, int length) { Fill<T>(array, default(T), index, length); }
+        [TrackCaller] public static func Clear<T>(array: T[], index: int, length: int) { Fill<T>(array, default(T), index, length); }
 
-        public static bool Exists<T>(T[] array, Predicate<T> match) => FindIndex<T>(array, match) >= 0;
-        public static bool TrueForAll<T>(T[] array, Predicate<T> match)
+        public static func Exists<T>(array: T[], match: Predicate<T>) -> bool => FindIndex<T>(array, match) >= 0;
+        public static func TrueForAll<T>(array: T[], match: Predicate<T>) -> bool
         {
             for (int i = 0; i < array.Length; i++)
                 if (!match(array[i])) return false;
             return true;
         }
 
-        public static T Find<T>(T[] array, Predicate<T> match)
+        public static func Find<T>(array: T[], match: Predicate<T>) -> T
         {
             for (int i = 0; i < array.Length; i++)
                 if (match(array[i])) return array[i];
             return default(T);
         }
 
-        public static T FindLast<T>(T[] array, Predicate<T> match)
+        public static func FindLast<T>(array: T[], match: Predicate<T>) -> T
         {
             for (int i = array.Length - 1; i >= 0; i--)
                 if (match(array[i])) return array[i];
             return default(T);
         }
 
-        public static int FindIndex<T>(T[] array, Predicate<T> match)
+        public static func FindIndex<T>(array: T[], match: Predicate<T>) -> int
         {
             for (int i = 0; i < array.Length; i++)
                 if (match(array[i])) return i;
             return -1;
         }
 
-        public static int FindLastIndex<T>(T[] array, Predicate<T> match)
+        public static func FindLastIndex<T>(array: T[], match: Predicate<T>) -> int
         {
             for (int i = array.Length - 1; i >= 0; i--)
                 if (match(array[i])) return i;
             return -1;
         }
 
-        public static T[] FindAll<T>(T[] array, Predicate<T> match)
+        public static func FindAll<T>(array: T[], match: Predicate<T>) -> T[]
         {
             List<T> r = new List<T>();
             for (int i = 0; i < array.Length; i++)
@@ -654,19 +654,19 @@ namespace std
             return r.ToArray();
         }
 
-        public static U[] ConvertAll<T, U>(T[] array, Func<T, U> converter)
+        public static func ConvertAll<T, U>(array: T[], converter: Func<T, U>) -> U[]
         {
             U[] r = new U[array.Length];
             for (int i = 0; i < array.Length; i++) r[i] = converter(array[i]);
             return r;
         }
 
-        public static void ForEach<T>(T[] array, Action<T> action)
+        public static func ForEach<T>(array: T[], action: Action<T>)
         {
             for (int i = 0; i < array.Length; i++) action(array[i]);
         }
 
-        [TrackCaller] static void CheckSegment(int total, int index, int length)
+        [TrackCaller] static func CheckSegment(total: int, index: int, length: int)
         {
             if (index < 0 || length < 0 || index > total || length > total - index)
                 throw new ArgumentOutOfRangeException("index", "el tramo [" + index + ", " + index + " + " + length +
@@ -681,18 +681,18 @@ namespace std
     //  'Span' se refiere a la de std.mem.
     public memory_unsafe struct Span<T>
     {
-        T[] array;      // origen: un arreglo...
-        List<T> list;   // ...o una lista (se indexa a través de ella: puede crecer o encoger)
-        int start;
-        int length;
+        var array: T[];      // origen: un arreglo...
+        var list: List<T>;   // ...o una lista (se indexa a través de ella: puede crecer o encoger)
+        var start: int;
+        var length: int;
 
-        public Span(T[] array)
+        public init(array: T[])
         {
             this.array = array;
             length = array == null ? 0 : array.Length;
         }
 
-        public Span(T[] array, int start, int length)
+        public init(array: T[], start: int, length: int)
         {
             int total = array == null ? 0 : array.Length;
             if (start < 0 || length < 0 || start > total || length > total - start)
@@ -702,13 +702,13 @@ namespace std
             this.length = length;
         }
 
-        public Span(List<T> list)
+        public init(list: List<T>)
         {
             this.list = list;
             length = list == null ? 0 : list.Count;
         }
 
-        public Span(List<T> list, int start, int length)
+        public init(list: List<T>, start: int, length: int)
         {
             int total = list == null ? 0 : list.Count;
             if (start < 0 || length < 0 || start > total || length > total - start)
@@ -718,9 +718,9 @@ namespace std
             this.length = length;
         }
 
-        public static Span<T> Empty => default(Span<T>);
-        public int Length => length;
-        public bool IsEmpty => length == 0;
+        public static prop Empty: Span<T> => default(Span<T>);
+        public prop Length: int => length;
+        public prop IsEmpty: bool => length == 0;
 
         [TrackCaller] public T& operator[](int index)
         {
@@ -737,9 +737,9 @@ namespace std
             return Slice(s, n);
         }
 
-        [TrackCaller] public Span<T> Slice(int start) => Slice(start, length - start);
+        [TrackCaller] public func Slice(start: int) -> Span<T> => Slice(start, length - start);
 
-        [TrackCaller] public Span<T> Slice(int start, int length)
+        [TrackCaller] public func Slice(start: int, length: int) -> Span<T>
         {
             if (start < 0 || length < 0 || start > this.length || length > this.length - start)
                 throw new ArgumentOutOfRangeException("start", "Span.Slice: el tramo se sale de la vista");
@@ -749,16 +749,16 @@ namespace std
             return r;
         }
 
-        public ReadOnlySpan<T> AsReadOnly() => array != null ? new ReadOnlySpan<T>(array, start, length) : new ReadOnlySpan<T>(list, start, length);
+        public func AsReadOnly() -> ReadOnlySpan<T> => array != null ? new ReadOnlySpan<T>(array, start, length) : new ReadOnlySpan<T>(list, start, length);
 
-        public void Fill(T value)
+        public func Fill(value: T)
         {
             for (int i = 0; i < length; i++) this[i] = value;
         }
 
-        public void Clear() { Fill(default(T)); }
+        public func Clear() { Fill(default(T)); }
 
-        [TrackCaller] public void CopyTo(Span<T> destination)
+        [TrackCaller] public func CopyTo(destination: Span<T>)
         {
             if (destination.Length < length) throw new ArgumentException("Span.CopyTo: el destino es demasiado pequeño");
             if (array != null && destination.array == array && destination.start > start)
@@ -767,30 +767,30 @@ namespace std
                 for (int i = 0; i < length; i++) destination[i] = this[i];
         }
 
-        public T[] ToArray()
+        public func ToArray() -> T[]
         {
             T[] r = new T[length];
             for (int i = 0; i < length; i++) r[i] = this[i];
             return r;
         }
 
-        public List<T> ToList()
+        public func ToList() -> List<T>
         {
             List<T> r = new List<T>(length);
             for (int i = 0; i < length; i++) r.Add(this[i]);
             return r;
         }
 
-        public int IndexOf(T item)
+        public func IndexOf(item: T) -> int
         {
             for (int i = 0; i < length; i++)
                 if (this[i] == item) return i;
             return -1;
         }
 
-        public bool Contains(T item) => IndexOf(item) >= 0;
+        public func Contains(item: T) -> bool => IndexOf(item) >= 0;
 
-        public void Reverse()
+        public func Reverse()
         {
             for (int i = 0, j = length - 1; i < j; i++, j--)
             {
@@ -801,30 +801,30 @@ namespace std
         }
 
         // Ordena el tramo en su sitio con 'operator<'.
-        public void Sort()
+        public func Sort()
         {
             if (length == 0) return;
             if (array != null) Algorithms.Sort<T>(array.Data + start, length);
             else Algorithms.Sort<T>(list.Data + start, length);
         }
 
-        public SpanItems<T> GetEnumerator() => new SpanItems<T>(array, list, start, length);
+        public func GetEnumerator() -> SpanItems<T> => new SpanItems<T>(array, list, start, length);
     }
 
     public memory_unsafe struct ReadOnlySpan<T>
     {
-        T[] array;
-        List<T> list;
-        int start;
-        int length;
+        var array: T[];
+        var list: List<T>;
+        var start: int;
+        var length: int;
 
-        public ReadOnlySpan(T[] array)
+        public init(array: T[])
         {
             this.array = array;
             length = array == null ? 0 : array.Length;
         }
 
-        public ReadOnlySpan(T[] array, int start, int length)
+        public init(array: T[], start: int, length: int)
         {
             int total = array == null ? 0 : array.Length;
             if (start < 0 || length < 0 || start > total || length > total - start)
@@ -834,13 +834,13 @@ namespace std
             this.length = length;
         }
 
-        public ReadOnlySpan(List<T> list)
+        public init(list: List<T>)
         {
             this.list = list;
             length = list == null ? 0 : list.Count;
         }
 
-        public ReadOnlySpan(List<T> list, int start, int length)
+        public init(list: List<T>, start: int, length: int)
         {
             int total = list == null ? 0 : list.Count;
             if (start < 0 || length < 0 || start > total || length > total - start)
@@ -850,9 +850,9 @@ namespace std
             this.length = length;
         }
 
-        public static ReadOnlySpan<T> Empty => default(ReadOnlySpan<T>);
-        public int Length => length;
-        public bool IsEmpty => length == 0;
+        public static prop Empty: ReadOnlySpan<T> => default(ReadOnlySpan<T>);
+        public prop Length: int => length;
+        public prop IsEmpty: bool => length == 0;
 
         // Solo lectura: devuelve una copia del elemento (no se puede asignar).
         [TrackCaller] public T operator[](int index)
@@ -870,9 +870,9 @@ namespace std
             return Slice(s, n);
         }
 
-        [TrackCaller] public ReadOnlySpan<T> Slice(int start) => Slice(start, length - start);
+        [TrackCaller] public func Slice(start: int) -> ReadOnlySpan<T> => Slice(start, length - start);
 
-        [TrackCaller] public ReadOnlySpan<T> Slice(int start, int length)
+        [TrackCaller] public func Slice(start: int, length: int) -> ReadOnlySpan<T>
         {
             if (start < 0 || length < 0 || start > this.length || length > this.length - start)
                 throw new ArgumentOutOfRangeException("start", "ReadOnlySpan.Slice: el tramo se sale de la vista");
@@ -882,49 +882,49 @@ namespace std
             return r;
         }
 
-        [TrackCaller] public void CopyTo(Span<T> destination)
+        [TrackCaller] public func CopyTo(destination: Span<T>)
         {
             if (destination.Length < length) throw new ArgumentException("ReadOnlySpan.CopyTo: el destino es demasiado pequeño");
             T[] tmp = ToArray();  // el destino puede solaparse con esta vista
             for (int i = 0; i < length; i++) destination[i] = tmp[i];
         }
 
-        public T[] ToArray()
+        public func ToArray() -> T[]
         {
             T[] r = new T[length];
             for (int i = 0; i < length; i++) r[i] = this[i];
             return r;
         }
 
-        public List<T> ToList()
+        public func ToList() -> List<T>
         {
             List<T> r = new List<T>(length);
             for (int i = 0; i < length; i++) r.Add(this[i]);
             return r;
         }
 
-        public int IndexOf(T item)
+        public func IndexOf(item: T) -> int
         {
             for (int i = 0; i < length; i++)
                 if (this[i] == item) return i;
             return -1;
         }
 
-        public bool Contains(T item) => IndexOf(item) >= 0;
+        public func Contains(item: T) -> bool => IndexOf(item) >= 0;
 
-        public SpanItems<T> GetEnumerator() => new SpanItems<T>(array, list, start, length);
+        public func GetEnumerator() -> SpanItems<T> => new SpanItems<T>(array, list, start, length);
     }
 
     // Enumerador de Span<T> y ReadOnlySpan<T> para foreach.
     public struct SpanItems<T>
     {
-        T[] array;
-        List<T> list;
-        int start;
-        int length;
-        int index;
+        var array: T[];
+        var list: List<T>;
+        var start: int;
+        var length: int;
+        var index: int;
 
-        public SpanItems(T[] array, List<T> list, int start, int length)
+        public init(array: T[], list: List<T>, start: int, length: int)
         {
             this.array = array;
             this.list = list;
@@ -933,9 +933,9 @@ namespace std
             index = -1;
         }
 
-        [TrackCaller] public T Current => array != null ? array[start + index] : list[start + index];
+        [TrackCaller] public prop Current: T => array != null ? array[start + index] : list[start + index];
 
-        public bool MoveNext()
+        public func MoveNext() -> bool
         {
             index++;
             return index < length;
@@ -946,20 +946,20 @@ namespace std
     public static class ArrayLinq
     {
         // Recorre la secuencia (perezosa o no) y guarda sus elementos en un arreglo nuevo.
-        public static T[] ToArray<T>(this IEnumerable<T> source) => source.ToList().ToArray();
+        public static func ToArray<T>(this source: IEnumerable<T>) -> T[] => source.ToList().ToArray();
     }
 
     // ---------------------------------------------------------------- rangos sobre cadenas
     public static class RangeExtensions
     {
         // s[1..3]: la subcadena del rango (en bytes UTF-8, como s[i] y s.Length).
-        [TrackCaller] public static string Slice(this string s, Range range)
+        [TrackCaller] public static func Slice(this s: string, range: Range) -> string
         {
             var (start, n) = range.GetOffsetAndLength(s.Length);
             return s.Substring(start, n);
         }
 
         // s[^1]: el byte en esa posición.
-        [TrackCaller] public static byte At(this string s, Index index) => s[index.GetOffset(s.Length)];
+        [TrackCaller] public static func At(this s: string, index: Index) -> byte => s[index.GetOffset(s.Length)];
     }
 }

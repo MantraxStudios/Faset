@@ -21,15 +21,15 @@ namespace std.json
 
     public class JsonValue
     {
-        public JsonKind Kind;
-        public bool BoolValue;
-        public double NumberValue;
-        public string StringValue;          // copia propia
-        public List<JsonValue> Items;       // Array
-        public List<string> Keys;           // Object (copias propias)
-        public List<JsonValue> Values;      // Object
+        public var Kind: JsonKind;
+        public var BoolValue: bool;
+        public var NumberValue: double;
+        public var StringValue: string;          // copia propia
+        public var Items: List<JsonValue>;       // Array
+        public var Keys: List<string>;           // Object (copias propias)
+        public var Values: List<JsonValue>;      // Object
 
-        public JsonValue(JsonKind kind)
+        public init(kind: JsonKind)
         {
             Kind = kind;
             if (kind == JsonKind.Array) Items = new List<JsonValue>();
@@ -40,7 +40,7 @@ namespace std.json
             }
         }
 
-        ~JsonValue()
+        deinit
         {
             if (Kind == JsonKind.String) String.Free(StringValue);
             if (Items != null)
@@ -60,18 +60,18 @@ namespace std.json
             }
         }
 
-        public int Count => Kind == JsonKind.Array ? Items.Count : (Kind == JsonKind.Object ? Keys.Count : 0);
-        public bool IsNull => Kind == JsonKind.Null;
+        public prop Count: int => Kind == JsonKind.Array ? Items.Count : (Kind == JsonKind.Object ? Keys.Count : 0);
+        public prop IsNull: bool => Kind == JsonKind.Null;
 
         // Elemento de un arreglo (null si no existe).
-        public JsonValue At(int index)
+        public func At(index: int) -> JsonValue
         {
             if (Kind != JsonKind.Array || index < 0 || index >= Items.Count) return null;
             return Items[index];
         }
 
         // Miembro de un objeto (null si no existe).
-        public JsonValue Get(string key)
+        public func Get(key: string) -> JsonValue
         {
             if (Kind != JsonKind.Object) return null;
             for (int i = 0; i < Keys.Count; i++)
@@ -79,22 +79,22 @@ namespace std.json
             return null;
         }
 
-        public bool Has(string key) => Get(key) != null;
+        public func Has(key: string) -> bool => Get(key) != null;
 
         // Las vistas devueltas apuntan a la memoria del árbol: válidas hasta 'delete'.
-        public string AsString() => Kind == JsonKind.String ? StringValue : "";
-        public double AsNumber() => Kind == JsonKind.Number ? NumberValue : 0;
-        public int AsInt() => (int)AsNumber();
-        public bool AsBool() => Kind == JsonKind.Bool && BoolValue;
+        public func AsString() -> string => Kind == JsonKind.String ? StringValue : "";
+        public func AsNumber() -> double => Kind == JsonKind.Number ? NumberValue : 0;
+        public func AsInt() -> int => (int)AsNumber();
+        public func AsBool() -> bool => Kind == JsonKind.Bool && BoolValue;
 
         // Atajos: valor de un miembro con un valor por defecto.
-        public string GetString(string key)
+        public func GetString(key: string) -> string
         {
             JsonValue v = Get(key);
             return v != null ? v.AsString() : "";
         }
 
-        public int GetInt(string key)
+        public func GetInt(key: string) -> int
         {
             JsonValue v = Get(key);
             return v != null ? v.AsInt() : 0;
@@ -104,13 +104,13 @@ namespace std.json
     // Analizador recursivo.
     class JsonReader
     {
-        string text;
-        int pos;
-        public bool Failed;
+        var text: string;
+        var pos: int;
+        public var Failed: bool;
 
-        public JsonReader(string s) { text = s; }
+        public init(s: string) { text = s; }
 
-        void SkipSpace()
+        func SkipSpace()
         {
             while (pos < text.Length)
             {
@@ -120,7 +120,7 @@ namespace std.json
             }
         }
 
-        bool Match(string word)
+        func Match(word: string) -> bool
         {
             if (pos + word.Length > text.Length) return false;
             for (int i = 0; i < word.Length; i++)
@@ -129,7 +129,7 @@ namespace std.json
             return true;
         }
 
-        int Hex(byte c)
+        func Hex(c: byte) -> int
         {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -138,7 +138,7 @@ namespace std.json
             return 0;
         }
 
-        int ReadHex4()
+        func ReadHex4() -> int
         {
             if (pos + 4 > text.Length)
             {
@@ -150,7 +150,7 @@ namespace std.json
             return v;
         }
 
-        string ReadString()
+        func ReadString() -> string
         {
             pos++;  // comilla inicial
             StringBuilder sb = new StringBuilder();
@@ -191,7 +191,7 @@ namespace std.json
             return r;
         }
 
-        public JsonValue ReadValue()
+        public func ReadValue() -> JsonValue
         {
             SkipSpace();
             if (pos >= text.Length)
@@ -298,7 +298,7 @@ namespace std.json
     public static class Json
     {
         // Analiza un texto JSON. Devuelve null si no es válido. Libera el resultado con delete.
-        public static JsonValue Parse(string text)
+        public static func Parse(text: string) -> JsonValue
         {
             JsonReader r = new JsonReader(text);
             JsonValue v = r.ReadValue();
@@ -313,7 +313,7 @@ namespace std.json
         }
 
         // Escribe 's' como cadena JSON (con comillas y escapes).
-        public static void WriteString(StringBuilder sb, string s)
+        public static func WriteString(sb: StringBuilder, s: string)
         {
             sb.Append('"');
             int start = 0;
@@ -343,8 +343,8 @@ namespace std.json
 
         // Objeto -> texto JSON. Clases, structs, registros, T[], List<T>, Dictionary<K, V>, T?, enums
         // (por su nombre) y tipos anidados; [JsonName("x")] cambia el nombre y [JsonIgnore] lo omite.
-        public static string Serialize<T>(T value) => Serialize<T>(value, null);
-        public static string Serialize<T>(T value, JsonOptions options)
+        public static func Serialize<T>(value: T) -> string => Serialize<T>(value, null);
+        public static func Serialize<T>(value: T, options: JsonOptions) -> string
         {
             JsonWriter w = new JsonWriter(options);
             JsonSerializer.Write<T>(w, value);
@@ -353,8 +353,8 @@ namespace std.json
 
         // Texto JSON -> objeto. JsonException (una FormatException) con la línea y la columna del
         // error si el texto no es válido o no encaja con el tipo.
-        public static T Deserialize<T>(string text) => Deserialize<T>(text, null);
-        public static T Deserialize<T>(string text, JsonOptions options)
+        public static func Deserialize<T>(text: string) -> T => Deserialize<T>(text, null);
+        public static func Deserialize<T>(text: string, options: JsonOptions) -> T
         {
             JsonParser p = new JsonParser(text, options);
             T r = JsonSerializer.Read<T>(p);
@@ -372,21 +372,21 @@ namespace std.json
     // Opciones de Serialize / Deserialize.
     public class JsonOptions
     {
-        public bool Indented;                    // saltos de línea y sangría
-        public string IndentText = "  ";
-        public bool CamelCase;                   // "NombreCompleto" -> "nombreCompleto" (también al leer)
-        public bool IgnoreNull;                  // no escribe los miembros que valen null
-        public bool CaseInsensitive;             // al leer, los nombres no distinguen mayúsculas
-        public bool EnumsAsNumbers;              // enums como números en vez de por su nombre
-        public int MaxDepth = 64;                // anidamiento máximo (referencias circulares)
+        public var Indented: bool;                    // saltos de línea y sangría
+        public var IndentText: string = "  ";
+        public var CamelCase: bool;                   // "NombreCompleto" -> "nombreCompleto" (también al leer)
+        public var IgnoreNull: bool;                  // no escribe los miembros que valen null
+        public var CaseInsensitive: bool;             // al leer, los nombres no distinguen mayúsculas
+        public var EnumsAsNumbers: bool;              // enums como números en vez de por su nombre
+        public var MaxDepth: int = 64;                // anidamiento máximo (referencias circulares)
     }
 
     // [JsonName("nombre")]: nombre del miembro en el JSON (tiene prioridad sobre CamelCase).
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class JsonName : Attribute
     {
-        public string Name;
-        public JsonName(string name) { Name = name; }
+        public var Name: string;
+        public init(name: string) { Name = name; }
     }
 
     // [JsonIgnore]: el miembro no se escribe ni se lee.
@@ -396,9 +396,9 @@ namespace std.json
     // Error al leer JSON: texto mal formado o que no encaja con el tipo pedido.
     public class JsonException : FormatException
     {
-        public int Line;
-        public int Column;
-        public JsonException(string message, int line, int column)
+        public var Line: int;
+        public var Column: int;
+        public init(message: string, line: int, column: int)
         {
             Message = message + " (línea " + line + ", columna " + column + ")";
             Line = line;
@@ -409,22 +409,22 @@ namespace std.json
     // Escritor de JSON con sangría opcional.
     public class JsonWriter
     {
-        StringBuilder sb = new StringBuilder();
-        public JsonOptions Options;
-        int depth;
-        bool first = true;
-        bool afterKey;
+        var sb: StringBuilder = new StringBuilder();
+        public var Options: JsonOptions;
+        var depth: int;
+        var first: bool = true;
+        var afterKey: bool;
 
-        public JsonWriter(JsonOptions options) { Options = options == null ? new JsonOptions() : options; }
+        public init(options: JsonOptions) { Options = options == null ? new JsonOptions() : options; }
 
-        void NewLine()
+        func NewLine()
         {
             sb.Append('\n');
             for (int i = 0; i < depth; i++) sb.Append(Options.IndentText);
         }
 
         // Separador antes de un valor (coma y sangría), salvo justo después de una clave.
-        void Before()
+        func Before()
         {
             if (afterKey)
             {
@@ -439,7 +439,7 @@ namespace std.json
             first = false;
         }
 
-        void Open(char c)
+        func Open(c: char)
         {
             Before();
             if (depth >= Options.MaxDepth)
@@ -449,7 +449,7 @@ namespace std.json
             first = true;
         }
 
-        void Close(char c)
+        func Close(c: char)
         {
             depth--;
             if (!first && Options.Indented) NewLine();
@@ -457,56 +457,56 @@ namespace std.json
             first = false;
         }
 
-        public void BeginObject() => Open('{');
-        public void EndObject() => Close('}');
-        public void BeginArray() => Open('[');
-        public void EndArray() => Close(']');
+        public func BeginObject() => Open('{');
+        public func EndObject() => Close('}');
+        public func BeginArray() => Open('[');
+        public func EndArray() => Close(']');
 
         // Clave de un objeto; 'camel' es la misma en camelCase (se usa con Options.CamelCase).
-        public void Key(string name, string camel)
+        public func Key(name: string, camel: string)
         {
             Before();
             Json.WriteString(sb, Options.CamelCase ? camel : name);
             sb.Append(Options.Indented ? ": " : ":");
             afterKey = true;
         }
-        public void Key(string name) => Key(name, name);
+        public func Key(name: string) => Key(name, name);
 
-        public void Null() { Before(); sb.Append("null"); }
-        public void Bool(bool v) { Before(); sb.Append(v ? "true" : "false"); }
-        public void Long(long v) { Before(); sb.Append(v); }
-        public void ULong(ulong v) { Before(); sb.Append(v); }
-        public void String(string s) { Before(); Json.WriteString(sb, s); }
-        public void Double(double v)
+        public func Null() { Before(); sb.Append("null"); }
+        public func Bool(v: bool) { Before(); sb.Append(v ? "true" : "false"); }
+        public func Long(v: long) { Before(); sb.Append(v); }
+        public func ULong(v: ulong) { Before(); sb.Append(v); }
+        public func String(s: string) { Before(); Json.WriteString(sb, s); }
+        public func Double(v: double)
         {
             Before();
             if (v != v || v - v != 0) sb.Append("null");  // NaN e infinito no existen en JSON
             else sb.Append(v);
         }
 
-        public override string ToString() => sb.ToString();
+        public override func ToString() -> string => sb.ToString();
     }
 
     // Lector de JSON por tokens, con la línea y la columna para los errores (JsonException).
     public class JsonParser
     {
-        string text;
-        int pos;
-        int line = 1;
-        int lineStart;
-        public JsonOptions Options;
-        int depth;
+        var text: string;
+        var pos: int;
+        var line: int = 1;
+        var lineStart: int;
+        public var Options: JsonOptions;
+        var depth: int;
 
-        public JsonParser(string text, JsonOptions options)
+        public init(text: string, options: JsonOptions)
         {
             this.text = text;
             Options = options == null ? new JsonOptions() : options;
         }
 
-        public void Fail(string message) => throw new JsonException(message, line, pos - lineStart + 1);
+        public func Fail(message: string) => throw new JsonException(message, line, pos - lineStart + 1);
 
         // Posición actual (tras los espacios) y error en una posición anterior de la misma línea.
-        public int Position
+        public prop Position: int
         {
             get
             {
@@ -514,9 +514,9 @@ namespace std.json
                 return pos;
             }
         }
-        public void FailAt(int position, string message) => throw new JsonException(message, line, position - lineStart + 1);
+        public func FailAt(position: int, message: string) => throw new JsonException(message, line, position - lineStart + 1);
 
-        void SkipSpace()
+        func SkipSpace()
         {
             while (pos < text.Length)
             {
@@ -532,13 +532,13 @@ namespace std.json
         }
 
         // Siguiente carácter significativo (0 al final del texto).
-        public byte Peek()
+        public func Peek() -> byte
         {
             SkipSpace();
             return pos < text.Length ? text[pos] : (byte)0;
         }
 
-        string Describe()
+        func Describe() -> string
         {
             if (pos >= text.Length) return "el final del texto";
             byte c = text[pos];
@@ -551,9 +551,9 @@ namespace std.json
             return "'" + text.Substring(pos, 1) + "'";
         }
 
-        public void Expected(string what) => Fail("se esperaba " + what + " pero se encontró " + Describe());
+        public func Expected(what: string) => Fail("se esperaba " + what + " pero se encontró " + Describe());
 
-        bool Word(string w)
+        func Word(w: string) -> bool
         {
             if (pos + w.Length > text.Length) return false;
             for (int i = 0; i < w.Length; i++)
@@ -563,9 +563,9 @@ namespace std.json
         }
 
         // null: lo consume y devuelve true.
-        public bool TryNull() => Peek() == 'n' && Word("null");
+        public func TryNull() -> bool => Peek() == 'n' && Word("null");
 
-        public bool ReadBool()
+        public func ReadBool() -> bool
         {
             byte c = Peek();
             if (c == 't' && Word("true")) return true;
@@ -574,7 +574,7 @@ namespace std.json
             return false;
         }
 
-        int Hex()
+        func Hex() -> int
         {
             if (pos >= text.Length) Fail("secuencia \\u incompleta");
             byte c = text[pos++];
@@ -586,7 +586,7 @@ namespace std.json
             return 0;
         }
 
-        public string ReadString()
+        public func ReadString() -> string
         {
             if (Peek() != '"') Expected("una cadena");
             pos++;
@@ -639,7 +639,7 @@ namespace std.json
         }
 
         // Texto del número siguiente (sin convertir).
-        string NumberText()
+        func NumberText() -> string
         {
             byte c = Peek();
             if (!((c >= '0' && c <= '9') || c == '-')) Expected("un número");
@@ -653,7 +653,7 @@ namespace std.json
             return text.Substring(start, pos - start);
         }
 
-        public double ReadDouble()
+        public func ReadDouble() -> double
         {
             int start = pos;
             string s = NumberText();
@@ -667,7 +667,7 @@ namespace std.json
         }
 
         // Entero en [min, max]; 'tipo' es el nombre para el mensaje.
-        public long ReadLong(long min, long max, string tipo)
+        public func ReadLong(min: long, max: long, tipo: string) -> long
         {
             SkipSpace();
             int start = pos;
@@ -688,7 +688,7 @@ namespace std.json
             return v;
         }
 
-        public ulong ReadULong()
+        public func ReadULong() -> ulong
         {
             SkipSpace();
             int start = pos;
@@ -707,7 +707,7 @@ namespace std.json
             return v;
         }
 
-        public void BeginObject()
+        public func BeginObject()
         {
             if (Peek() != '{') Expected("un objeto");
             pos++;
@@ -715,10 +715,10 @@ namespace std.json
             first = true;
         }
 
-        bool first;
+        var first: bool;
 
         // Siguiente clave del objeto (y sus ':'), o false al llegar a '}'.
-        public bool NextKey(out string key)
+        public func NextKey(out key: string) -> bool
         {
             key = "";
             byte c = Peek();
@@ -741,7 +741,7 @@ namespace std.json
             return true;
         }
 
-        public void BeginArray()
+        public func BeginArray()
         {
             if (Peek() != '[') Expected("un array");
             pos++;
@@ -750,7 +750,7 @@ namespace std.json
         }
 
         // ¿Hay otro elemento en el array? (consume la ',' o el ']')
-        public bool NextItem()
+        public func NextItem() -> bool
         {
             byte c = Peek();
             if (c == ']')
@@ -770,14 +770,14 @@ namespace std.json
         }
 
         // ¿Es 'key' el nombre del miembro? (exacto, en camelCase o sin distinguir mayúsculas)
-        public bool KeyIs(string key, string name, string camel)
+        public func KeyIs(key: string, name: string, camel: string) -> bool
         {
             if (key == name || (Options.CamelCase && key == camel)) return true;
             return Options.CaseInsensitive && key.ToLower() == name.ToLower();
         }
 
         // Salta un valor cualquiera (miembros que el tipo no tiene).
-        public void Skip()
+        public func Skip()
         {
             byte c = Peek();
             if (c == '{')
@@ -801,7 +801,7 @@ namespace std.json
         }
 
         // Tras el valor raíz solo puede haber espacios.
-        public void End()
+        public func End()
         {
             if (Peek() != 0) Fail("texto sobrante después del valor JSON");
         }
@@ -811,13 +811,13 @@ namespace std.json
     public static class JsonSerializer
     {
         // "NombreCompleto" -> "nombreCompleto" (se evalúa al compilar).
-        public comptime static string Camel(string s)
+        public comptime static func Camel(s: string) -> string
         {
             if (s.Length == 0) return s;
             return s.Substring(0, 1).ToLower() + s.Substring(1);
         }
 
-        public static void Write<T>(JsonWriter w, T v)
+        public static func Write<T>(w: JsonWriter, v: T)
         {
             comptime if (Tipo<T>.EsTexto) w.String(v);
             else comptime if (Tipo<T>.EsBool) w.Bool(v);
@@ -914,7 +914,7 @@ namespace std.json
             else static_assert(false, "Json.Serialize no sabe escribir el tipo '" + Tipo<T>.Nombre + "'");
         }
 
-        public static T Read<T>(JsonParser p)
+        public static func Read<T>(p: JsonParser) -> T
         {
             comptime if (Tipo<T>.EsTexto)
             {

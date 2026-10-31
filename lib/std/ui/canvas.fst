@@ -20,23 +20,23 @@ namespace std.ui
     // Contexto de dibujo de un Canvas (lo recibe el evento Paint).
     public memory_unsafe class Graphics
     {
-        Canvas canvas;
-        float ox;
-        float oy;
-        int clipX;
-        int clipY;
-        int clipW;
-        int clipH;
-        public int Width;
-        public int Height;
+        var canvas: Canvas;
+        var ox: float;
+        var oy: float;
+        var clipX: int;
+        var clipY: int;
+        var clipW: int;
+        var clipH: int;
+        public var Width: int;
+        public var Height: int;
 
-        public Graphics(Canvas target, int x, int y, int width, int height)
+        public init(target: Canvas, x: int, y: int, width: int, height: int)
         {
             canvas = target;
             Begin(x, y, width, height);
         }
 
-        internal void Begin(int x, int y, int width, int height)
+        internal func Begin(x: int, y: int, width: int, height: int)
         {
             ox = x;
             oy = y;
@@ -50,96 +50,96 @@ namespace std.ui
         }
 
         // El lienzo de la ventana (para dibujar con coordenadas absolutas).
-        public Canvas Canvas => canvas;
+        public prop Canvas: Canvas => canvas;
 
-        public void Clear(uint color) { canvas.FillRect((int)ox, (int)oy, Width, Height, color | 0xff000000); }
+        public func Clear(color: uint) { canvas.FillRect((int)ox, (int)oy, Width, Height, color | 0xff000000); }
 
-        public void FillRect(float x, float y, float w, float h, uint color) { canvas.FillRoundRect(ox + x, oy + y, w, h, 0, color); }
+        public func FillRect(x: float, y: float, w: float, h: float, color: uint) { canvas.FillRoundRect(ox + x, oy + y, w, h, 0, color); }
 
-        public void DrawRect(float x, float y, float w, float h, uint color) { canvas.StrokeRoundRect(ox + x, oy + y, w, h, 0, 1, color); }
+        public func DrawRect(x: float, y: float, w: float, h: float, color: uint) { canvas.StrokeRoundRect(ox + x, oy + y, w, h, 0, 1, color); }
 
-        public void DrawRect(float x, float y, float w, float h, uint color, float thickness)
+        public func DrawRect(x: float, y: float, w: float, h: float, color: uint, thickness: float)
         {
             canvas.StrokeRoundRect(ox + x, oy + y, w, h, 0, thickness, color);
         }
 
-        public void FillRoundRect(float x, float y, float w, float h, float radius, uint color)
+        public func FillRoundRect(x: float, y: float, w: float, h: float, radius: float, color: uint)
         {
             canvas.FillRoundRect(ox + x, oy + y, w, h, radius, color);
         }
 
-        public void DrawRoundRect(float x, float y, float w, float h, float radius, uint color, float thickness)
+        public func DrawRoundRect(x: float, y: float, w: float, h: float, radius: float, color: uint, thickness: float)
         {
             canvas.StrokeRoundRect(ox + x, oy + y, w, h, radius, thickness, color);
         }
 
         // Degradado lineal de 'from' a 'to' (vertical u horizontal).
-        public void FillGradient(float x, float y, float w, float h, uint from, uint to, bool horizontal)
+        public func FillGradient(x: float, y: float, w: float, h: float, from: uint, to: uint, horizontal: bool)
         {
             canvas.FillRoundRectGradient(ox + x, oy + y, w, h, 0, from, to, horizontal);
         }
 
-        public void FillRoundGradient(float x, float y, float w, float h, float radius, uint from, uint to, bool horizontal)
+        public func FillRoundGradient(x: float, y: float, w: float, h: float, radius: float, from: uint, to: uint, horizontal: bool)
         {
             canvas.FillRoundRectGradient(ox + x, oy + y, w, h, radius, from, to, horizontal);
         }
 
-        public void DrawLine(float x1, float y1, float x2, float y2, uint color) { canvas.Line(ox + x1, oy + y1, ox + x2, oy + y2, 1, color); }
+        public func DrawLine(x1: float, y1: float, x2: float, y2: float, color: uint) { canvas.Line(ox + x1, oy + y1, ox + x2, oy + y2, 1, color); }
 
-        public void DrawLine(float x1, float y1, float x2, float y2, uint color, float thickness)
+        public func DrawLine(x1: float, y1: float, x2: float, y2: float, color: uint, thickness: float)
         {
             canvas.Line(ox + x1, oy + y1, ox + x2, oy + y2, thickness, color);
         }
 
-        public void FillCircle(float cx, float cy, float radius, uint color) { canvas.FillCircle(ox + cx, oy + cy, radius, color); }
+        public func FillCircle(cx: float, cy: float, radius: float, color: uint) { canvas.FillCircle(ox + cx, oy + cy, radius, color); }
 
-        public void DrawCircle(float cx, float cy, float radius, uint color) { DrawCircle(cx, cy, radius, color, 1); }
+        public func DrawCircle(cx: float, cy: float, radius: float, color: uint) { DrawCircle(cx, cy, radius, color, 1); }
 
-        public void DrawCircle(float cx, float cy, float radius, uint color, float thickness)
+        public func DrawCircle(cx: float, cy: float, radius: float, color: uint, thickness: float)
         {
             canvas.StrokeRoundRect(ox + cx - radius, oy + cy - radius, radius * 2, radius * 2, radius, thickness, color);
         }
 
         // Texto con la esquina superior izquierda en (x, y); devuelve el ancho dibujado.
-        public float DrawText(string s, float x, float y, uint color) => DrawText(s, x, y, color, 14, false);
+        public func DrawText(s: string, x: float, y: float, color: uint) -> float => DrawText(s, x, y, color, 14, false);
 
-        public float DrawText(string s, float x, float y, uint color, int size) => DrawText(s, x, y, color, size, false);
+        public func DrawText(s: string, x: float, y: float, color: uint, size: int) -> float => DrawText(s, x, y, color, size, false);
 
-        public float DrawText(string s, float x, float y, uint color, int size, bool bold)
+        public func DrawText(s: string, x: float, y: float, color: uint, size: int, bold: bool) -> float
         {
             UiFont font = UiFont.Get(size, bold);
             float end = canvas.Text(font, s, ox + x, oy + y + font.Ascent, color);
             return end - (ox + x);
         }
 
-        public float MeasureText(string s, int size) => UiFont.Get(size, false).Measure(s);
+        public func MeasureText(s: string, size: int) -> float => UiFont.Get(size, false).Measure(s);
 
-        public float MeasureText(string s, int size, bool bold) => UiFont.Get(size, bold).Measure(s);
+        public func MeasureText(s: string, size: int, bold: bool) -> float => UiFont.Get(size, bold).Measure(s);
 
-        public void DrawImage(Image img, float x, float y) { canvas.DrawImage(img, ox + x, oy + y); }
+        public func DrawImage(img: Image, x: float, y: float) { canvas.DrawImage(img, ox + x, oy + y); }
 
-        public void DrawImage(Image img, float x, float y, float w, float h) { canvas.DrawImage(img, ox + x, oy + y, w, h); }
+        public func DrawImage(img: Image, x: float, y: float, w: float, h: float) { canvas.DrawImage(img, ox + x, oy + y, w, h); }
 
         // Región (sx, sy, sw, sh) de la imagen en el rectángulo (x, y, w, h): hojas de sprites.
-        public void DrawImage(Image img, float sx, float sy, float sw, float sh, float x, float y, float w, float h)
+        public func DrawImage(img: Image, sx: float, sy: float, sw: float, sh: float, x: float, y: float, w: float, h: float)
         {
             canvas.DrawImage(img, sx, sy, sw, sh, ox + x, oy + y, w, h, 1);
         }
 
-        public void DrawImage(Image img, float x, float y, float w, float h, float opacity)
+        public func DrawImage(img: Image, x: float, y: float, w: float, h: float, opacity: float)
         {
             if (img == null) return;
             canvas.DrawImage(img, 0, 0, img.Width, img.Height, ox + x, oy + y, w, h, opacity);
         }
 
         // Limita el dibujo siguiente al rectángulo (dentro del control).
-        public void SetClip(float x, float y, float w, float h)
+        public func SetClip(x: float, y: float, w: float, h: float)
         {
             ResetClip();
             canvas.Clip((int)Math.Floor(ox + x), (int)Math.Floor(oy + y), (int)Math.Ceiling((double)w), (int)Math.Ceiling((double)h));
         }
 
-        public void ResetClip()
+        public func ResetClip()
         {
             canvas.ResetClip();
             canvas.Clip(clipX, clipY, clipW, clipH);
@@ -148,9 +148,9 @@ namespace std.ui
 
     public memory_unsafe partial class Widget
     {
-        Graphics graphics;
+        var graphics: Graphics;
 
-        void DrawCanvasWidget(Canvas c, Palette p, float fx, float fy, float fw, float fh)
+        func DrawCanvasWidget(c: Canvas, p: Palette, fx: float, fy: float, fw: float, fh: float)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 0;
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);

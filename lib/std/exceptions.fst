@@ -39,24 +39,24 @@ namespace std
     public class Exception
     {
         // El compilador y el runtime dependen de estos cinco campos y de su orden.
-        ulong __excType;               // descriptor del tipo real (lo rellena el constructor)
-        public string TypeName;        // nombre de la clase real de la excepción ("FormatException")
-        public string Message;         // descripción del error
-        public Exception InnerException;  // excepción que causó esta (o null)
-        public string StackTrace;      // dónde se lanzó: "   en Clase.Metodo (archivo.fst:12)"
+        var __excType: ulong;               // descriptor del tipo real (lo rellena el constructor)
+        public var TypeName: string;        // nombre de la clase real de la excepción ("FormatException")
+        public var Message: string;         // descripción del error
+        public var InnerException: Exception;  // excepción que causó esta (o null)
+        public var StackTrace: string;      // dónde se lanzó: "   en Clase.Metodo (archivo.fst:12)"
 
-        public Exception() { Message = "Se produjo una excepción."; }
-        public Exception(string message) { Message = message; }
-        public Exception(string message, Exception innerException)
+        public init() { Message = "Se produjo una excepción."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
         // "Tipo: mensaje", la excepción interna y la ubicación (como en .NET).
-        public string ToString() => Describe(this);
+        public func ToString() -> string => Describe(this);
 
-        public static string Describe(Exception e)
+        public static func Describe(e: Exception) -> string
         {
             string s = e.Message.Length > 0 ? e.TypeName + ": " + e.Message : e.TypeName;
             if (e.InnerException != null)
@@ -70,25 +70,25 @@ namespace std
     [ExceptionBase("Exception")]
     public class ArgumentException
     {
-        public string ParamName;  // parámetro que causó el error (o "")
+        public var ParamName: string;  // parámetro que causó el error (o "")
 
-        public ArgumentException() { Message = "El valor no está dentro del intervalo esperado."; }
-        public ArgumentException(string message) { Message = message; }
-        public ArgumentException(string message, Exception innerException)
+        public init() { Message = "El valor no está dentro del intervalo esperado."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
-        public ArgumentException(string message, string paramName)
+        public init(message: string, paramName: string)
         {
             Message = WithParam(message, paramName);
             ParamName = paramName;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
 
         // "mensaje (Parámetro 'x')"
-        public static string WithParam(string message, string paramName)
+        public static func WithParam(message: string, paramName: string) -> string
         {
             if (paramName.Length == 0) return message;
             return message + " (Parámetro '" + paramName + "')";
@@ -98,210 +98,210 @@ namespace std
     [ExceptionBase("ArgumentException")]
     public class ArgumentNullException
     {
-        public ArgumentNullException() { Message = "El valor no puede ser nulo."; }
-        public ArgumentNullException(string paramName)
+        public init() { Message = "El valor no puede ser nulo."; }
+        public init(paramName: string)
         {
             Message = ArgumentException.WithParam("El valor no puede ser nulo.", paramName);
             ParamName = paramName;
         }
-        public ArgumentNullException(string paramName, string message)
+        public init(paramName: string, message: string)
         {
             Message = ArgumentException.WithParam(message, paramName);
             ParamName = paramName;
         }
-        public ArgumentNullException(string message, Exception innerException)
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("ArgumentException")]
     public class ArgumentOutOfRangeException
     {
-        public ArgumentOutOfRangeException() { Message = "El argumento está fuera del intervalo de valores válidos."; }
-        public ArgumentOutOfRangeException(string paramName)
+        public init() { Message = "El argumento está fuera del intervalo de valores válidos."; }
+        public init(paramName: string)
         {
             Message = ArgumentException.WithParam("El argumento está fuera del intervalo de valores válidos.", paramName);
             ParamName = paramName;
         }
-        public ArgumentOutOfRangeException(string paramName, string message)
+        public init(paramName: string, message: string)
         {
             Message = ArgumentException.WithParam(message, paramName);
             ParamName = paramName;
         }
-        public ArgumentOutOfRangeException(string message, Exception innerException)
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // ---------------------------------------------------------------- estado y formato
     [ExceptionBase("Exception")]
     public class InvalidOperationException
     {
-        public InvalidOperationException() { Message = "La operación no es válida en el estado actual del objeto."; }
-        public InvalidOperationException(string message) { Message = message; }
-        public InvalidOperationException(string message, Exception innerException)
+        public init() { Message = "La operación no es válida en el estado actual del objeto."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class FormatException
     {
-        public FormatException() { Message = "El formato no es válido."; }
-        public FormatException(string message) { Message = message; }
-        public FormatException(string message, Exception innerException)
+        public init() { Message = "El formato no es válido."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class NotImplementedException
     {
-        public NotImplementedException() { Message = "El método o la operación no están implementados."; }
-        public NotImplementedException(string message) { Message = message; }
-        public NotImplementedException(string message, Exception innerException)
+        public init() { Message = "El método o la operación no están implementados."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class NotSupportedException
     {
-        public NotSupportedException() { Message = "La operación no está soportada."; }
-        public NotSupportedException(string message) { Message = message; }
-        public NotSupportedException(string message, Exception innerException)
+        public init() { Message = "La operación no está soportada."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class KeyNotFoundException
     {
-        public KeyNotFoundException() { Message = "La clave no existe en el diccionario."; }
-        public KeyNotFoundException(string message) { Message = message; }
-        public KeyNotFoundException(string message, Exception innerException)
+        public init() { Message = "La clave no existe en el diccionario."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class TimeoutException
     {
-        public TimeoutException() { Message = "Se agotó el tiempo de espera de la operación."; }
-        public TimeoutException(string message) { Message = message; }
-        public TimeoutException(string message, Exception innerException)
+        public init() { Message = "Se agotó el tiempo de espera de la operación."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class OperationCanceledException
     {
-        public OperationCanceledException() { Message = "Se canceló la operación."; }
-        public OperationCanceledException(string message) { Message = message; }
-        public OperationCanceledException(string message, Exception innerException)
+        public init() { Message = "Se canceló la operación."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class InvalidCastException
     {
-        public InvalidCastException() { Message = "La conversión especificada no es válida."; }
-        public InvalidCastException(string message) { Message = message; }
-        public InvalidCastException(string message, Exception innerException)
+        public init() { Message = "La conversión especificada no es válida."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // ---------------------------------------------------------------- entrada/salida
     [ExceptionBase("Exception")]
     public class IOException
     {
-        public IOException() { Message = "Error de entrada/salida."; }
-        public IOException(string message) { Message = message; }
-        public IOException(string message, Exception innerException)
+        public init() { Message = "Error de entrada/salida."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("IOException")]
     public class FileNotFoundException
     {
-        public string FileName;  // ruta que no se encontró (o "")
+        public var FileName: string;  // ruta que no se encontró (o "")
 
-        public FileNotFoundException() { Message = "No se encontró el archivo."; }
-        public FileNotFoundException(string message) { Message = message; }
-        public FileNotFoundException(string message, string fileName)
+        public init() { Message = "No se encontró el archivo."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, fileName: string)
         {
             Message = message;
             FileName = fileName;
         }
-        public FileNotFoundException(string message, Exception innerException)
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("IOException")]
     public class DirectoryNotFoundException
     {
-        public DirectoryNotFoundException() { Message = "No se encontró el directorio."; }
-        public DirectoryNotFoundException(string message) { Message = message; }
-        public DirectoryNotFoundException(string message, Exception innerException)
+        public init() { Message = "No se encontró el directorio."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     // ---------------------------------------------------------------- errores del runtime
@@ -309,70 +309,70 @@ namespace std
     [ExceptionBase("Exception")]
     public class NullReferenceException
     {
-        public NullReferenceException() { Message = "referencia nula (null): el objeto no existe"; }
-        public NullReferenceException(string message) { Message = message; }
-        public NullReferenceException(string message, Exception innerException)
+        public init() { Message = "referencia nula (null): el objeto no existe"; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class IndexOutOfRangeException
     {
-        public IndexOutOfRangeException() { Message = "índice fuera de rango"; }
-        public IndexOutOfRangeException(string message) { Message = message; }
-        public IndexOutOfRangeException(string message, Exception innerException)
+        public init() { Message = "índice fuera de rango"; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("Exception")]
     public class ArithmeticException
     {
-        public ArithmeticException() { Message = "Error en una operación aritmética."; }
-        public ArithmeticException(string message) { Message = message; }
-        public ArithmeticException(string message, Exception innerException)
+        public init() { Message = "Error en una operación aritmética."; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("ArithmeticException")]
     public class DivideByZeroException
     {
-        public DivideByZeroException() { Message = "división entera por cero"; }
-        public DivideByZeroException(string message) { Message = message; }
-        public DivideByZeroException(string message, Exception innerException)
+        public init() { Message = "división entera por cero"; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 
     [ExceptionBase("ArithmeticException")]
     public class OverflowException
     {
-        public OverflowException() { Message = "desbordamiento en una operación aritmética"; }
-        public OverflowException(string message) { Message = message; }
-        public OverflowException(string message, Exception innerException)
+        public init() { Message = "desbordamiento en una operación aritmética"; }
+        public init(message: string) { Message = message; }
+        public init(message: string, innerException: Exception)
         {
             Message = message;
             InnerException = innerException;
         }
 
-        public string ToString() => Exception.Describe(this);
+        public func ToString() -> string => Exception.Describe(this);
     }
 }

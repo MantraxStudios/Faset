@@ -35,20 +35,20 @@ namespace std.ui
     // Los píxeles viven en memoria que el recolector no recorre (Memory.AllocBytes).
     public memory_unsafe class Image
     {
-        public int Width;
-        public int Height;
+        public var Width: int;
+        public var Height: int;
         public uint* Pixels;
-        public string Path = "";                 // archivo del que se cargó ("" si se creó en memoria)
-        public static string LastError = "";     // motivo del último Load/FromFile fallido
+        public var Path: string = "";                 // archivo del que se cargó ("" si se creó en memoria)
+        public static var LastError: string = "";     // motivo del último Load/FromFile fallido
 
-        static Dictionary<string, Image> cache = new Dictionary<string, Image>();
+        static var cache: Dictionary<string, Image> = new Dictionary<string, Image>();
 
         // Copias para dibujar: alfa premultiplicado y reducciones a la mitad (mipmaps).
         uint* premul;
-        bool dirty = true;
-        Image half;
+        var dirty: bool = true;
+        var half: Image;
 
-        public Image(int width, int height)
+        public init(width: int, height: int)
         {
             Width = width < 1 ? 1 : width;
             Height = height < 1 ? 1 : height;
@@ -57,7 +57,7 @@ namespace std.ui
         }
 
         // Lee y decodifica un archivo (sin caché). null si no existe o no es una imagen válida.
-        public static Image Load(string path)
+        public static func Load(path: string) -> Image
         {
             byte* data = null;
             long len = 0;
@@ -78,7 +78,7 @@ namespace std.ui
         }
 
         // Como Load, pero reutiliza la imagen si ya se cargó ese archivo.
-        public static Image FromFile(string path)
+        public static func FromFile(path: string) -> Image
         {
             Image img;
             if (cache.TryGetValue(path, out img)) return img;
@@ -104,7 +104,7 @@ namespace std.ui
         }
 
         // Ruta real de un archivo de imagen ("" si no está en ninguna de las carpetas de búsqueda).
-        public static string Resolve(string path)
+        public static func Resolve(path: string) -> string
         {
             if (path.Length == 0) return "";
             if (File.Exists(path)) return path;
@@ -138,16 +138,16 @@ namespace std.ui
         }
 #endif
 
-        public uint GetPixel(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height ? Pixels[(long)y * Width + x] : 0;
+        public func GetPixel(x: int, y: int) -> uint => x >= 0 && y >= 0 && x < Width && y < Height ? Pixels[(long)y * Width + x] : 0;
 
-        public void SetPixel(int x, int y, uint argb)
+        public func SetPixel(x: int, y: int, argb: uint)
         {
             if (x < 0 || y < 0 || x >= Width || y >= Height) return;
             Pixels[(long)y * Width + x] = argb;
             dirty = true;
         }
 
-        public void Fill(uint argb)
+        public func Fill(argb: uint)
         {
             long n = (long)Width * Height;
             for (long i = 0; i < n; i++) Pixels[i] = argb;
@@ -155,9 +155,9 @@ namespace std.ui
         }
 
         // Avisa de que se cambiaron los píxeles directamente (Pixels[i] = ...).
-        public void Changed() { dirty = true; }
+        public func Changed() { dirty = true; }
 
-        public Image Clone()
+        public func Clone() -> Image
         {
             Image c = new Image(Width, Height);
             Memory.Copy(c.Pixels, Pixels, (long)Width * Height * 4);
@@ -183,7 +183,7 @@ namespace std.ui
             }
         }
 
-        static uint Premultiply(uint c)
+        static func Premultiply(c: uint) -> uint
         {
             uint a = c >> 24;
             if (a == 255) return c;
@@ -193,7 +193,7 @@ namespace std.ui
         }
 
         // Nivel de detalle para reducir 'factor' veces sin parpadeo (cada nivel es la mitad del anterior).
-        internal Image Level(float factor, out float scale)
+        internal func Level(factor: float, out scale: float) -> Image
         {
             Image img = this;
             scale = 1;
@@ -208,7 +208,7 @@ namespace std.ui
         }
 
         // Reducción 2x2 por promedio (sobre los valores premultiplicados).
-        Image Half()
+        func Half() -> Image
         {
             if (half != null && !dirty) return half;
             uint* src = Premultiplied;
@@ -242,14 +242,14 @@ namespace std.ui
     public memory_unsafe partial class Canvas
     {
         // Dibuja la imagen entera en (x, y) a su tamaño natural.
-        public void DrawImage(Image img, float x, float y)
+        public func DrawImage(img: Image, x: float, y: float)
         {
             if (img == null) return;
             DrawImage(img, 0, 0, img.Width, img.Height, x, y, img.Width, img.Height, 1);
         }
 
         // Dibuja la imagen entera escalada al rectángulo (filtro bilineal).
-        public void DrawImage(Image img, float x, float y, float w, float h)
+        public func DrawImage(img: Image, x: float, y: float, w: float, h: float)
         {
             if (img == null) return;
             DrawImage(img, 0, 0, img.Width, img.Height, x, y, w, h, 1);
@@ -257,7 +257,7 @@ namespace std.ui
 
         // Dibuja la región (sx, sy, sw, sh) de la imagen (en píxeles de la imagen) en el rectángulo
         // (x, y, w, h) del lienzo, con opacidad 0..1. Escala con filtro bilineal (y mipmaps al reducir).
-        public void DrawImage(Image img, float sx, float sy, float sw, float sh, float x, float y, float w, float h, float opacity)
+        public func DrawImage(img: Image, sx: float, sy: float, sw: float, sh: float, x: float, y: float, w: float, h: float, opacity: float)
         {
             if (img == null || img.Pixels == null || w <= 0 || h <= 0 || sw <= 0 || sh <= 0 || opacity <= 0) return;
             float X0 = x * Scale, Y0 = y * Scale, X1 = (x + w) * Scale, Y1 = (y + h) * Scale;
@@ -319,9 +319,9 @@ namespace std.ui
             }
         }
 
-        static uint Lerp8(uint a, uint b, uint t) => (a * (256 - t) + b * t) >> 8;
+        static func Lerp8(a: uint, b: uint, t: uint) -> uint => (a * (256 - t) + b * t) >> 8;
 
-        static uint Bilerp(uint p00, uint p10, uint p01, uint p11, uint fx, uint fy)
+        static func Bilerp(p00: uint, p10: uint, p01: uint, p11: uint, fx: uint, fy: uint) -> uint
         {
             if (fx == 0 && fy == 0) return p00;
             uint r = 0;
@@ -334,7 +334,7 @@ namespace std.ui
             return r;
         }
 
-        static uint ScalePremul(uint c, uint k)
+        static func ScalePremul(c: uint, k: uint) -> uint
         {
             uint r = 0;
             for (int sh = 0; sh < 32; sh += 8) r |= ((((c >> sh) & 255) * k) >> 8) << sh;
@@ -344,18 +344,18 @@ namespace std.ui
 
     public memory_unsafe partial class Widget
     {
-        Image image;
-        string source = "";
-        public PictureSizeMode SizeMode = PictureSizeMode.Normal;   // PictureBox
-        public Image Icon;                                          // Button y MenuItem: icono a la izquierda del texto
+        var image: Image;
+        var source: string = "";
+        public var SizeMode: PictureSizeMode = PictureSizeMode.Normal;   // PictureBox
+        public var Icon: Image;                                          // Button y MenuItem: icono a la izquierda del texto
 
         // PictureBox: imagen que se muestra (null = ninguna).
-        public Image Image { get => image; set { image = value; Invalidate(); } }
+        public prop Image: Image { get => image; set { image = value; Invalidate(); } }
 
         // PictureBox: archivo de la imagen; al asignarlo se carga (con caché). Si no se puede
         // leer, Image queda en null y Image.LastError dice por qué.
         // WebView: dirección de la página (asignarla navega).
-        public string Source
+        public prop Source: string
         {
             get => Kind == WidgetKind.WebView ? webSource : source;
             set
@@ -372,7 +372,7 @@ namespace std.ui
         }
 
         // Button: icono (opcional) y texto centrados.
-        void DrawButtonContent(Canvas c, UiFont font, float fx, float fy, float fw, float fh, uint fg, bool pressed)
+        func DrawButtonContent(c: Canvas, font: UiFont, fx: float, fy: float, fw: float, fh: float, fg: uint, pressed: bool)
         {
             float tw = font.Measure(text);
             float baseline = fy + (fh - font.LineHeight) / 2 + font.Ascent + (pressed ? 1 : 0);
@@ -391,7 +391,7 @@ namespace std.ui
         }
 
         // Tamaño del icono: el natural si cabe en 'room' de alto; si no, reducido conservando la proporción.
-        internal static void IconSize(Image img, float room, out float w, out float h)
+        internal static func IconSize(img: Image, room: float, out w: float, out h: float)
         {
             w = img.Width;
             h = img.Height;
@@ -403,7 +403,7 @@ namespace std.ui
             }
         }
 
-        void DrawPictureBox(Canvas c, Palette p, float fx, float fy, float fw, float fh)
+        func DrawPictureBox(c: Canvas, p: Palette, fx: float, fy: float, fw: float, fh: float)
         {
             float r = CornerRadius >= 0 ? CornerRadius : 0;
             if (Background != 0) FillBackground(c, fx, fy, fw, fh, r, 0);

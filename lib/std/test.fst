@@ -38,17 +38,17 @@ namespace std.test
     // (HasValues indica si la aserción los compara).
     public class AssertException : Exception
     {
-        public string Expected;
-        public string Actual;
-        public bool HasValues;
+        public var Expected: string;
+        public var Actual: string;
+        public var HasValues: bool;
 
-        public AssertException(string message) : base(message)
+        public init(message: string) : base(message)
         {
             Expected = "";
             Actual = "";
         }
 
-        public AssertException(string message, string expected, string actual) : base(message)
+        public init(message: string, expected: string, actual: string) : base(message)
         {
             Expected = expected;
             Actual = actual;
@@ -60,67 +60,67 @@ namespace std.test
     public static class Assert
     {
         // Texto de un valor para los mensajes (las cadenas, entre comillas).
-        public static string Show<T>(T value) => Describe(value);
-        static string Describe<T>(T value) where T : struct => $"{value}";
-        static string Describe(object value) => value == null ? "null" : value.ToString();
-        static string Describe(string value) => "\"" + value + "\"";
-        static string Describe(bool value) => value ? "true" : "false";
-        static string Describe(char value) => "'" + value + "'";
+        public static func Show<T>(value: T) -> string => Describe(value);
+        static func Describe<T>(value: T) -> string where T : struct => $"{value}";
+        static func Describe(value: object) -> string => value == null ? "null" : value.ToString();
+        static func Describe(value: string) -> string => "\"" + value + "\"";
+        static func Describe(value: bool) -> string => value ? "true" : "false";
+        static func Describe(value: char) -> string => "'" + value + "'";
 
-        static string With(string what, string message) => message.Length > 0 ? what + ": " + message : what;
+        static func With(what: string, message: string) -> string => message.Length > 0 ? what + ": " + message : what;
 
-        [TrackCaller] public static void Equal<T>(T expected, T actual) { Equal(expected, actual, ""); }
-        [TrackCaller] public static void Equal<T>(T expected, T actual, string message)
+        [TrackCaller] public static func Equal<T>(expected: T, actual: T) { Equal(expected, actual, ""); }
+        [TrackCaller] public static func Equal<T>(expected: T, actual: T, message: string)
         {
             if (!(expected == actual))
                 throw new AssertException(With("Assert.Equal: los valores no coinciden", message), Show(expected), Show(actual));
         }
 
         // Enteros y reales de tipos distintos (Assert.Equal(5, x) con 'long x').
-        [TrackCaller] public static void Equal(long expected, long actual) { Equal<long>(expected, actual, ""); }
-        [TrackCaller] public static void Equal(long expected, long actual, string message) { Equal<long>(expected, actual, message); }
-        [TrackCaller] public static void Equal(double expected, double actual) { Equal<double>(expected, actual, ""); }
-        [TrackCaller] public static void Equal(double expected, double actual, string message) { Equal<double>(expected, actual, message); }
+        [TrackCaller] public static func Equal(expected: long, actual: long) { Equal<long>(expected, actual, ""); }
+        [TrackCaller] public static func Equal(expected: long, actual: long, message: string) { Equal<long>(expected, actual, message); }
+        [TrackCaller] public static func Equal(expected: double, actual: double) { Equal<double>(expected, actual, ""); }
+        [TrackCaller] public static func Equal(expected: double, actual: double, message: string) { Equal<double>(expected, actual, message); }
 
-        [TrackCaller] public static void NotEqual<T>(T notExpected, T actual) { NotEqual(notExpected, actual, ""); }
-        [TrackCaller] public static void NotEqual<T>(T notExpected, T actual, string message)
+        [TrackCaller] public static func NotEqual<T>(notExpected: T, actual: T) { NotEqual(notExpected, actual, ""); }
+        [TrackCaller] public static func NotEqual<T>(notExpected: T, actual: T, message: string)
         {
             if (notExpected == actual)
                 throw new AssertException(With("Assert.NotEqual: los valores son iguales", message), "distinto de " + Show(notExpected),
                                           Show(actual));
         }
 
-        [TrackCaller] public static void NotEqual(long notExpected, long actual) { NotEqual<long>(notExpected, actual, ""); }
-        [TrackCaller] public static void NotEqual(double notExpected, double actual) { NotEqual<double>(notExpected, actual, ""); }
+        [TrackCaller] public static func NotEqual(notExpected: long, actual: long) { NotEqual<long>(notExpected, actual, ""); }
+        [TrackCaller] public static func NotEqual(notExpected: double, actual: double) { NotEqual<double>(notExpected, actual, ""); }
 
-        [TrackCaller] public static void True(bool condition) { True(condition, ""); }
-        [TrackCaller] public static void True(bool condition, string message)
+        [TrackCaller] public static func True(condition: bool) { True(condition, ""); }
+        [TrackCaller] public static func True(condition: bool, message: string)
         {
             if (!condition) throw new AssertException(With("Assert.True: la condición es falsa", message), "true", "false");
         }
 
-        [TrackCaller] public static void False(bool condition) { False(condition, ""); }
-        [TrackCaller] public static void False(bool condition, string message)
+        [TrackCaller] public static func False(condition: bool) { False(condition, ""); }
+        [TrackCaller] public static func False(condition: bool, message: string)
         {
             if (condition) throw new AssertException(With("Assert.False: la condición es verdadera", message), "false", "true");
         }
 
         // Objetos (clases); 'null' de un T? se comprueba con Assert.False(x.HasValue).
-        [TrackCaller] public static void Null(object value) { Null(value, ""); }
-        [TrackCaller] public static void Null(object value, string message)
+        [TrackCaller] public static func Null(value: object) { Null(value, ""); }
+        [TrackCaller] public static func Null(value: object, message: string)
         {
             if (value != null) throw new AssertException(With("Assert.Null: el valor no es null", message), "null", Show(value));
         }
 
-        [TrackCaller] public static void NotNull(object value) { NotNull(value, ""); }
-        [TrackCaller] public static void NotNull(object value, string message)
+        [TrackCaller] public static func NotNull(value: object) { NotNull(value, ""); }
+        [TrackCaller] public static func NotNull(value: object, message: string)
         {
             if (value == null) throw new AssertException(With("Assert.NotNull: el valor es null", message), "distinto de null", "null");
         }
 
         // |expected - actual| <= tolerance (para double y float).
-        [TrackCaller] public static void Near(double expected, double actual, double tolerance) { Near(expected, actual, tolerance, ""); }
-        [TrackCaller] public static void Near(double expected, double actual, double tolerance, string message)
+        [TrackCaller] public static func Near(expected: double, actual: double, tolerance: double) { Near(expected, actual, tolerance, ""); }
+        [TrackCaller] public static func Near(expected: double, actual: double, tolerance: double, message: string)
         {
             double d = expected - actual;
             if (d < 0) d = -d;
@@ -130,7 +130,7 @@ namespace std.test
         }
 
         // La cadena contiene el fragmento.
-        [TrackCaller] public static void Contains(string expectedSubstring, string actual)
+        [TrackCaller] public static func Contains(expectedSubstring: string, actual: string)
         {
             if (!actual.Contains(expectedSubstring))
                 throw new AssertException("Assert.Contains: la cadena no contiene el fragmento", "contiene " + Show(expectedSubstring),
@@ -138,21 +138,21 @@ namespace std.test
         }
 
         // La lista contiene el elemento.
-        [TrackCaller] public static void Contains<T>(T expected, List<T> collection)
+        [TrackCaller] public static func Contains<T>(expected: T, collection: List<T>)
         {
             if (!collection.Contains(expected))
                 throw new AssertException("Assert.Contains: la lista no contiene el elemento", "contiene " + Show(expected),
                                           collection.Count + " elemento(s)");
         }
 
-        [TrackCaller] public static void DoesNotContain(string unexpectedSubstring, string actual)
+        [TrackCaller] public static func DoesNotContain(unexpectedSubstring: string, actual: string)
         {
             if (actual.Contains(unexpectedSubstring))
                 throw new AssertException("Assert.DoesNotContain: la cadena contiene el fragmento",
                                           "no contiene " + Show(unexpectedSubstring), Show(actual));
         }
 
-        [TrackCaller] public static void DoesNotContain<T>(T unexpected, List<T> collection)
+        [TrackCaller] public static func DoesNotContain<T>(unexpected: T, collection: List<T>)
         {
             if (collection.Contains(unexpected))
                 throw new AssertException("Assert.DoesNotContain: la lista contiene el elemento", "no contiene " + Show(unexpected),
@@ -160,7 +160,7 @@ namespace std.test
         }
 
         // La acción lanza una excepción de tipo E (o derivada); la devuelve para seguir comprobándola.
-        [TrackCaller] public static E Throws<E>(Action action)
+        [TrackCaller] public static func Throws<E>(action: Action) -> E
         {
             try
             {
@@ -178,8 +178,8 @@ namespace std.test
         }
 
         // Falla siempre.
-        [TrackCaller] public static void Fail(string message) { throw new AssertException("Assert.Fail: " + message); }
-        [TrackCaller] public static void Fail() { throw new AssertException("Assert.Fail"); }
+        [TrackCaller] public static func Fail(message: string) { throw new AssertException("Assert.Fail: " + message); }
+        [TrackCaller] public static func Fail() { throw new AssertException("Assert.Fail"); }
     }
 
     // ---------------------------------------------------------------- TestHarness
@@ -187,18 +187,18 @@ namespace std.test
     // prueba en la salida estándar con líneas "##faset-test## ..." que lee el ejecutor.
     public class TestHarness
     {
-        int from;
-        int current;
-        long started;
+        var from: int;
+        var current: int;
+        var started: long;
 
-        public TestHarness()
+        public init()
         {
             for (int i = 1; i + 1 < Environment.ArgCount(); i++)
                 if (Environment.GetArg(i) == "--faset-test-desde") from = Environment.GetArg(i + 1).ToInt();
         }
 
         // ¿Hay que ejecutar la prueba 'index'? (tras un panic se sigue desde la siguiente)
-        public bool Start(int index)
+        public func Start(index: int) -> bool
         {
             if (index < from) return false;
             current = index;
@@ -207,9 +207,9 @@ namespace std.test
             return true;
         }
 
-        public void Pass() { Emit("pass " + current + " " + Micros()); }
+        public func Pass() { Emit("pass " + current + " " + Micros()); }
 
-        public void Fail(Exception e)
+        public func Fail(e: Exception)
         {
             long us = Micros();
             Emit("type " + current + " " + Escape(e.TypeName));
@@ -226,17 +226,17 @@ namespace std.test
             Emit("fail " + current + " " + us);
         }
 
-        public int Finish()
+        public func Finish() -> int
         {
             Emit("end");
             return 0;
         }
 
-        long Micros() => (Time.TickNs() - started) / 1000;
+        func Micros() -> long => (Time.TickNs() - started) / 1000;
 
-        static string Escape(string s) => Text.Replace(Text.Replace(Text.Replace(s, "\\", "\\\\"), "\r", "\\r"), "\n", "\\n");
+        static func Escape(s: string) -> string => Text.Replace(Text.Replace(Text.Replace(s, "\\", "\\\\"), "\r", "\\r"), "\n", "\\n");
 
-        static void Emit(string line)
+        static func Emit(line: string)
         {
             Console.WriteLine("##faset-test## " + line);
             Console.Flush();

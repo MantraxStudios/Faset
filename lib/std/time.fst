@@ -26,18 +26,18 @@ namespace std.time
     public memory_unsafe static class Time
     {
         // Milisegundos desde un punto arbitrario (monótono: para medir intervalos).
-        public static long TickMs() => faset_ticks_ms();
+        public static func TickMs() -> long => faset_ticks_ms();
         // Nanosegundos desde un punto arbitrario (monótono, alta resolución).
-        public static long TickNs() => faset_ticks_ns();
+        public static func TickNs() -> long => faset_ticks_ns();
         // Milisegundos desde 1970-01-01 UTC.
-        public static long NowUnixMs() => faset_time_unix_ms();
-        public static long NowUnixSeconds() => faset_time_unix_ms() / 1000;
+        public static func NowUnixMs() -> long => faset_time_unix_ms();
+        public static func NowUnixSeconds() -> long => faset_time_unix_ms() / 1000;
         // Nanosegundos desde 1970-01-01 UTC (la precisión real depende del sistema).
-        public static long NowUnixNs() => faset_time_unix_ns();
-        public static void Sleep(long milliseconds) { faset_sleep_ms(milliseconds); }
-        public static void Sleep(TimeSpan duration) { faset_sleep_ms(duration.Ticks / TimeSpan.TicksPerMillisecond); }
+        public static func NowUnixNs() -> long => faset_time_unix_ns();
+        public static func Sleep(milliseconds: long) { faset_sleep_ms(milliseconds); }
+        public static func Sleep(duration: TimeSpan) { faset_sleep_ms(duration.Ticks / TimeSpan.TicksPerMillisecond); }
         // Desfase actual de la hora local respecto a UTC, en segundos (p. ej. 3600 para UTC+1).
-        public static int LocalOffsetSeconds() => faset_tz_offset_sec(faset_time_unix_ms() / 1000);
+        public static func LocalOffsetSeconds() -> int => faset_tz_offset_sec(faset_time_unix_ms() / 1000);
     }
 
     // ---------------------------------------------------------------- TimeSpan
@@ -51,69 +51,69 @@ namespace std.time
         public const long TicksPerHour = 36000000000;
         public const long TicksPerDay = 864000000000;
 
-        long ticks;
+        var ticks: long;
 
-        public TimeSpan(long ticks) { this.ticks = ticks; }
-        public TimeSpan(int hours, int minutes, int seconds)
+        public init(ticks: long) { this.ticks = ticks; }
+        public init(hours: int, minutes: int, seconds: int)
         {
             ticks = hours * TicksPerHour + minutes * TicksPerMinute + seconds * TicksPerSecond;
         }
-        public TimeSpan(int days, int hours, int minutes, int seconds)
+        public init(days: int, hours: int, minutes: int, seconds: int)
         {
             ticks = days * TicksPerDay + hours * TicksPerHour + minutes * TicksPerMinute + seconds * TicksPerSecond;
         }
-        public TimeSpan(int days, int hours, int minutes, int seconds, int milliseconds)
+        public init(days: int, hours: int, minutes: int, seconds: int, milliseconds: int)
         {
             ticks = days * TicksPerDay + hours * TicksPerHour + minutes * TicksPerMinute + seconds * TicksPerSecond +
                     milliseconds * TicksPerMillisecond;
         }
 
-        public static TimeSpan Zero => new TimeSpan(0);
-        public static TimeSpan FromTicks(long ticks) => new TimeSpan(ticks);
-        public static TimeSpan FromDays(double v) => new TimeSpan(Round(v * TicksPerDay));
-        public static TimeSpan FromHours(double v) => new TimeSpan(Round(v * TicksPerHour));
-        public static TimeSpan FromMinutes(double v) => new TimeSpan(Round(v * TicksPerMinute));
-        public static TimeSpan FromSeconds(double v) => new TimeSpan(Round(v * TicksPerSecond));
-        public static TimeSpan FromMilliseconds(double v) => new TimeSpan(Round(v * TicksPerMillisecond));
-        public static TimeSpan FromMicroseconds(double v) => new TimeSpan(Round(v * TicksPerMicrosecond));
+        public static prop Zero: TimeSpan => new TimeSpan(0);
+        public static func FromTicks(ticks: long) -> TimeSpan => new TimeSpan(ticks);
+        public static func FromDays(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerDay));
+        public static func FromHours(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerHour));
+        public static func FromMinutes(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerMinute));
+        public static func FromSeconds(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerSecond));
+        public static func FromMilliseconds(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerMillisecond));
+        public static func FromMicroseconds(v: double) -> TimeSpan => new TimeSpan(Round(v * TicksPerMicrosecond));
 
-        static long Round(double v) => (long)(v >= 0 ? v + 0.5 : v - 0.5);
+        static func Round(v: double) -> long => (long)(v >= 0 ? v + 0.5 : v - 0.5);
 
-        public long Ticks => ticks;
+        public prop Ticks: long => ticks;
         // Componentes (con el signo de la duración).
-        public int Days => (int)(ticks / TicksPerDay);
-        public int Hours => (int)(ticks / TicksPerHour % 24);
-        public int Minutes => (int)(ticks / TicksPerMinute % 60);
-        public int Seconds => (int)(ticks / TicksPerSecond % 60);
-        public int Milliseconds => (int)(ticks / TicksPerMillisecond % 1000);
+        public prop Days: int => (int)(ticks / TicksPerDay);
+        public prop Hours: int => (int)(ticks / TicksPerHour % 24);
+        public prop Minutes: int => (int)(ticks / TicksPerMinute % 60);
+        public prop Seconds: int => (int)(ticks / TicksPerSecond % 60);
+        public prop Milliseconds: int => (int)(ticks / TicksPerMillisecond % 1000);
         // Totales en la unidad indicada.
-        public double TotalDays => (double)ticks / TicksPerDay;
-        public double TotalHours => (double)ticks / TicksPerHour;
-        public double TotalMinutes => (double)ticks / TicksPerMinute;
-        public double TotalSeconds => (double)ticks / TicksPerSecond;
-        public double TotalMilliseconds => (double)ticks / TicksPerMillisecond;
-        public long TotalMillisecondsLong => ticks / TicksPerMillisecond;
+        public prop TotalDays: double => (double)ticks / TicksPerDay;
+        public prop TotalHours: double => (double)ticks / TicksPerHour;
+        public prop TotalMinutes: double => (double)ticks / TicksPerMinute;
+        public prop TotalSeconds: double => (double)ticks / TicksPerSecond;
+        public prop TotalMilliseconds: double => (double)ticks / TicksPerMillisecond;
+        public prop TotalMillisecondsLong: long => ticks / TicksPerMillisecond;
 
-        public TimeSpan Add(TimeSpan o) => new TimeSpan(ticks + o.ticks);
-        public TimeSpan Subtract(TimeSpan o) => new TimeSpan(ticks - o.ticks);
-        public TimeSpan Negate() => new TimeSpan(-ticks);
-        public TimeSpan Duration() => new TimeSpan(ticks < 0 ? -ticks : ticks);
-        public int CompareTo(TimeSpan o) => ticks < o.ticks ? -1 : (ticks > o.ticks ? 1 : 0);
+        public func Add(o: TimeSpan) -> TimeSpan => new TimeSpan(ticks + o.ticks);
+        public func Subtract(o: TimeSpan) -> TimeSpan => new TimeSpan(ticks - o.ticks);
+        public func Negate() -> TimeSpan => new TimeSpan(-ticks);
+        public func Duration() -> TimeSpan => new TimeSpan(ticks < 0 ? -ticks : ticks);
+        public func CompareTo(o: TimeSpan) -> int => ticks < o.ticks ? -1 : (ticks > o.ticks ? 1 : 0);
 
-        public static TimeSpan operator +(TimeSpan a, TimeSpan b) => new TimeSpan(a.ticks + b.ticks);
-        public static TimeSpan operator -(TimeSpan a, TimeSpan b) => new TimeSpan(a.ticks - b.ticks);
-        public static TimeSpan operator -(TimeSpan a) => new TimeSpan(-a.ticks);
-        public static TimeSpan operator *(TimeSpan a, double k) => new TimeSpan(Round(a.ticks * k));
-        public static TimeSpan operator /(TimeSpan a, double k) => new TimeSpan(Round(a.ticks / k));
-        public static bool operator ==(TimeSpan a, TimeSpan b) => a.ticks == b.ticks;
-        public static bool operator !=(TimeSpan a, TimeSpan b) => a.ticks != b.ticks;
-        public static bool operator <(TimeSpan a, TimeSpan b) => a.ticks < b.ticks;
-        public static bool operator >(TimeSpan a, TimeSpan b) => a.ticks > b.ticks;
-        public static bool operator <=(TimeSpan a, TimeSpan b) => a.ticks <= b.ticks;
-        public static bool operator >=(TimeSpan a, TimeSpan b) => a.ticks >= b.ticks;
+        public operator +(a: TimeSpan, b: TimeSpan) -> TimeSpan => new TimeSpan(a.ticks + b.ticks);
+        public operator -(a: TimeSpan, b: TimeSpan) -> TimeSpan => new TimeSpan(a.ticks - b.ticks);
+        public operator -(a: TimeSpan) -> TimeSpan => new TimeSpan(-a.ticks);
+        public operator *(a: TimeSpan, k: double) -> TimeSpan => new TimeSpan(Round(a.ticks * k));
+        public operator /(a: TimeSpan, k: double) -> TimeSpan => new TimeSpan(Round(a.ticks / k));
+        public operator ==(a: TimeSpan, b: TimeSpan) -> bool => a.ticks == b.ticks;
+        public operator !=(a: TimeSpan, b: TimeSpan) -> bool => a.ticks != b.ticks;
+        public operator <(a: TimeSpan, b: TimeSpan) -> bool => a.ticks < b.ticks;
+        public operator >(a: TimeSpan, b: TimeSpan) -> bool => a.ticks > b.ticks;
+        public operator <=(a: TimeSpan, b: TimeSpan) -> bool => a.ticks <= b.ticks;
+        public operator >=(a: TimeSpan, b: TimeSpan) -> bool => a.ticks >= b.ticks;
 
         // "[-][d.]hh:mm:ss[.fffffff]" (como el formato "c" de C#).
-        public string ToString()
+        public func ToString() -> string
         {
             StringBuilder sb = new StringBuilder();
             long t = ticks;
@@ -161,33 +161,33 @@ namespace std.time
         public const long UnixEpochTicks = 621355968000000000; // 1970-01-01
         const long DaysTo1970 = 719162;
 
-        long ticks;
-        DateTimeKind kind;
+        var ticks: long;
+        var kind: DateTimeKind;
 
-        public DateTime(long ticks) { Init(ticks, DateTimeKind.Unspecified); }
-        public DateTime(long ticks, DateTimeKind kind) { Init(ticks, kind); }
-        public DateTime(int year, int month, int day) { InitDate(year, month, day, 0, 0, 0, 0, DateTimeKind.Unspecified); }
-        public DateTime(int year, int month, int day, int hour, int minute, int second)
+        public init(ticks: long) { Init(ticks, DateTimeKind.Unspecified); }
+        public init(ticks: long, kind: DateTimeKind) { Init(ticks, kind); }
+        public init(year: int, month: int, day: int) { InitDate(year, month, day, 0, 0, 0, 0, DateTimeKind.Unspecified); }
+        public init(year: int, month: int, day: int, hour: int, minute: int, second: int)
         {
             InitDate(year, month, day, hour, minute, second, 0, DateTimeKind.Unspecified);
         }
-        public DateTime(int year, int month, int day, int hour, int minute, int second, int millisecond)
+        public init(year: int, month: int, day: int, hour: int, minute: int, second: int, millisecond: int)
         {
             InitDate(year, month, day, hour, minute, second, millisecond, DateTimeKind.Unspecified);
         }
-        public DateTime(int year, int month, int day, int hour, int minute, int second, int millisecond, DateTimeKind kind)
+        public init(year: int, month: int, day: int, hour: int, minute: int, second: int, millisecond: int, kind: DateTimeKind)
         {
             InitDate(year, month, day, hour, minute, second, millisecond, kind);
         }
 
-        void Init(long t, DateTimeKind k)
+        func Init(t: long, k: DateTimeKind)
         {
             if (t < MinTicks || t > MaxTicks) throw new ArgumentOutOfRangeException("DateTime: fuera del intervalo 0001-9999", null);
             ticks = t;
             kind = k;
         }
 
-        void InitDate(int year, int month, int day, int hour, int minute, int second, int ms, DateTimeKind k)
+        func InitDate(year: int, month: int, day: int, hour: int, minute: int, second: int, ms: int, k: DateTimeKind)
         {
             if (!IsValid(year, month, day, hour, minute, second, ms)) throw new ArgumentOutOfRangeException("DateTime: fecha u hora no válida", null);
             Init(DateTicks(year, month, day) + hour * TimeSpan.TicksPerHour + minute * TimeSpan.TicksPerMinute +
@@ -195,16 +195,16 @@ namespace std.time
         }
 
         // ------------------------------------------------ calendario (gregoriano proléptico)
-        public static bool IsLeapYear(int year) => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+        public static func IsLeapYear(year: int) -> bool => (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
 
-        public static int DaysInMonth(int year, int month)
+        public static func DaysInMonth(year: int, month: int) -> int
         {
             if (month == 2) return IsLeapYear(year) ? 29 : 28;
             if (month == 4 || month == 6 || month == 9 || month == 11) return 30;
             return 31;
         }
 
-        public static bool IsValid(int year, int month, int day, int hour, int minute, int second, int ms)
+        public static func IsValid(year: int, month: int, day: int, hour: int, minute: int, second: int, ms: int) -> bool
         {
             if (year < 1 || year > 9999 || month < 1 || month > 12) return false;
             if (day < 1 || day > DaysInMonth(year, month)) return false;
@@ -212,7 +212,7 @@ namespace std.time
         }
 
         // Días desde 1970-01-01 (algoritmo de H. Hinnant).
-        static long DaysFromCivil(long y, long m, long d)
+        static func DaysFromCivil(y: long, m: long, d: long) -> long
         {
             if (m <= 2) y--;
             long era = (y >= 0 ? y : y - 399) / 400;
@@ -222,10 +222,10 @@ namespace std.time
             return era * 146097 + doe - 719468;
         }
 
-        static long DateTicks(int year, int month, int day) => (DaysFromCivil(year, month, day) + DaysTo1970) * TimeSpan.TicksPerDay;
+        static func DateTicks(year: int, month: int, day: int) -> long => (DaysFromCivil(year, month, day) + DaysTo1970) * TimeSpan.TicksPerDay;
 
         // Año, mes y día de los ticks actuales.
-        void Civil(out int year, out int month, out int day)
+        func Civil(out year: int, out month: int, out day: int)
         {
             long z = ticks / TimeSpan.TicksPerDay - DaysTo1970 + 719468;
             long era = (z >= 0 ? z : z - 146096) / 146097;
@@ -242,9 +242,9 @@ namespace std.time
         }
 
         // ------------------------------------------------ instantes
-        public static DateTime UtcNow => new DateTime(UnixEpochTicks + faset_time_unix_ns() / 100, DateTimeKind.Utc);
+        public static prop UtcNow: DateTime => new DateTime(UnixEpochTicks + faset_time_unix_ns() / 100, DateTimeKind.Utc);
 
-        public static DateTime Now
+        public static prop Now: DateTime
         {
             get
             {
@@ -254,31 +254,31 @@ namespace std.time
             }
         }
 
-        public static DateTime Today => Now.Date;
-        public static DateTime UnixEpoch => new DateTime(UnixEpochTicks, DateTimeKind.Utc);
-        public static DateTime MinValue => new DateTime(MinTicks);
-        public static DateTime MaxValue => new DateTime(MaxTicks);
+        public static prop Today: DateTime => Now.Date;
+        public static prop UnixEpoch: DateTime => new DateTime(UnixEpochTicks, DateTimeKind.Utc);
+        public static prop MinValue: DateTime => new DateTime(MinTicks);
+        public static prop MaxValue: DateTime => new DateTime(MaxTicks);
 
         // ------------------------------------------------ marcas de tiempo Unix (resultado en UTC)
-        public static DateTime FromUnixSeconds(long seconds) => new DateTime(UnixEpochTicks + seconds * TimeSpan.TicksPerSecond, DateTimeKind.Utc);
-        public static DateTime FromUnixMs(long ms) => new DateTime(UnixEpochTicks + ms * TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
+        public static func FromUnixSeconds(seconds: long) -> DateTime => new DateTime(UnixEpochTicks + seconds * TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+        public static func FromUnixMs(ms: long) -> DateTime => new DateTime(UnixEpochTicks + ms * TimeSpan.TicksPerMillisecond, DateTimeKind.Utc);
 
         // Una hora local se convierte antes a UTC; una sin especificar se toma como UTC.
-        public long ToUnixSeconds() => FloorDiv(UtcTicks() - UnixEpochTicks, TimeSpan.TicksPerSecond);
-        public long ToUnixMs() => FloorDiv(UtcTicks() - UnixEpochTicks, TimeSpan.TicksPerMillisecond);
+        public func ToUnixSeconds() -> long => FloorDiv(UtcTicks() - UnixEpochTicks, TimeSpan.TicksPerSecond);
+        public func ToUnixMs() -> long => FloorDiv(UtcTicks() - UnixEpochTicks, TimeSpan.TicksPerMillisecond);
 
-        static long FloorDiv(long a, long b)
+        static func FloorDiv(a: long, b: long) -> long
         {
             long q = a / b;
             if ((a % b != 0) && ((a < 0) != (b < 0))) q--;
             return q;
         }
 
-        long UtcTicks() => kind == DateTimeKind.Local ? ToUniversalTime().ticks : ticks;
+        func UtcTicks() -> long => kind == DateTimeKind.Local ? ToUniversalTime().ticks : ticks;
 
         // ------------------------------------------------ zonas horarias
         // A UTC (una hora sin especificar se considera local, como en C#).
-        public DateTime ToUniversalTime()
+        public func ToUniversalTime() -> DateTime
         {
             if (kind == DateTimeKind.Utc) return this;
             long guess = ticks - TimeZone.OffsetSecondsAt((ticks - UnixEpochTicks) / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond;
@@ -287,23 +287,23 @@ namespace std.time
         }
 
         // A hora local (una hora sin especificar se considera UTC, como en C#).
-        public DateTime ToLocalTime()
+        public func ToLocalTime() -> DateTime
         {
             if (kind == DateTimeKind.Local) return this;
             long off = TimeZone.OffsetSecondsAt((ticks - UnixEpochTicks) / TimeSpan.TicksPerSecond);
             return new DateTime(Clamp(ticks + off * TimeSpan.TicksPerSecond), DateTimeKind.Local);
         }
 
-        static long Clamp(long t) => t < MinTicks ? MinTicks : (t > MaxTicks ? MaxTicks : t);
+        static func Clamp(t: long) -> long => t < MinTicks ? MinTicks : (t > MaxTicks ? MaxTicks : t);
 
         // Misma fecha y hora con otro tipo (no convierte).
-        public DateTime WithKind(DateTimeKind k) => new DateTime(ticks, k);
+        public func WithKind(k: DateTimeKind) -> DateTime => new DateTime(ticks, k);
 
         // ------------------------------------------------ componentes
-        public long Ticks => ticks;
-        public DateTimeKind Kind => kind;
+        public prop Ticks: long => ticks;
+        public prop Kind: DateTimeKind => kind;
 
-        public int Year
+        public prop Year: int
         {
             get
             {
@@ -315,7 +315,7 @@ namespace std.time
             }
         }
 
-        public int Month
+        public prop Month: int
         {
             get
             {
@@ -327,7 +327,7 @@ namespace std.time
             }
         }
 
-        public int Day
+        public prop Day: int
         {
             get
             {
@@ -339,16 +339,16 @@ namespace std.time
             }
         }
 
-        public int Hour => (int)(ticks / TimeSpan.TicksPerHour % 24);
-        public int Minute => (int)(ticks / TimeSpan.TicksPerMinute % 60);
-        public int Second => (int)(ticks / TimeSpan.TicksPerSecond % 60);
-        public int Millisecond => (int)(ticks / TimeSpan.TicksPerMillisecond % 1000);
-        public int Microsecond => (int)(ticks / TimeSpan.TicksPerMicrosecond % 1000);
+        public prop Hour: int => (int)(ticks / TimeSpan.TicksPerHour % 24);
+        public prop Minute: int => (int)(ticks / TimeSpan.TicksPerMinute % 60);
+        public prop Second: int => (int)(ticks / TimeSpan.TicksPerSecond % 60);
+        public prop Millisecond: int => (int)(ticks / TimeSpan.TicksPerMillisecond % 1000);
+        public prop Microsecond: int => (int)(ticks / TimeSpan.TicksPerMicrosecond % 1000);
 
         // 0001-01-01 fue lunes.
-        public DayOfWeek DayOfWeek => (DayOfWeek)(int)((ticks / TimeSpan.TicksPerDay + 1) % 7);
+        public prop DayOfWeek: DayOfWeek => (DayOfWeek)(int)((ticks / TimeSpan.TicksPerDay + 1) % 7);
 
-        public int DayOfYear
+        public prop DayOfYear: int
         {
             get
             {
@@ -361,25 +361,25 @@ namespace std.time
         }
 
         // La fecha a las 00:00:00.
-        public DateTime Date => new DateTime(ticks - ticks % TimeSpan.TicksPerDay, kind);
+        public prop Date: DateTime => new DateTime(ticks - ticks % TimeSpan.TicksPerDay, kind);
         // Tiempo transcurrido desde medianoche.
-        public TimeSpan TimeOfDay => new TimeSpan(ticks % TimeSpan.TicksPerDay);
+        public prop TimeOfDay: TimeSpan => new TimeSpan(ticks % TimeSpan.TicksPerDay);
 
         // ------------------------------------------------ aritmética
-        public DateTime AddTicks(long t) => new DateTime(ticks + t, kind);
-        public DateTime Add(TimeSpan span) => new DateTime(ticks + span.Ticks, kind);
-        public DateTime Subtract(TimeSpan span) => new DateTime(ticks - span.Ticks, kind);
-        public TimeSpan Subtract(DateTime other) => new TimeSpan(ticks - other.ticks);
-        public DateTime AddMilliseconds(double v) => AddTicks(RoundTicks(v * TimeSpan.TicksPerMillisecond));
-        public DateTime AddSeconds(double v) => AddTicks(RoundTicks(v * TimeSpan.TicksPerSecond));
-        public DateTime AddMinutes(double v) => AddTicks(RoundTicks(v * TimeSpan.TicksPerMinute));
-        public DateTime AddHours(double v) => AddTicks(RoundTicks(v * TimeSpan.TicksPerHour));
-        public DateTime AddDays(double v) => AddTicks(RoundTicks(v * TimeSpan.TicksPerDay));
+        public func AddTicks(t: long) -> DateTime => new DateTime(ticks + t, kind);
+        public func Add(span: TimeSpan) -> DateTime => new DateTime(ticks + span.Ticks, kind);
+        public func Subtract(span: TimeSpan) -> DateTime => new DateTime(ticks - span.Ticks, kind);
+        public func Subtract(other: DateTime) -> TimeSpan => new TimeSpan(ticks - other.ticks);
+        public func AddMilliseconds(v: double) -> DateTime => AddTicks(RoundTicks(v * TimeSpan.TicksPerMillisecond));
+        public func AddSeconds(v: double) -> DateTime => AddTicks(RoundTicks(v * TimeSpan.TicksPerSecond));
+        public func AddMinutes(v: double) -> DateTime => AddTicks(RoundTicks(v * TimeSpan.TicksPerMinute));
+        public func AddHours(v: double) -> DateTime => AddTicks(RoundTicks(v * TimeSpan.TicksPerHour));
+        public func AddDays(v: double) -> DateTime => AddTicks(RoundTicks(v * TimeSpan.TicksPerDay));
 
-        static long RoundTicks(double v) => (long)(v >= 0 ? v + 0.5 : v - 0.5);
+        static func RoundTicks(v: double) -> long => (long)(v >= 0 ? v + 0.5 : v - 0.5);
 
         // Suma meses; si el día no existe en el mes de destino se usa el último (31 ene + 1 = 29 feb).
-        public DateTime AddMonths(int months)
+        public func AddMonths(months: int) -> DateTime
         {
             int y = 0;
             int m = 0;
@@ -394,34 +394,34 @@ namespace std.time
             return new DateTime(DateTicks(ny, nm, d) + ticks % TimeSpan.TicksPerDay, kind);
         }
 
-        public DateTime AddYears(int years) => AddMonths(years * 12);
+        public func AddYears(years: int) -> DateTime => AddMonths(years * 12);
 
-        public int CompareTo(DateTime o) => ticks < o.ticks ? -1 : (ticks > o.ticks ? 1 : 0);
+        public func CompareTo(o: DateTime) -> int => ticks < o.ticks ? -1 : (ticks > o.ticks ? 1 : 0);
 
         // Las comparaciones usan solo los ticks (como en C#): no convierten zonas horarias.
-        public static bool operator ==(DateTime a, DateTime b) => a.ticks == b.ticks;
-        public static bool operator !=(DateTime a, DateTime b) => a.ticks != b.ticks;
-        public static bool operator <(DateTime a, DateTime b) => a.ticks < b.ticks;
-        public static bool operator >(DateTime a, DateTime b) => a.ticks > b.ticks;
-        public static bool operator <=(DateTime a, DateTime b) => a.ticks <= b.ticks;
-        public static bool operator >=(DateTime a, DateTime b) => a.ticks >= b.ticks;
-        public static DateTime operator +(DateTime a, TimeSpan b) => new DateTime(a.ticks + b.Ticks, a.kind);
-        public static DateTime operator -(DateTime a, TimeSpan b) => new DateTime(a.ticks - b.Ticks, a.kind);
-        public static TimeSpan operator -(DateTime a, DateTime b) => new TimeSpan(a.ticks - b.ticks);
+        public operator ==(a: DateTime, b: DateTime) -> bool => a.ticks == b.ticks;
+        public operator !=(a: DateTime, b: DateTime) -> bool => a.ticks != b.ticks;
+        public operator <(a: DateTime, b: DateTime) -> bool => a.ticks < b.ticks;
+        public operator >(a: DateTime, b: DateTime) -> bool => a.ticks > b.ticks;
+        public operator <=(a: DateTime, b: DateTime) -> bool => a.ticks <= b.ticks;
+        public operator >=(a: DateTime, b: DateTime) -> bool => a.ticks >= b.ticks;
+        public operator +(a: DateTime, b: TimeSpan) -> DateTime => new DateTime(a.ticks + b.Ticks, a.kind);
+        public operator -(a: DateTime, b: TimeSpan) -> DateTime => new DateTime(a.ticks - b.Ticks, a.kind);
+        public operator -(a: DateTime, b: DateTime) -> TimeSpan => new TimeSpan(a.ticks - b.ticks);
 
         // ------------------------------------------------ texto
         // "yyyy-MM-dd HH:mm:ss".
-        public string ToString() => DateFormat.Format(this, "yyyy-MM-dd HH:mm:ss");
+        public func ToString() -> string => DateFormat.Format(this, "yyyy-MM-dd HH:mm:ss");
 
         // Formato propio, como en C#:
         //   yyyy yy  MMMM MMM MM M  dddd ddd dd d  HH H hh h  mm m  ss s
         //   f..fffffff (fracción)  tt t (AM/PM)  zzz zz z (desfase)  K (Z, +hh:mm o nada)
         //   'texto' o "texto" literal, \x carácter literal; el resto se copia tal cual.
-        public string ToString(string format) => DateFormat.Format(this, format);
+        public func ToString(format: string) -> string => DateFormat.Format(this, format);
 
         // ISO-8601: 2024-02-29T13:45:00Z, 2024-02-29T13:45:00.250+01:00, 2024-02-29T13:45:00
         // (la fracción solo aparece si no es cero).
-        public string ToIsoString()
+        public func ToIsoString() -> string
         {
             long frac = ticks % TimeSpan.TicksPerSecond;
             if (frac == 0) return DateFormat.Format(this, "yyyy-MM-ddTHH:mm:ssK");
@@ -432,13 +432,13 @@ namespace std.time
         // Lee ISO-8601: "YYYY-MM-DD", "YYYY-MM-DDTHH:MM[:SS[.fracción]]" (también con espacio
         // en lugar de 'T'), seguido opcionalmente de "Z" o de un desfase "+hh:mm" / "+hhmm" / "+hh".
         // Con "Z" o desfase el resultado es UTC; sin ellos, sin especificar.
-        public static bool TryParseIso(string s, out DateTime result)
+        public static func TryParseIso(s: string, out result: DateTime) -> bool
         {
             result = new DateTime(0);
             return DateFormat.ParseIso(s.Trim(), out result);
         }
 
-        public static DateTime ParseIso(string s)
+        public static func ParseIso(s: string) -> DateTime
         {
             DateTime d = new DateTime(0);
             if (!TryParseIso(s, out d)) throw new FormatException("DateTime.ParseIso: formato no válido");
@@ -447,14 +447,14 @@ namespace std.time
 
         // Lee 's' con un formato propio (mismos especificadores que ToString, salvo
         // nombres de días). Todo el texto debe coincidir.
-        public static bool TryParseExact(string s, string format, out DateTime result)
+        public static func TryParseExact(s: string, format: string, out result: DateTime) -> bool
         {
             result = new DateTime(0);
             return DateFormat.ParseExact(s, format, out result);
         }
 
         // Desfase (minutos) que se escribe con 'zzz'/'K': local -> zona local, UTC -> 0.
-        public int OffsetMinutes()
+        public func OffsetMinutes() -> int
         {
             if (kind != DateTimeKind.Local) return 0;
             return TimeZone.OffsetSecondsAt(ToUnixSeconds()) / 60;
@@ -465,18 +465,18 @@ namespace std.time
     public memory_unsafe static class TimeZone
     {
         // Desfase actual de la hora local respecto a UTC (positivo al este de Greenwich).
-        public static TimeSpan LocalOffset => TimeSpan.FromTicks(faset_tz_offset_sec(faset_time_unix_ms() / 1000) * TimeSpan.TicksPerSecond);
+        public static prop LocalOffset: TimeSpan => TimeSpan.FromTicks(faset_tz_offset_sec(faset_time_unix_ms() / 1000) * TimeSpan.TicksPerSecond);
 
         // Desfase local en un instante UTC concreto (tiene en cuenta el horario de verano).
-        public static TimeSpan OffsetAt(DateTime utc) => TimeSpan.FromTicks(OffsetSecondsAt(utc.ToUnixSeconds()) * TimeSpan.TicksPerSecond);
+        public static func OffsetAt(utc: DateTime) -> TimeSpan => TimeSpan.FromTicks(OffsetSecondsAt(utc.ToUnixSeconds()) * TimeSpan.TicksPerSecond);
 
-        public static int OffsetSecondsAt(long unixSeconds) => faset_tz_offset_sec(unixSeconds);
+        public static func OffsetSecondsAt(unixSeconds: long) -> int => faset_tz_offset_sec(unixSeconds);
     }
 
     // ---------------------------------------------------------------- formato y lectura
     static class DateFormat
     {
-        public static void Pad(StringBuilder sb, long v, int width)
+        public static func Pad(sb: StringBuilder, v: long, width: int)
         {
             if (v < 0)
             {
@@ -493,7 +493,7 @@ namespace std.time
             sb.Append(v);
         }
 
-        static string MonthName(int m)
+        static func MonthName(m: int) -> string
         {
             switch (m)
             {
@@ -512,7 +512,7 @@ namespace std.time
             }
         }
 
-        static string DayName(DayOfWeek d)
+        static func DayName(d: DayOfWeek) -> string
         {
             switch (d)
             {
@@ -527,14 +527,14 @@ namespace std.time
         }
 
         // Longitud de la repetición de s[i].
-        static int Run(string f, int i)
+        static func Run(f: string, i: int) -> int
         {
             int n = 1;
             while (i + n < f.Length && f[i + n] == f[i]) n++;
             return n;
         }
 
-        static void Offset(StringBuilder sb, int minutes, int digits, bool colon)
+        static func Offset(sb: StringBuilder, minutes: int, digits: int, colon: bool)
         {
             sb.Append(minutes < 0 ? '-' : '+');
             if (minutes < 0) minutes = -minutes;
@@ -544,7 +544,7 @@ namespace std.time
             Pad(sb, minutes % 60, 2);
         }
 
-        public static string Format(DateTime d, string f)
+        public static func Format(d: DateTime, f: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             int i = 0;
@@ -628,7 +628,7 @@ namespace std.time
         }
 
         // ------------------------------------------------ lectura
-        static bool IsDigit(string s, int i) => i < s.Length && s[i] >= '0' && s[i] <= '9';
+        static func IsDigit(s: string, i: int) -> bool => i < s.Length && s[i] >= '0' && s[i] <= '9';
 
         // Lee entre 'min' y 'max' dígitos en s[pos].
         static bool Digits(string s, int& pos, int min, int max, out int value)
@@ -701,8 +701,8 @@ namespace std.time
             return true;
         }
 
-        static bool Build(int y, int mo, int d, int h, int mi, int sec, long frac, bool hasOffset, int offMinutes,
-                          out DateTime result)
+        static func Build(y: int, mo: int, d: int, h: int, mi: int, sec: int, frac: long, hasOffset: bool, offMinutes: int,
+                          out result: DateTime) -> bool
         {
             result = new DateTime(0);
             if (!DateTime.IsValid(y, mo, d, h, mi, sec, 0)) return false;
@@ -720,7 +720,7 @@ namespace std.time
             return true;
         }
 
-        public static bool ParseIso(string s, out DateTime result)
+        public static func ParseIso(s: string, out result: DateTime) -> bool
         {
             result = new DateTime(0);
             int pos = 0;
@@ -757,7 +757,7 @@ namespace std.time
             return Build(y, mo, d, h, mi, sec, frac, hasOff, off, out result);
         }
 
-        public static bool ParseExact(string s, string f, out DateTime result)
+        public static func ParseExact(s: string, f: string, out result: DateTime) -> bool
         {
             result = new DateTime(0);
             int pos = 0;
@@ -889,14 +889,14 @@ namespace std.time
     // Cronómetro de alta resolución sobre un reloj monótono (nanosegundos).
     public memory_unsafe struct Stopwatch
     {
-        long startNs;
-        long accumulated;  // ns
-        bool running;
+        var startNs: long;
+        var accumulated: long;  // ns
+        var running: bool;
 
         // Frecuencia del contador de ElapsedTicks/GetTimestamp (ticks por segundo).
         public const long Frequency = 1000000000;
 
-        public static Stopwatch StartNew()
+        public static func StartNew() -> Stopwatch
         {
             Stopwatch s = new Stopwatch();
             s.Start();
@@ -904,42 +904,42 @@ namespace std.time
         }
 
         // Marca de tiempo monótona en nanosegundos.
-        public static long GetTimestamp() => faset_ticks_ns();
+        public static func GetTimestamp() -> long => faset_ticks_ns();
 
-        public bool IsRunning => running;
+        public prop IsRunning: bool => running;
 
-        public void Start()
+        public func Start()
         {
             if (running) return;
             startNs = faset_ticks_ns();
             running = true;
         }
 
-        public void Stop()
+        public func Stop()
         {
             if (!running) return;
             accumulated += faset_ticks_ns() - startNs;
             running = false;
         }
 
-        public void Reset()
+        public func Reset()
         {
             accumulated = 0;
             running = false;
         }
 
-        public void Restart()
+        public func Restart()
         {
             accumulated = 0;
             running = true;
             startNs = faset_ticks_ns();
         }
 
-        public long ElapsedNs => running ? accumulated + faset_ticks_ns() - startNs : accumulated;
-        public long ElapsedTicks => ElapsedNs;
-        public long ElapsedMicroseconds => ElapsedNs / 1000;
-        public long ElapsedMs => ElapsedNs / 1000000;
-        public double ElapsedSeconds => ElapsedNs / 1000000000.0;
-        public TimeSpan Elapsed => TimeSpan.FromTicks(ElapsedNs / 100);
+        public prop ElapsedNs: long => running ? accumulated + faset_ticks_ns() - startNs : accumulated;
+        public prop ElapsedTicks: long => ElapsedNs;
+        public prop ElapsedMicroseconds: long => ElapsedNs / 1000;
+        public prop ElapsedMs: long => ElapsedNs / 1000000;
+        public prop ElapsedSeconds: double => ElapsedNs / 1000000000.0;
+        public prop Elapsed: TimeSpan => TimeSpan.FromTicks(ElapsedNs / 100);
     }
 }

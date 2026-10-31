@@ -16,25 +16,25 @@ namespace std.collections
     // ---------------------------------------------------------------- List<T>
     public memory_unsafe class List<T> : IEnumerable<T>
     {
-        T* items;
-        int count;
-        int capacity;
-        int version;  // cambia con cada modificación: foreach detecta cambios durante el recorrido
+        var items: T*;
+        var count: int;
+        var capacity: int;
+        var version: int;  // cambia con cada modificación: foreach detecta cambios durante el recorrido
 
-        public List() { }
-        public List(int initialCapacity) { Reserve(initialCapacity); }
-        ~List() { Memory.Free(items); }
+        public init() { }
+        public init(initialCapacity: int) { Reserve(initialCapacity); }
+        deinit { Memory.Free(items); }
 
-        public int Count => count;
-        public int Capacity => capacity;
-        public bool IsEmpty => count == 0;
+        public prop Count: int => count;
+        public prop Capacity: int => capacity;
+        public prop IsEmpty: bool => count == 0;
         // Contador de modificaciones (lo usa ListEnumerator para detectar cambios en un foreach).
-        public int Version => version;
-        public ListEnumerator<T> GetEnumerator() => new ListEnumerator<T>(this);
+        public prop Version: int => version;
+        public func GetEnumerator() -> ListEnumerator<T> => new ListEnumerator<T>(this);
         // Como IEnumerable<T> (LINQ perezoso, parámetros IEnumerable<T>): ver collections/iteradores.fst.
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in this) yield return x; }
         // Puntero a los elementos (válido hasta la próxima modificación).
-        public T* Data => items;
+        public prop Data: T* => items;
 
         [TrackCaller] public T& operator[](int index)
         {
@@ -52,7 +52,7 @@ namespace std.collections
             return GetRange(s, n);
         }
 
-        [TrackCaller] public List<T> GetRange(int index, int n)
+        [TrackCaller] public func GetRange(index: int, n: int) -> List<T>
         {
             if (index < 0 || n < 0 || index > count || n > count - index)
                 throw new ArgumentOutOfRangeException("List.GetRange: el tramo se sale de la lista", null);
@@ -61,14 +61,14 @@ namespace std.collections
             return r;
         }
 
-        public T[] ToArray()
+        public func ToArray() -> T[]
         {
             T[] r = new T[count];
             Memory.CopyItems<T>(r.Data, items, count);
             return r;
         }
 
-        public void AddRange(T[] other)
+        public func AddRange(other: T[])
         {
             version++;
             Reserve(count + other.Length);
@@ -76,14 +76,14 @@ namespace std.collections
             count += other.Length;
         }
 
-        public void Reserve(int n)
+        public func Reserve(n: int)
         {
             if (n <= capacity) return;
             items = Memory.Resize<T>(items, n);
             capacity = n;
         }
 
-        public void Add(T item)
+        public func Add(item: T)
         {
             if (count == capacity) Reserve(capacity < 8 ? 8 : capacity * 2);
             items[count] = item;
@@ -91,7 +91,7 @@ namespace std.collections
             version++;
         }
 
-        public void AddRange(List<T> other)
+        public func AddRange(other: List<T>)
         {
             version++;
             Reserve(count + other.Count);
@@ -99,7 +99,7 @@ namespace std.collections
             count += other.Count;
         }
 
-        [TrackCaller] public void Insert(int index, T item)
+        [TrackCaller] public func Insert(index: int, item: T)
         {
             if (index < 0 || index > count) throw new ArgumentOutOfRangeException("List.Insert: índice fuera de rango", null);
             if (count == capacity) Reserve(capacity < 8 ? 8 : capacity * 2);
@@ -109,7 +109,7 @@ namespace std.collections
             version++;
         }
 
-        [TrackCaller] public void RemoveAt(int index)
+        [TrackCaller] public func RemoveAt(index: int)
         {
             if (index < 0 || index >= count) throw new ArgumentOutOfRangeException("List.RemoveAt: índice fuera de rango", null);
             for (int i = index; i < count - 1; i++) items[i] = items[i + 1];
@@ -117,7 +117,7 @@ namespace std.collections
             version++;
         }
 
-        public bool Remove(T item)
+        public func Remove(item: T) -> bool
         {
             int i = IndexOf(item);
             if (i < 0) return false;
@@ -125,29 +125,29 @@ namespace std.collections
             return true;
         }
 
-        public int IndexOf(T item)
+        public func IndexOf(item: T) -> int
         {
             for (int i = 0; i < count; i++)
                 if (items[i] == item) return i;
             return -1;
         }
 
-        public bool Contains(T item) => IndexOf(item) >= 0;
-        public void Clear() { count = 0; version++; }
+        public func Contains(item: T) -> bool => IndexOf(item) >= 0;
+        public func Clear() { count = 0; version++; }
 
-        [TrackCaller] public T First()
+        [TrackCaller] public func First() -> T
         {
             if (count == 0) throw new InvalidOperationException("List.First: la lista está vacía");
             return items[0];
         }
 
-        [TrackCaller] public T Last()
+        [TrackCaller] public func Last() -> T
         {
             if (count == 0) throw new InvalidOperationException("List.Last: la lista está vacía");
             return items[count - 1];
         }
 
-        [TrackCaller] public T Pop()
+        [TrackCaller] public func Pop() -> T
         {
             if (count == 0) throw new InvalidOperationException("List.Pop: la lista está vacía");
             count--;
@@ -155,18 +155,18 @@ namespace std.collections
             return items[count];
         }
 
-        public void Reverse() { Algorithms.Reverse<T>(items, count); version++; }
-        public void Sort() { Algorithms.Sort<T>(items, count); version++; }
-        public void Sort(delegate*<T, T, int> compare) { Algorithms.Sort<T>(items, count, compare); version++; }
+        public func Reverse() { Algorithms.Reverse<T>(items, count); version++; }
+        public func Sort() { Algorithms.Sort<T>(items, count); version++; }
+        public func Sort(compare: delegate*<T, T, int>) { Algorithms.Sort<T>(items, count, compare); version++; }
 
-        public T Sum()
+        public func Sum() -> T
         {
             T s = default(T);
             for (int i = 0; i < count; i++) s += items[i];
             return s;
         }
 
-        public T Min()
+        public func Min() -> T
         {
             T m = First();
             for (int i = 1; i < count; i++)
@@ -174,7 +174,7 @@ namespace std.collections
             return m;
         }
 
-        public T Max()
+        public func Max() -> T
         {
             T m = First();
             for (int i = 1; i < count; i++)
@@ -182,13 +182,13 @@ namespace std.collections
             return m;
         }
 
-        public void ForEach(delegate*<T, void> action)
+        public func ForEach(action: delegate*<T, void>)
         {
             for (int i = 0; i < count; i++) action(items[i]);
         }
 
         // Nueva lista con los elementos que cumplen 'predicate'.
-        public List<T> Where(delegate*<T, bool> predicate)
+        public func Where(predicate: delegate*<T, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < count; i++)
@@ -197,21 +197,21 @@ namespace std.collections
         }
 
         // Nueva lista con 'f' aplicada a cada elemento.
-        public List<U> Select<U>(delegate*<T, U> f)
+        public func Select<U>(f: delegate*<T, U>) -> List<U>
         {
             List<U> r = new List<U>(count);
             for (int i = 0; i < count; i++) r.Add(f(items[i]));
             return r;
         }
 
-        public bool Any(delegate*<T, bool> predicate)
+        public func Any(predicate: delegate*<T, bool>) -> bool
         {
             for (int i = 0; i < count; i++)
                 if (predicate(items[i])) return true;
             return false;
         }
 
-        public bool All(delegate*<T, bool> predicate)
+        public func All(predicate: delegate*<T, bool>) -> bool
         {
             for (int i = 0; i < count; i++)
                 if (!predicate(items[i])) return false;
@@ -219,7 +219,7 @@ namespace std.collections
         }
 
         // Copia independiente.
-        public List<T> Clone()
+        public func Clone() -> List<T>
         {
             List<T> r = new List<T>(count);
             r.AddRange(this);
@@ -231,17 +231,17 @@ namespace std.collections
         //  cada operación devuelve una lista nueva (la original no cambia).
 
         // Criterio de OrderBy/ThenBy de esta lista (lo usa ThenBy para encadenar).
-        Func<T, T, int> orden;
+        var orden: Func<T, T, int>;
 
         // Ordena en el sitio con una comparación (negativo, cero o positivo). Estable.
-        public void Sort(Comparison<T> comparison) { Algorithms.StableSort<T>(items, count, comparison); }
+        public func Sort(comparison: Comparison<T>) { Algorithms.StableSort<T>(items, count, comparison); }
 
-        public void ForEach(Action<T> action)
+        public func ForEach(action: Action<T>)
         {
             for (int i = 0; i < count; i++) action(items[i]);
         }
 
-        public List<T> Where(Func<T, bool> predicate)
+        public func Where(predicate: Func<T, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < count; i++)
@@ -250,7 +250,7 @@ namespace std.collections
         }
 
         // Con el índice del elemento: lista.Where((x, i) => i % 2 == 0)
-        public List<T> Where(Func<T, int, bool> predicate)
+        public func Where(predicate: Func<T, int, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < count; i++)
@@ -258,14 +258,14 @@ namespace std.collections
             return r;
         }
 
-        public List<U> Select<U>(Func<T, U> selector)
+        public func Select<U>(selector: Func<T, U>) -> List<U>
         {
             List<U> r = new List<U>(count);
             for (int i = 0; i < count; i++) r.Add(selector(items[i]));
             return r;
         }
 
-        public List<U> Select<U>(Func<T, int, U> selector)
+        public func Select<U>(selector: Func<T, int, U>) -> List<U>
         {
             List<U> r = new List<U>(count);
             for (int i = 0; i < count; i++) r.Add(selector(items[i], i));
@@ -273,7 +273,7 @@ namespace std.collections
         }
 
         // Aplana: cada elemento produce una lista.
-        public List<U> SelectMany<U>(Func<T, List<U>> selector)
+        public func SelectMany<U>(selector: Func<T, List<U>>) -> List<U>
         {
             List<U> r = new List<U>();
             for (int i = 0; i < count; i++) r.AddRange(selector(items[i]));
@@ -281,18 +281,18 @@ namespace std.collections
         }
 
         // Ordenaciones estables por clave (la clave necesita 'operator<'; string compara por orden).
-        public List<T> OrderBy<K>(Func<T, K> key)
+        public func OrderBy<K>(key: Func<T, K>) -> List<T>
         {
             return Ordered((a, b) => Algorithms.CompareKeys<K>(key(a), key(b)));
         }
 
-        public List<T> OrderByDescending<K>(Func<T, K> key)
+        public func OrderByDescending<K>(key: Func<T, K>) -> List<T>
         {
             return Ordered((a, b) => Algorithms.CompareKeys<K>(key(b), key(a)));
         }
 
         // Criterio secundario: solo sobre el resultado de OrderBy/OrderByDescending/ThenBy.
-        [TrackCaller] public List<T> ThenBy<K>(Func<T, K> key)
+        [TrackCaller] public func ThenBy<K>(key: Func<T, K>) -> List<T>
         {
             if (orden == null) panic("ThenBy: la lista no viene de OrderBy, OrderByDescending ni ThenBy");
             Func<T, T, int> previo = orden;
@@ -302,7 +302,7 @@ namespace std.collections
             });
         }
 
-        [TrackCaller] public List<T> ThenByDescending<K>(Func<T, K> key)
+        [TrackCaller] public func ThenByDescending<K>(key: Func<T, K>) -> List<T>
         {
             if (orden == null) panic("ThenByDescending: la lista no viene de OrderBy, OrderByDescending ni ThenBy");
             Func<T, T, int> previo = orden;
@@ -312,7 +312,7 @@ namespace std.collections
             });
         }
 
-        List<T> Ordered(Func<T, T, int> comparison)
+        func Ordered(comparison: Func<T, T, int>) -> List<T>
         {
             List<T> r = Clone();
             Algorithms.StableSort<T>(r.items, r.count, comparison);
@@ -320,7 +320,7 @@ namespace std.collections
             return r;
         }
 
-        [TrackCaller] public T First(Func<T, bool> predicate)
+        [TrackCaller] public func First(predicate: Func<T, bool>) -> T
         {
             for (int i = 0; i < count; i++)
                 if (predicate(items[i])) return items[i];
@@ -328,16 +328,16 @@ namespace std.collections
             return default(T);
         }
 
-        public T FirstOrDefault() => count > 0 ? items[0] : default(T);
+        public func FirstOrDefault() -> T => count > 0 ? items[0] : default(T);
 
-        public T FirstOrDefault(Func<T, bool> predicate)
+        public func FirstOrDefault(predicate: Func<T, bool>) -> T
         {
             for (int i = 0; i < count; i++)
                 if (predicate(items[i])) return items[i];
             return default(T);
         }
 
-        [TrackCaller] public T Last(Func<T, bool> predicate)
+        [TrackCaller] public func Last(predicate: Func<T, bool>) -> T
         {
             for (int i = count - 1; i >= 0; i--)
                 if (predicate(items[i])) return items[i];
@@ -345,25 +345,25 @@ namespace std.collections
             return default(T);
         }
 
-        public T LastOrDefault() => count > 0 ? items[count - 1] : default(T);
+        public func LastOrDefault() -> T => count > 0 ? items[count - 1] : default(T);
 
-        public T LastOrDefault(Func<T, bool> predicate)
+        public func LastOrDefault(predicate: Func<T, bool>) -> T
         {
             for (int i = count - 1; i >= 0; i--)
                 if (predicate(items[i])) return items[i];
             return default(T);
         }
 
-        public bool Any() => count > 0;
+        public func Any() -> bool => count > 0;
 
-        public bool Any(Func<T, bool> predicate)
+        public func Any(predicate: Func<T, bool>) -> bool
         {
             for (int i = 0; i < count; i++)
                 if (predicate(items[i])) return true;
             return false;
         }
 
-        public bool All(Func<T, bool> predicate)
+        public func All(predicate: Func<T, bool>) -> bool
         {
             for (int i = 0; i < count; i++)
                 if (!predicate(items[i])) return false;
@@ -371,7 +371,7 @@ namespace std.collections
         }
 
         // Cuántos cumplen la condición (lista.Count sin paréntesis es el total).
-        public int Count(Func<T, bool> predicate)
+        public func Count(predicate: Func<T, bool>) -> int
         {
             int n = 0;
             for (int i = 0; i < count; i++)
@@ -379,14 +379,14 @@ namespace std.collections
             return n;
         }
 
-        public U Sum<U>(Func<T, U> selector)
+        public func Sum<U>(selector: Func<T, U>) -> U
         {
             U s = default(U);
             for (int i = 0; i < count; i++) s += selector(items[i]);
             return s;
         }
 
-        [TrackCaller] public U Min<U>(Func<T, U> selector)
+        [TrackCaller] public func Min<U>(selector: Func<T, U>) -> U
         {
             if (count == 0) panic("List.Min: la lista está vacía");
             U m = selector(items[0]);
@@ -398,7 +398,7 @@ namespace std.collections
             return m;
         }
 
-        [TrackCaller] public U Max<U>(Func<T, U> selector)
+        [TrackCaller] public func Max<U>(selector: Func<T, U>) -> U
         {
             if (count == 0) panic("List.Max: la lista está vacía");
             U m = selector(items[0]);
@@ -411,7 +411,7 @@ namespace std.collections
         }
 
         // Elemento con la clave mínima / máxima (el primero si hay empate).
-        [TrackCaller] public T MinBy<K>(Func<T, K> key)
+        [TrackCaller] public func MinBy<K>(key: Func<T, K>) -> T
         {
             if (count == 0) panic("List.MinBy: la lista está vacía");
             int best = 0;
@@ -428,7 +428,7 @@ namespace std.collections
             return items[best];
         }
 
-        [TrackCaller] public T MaxBy<K>(Func<T, K> key)
+        [TrackCaller] public func MaxBy<K>(key: Func<T, K>) -> T
         {
             if (count == 0) panic("List.MaxBy: la lista está vacía");
             int best = 0;
@@ -445,20 +445,20 @@ namespace std.collections
             return items[best];
         }
 
-        [TrackCaller] public double Average()
+        [TrackCaller] public func Average() -> double
         {
             if (count == 0) panic("List.Average: la lista está vacía");
             return (double)Sum() / count;
         }
 
-        [TrackCaller] public double Average<U>(Func<T, U> selector)
+        [TrackCaller] public func Average<U>(selector: Func<T, U>) -> double
         {
             if (count == 0) panic("List.Average: la lista está vacía");
             return (double)Sum<U>(selector) / count;
         }
 
         // Sin repetidos, en el orden de la primera aparición (T necesita Hash.Of y '==').
-        public List<T> Distinct()
+        public func Distinct() -> List<T>
         {
             List<T> r = new List<T>();
             Dictionary<T, bool> seen = new Dictionary<T, bool>();
@@ -467,7 +467,7 @@ namespace std.collections
             return r;
         }
 
-        public List<T> Take(int n)
+        public func Take(n: int) -> List<T>
         {
             if (n > count) n = count;
             List<T> r = new List<T>(n < 0 ? 0 : n);
@@ -475,7 +475,7 @@ namespace std.collections
             return r;
         }
 
-        public List<T> Skip(int n)
+        public func Skip(n: int) -> List<T>
         {
             if (n < 0) n = 0;
             List<T> r = new List<T>();
@@ -483,14 +483,14 @@ namespace std.collections
             return r;
         }
 
-        public List<T> TakeWhile(Func<T, bool> predicate)
+        public func TakeWhile(predicate: Func<T, bool>) -> List<T>
         {
             List<T> r = new List<T>();
             for (int i = 0; i < count && predicate(items[i]); i++) r.Add(items[i]);
             return r;
         }
 
-        public List<T> SkipWhile(Func<T, bool> predicate)
+        public func SkipWhile(predicate: Func<T, bool>) -> List<T>
         {
             int i = 0;
             while (i < count && predicate(items[i])) i++;
@@ -500,7 +500,7 @@ namespace std.collections
         }
 
         // Grupos por clave, en el orden de la primera aparición de cada clave.
-        public List<Grouping<K, T>> GroupBy<K>(Func<T, K> key)
+        public func GroupBy<K>(key: Func<T, K>) -> List<Grouping<K, T>>
         {
             List<Grouping<K, T>> r = new List<Grouping<K, T>>();
             Dictionary<K, int> index = new Dictionary<K, int>();
@@ -519,17 +519,17 @@ namespace std.collections
             return r;
         }
 
-        public List<T> ToList() => Clone();
+        public func ToList() -> List<T> => Clone();
 
         // Diccionario clave -> elemento (si una clave se repite, gana el último).
-        public Dictionary<K, T> ToDictionary<K>(Func<T, K> key)
+        public func ToDictionary<K>(key: Func<T, K>) -> Dictionary<K, T>
         {
             Dictionary<K, T> d = new Dictionary<K, T>();
             for (int i = 0; i < count; i++) d.Set(key(items[i]), items[i]);
             return d;
         }
 
-        public Dictionary<K, V> ToDictionary<K, V>(Func<T, K> key, Func<T, V> value)
+        public func ToDictionary<K, V>(key: Func<T, K>, value: Func<T, V>) -> Dictionary<K, V>
         {
             Dictionary<K, V> d = new Dictionary<K, V>();
             for (int i = 0; i < count; i++) d.Set(key(items[i]), value(items[i]));
@@ -554,7 +554,7 @@ namespace std.collections
         }
 
         // Combina elemento a elemento (hasta la lista más corta).
-        public List<R> Zip<U, R>(List<U> other, Func<T, U, R> f)
+        public func Zip<U, R>(other: List<U>, f: Func<T, U, R>) -> List<R>
         {
             int n = count < other.Count ? count : other.Count;
             List<R> r = new List<R>(n);
@@ -562,7 +562,7 @@ namespace std.collections
             return r;
         }
 
-        public List<T> Concat(List<T> other)
+        public func Concat(other: List<T>) -> List<T>
         {
             List<T> r = Clone();
             r.AddRange(other);
@@ -570,35 +570,35 @@ namespace std.collections
         }
 
         // ---- búsquedas al estilo de List<T> de .NET
-        public T Find(Predicate<T> match)
+        public func Find(match: Predicate<T>) -> T
         {
             for (int i = 0; i < count; i++)
                 if (match(items[i])) return items[i];
             return default(T);
         }
 
-        public T FindLast(Predicate<T> match)
+        public func FindLast(match: Predicate<T>) -> T
         {
             for (int i = count - 1; i >= 0; i--)
                 if (match(items[i])) return items[i];
             return default(T);
         }
 
-        public List<T> FindAll(Predicate<T> match) => Where(match);
+        public func FindAll(match: Predicate<T>) -> List<T> => Where(match);
 
-        public int FindIndex(Predicate<T> match)
+        public func FindIndex(match: Predicate<T>) -> int
         {
             for (int i = 0; i < count; i++)
                 if (match(items[i])) return i;
             return -1;
         }
 
-        public bool Exists(Predicate<T> match) => FindIndex(match) >= 0;
+        public func Exists(match: Predicate<T>) -> bool => FindIndex(match) >= 0;
 
-        public bool TrueForAll(Predicate<T> match) => All(match);
+        public func TrueForAll(match: Predicate<T>) -> bool => All(match);
 
         // Quita los elementos que cumplen la condición; devuelve cuántos quitó.
-        public int RemoveAll(Predicate<T> match)
+        public func RemoveAll(match: Predicate<T>) -> int
         {
             int w = 0;
             for (int i = 0; i < count; i++)
@@ -613,7 +613,7 @@ namespace std.collections
             return removed;
         }
 
-        public List<U> ConvertAll<U>(Func<T, U> converter) => Select<U>(converter);
+        public func ConvertAll<U>(converter: Func<T, U>) -> List<U> => Select<U>(converter);
     }
 
     // Delegados de .NET (estructurales: Predicate<int> es el mismo tipo que Func<int, bool>).
@@ -623,12 +623,12 @@ namespace std.collections
     // Resultado de GroupBy: la clave y los elementos del grupo.
     public class Grouping<K, T> : IEnumerable<T>
     {
-        public K Key;
-        public List<T> Items = new List<T>();
-        public Grouping(K key) { Key = key; }
-        public int Count => Items.Count;
+        public var Key: K;
+        public var Items: List<T> = new List<T>();
+        public init(key: K) { Key = key; }
+        public prop Count: int => Items.Count;
         [TrackCaller] public T operator[](int index) => Items[index];
-        public ListEnumerator<T> GetEnumerator() => Items.GetEnumerator();
+        public func GetEnumerator() -> ListEnumerator<T> => Items.GetEnumerator();
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in Items) yield return x; }
     }
 
@@ -636,20 +636,20 @@ namespace std.collections
     // MoveNext termina con panic (como InvalidOperationException en C#).
     public memory_unsafe struct ListEnumerator<T>
     {
-        List<T> list;
-        int index;
-        int version;
+        var list: List<T>;
+        var index: int;
+        var version: int;
 
-        public ListEnumerator(List<T> source)
+        public init(source: List<T>)
         {
             list = source;
             index = -1;
             version = source.Version;
         }
 
-        public T Current => list.Data[index];
+        public prop Current: T => list.Data[index];
 
-        [TrackCaller] public bool MoveNext()
+        [TrackCaller] public func MoveNext() -> bool
         {
             if (version != list.Version) panic("List: la colección se modificó durante un foreach");
             index++;
@@ -660,41 +660,41 @@ namespace std.collections
     // ---------------------------------------------------------------- Stack<T>
     public class Stack<T> : IEnumerable<T>
     {
-        List<T> items = new List<T>();
-        ~Stack() { delete items; }
+        var items: List<T> = new List<T>();
+        deinit { delete items; }
 
-        public int Count => items.Count;
-        public bool IsEmpty => items.Count == 0;
-        public void Push(T item) { items.Add(item); }
-        [TrackCaller] public T Pop() => items.Pop();
-        [TrackCaller] public T Peek() => items.Last();
-        public void Clear() { items.Clear(); }
+        public prop Count: int => items.Count;
+        public prop IsEmpty: bool => items.Count == 0;
+        public func Push(item: T) { items.Add(item); }
+        [TrackCaller] public func Pop() -> T => items.Pop();
+        [TrackCaller] public func Peek() -> T => items.Last();
+        public func Clear() { items.Clear(); }
         // foreach recorre la pila de la base a la cima (en el orden en que se apilaron).
-        public ListEnumerator<T> GetEnumerator() => items.GetEnumerator();
+        public func GetEnumerator() -> ListEnumerator<T> => items.GetEnumerator();
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in items) yield return x; }
     }
 
     // ---------------------------------------------------------------- Queue<T> (búfer circular)
     public memory_unsafe class Queue<T> : IEnumerable<T>
     {
-        T* items;
-        int head;
-        int count;
-        int capacity;
+        var items: T*;
+        var head: int;
+        var count: int;
+        var capacity: int;
 
-        ~Queue() { Memory.Free(items); }
+        deinit { Memory.Free(items); }
 
-        public int Count => count;
-        public bool IsEmpty => count == 0;
+        public prop Count: int => count;
+        public prop IsEmpty: bool => count == 0;
 
-        public void Enqueue(T item)
+        public func Enqueue(item: T)
         {
             if (count == capacity) Grow();
             items[(head + count) % capacity] = item;
             count++;
         }
 
-        [TrackCaller] public T Dequeue()
+        [TrackCaller] public func Dequeue() -> T
         {
             if (count == 0) throw new InvalidOperationException("Queue.Dequeue: la cola está vacía");
             T item = items[head];
@@ -703,13 +703,13 @@ namespace std.collections
             return item;
         }
 
-        [TrackCaller] public T Peek()
+        [TrackCaller] public func Peek() -> T
         {
             if (count == 0) throw new InvalidOperationException("Queue.Peek: la cola está vacía");
             return items[head];
         }
 
-        public void Clear() { head = 0; count = 0; }
+        public func Clear() { head = 0; count = 0; }
 
         // foreach recorre la cola en orden de salida (del primero al último).
         IEnumerator<T> IEnumerable<T>.GetEnumerator()
@@ -717,7 +717,7 @@ namespace std.collections
             for (int i = 0; i < count; i++) yield return items[(head + i) % capacity];
         }
 
-        void Grow()
+        func Grow()
         {
             int newCap = capacity < 8 ? 8 : capacity * 2;
             T* n = Memory.New<T>(newCap);
@@ -733,37 +733,37 @@ namespace std.collections
     //  Las claves deben tener un Hash.Of(K) (enteros, char, string, punteros...).
     public memory_unsafe class Dictionary<K, V> : IEnumerable<KeyValuePair<K, V>>
     {
-        K* keys;
-        V* values;
-        byte* used;  // 0 = libre, 1 = ocupado, 2 = borrado
-        int count;
-        int capacity;
-        int tombstones;
-        int version;  // cambia con cada inserción o borrado (foreach detecta cambios)
+        var keys: K*;
+        var values: V*;
+        var used: byte*;  // 0 = libre, 1 = ocupado, 2 = borrado
+        var count: int;
+        var capacity: int;
+        var tombstones: int;
+        var version: int;  // cambia con cada inserción o borrado (foreach detecta cambios)
 
-        ~Dictionary()
+        deinit
         {
             Memory.Free(keys);
             Memory.Free(values);
             Memory.Free(used);
         }
 
-        public int Count => count;
-        public bool IsEmpty => count == 0;
+        public prop Count: int => count;
+        public prop IsEmpty: bool => count == 0;
 
         // ---- para DictionaryEnumerator (foreach): huecos de la tabla y contador de cambios
-        public int Version => version;
-        public int SlotCount => capacity;
-        public bool SlotUsed(int i) => used[i] == 1;
-        public K SlotKey(int i) => keys[i];
-        public V SlotValue(int i) => values[i];
-        public DictionaryEnumerator<K, V> GetEnumerator() => new DictionaryEnumerator<K, V>(this);
+        public prop Version: int => version;
+        public prop SlotCount: int => capacity;
+        public func SlotUsed(i: int) -> bool => used[i] == 1;
+        public func SlotKey(i: int) -> K => keys[i];
+        public func SlotValue(i: int) -> V => values[i];
+        public func GetEnumerator() -> DictionaryEnumerator<K, V> => new DictionaryEnumerator<K, V>(this);
         IEnumerator<KeyValuePair<K, V>> IEnumerable<KeyValuePair<K, V>>.GetEnumerator()
         {
             foreach (KeyValuePair<K, V> kv in this) yield return kv;
         }
 
-        int Find(K key)
+        func Find(key: K) -> int
         {
             if (capacity == 0) return -1;
             int mask = capacity - 1;
@@ -777,7 +777,7 @@ namespace std.collections
             return -1;
         }
 
-        void Rehash(int newCap)
+        func Rehash(newCap: int)
         {
             K* oldKeys = keys;
             V* oldValues = values;
@@ -796,7 +796,7 @@ namespace std.collections
             Memory.Free(oldUsed);
         }
 
-        int Slot(K key)
+        func Slot(key: K) -> int
         {
             if ((count + tombstones + 1) * 4 >= capacity * 3) Rehash(capacity < 16 ? 16 : capacity * 2);
             int mask = capacity - 1;
@@ -828,20 +828,20 @@ namespace std.collections
             return values[i];
         }
 
-        public void Set(K key, V value)
+        public func Set(key: K, value: V)
         {
             int i = Slot(key);  // Slot puede reasignar 'values': se evalúa primero
             values[i] = value;
         }
 
-        public bool Add(K key, V value)
+        public func Add(key: K, value: V) -> bool
         {
             if (Find(key) >= 0) return false;
             Set(key, value);
             return true;
         }
 
-        public bool TryGetValue(K key, out V value)
+        public func TryGetValue(key: K, out value: V) -> bool
         {
             int i = Find(key);
             if (i < 0) return false;
@@ -849,22 +849,22 @@ namespace std.collections
             return true;
         }
 
-        [TrackCaller] public V Get(K key)
+        [TrackCaller] public func Get(key: K) -> V
         {
             int i = Find(key);
             if (i < 0) throw new KeyNotFoundException("Dictionary.Get: la clave no existe");
             return values[i];
         }
 
-        public V GetOrDefault(K key, V fallback)
+        public func GetOrDefault(key: K, fallback: V) -> V
         {
             int i = Find(key);
             return i < 0 ? fallback : values[i];
         }
 
-        public bool ContainsKey(K key) => Find(key) >= 0;
+        public func ContainsKey(key: K) -> bool => Find(key) >= 0;
 
-        public bool Remove(K key)
+        public func Remove(key: K) -> bool
         {
             int i = Find(key);
             if (i < 0) return false;
@@ -875,7 +875,7 @@ namespace std.collections
             return true;
         }
 
-        public void Clear()
+        public func Clear()
         {
             if (capacity > 0) Memory.Set(used, 0, capacity);
             count = 0;
@@ -884,7 +884,7 @@ namespace std.collections
         }
 
         // Nuevas listas con las claves / valores.
-        public List<K> Keys()
+        public func Keys() -> List<K>
         {
             List<K> r = new List<K>(count);
             for (int i = 0; i < capacity; i++)
@@ -892,7 +892,7 @@ namespace std.collections
             return r;
         }
 
-        public List<V> Values()
+        public func Values() -> List<V>
         {
             List<V> r = new List<V>(count);
             for (int i = 0; i < capacity; i++)
@@ -902,7 +902,7 @@ namespace std.collections
 
         // ---- con delegados
         // Pares clave/valor (para usar LINQ: dic.Pairs().Where(p => p.Value > 3)).
-        public List<KeyValuePair<K, V>> Pairs()
+        public func Pairs() -> List<KeyValuePair<K, V>>
         {
             List<KeyValuePair<K, V>> r = new List<KeyValuePair<K, V>>(count);
             for (int i = 0; i < capacity; i++)
@@ -910,14 +910,14 @@ namespace std.collections
             return r;
         }
 
-        public void ForEach(Action<K, V> action)
+        public func ForEach(action: Action<K, V>)
         {
             for (int i = 0; i < capacity; i++)
                 if (used[i] == 1) action(keys[i], values[i]);
         }
 
         // Valor de la clave; si no existe, lo crea con factory(clave).
-        public V GetOrAdd(K key, Func<K, V> factory)
+        public func GetOrAdd(key: K, factory: Func<K, V>) -> V
         {
             int i = Find(key);
             if (i >= 0) return values[i];
@@ -926,14 +926,14 @@ namespace std.collections
             return v;
         }
 
-        public bool Any(Func<K, V, bool> predicate)
+        public func Any(predicate: Func<K, V, bool>) -> bool
         {
             for (int i = 0; i < capacity; i++)
                 if (used[i] == 1 && predicate(keys[i], values[i])) return true;
             return false;
         }
 
-        public int Count(Func<K, V, bool> predicate)
+        public func Count(predicate: Func<K, V, bool>) -> int
         {
             int n = 0;
             for (int i = 0; i < capacity; i++)
@@ -942,7 +942,7 @@ namespace std.collections
         }
 
         // Quita las entradas que cumplen la condición; devuelve cuántas quitó.
-        public int RemoveAll(Func<K, V, bool> predicate)
+        public func RemoveAll(predicate: Func<K, V, bool>) -> int
         {
             int n = 0;
             for (int i = 0; i < capacity; i++)
@@ -961,16 +961,16 @@ namespace std.collections
     //   foreach (var (clave, valor) in dic) ...
     public struct KeyValuePair<K, V>
     {
-        public K Key;
-        public V Value;
+        public var Key: K;
+        public var Value: V;
 
-        public KeyValuePair(K key, V value)
+        public init(key: K, value: V)
         {
             Key = key;
             Value = value;
         }
 
-        public void Deconstruct(out K key, out V value)
+        public func Deconstruct(out key: K, out value: V)
         {
             key = Key;
             value = Value;
@@ -980,20 +980,20 @@ namespace std.collections
     // Enumerador de Dictionary<K, V> para foreach (orden de la tabla hash, no de inserción).
     public struct DictionaryEnumerator<K, V>
     {
-        Dictionary<K, V> dict;
-        int index;
-        int version;
+        var dict: Dictionary<K, V>;
+        var index: int;
+        var version: int;
 
-        public DictionaryEnumerator(Dictionary<K, V> source)
+        public init(source: Dictionary<K, V>)
         {
             dict = source;
             index = -1;
             version = source.Version;
         }
 
-        public KeyValuePair<K, V> Current => new KeyValuePair<K, V>(dict.SlotKey(index), dict.SlotValue(index));
+        public prop Current: KeyValuePair<K, V> => new KeyValuePair<K, V>(dict.SlotKey(index), dict.SlotValue(index));
 
-        [TrackCaller] public bool MoveNext()
+        [TrackCaller] public func MoveNext() -> bool
         {
             if (version != dict.Version) panic("Dictionary: la colección se modificó durante un foreach");
             index++;
@@ -1005,56 +1005,56 @@ namespace std.collections
     // Enumerador de HashSet<T> para foreach.
     public struct HashSetEnumerator<T>
     {
-        DictionaryEnumerator<T, bool> inner;
+        var inner: DictionaryEnumerator<T, bool>;
 
-        public HashSetEnumerator(DictionaryEnumerator<T, bool> e) { inner = e; }
+        public init(e: DictionaryEnumerator<T, bool>) { inner = e; }
 
-        public T Current => inner.Current.Key;
-        [TrackCaller] public bool MoveNext() => inner.MoveNext();
+        public prop Current: T => inner.Current.Key;
+        [TrackCaller] public func MoveNext() -> bool => inner.MoveNext();
     }
 
     // ---------------------------------------------------------------- HashSet<T>
     public class HashSet<T> : IEnumerable<T>
     {
-        Dictionary<T, bool> map = new Dictionary<T, bool>();
-        ~HashSet() { delete map; }
+        var map: Dictionary<T, bool> = new Dictionary<T, bool>();
+        deinit { delete map; }
 
-        public int Count => map.Count;
-        public bool IsEmpty => map.Count == 0;
-        public bool Add(T item) => map.Add(item, true);
-        public bool Contains(T item) => map.ContainsKey(item);
-        public bool Remove(T item) => map.Remove(item);
-        public void Clear() { map.Clear(); }
-        public List<T> ToList() => map.Keys();
-        public T[] ToArray() => map.Keys().ToArray();
-        public void UnionWith(T[] other) { foreach (T x in other) Add(x); }
-        public void UnionWith(List<T> other) { foreach (T x in other) Add(x); }
-        public HashSetEnumerator<T> GetEnumerator() => new HashSetEnumerator<T>(map.GetEnumerator());
+        public prop Count: int => map.Count;
+        public prop IsEmpty: bool => map.Count == 0;
+        public func Add(item: T) -> bool => map.Add(item, true);
+        public func Contains(item: T) -> bool => map.ContainsKey(item);
+        public func Remove(item: T) -> bool => map.Remove(item);
+        public func Clear() { map.Clear(); }
+        public func ToList() -> List<T> => map.Keys();
+        public func ToArray() -> T[] => map.Keys().ToArray();
+        public func UnionWith(other: T[]) { foreach (T x in other) Add(x); }
+        public func UnionWith(other: List<T>) { foreach (T x in other) Add(x); }
+        public func GetEnumerator() -> HashSetEnumerator<T> => new HashSetEnumerator<T>(map.GetEnumerator());
         IEnumerator<T> IEnumerable<T>.GetEnumerator() { foreach (T x in this) yield return x; }
     }
 
     // ---------------------------------------------------------------- algoritmos genéricos
     public memory_unsafe static class Algorithms
     {
-        public static void Swap<T>(T& a, T& b)
+        public static func Swap<T>(a: T&, b: T&)
         {
             T t = a;
             a = b;
             b = t;
         }
 
-        public static void Reverse<T>(T* data, int n)
+        public static func Reverse<T>(data: T*, n: int)
         {
             for (int i = 0, j = n - 1; i < j; i++, j--) Swap<T>(data[i], data[j]);
         }
 
-        public static void Fill<T>(T* data, int n, T value)
+        public static func Fill<T>(data: T*, n: int, value: T)
         {
             for (int i = 0; i < n; i++) data[i] = value;
         }
 
         // Ordena con 'operator<' (quicksort + inserción).
-        public static void Sort<T>(T* data, int n)
+        public static func Sort<T>(data: T*, n: int)
         {
             if (n < 2) return;
             if (n <= 16)
@@ -1090,7 +1090,7 @@ namespace std.collections
         }
 
         // Ordena con una función de comparación: negativo, cero o positivo.
-        public static void Sort<T>(T* data, int n, delegate*<T, T, int> compare)
+        public static func Sort<T>(data: T*, n: int, compare: delegate*<T, T, int>)
         {
             if (n < 2) return;
             if (n <= 16)
@@ -1126,7 +1126,7 @@ namespace std.collections
         }
 
         // Búsqueda binaria en datos ordenados: índice o -1.
-        public static int BinarySearch<T>(T* data, int n, T value)
+        public static func BinarySearch<T>(data: T*, n: int, value: T) -> int
         {
             int lo = 0, hi = n - 1;
             while (lo <= hi)
@@ -1140,7 +1140,7 @@ namespace std.collections
         }
 
         // Ordenación estable (mezcla) con una comparación: negativo, cero o positivo.
-        public static void StableSort<T>(T* data, int n, Func<T, T, int> compare)
+        public static func StableSort<T>(data: T*, n: int, compare: Func<T, T, int>)
         {
             if (n < 2) return;
             if (n <= 16)
@@ -1163,7 +1163,7 @@ namespace std.collections
             Memory.Free(tmp);
         }
 
-        static void MergeSort<T>(T* data, T* tmp, int n, Func<T, T, int> compare)
+        static func MergeSort<T>(data: T*, tmp: T*, n: int, compare: Func<T, T, int>)
         {
             if (n <= 16)
             {
@@ -1185,9 +1185,9 @@ namespace std.collections
         }
 
         // -1, 0 o 1 según 'operator<' (claves de OrderBy).
-        public static int CompareKeys<K>(K a, K b) => a < b ? -1 : (b < a ? 1 : 0);
+        public static func CompareKeys<K>(a: K, b: K) -> int => a < b ? -1 : (b < a ? 1 : 0);
 
-        public static T Min<T>(T a, T b) => b < a ? b : a;
-        public static T Max<T>(T a, T b) => a < b ? b : a;
+        public static func Min<T>(a: T, b: T) -> T => b < a ? b : a;
+        public static func Max<T>(a: T, b: T) -> T => a < b ? b : a;
     }
 }
