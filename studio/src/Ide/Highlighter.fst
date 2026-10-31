@@ -10,41 +10,41 @@ namespace FasetStudio.Ide
     public static class Theme
     {
         // Superficies (de más profunda a más elevada)
-        public static Color Base => Color.Hex(0x0a0a0b);          // fondo de la ventana y separaciones
-        public static Color Surface => Color.Hex(0x131315);       // paneles
-        public static Color Editor => Color.Hex(0x101012);        // área de código
-        public static Color Elevated => Color.Hex(0x1b1b1e);      // pestaña activa, botones, ventanas emergentes
-        public static Color Hover => Color.Hex(0x222226);
-        public static Color Active => Color.Hex(0x2b2b30);
-        public static Color Border => Color.Hex(0x232327);
-        public static Color BorderStrong => Color.Hex(0x34343a);
+        public static prop Base: Color => Color.Hex(0x0a0a0b);          // fondo de la ventana y separaciones
+        public static prop Surface: Color => Color.Hex(0x131315);       // paneles
+        public static prop Editor: Color => Color.Hex(0x101012);        // área de código
+        public static prop Elevated: Color => Color.Hex(0x1b1b1e);      // pestaña activa, botones, ventanas emergentes
+        public static prop Hover: Color => Color.Hex(0x222226);
+        public static prop Active: Color => Color.Hex(0x2b2b30);
+        public static prop Border: Color => Color.Hex(0x232327);
+        public static prop BorderStrong: Color => Color.Hex(0x34343a);
 
         // Texto
-        public static Color Text => Color.Hex(0xe6e6e8);
-        public static Color TextSecondary => Color.Hex(0xa0a0a8);
-        public static Color TextTertiary => Color.Hex(0x6c6c74);
-        public static Color TextDisabled => Color.Hex(0x4a4a50);
-        public static Color White => Color.Hex(0xffffff);
-        public static Color Black => Color.Hex(0x000000);
+        public static prop Text: Color => Color.Hex(0xe6e6e8);
+        public static prop TextSecondary: Color => Color.Hex(0xa0a0a8);
+        public static prop TextTertiary: Color => Color.Hex(0x6c6c74);
+        public static prop TextDisabled: Color => Color.Hex(0x4a4a50);
+        public static prop White: Color => Color.Hex(0xffffff);
+        public static prop Black: Color => Color.Hex(0x000000);
 
         // Editor
-        public static Color CurrentLine => Color.Hex(0x17171a);
-        public static Color Selection => Color.Hex(0x2e2f35);
-        public static Color SelectionInactive => Color.Hex(0x232327);
-        public static Color Caret => Color.Hex(0xffffff);
-        public static Color LineNumber => Color.Hex(0x48484f);
-        public static Color LineNumberActive => Color.Hex(0xd4d4d8);
-        public static Color ScrollThumb => Color.Hex(0xffffff, 0.12f);
-        public static Color Shadow => Color.Hex(0x000000, 0.55f);
+        public static prop CurrentLine: Color => Color.Hex(0x17171a);
+        public static prop Selection: Color => Color.Hex(0x2e2f35);
+        public static prop SelectionInactive: Color => Color.Hex(0x232327);
+        public static prop Caret: Color => Color.Hex(0xffffff);
+        public static prop LineNumber: Color => Color.Hex(0x48484f);
+        public static prop LineNumberActive: Color => Color.Hex(0xd4d4d8);
+        public static prop ScrollThumb: Color => Color.Hex(0xffffff, 0.12f);
+        public static prop Shadow: Color => Color.Hex(0x000000, 0.55f);
 
         // Estados
-        public static Color Error => Color.Hex(0xf04f4f);
-        public static Color Warning => Color.Hex(0xe0b341);
-        public static Color Info => Color.Hex(0x9a9aa2);
-        public static Color Success => Color.Hex(0xd4d4d8);
+        public static prop Error: Color => Color.Hex(0xf04f4f);
+        public static prop Warning: Color => Color.Hex(0xe0b341);
+        public static prop Info: Color => Color.Hex(0x9a9aa2);
+        public static prop Success: Color => Color.Hex(0xd4d4d8);
 
         // Colores de sintaxis: tonos suaves que contrastan con la interfaz monocroma.
-        public static Color Syntax(byte kind)
+        public static func Syntax(kind: byte) -> Color
         {
             switch (kind)
             {
@@ -63,7 +63,7 @@ namespace FasetStudio.Ide
         }
 
         // 0 regular, 1 negrita, 2 cursiva
-        public static int SyntaxStyle(byte kind) => kind == 6 ? 2 : 0;
+        public static func SyntaxStyle(kind: byte) -> int => kind == 6 ? 2 : 0;
     }
 
     public static class TokenKind
@@ -83,31 +83,31 @@ namespace FasetStudio.Ide
 
     public memory_unsafe class Highlighter
     {
-        Dictionary<string, byte> words = new Dictionary<string, byte>();
+        var words: Dictionary<string, byte> = new Dictionary<string, byte>();
 
-        public Highlighter()
+        public init()
         {
             AddAll("namespace using import class struct enum interface public private protected internal static extern const readonly memory_unsafe virtual override abstract sealed new delete sizeof typeof nameof this base null nullptr true false var auto delegate operator ref out in is as with record params default get set where typename inline event and or not async required init implicit explicit", TokenKind.Keyword);
             AddAll("if else while do for foreach break continue return switch case goto throw try catch finally when await yield", TokenKind.Control);
             AddAll("void bool char sbyte byte short ushort int uint long ulong float double string object Func Action", TokenKind.Type);
         }
 
-        ~Highlighter() { delete words; }
+        deinit { delete words; }
 
-        void AddAll(string list, byte kind)
+        func AddAll(list: string, kind: byte)
         {
-            auto parts = std.text.Text.Split(list, " ");
+            var parts = std.text.Text.Split(list, " ");
             for (int i = 0; i < parts.Count; i++) words.Set(parts[i], kind);
             delete parts;
         }
 
-        static bool IsIdentStart(byte c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c >= 0x80;
-        static bool IsIdent(byte c) => IsIdentStart(c) || (c >= '0' && c <= '9');
-        static bool IsDigit(byte c) => c >= '0' && c <= '9';
+        static func IsIdentStart(c: byte) -> bool => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c >= 0x80;
+        static func IsIdent(c: byte) -> bool => IsIdentStart(c) || (c >= '0' && c <= '9');
+        static func IsDigit(c: byte) -> bool => c >= '0' && c <= '9';
 
         // Colorea 'line' (un byte de 'kinds' por byte de texto). 'inComment' indica si la
         // línea empieza dentro de un comentario /* */; devuelve el estado al final de la línea.
-        public bool Colorize(string line, byte* kinds, bool inComment)
+        public func Colorize(line: string, kinds: byte*, inComment: bool) -> bool
         {
             int n = line.Length;
             int i = 0;
@@ -216,7 +216,7 @@ namespace FasetStudio.Ide
         // Colorea una cadena interpolada a partir de 'i' (en '$' o '@'); devuelve la posición
         // siguiente. El texto es cadena; '{{', '}}' y las llaves de los huecos, escape; el código
         // de cada hueco se colorea como código normal y el formato (:F2) como cadena.
-        int ColorizeInterpolated(string line, byte* kinds, int i)
+        func ColorizeInterpolated(line: string, kinds: byte*, i: int) -> int
         {
             int n = line.Length;
             bool verbatim = false;

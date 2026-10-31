@@ -3,31 +3,31 @@
 //   faset run --release examples/benchmark_excepciones.fst
 using std.time;
 
-int Trabajo(int i)
+func Trabajo(i: int) -> int
 {
     // Algo que el compilador de C no puede eliminar.
     return (i * 7 + 3) % 1000;
 }
 
-int TrabajoQueFalla(int i)
+func TrabajoQueFalla(i: int) -> int
 {
     if (i >= 0) throw new InvalidOperationException("fallo");
     return i;
 }
 
-int Profundo(int nivel)
+func Profundo(nivel: int) -> int
 {
     if (nivel == 0) throw new FormatException("abajo");
     return Profundo(nivel - 1) + 1;
 }
 
-void Medir(string nombre, long ns, long n)
+func Medir(nombre: string, ns: long, n: long)
 {
     double porOp = (double)ns / n;
     println(nombre + ": " + (ns / 1000000) + " ms, " + ((long)(porOp * 10)) / 10.0 + " ns por operación");
 }
 
-void main()
+func main()
 {
     const int N = 50000000;
     long suma = 0;

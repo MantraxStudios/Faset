@@ -15,15 +15,15 @@ namespace FasetStudio.Ide
     public static class UiComponents
     {
         // Elementos del .fstui sin geometría (no se dibujan ni se mueven en el lienzo).
-        public static bool IsComponent(string kind) => kind == "Sound" || kind == "Music" || kind == "Timer" || kind == "ContextMenu";
+        public static func IsComponent(kind: string) -> bool => kind == "Sound" || kind == "Music" || kind == "Timer" || kind == "ContextMenu";
     }
 
     public partial class Designer
     {
         // El control seleccionado tiene posición y tamaño (ni la ventana ni un componente).
-        bool Placeable => selected != null && selected != root && !UiComponents.IsComponent(selected.Kind);
+        prop Placeable: bool => selected != null && selected != root && !UiComponents.IsComponent(selected.Kind);
 
-        void CollectComponents(UiNode n, List<UiNode> found)
+        func CollectComponents(n: UiNode, found: List<UiNode>)
         {
             for (int i = 0; i < n.Children.Count; i++)
             {
@@ -33,7 +33,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        string UniqueComponentName(string kind)
+        func UniqueComponentName(kind: string) -> string
         {
             string prefix = kind == "Music" ? "music" : "sound";
             for (int i = 1; ; i++)
@@ -44,7 +44,7 @@ namespace FasetStudio.Ide
         }
 
         // Primer archivo de audio junto al .fstui con esa extensión preferida (o "").
-        string GuessSource(bool music)
+        func GuessSource(music: bool) -> string
         {
             string dir = Path.GetDirectoryName(Doc.FullPath);
             List<string> files = Directory.GetFiles(dir);
@@ -60,7 +60,7 @@ namespace FasetStudio.Ide
             return best.Length > 0 ? best : (music ? "musica.ogg" : "sonido.wav");
         }
 
-        void AddComponent(string kind)
+        func AddComponent(kind: string)
         {
             string before = Snapshot();
             UiNode n = new UiNode(kind);
@@ -74,7 +74,7 @@ namespace FasetStudio.Ide
         }
 
         // Quita la geometría que hayan podido recibir (pegar, duplicar) los componentes.
-        static void StripGeometry(UiNode n)
+        static func StripGeometry(n: UiNode)
         {
             if (UiComponents.IsComponent(n.Kind))
             {
@@ -86,7 +86,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < n.Children.Count; i++) StripGeometry(n.Children[i]);
         }
 
-        List<PropDef> ComponentProps(List<PropDef> l, string kind)
+        func ComponentProps(l: List<PropDef>, kind: string) -> List<PropDef>
         {
             Def(l, "Name", 7, "", "", "Control");
             Def(l, "Source", 0, "", "", "Audio");
@@ -99,7 +99,7 @@ namespace FasetStudio.Ide
         }
 
         // Altavoz (Sound) o nota (Music).
-        void DrawComponentIcon(Renderer r, string kind, float x, float cy, Color c)
+        func DrawComponentIcon(r: Renderer, kind: string, x: float, cy: float, c: Color)
         {
             if (kind == "Music")
             {

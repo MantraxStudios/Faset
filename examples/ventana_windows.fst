@@ -12,7 +12,7 @@ static class User32
 
 static class Program
 {
-    static void Main()
+    static func Main()
     {
         memory_unsafe { User32.MessageBoxA(null, "Hola desde Faset!".Ptr, "Faset".Ptr, User32.MB_OK | User32.MB_ICONINFORMATION); }
     }

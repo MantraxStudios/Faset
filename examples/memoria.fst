@@ -6,31 +6,31 @@ namespace Demo
 
     public struct Vec2
     {
-        public double X;
-        public double Y;
+        public var X: double;
+        public var Y: double;
 
-        public Vec2(double x, double y) { X = x; Y = y; }
+        public init(x: double, y: double) { X = x; Y = y; }
 
-        public double Length() => Math.Sqrt(X * X + Y * Y);
-        public Vec2 Add(Vec2 o) { return new Vec2(X + o.X, Y + o.Y); }
-        public void Scale(double k) { X *= k; Y *= k; }
+        public func Length() -> double => Math.Sqrt(X * X + Y * Y);
+        public func Add(o: Vec2) -> Vec2 { return new Vec2(X + o.X, Y + o.Y); }
+        public func Scale(k: double) { X *= k; Y *= k; }
     }
 
     // Lista enlazada con gestión manual de memoria (como en C++).
     public class Node
     {
-        public int Value;
-        public Node Next;
-        public Node(int v) { Value = v; }
+        public var Value: int;
+        public var Next: Node;
+        public init(v: int) { Value = v; }
     }
 
     public class IntList
     {
-        Node head;
-        int count = 0;
-        public static int Destroyed = 0;
+        var head: Node;
+        var count: int = 0;
+        public static var Destroyed: int = 0;
 
-        public void Push(int v)
+        public func Push(v: int)
         {
             Node n = new Node(v);
             n.Next = head;
@@ -38,16 +38,16 @@ namespace Demo
             count++;
         }
 
-        public int Count() { return count; }
+        public func Count() -> int { return count; }
 
-        public int Sum()
+        public func Sum() -> int
         {
             int s = 0;
             for (Node n = head; n != null; n = n.Next) s += n.Value;
             return s;
         }
 
-        ~IntList()
+        deinit
         {
             Node n = head;
             while (n != null)
@@ -71,7 +71,7 @@ namespace Demo
             *b = t;
         }
 
-        static string Name(Color c)
+        static func Name(c: Color) -> string
         {
             switch (c)
             {
@@ -81,7 +81,7 @@ namespace Demo
             }
         }
 
-        public static int Main()
+        public static func Main() -> int
         {
             // Punteros y dirección de variables: solo dentro de 'memory_unsafe'.
             int x = 1, y = 2;

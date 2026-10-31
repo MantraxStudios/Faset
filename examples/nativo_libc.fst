@@ -12,7 +12,7 @@ static class LibC
 
 static class Program
 {
-    static void Main()
+    static func Main()
     {
         memory_unsafe
         {

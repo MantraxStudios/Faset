@@ -7,15 +7,15 @@ using std.time;
 
 class Particula
 {
-    public double X, Y, VX, VY;
-    public Particula Siguiente;
-    public void Mover(double dt) { X += VX * dt; Y += VY * dt; }
+    public var X: double, Y: double, VX: double, VY: double;
+    public var Siguiente: Particula;
+    public func Mover(dt: double) { X += VX * dt; Y += VY * dt; }
 }
 
 static class Bench
 {
     // Acceso a campos y llamadas a métodos a través de referencias (comprobación de nulo/delete).
-    public static double Objetos()
+    public static func Objetos() -> double
     {
         Particula primera = null;
         for (int i = 0; i < 1000; i++)
@@ -40,7 +40,7 @@ static class Bench
     }
 
     // Indexación de List<T> (límites) y aritmética entera con división.
-    public static long Listas()
+    public static func Listas() -> long
     {
         List<int> l = new List<int>();
         for (int i = 0; i < 100000; i++) l.Add(i * 7 + 3);
@@ -52,7 +52,7 @@ static class Bench
     }
 
     // Indexación de cadenas (límites).
-    public static long Cadenas()
+    public static func Cadenas() -> long
     {
         string s = "Faset: nativo, con la elegancia de C# y la potencia de C++. ";
         long h = 0;
@@ -62,7 +62,7 @@ static class Bench
     }
 }
 
-void Medir(string nombre, long ms)
+func Medir(nombre: string, ms: long)
 {
     Console.Write(nombre);
     Console.Write(": ");
@@ -70,7 +70,7 @@ void Medir(string nombre, long ms)
     Console.WriteLine(" ms");
 }
 
-void main()
+func main()
 {
     long t0 = Time.TickMs();
     double a = Bench.Objetos();

@@ -12,49 +12,49 @@ namespace FasetStudio.Ide
 {
     public memory_unsafe class EditorView
     {
-        public Document Doc;
-        public Designer Designer;   // solo para .fstui
-        public bool DesignMode;     // mostrando el diseñador (true) o el XML (false)
-        public TextPos Cursor;
-        public TextPos Anchor;
-        public int ScrollLine;
-        public float ScrollX;
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
-        public bool Focused;
-        public long CaretTime;
+        public var Doc: Document;
+        public var Designer: Designer;   // solo para .fstui
+        public var DesignMode: bool;     // mostrando el diseñador (true) o el XML (false)
+        public var Cursor: TextPos;
+        public var Anchor: TextPos;
+        public var ScrollLine: int;
+        public var ScrollX: float;
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
+        public var Focused: bool;
+        public var CaretTime: long;
 
-        int preferredCol = -1;
-        bool dragging;
-        bool draggingScrollbar;
-        bool lastWasTyping;
+        var preferredCol: int = -1;
+        var dragging: bool;
+        var draggingScrollbar: bool;
+        var lastWasTyping: bool;
         // Estado de comentario /* */ al inicio de cada línea (caché por versión).
-        bool* commentState;
-        int commentStateCount;
-        int commentStateVersion = -1;
-        byte* kinds;
-        int kindsCapacity;
+        var commentState: bool*;
+        var commentStateCount: int;
+        var commentStateVersion: int = -1;
+        var kinds: byte*;
+        var kindsCapacity: int;
 
         public const int TabSize = 4;
 
-        public EditorView(Document doc) { Doc = doc; }
+        public init(doc: Document) { Doc = doc; }
 
-        ~EditorView()
+        deinit
         {
             if (Designer != null) delete Designer;
             Memory.Free(commentState);
             Memory.Free(kinds);
         }
 
-        TextBuffer Buf => Doc.Buffer;
+        prop Buf: TextBuffer => Doc.Buffer;
 
         // ------------------------------------------------------------------ geometría
 
-        public static float LineHeight(Renderer r) => r.Code.LineHeight;
+        public static func LineHeight(r: Renderer) -> float => r.Code.LineHeight;
 
-        public float GutterWidth(Renderer r)
+        public func GutterWidth(r: Renderer) -> float
         {
             int digits = 1;
             for (int n = Buf.LineCount; n >= 10; n /= 10) digits++;
@@ -62,16 +62,16 @@ namespace FasetStudio.Ide
             return (digits + 4) * r.Code.CharWidth;
         }
 
-        public int VisibleLines(Renderer r) => (int)(H / LineHeight(r));
+        public func VisibleLines(r: Renderer) -> int => (int)(H / LineHeight(r));
 
-        public bool HasSelection => !(Cursor == Anchor);
-        public TextPos SelStart => TextPos.Min(Cursor, Anchor);
-        public TextPos SelEnd => TextPos.Max(Cursor, Anchor);
+        public prop HasSelection: bool => !(Cursor == Anchor);
+        public prop SelStart: TextPos => TextPos.Min(Cursor, Anchor);
+        public prop SelEnd: TextPos => TextPos.Max(Cursor, Anchor);
 
-        static bool IsCont(byte b) => (b & 0xC0) == 0x80;
+        static func IsCont(b: byte) -> bool => (b & 0xC0) == 0x80;
 
         // Columna visual (en caracteres, tabuladores expandidos) de una columna en bytes.
-        public int VisualCol(int line, int byteCol)
+        public func VisualCol(line: int, byteCol: int) -> int
         {
             string s = Buf.LineText(line);
             int v = 0;
@@ -85,7 +85,7 @@ namespace FasetStudio.Ide
             return v;
         }
 
-        public int ByteColFromVisual(int line, int visual)
+        public func ByteColFromVisual(line: int, visual: int) -> int
         {
             string s = Buf.LineText(line);
             int v = 0;
@@ -106,21 +106,21 @@ namespace FasetStudio.Ide
             return s.Length;
         }
 
-        static int NextCharIndex(string s, int i)
+        static func NextCharIndex(s: string, i: int) -> int
         {
             i++;
             while (i < s.Length && IsCont(s[i])) i++;
             return i;
         }
 
-        static int PrevCharIndex(string s, int i)
+        static func PrevCharIndex(s: string, i: int) -> int
         {
             i--;
             while (i > 0 && IsCont(s[i])) i--;
             return i < 0 ? 0 : i;
         }
 
-        public TextPos PosFromPoint(Renderer r, float px, float py)
+        public func PosFromPoint(r: Renderer, px: float, py: float) -> TextPos
         {
             float lh = LineHeight(r);
             int line = ScrollLine + (int)Math.Floor((py - Y) / lh);
@@ -132,10 +132,10 @@ namespace FasetStudio.Ide
             return new TextPos(line, ByteColFromVisual(line, visual));
         }
 
-        public float CaretX(Renderer r) => X + GutterWidth(r) - ScrollX + VisualCol(Cursor.Line, Cursor.Col) * r.Code.CharWidth;
-        public float CaretY(Renderer r) => Y + (Cursor.Line - ScrollLine) * LineHeight(r);
+        public func CaretX(r: Renderer) -> float => X + GutterWidth(r) - ScrollX + VisualCol(Cursor.Line, Cursor.Col) * r.Code.CharWidth;
+        public func CaretY(r: Renderer) -> float => Y + (Cursor.Line - ScrollLine) * LineHeight(r);
 
-        public void EnsureCursorVisible(Renderer r)
+        public func EnsureCursorVisible(r: Renderer)
         {
             if (W <= 0 || H <= 0)
             {
@@ -153,7 +153,7 @@ namespace FasetStudio.Ide
             if (cx > ScrollX + textW - cw) ScrollX = (float)(cx - textW + cw * 4);
         }
 
-        public void ClampScroll()
+        public func ClampScroll()
         {
             int maxLine = Buf.LineCount - 1;
             if (ScrollLine > maxLine) ScrollLine = maxLine;
@@ -162,7 +162,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ dibujo
 
-        void UpdateCommentStates()
+        func UpdateCommentStates()
         {
             if (commentStateVersion == Buf.Version && commentStateCount == Buf.LineCount) return;
             if (commentStateCount < Buf.LineCount + 1)
@@ -214,7 +214,7 @@ namespace FasetStudio.Ide
             commentStateVersion = Buf.Version;
         }
 
-        public void Draw(Renderer r, Highlighter hl, bool showCaret)
+        public func Draw(r: Renderer, hl: Highlighter, showCaret: bool)
         {
             float lh = LineHeight(r);
             float cw = r.Code.CharWidth;
@@ -334,7 +334,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ edición
 
-        public void SetCursor(TextPos p, bool extend)
+        public func SetCursor(p: TextPos, extend: bool)
         {
             Cursor = Buf.Clamp(p);
             if (!extend) Anchor = Cursor;
@@ -342,16 +342,16 @@ namespace FasetStudio.Ide
             lastWasTyping = false;
         }
 
-        public void SelectAll()
+        public func SelectAll()
         {
             Anchor = new TextPos(0, 0);
             Cursor = Buf.End;
         }
 
         // Texto seleccionado (copia) o "" si no hay selección.
-        public string SelectedText() => HasSelection ? Buf.GetText(SelStart, SelEnd) : String.Copy("");
+        public func SelectedText() -> string => HasSelection ? Buf.GetText(SelStart, SelEnd) : String.Copy("");
 
-        void DeleteSelection()
+        func DeleteSelection()
         {
             if (!HasSelection) return;
             TextPos a = SelStart;
@@ -361,7 +361,7 @@ namespace FasetStudio.Ide
         }
 
         // Inserta texto en lugar de la selección. 'typing' agrupa la escritura continua para deshacer.
-        public void InsertText(string text, bool typing)
+        public func InsertText(text: string, typing: bool)
         {
             if (!(typing && lastWasTyping && !HasSelection && Buf.CanMergeTyping(Cursor))) Buf.NewGroup();
             DeleteSelection();
@@ -371,7 +371,7 @@ namespace FasetStudio.Ide
             lastWasTyping = typing;
         }
 
-        string LineIndent(int line)
+        func LineIndent(line: int) -> string
         {
             string s = Buf.LineText(line);
             int n = 0;
@@ -379,19 +379,19 @@ namespace FasetStudio.Ide
             return s.Substring(0, n);
         }
 
-        byte CharBefore()
+        func CharBefore() -> byte
         {
             string s = Buf.LineText(Cursor.Line);
             return Cursor.Col > 0 ? s[Cursor.Col - 1] : (byte)0;
         }
 
-        byte CharAfter()
+        func CharAfter() -> byte
         {
             string s = Buf.LineText(Cursor.Line);
             return Cursor.Col < s.Length ? s[Cursor.Col] : (byte)0;
         }
 
-        public void TypeChar(char c)
+        public func TypeChar(c: char)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append(c);
@@ -432,7 +432,7 @@ namespace FasetStudio.Ide
             String.Free(text);
         }
 
-        public void NewLine()
+        public func NewLine()
         {
             string indent = LineIndent(Cursor.Line);
             byte before = CharBefore(), after = CharAfter();
@@ -457,7 +457,7 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        public void Backspace()
+        public func Backspace()
         {
             if (HasSelection)
             {
@@ -497,7 +497,7 @@ namespace FasetStudio.Ide
             preferredCol = -1;
         }
 
-        public void DeleteForward()
+        public func DeleteForward()
         {
             Buf.NewGroup();
             if (HasSelection)
@@ -512,14 +512,14 @@ namespace FasetStudio.Ide
         }
 
         // Aplica una función a las líneas seleccionadas (sangría, comentarios).
-        void SelectedLines(out int first, out int last)
+        func SelectedLines(out first: int, out last: int)
         {
             first = SelStart.Line;
             last = SelEnd.Line;
             if (HasSelection && SelEnd.Col == 0 && last > first) last--;
         }
 
-        public void Indent(bool outdent)
+        public func Indent(outdent: bool)
         {
             if (!HasSelection && !outdent)
             {
@@ -554,7 +554,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        public void ToggleComment()
+        public func ToggleComment()
         {
             int first, last;
             SelectedLines(out first, out last);
@@ -589,7 +589,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        public void DuplicateLine()
+        public func DuplicateLine()
         {
             string s = Buf.LineText(Cursor.Line);
             string copy = String.Concat("\n", s);
@@ -600,7 +600,7 @@ namespace FasetStudio.Ide
         }
 
         // Alt+↑/↓: sube o baja las líneas seleccionadas, intercambiándolas con la vecina.
-        public void MoveLines(int dir)
+        public func MoveLines(dir: int)
         {
             int first = 0, last = 0;
             SelectedLines(out first, out last);
@@ -624,7 +624,7 @@ namespace FasetStudio.Ide
         }
 
         // Alt+Shift+↑/↓: duplica las líneas seleccionadas encima o debajo.
-        public void DuplicateLines(int dir)
+        public func DuplicateLines(dir: int)
         {
             int first = 0, last = 0;
             SelectedLines(out first, out last);
@@ -643,10 +643,10 @@ namespace FasetStudio.Ide
             String.Free(copy);
         }
 
-        bool IsBlankLine(int line) => Buf.LineText(line).Trim().Length == 0;
+        func IsBlankLine(line: int) -> bool => Buf.LineText(line).Trim().Length == 0;
 
         // Ctrl+↑/↓: salta al bloque anterior o siguiente (la próxima línea en blanco).
-        void ParagraphJump(int dir, bool extend)
+        func ParagraphJump(dir: int, extend: bool)
         {
             int n = Buf.LineCount, l = Cursor.Line + dir;
             while (l > 0 && l < n - 1 && IsBlankLine(l)) l += dir;
@@ -656,7 +656,7 @@ namespace FasetStudio.Ide
         }
 
         // Ctrl+Retroceso / Ctrl+Supr: borra la palabra anterior o siguiente.
-        void DeleteWord(int dir)
+        func DeleteWord(dir: int)
         {
             if (HasSelection)
             {
@@ -672,7 +672,7 @@ namespace FasetStudio.Ide
         }
 
         // Ctrl+L: selecciona la línea; repetido, amplía la selección a la siguiente.
-        void SelectLine()
+        func SelectLine()
         {
             int line = Cursor.Line;
             bool extending = HasSelection && Cursor.Col == 0 && Cursor.Line > Anchor.Line;
@@ -685,7 +685,7 @@ namespace FasetStudio.Ide
         }
 
         // Ctrl+Intro: línea nueva debajo; Ctrl+Shift+Intro: encima (con la sangría de la actual).
-        void InsertLine(bool above)
+        func InsertLine(above: bool)
         {
             int line = Cursor.Line;
             if (!above)
@@ -704,7 +704,7 @@ namespace FasetStudio.Ide
             String.Free(indent);
         }
 
-        public void DeleteLine()
+        public func DeleteLine()
         {
             Buf.NewGroup();
             int line = Cursor.Line;
@@ -714,13 +714,13 @@ namespace FasetStudio.Ide
             SetCursor(new TextPos(Math.Min(line, Buf.LineCount - 1), 0), false);
         }
 
-        public void Undo()
+        public func Undo()
         {
             TextPos p;
             if (Buf.Undo(out p)) SetCursor(p, false);
         }
 
-        public void Redo()
+        public func Redo()
         {
             TextPos p;
             if (Buf.Redo(out p)) SetCursor(p, false);
@@ -728,9 +728,9 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ navegación
 
-        static bool IsWordChar(byte b) => Char.IsLetterOrDigit((char)b) || b == '_' || b >= 0x80;
+        static func IsWordChar(b: byte) -> bool => Char.IsLetterOrDigit((char)b) || b == '_' || b >= 0x80;
 
-        public TextPos WordStart(TextPos p)
+        public func WordStart(p: TextPos) -> TextPos
         {
             p = Buf.Clamp(p);
             string s = Buf.LineText(p.Line);
@@ -739,7 +739,7 @@ namespace FasetStudio.Ide
             return new TextPos(p.Line, i);
         }
 
-        public TextPos WordEnd(TextPos p)
+        public func WordEnd(p: TextPos) -> TextPos
         {
             p = Buf.Clamp(p);
             string s = Buf.LineText(p.Line);
@@ -749,13 +749,13 @@ namespace FasetStudio.Ide
         }
 
         // Palabra (identificador) bajo una posición, como vista.
-        public string WordAt(TextPos p)
+        public func WordAt(p: TextPos) -> string
         {
             TextPos a = WordStart(p), b = WordEnd(p);
             return Buf.LineText(p.Line).Substring(a.Col, b.Col - a.Col);
         }
 
-        TextPos WordLeft(TextPos p)
+        func WordLeft(p: TextPos) -> TextPos
         {
             string s = Buf.LineText(p.Line);
             if (p.Col == 0) return p.Line > 0 ? new TextPos(p.Line - 1, Buf.LineLength(p.Line - 1)) : p;
@@ -766,7 +766,7 @@ namespace FasetStudio.Ide
             return new TextPos(p.Line, i);
         }
 
-        TextPos WordRight(TextPos p)
+        func WordRight(p: TextPos) -> TextPos
         {
             string s = Buf.LineText(p.Line);
             if (p.Col >= s.Length) return p.Line + 1 < Buf.LineCount ? new TextPos(p.Line + 1, 0) : p;
@@ -777,7 +777,7 @@ namespace FasetStudio.Ide
             return new TextPos(p.Line, i);
         }
 
-        void MoveVertical(int lines, bool extend)
+        func MoveVertical(lines: int, extend: bool)
         {
             if (preferredCol < 0) preferredCol = VisualCol(Cursor.Line, Cursor.Col);
             int target = Math.Clamp(Cursor.Line + lines, 0, Buf.LineCount - 1);
@@ -794,7 +794,7 @@ namespace FasetStudio.Ide
         }
 
         // Teclas de navegación y edición. Devuelve true si la tecla se procesó.
-        public bool HandleKey(Event e, Renderer r)
+        public func HandleKey(e: Event, r: Renderer) -> bool
         {
             bool shift = e.Shift;
             uint k = e.Key;
@@ -858,9 +858,9 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ ratón
 
-        public bool OverScrollbar(float px) => px >= X + W - 10;
+        public func OverScrollbar(px: float) -> bool => px >= X + W - 10;
 
-        public void MouseDown(Renderer r, float px, float py, int clicks, bool shift)
+        public func MouseDown(r: Renderer, px: float, py: float, clicks: int, shift: bool)
         {
             Focused = true;
             CaretTime = Environment.TickCount64();
@@ -889,14 +889,14 @@ namespace FasetStudio.Ide
             preferredCol = -1;
         }
 
-        void ScrollToY(Renderer r, float py)
+        func ScrollToY(r: Renderer, py: float)
         {
             float ratio = (float)((py - Y) / Math.Max(1.0, H));
             ScrollLine = (int)(ratio * Buf.LineCount);
             ClampScroll();
         }
 
-        public bool MouseMove(Renderer r, float px, float py)
+        public func MouseMove(r: Renderer, px: float, py: float) -> bool
         {
             if (draggingScrollbar)
             {
@@ -911,13 +911,13 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        public void MouseUp()
+        public func MouseUp()
         {
             dragging = false;
             draggingScrollbar = false;
         }
 
-        public void Scroll(int lines)
+        public func Scroll(lines: int)
         {
             ScrollLine += lines;
             ClampScroll();
@@ -926,7 +926,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ búsqueda
 
         // Busca 'text' desde el cursor (con vuelta al principio) y lo selecciona.
-        public bool FindNext(string text, Renderer r)
+        public func FindNext(text: string, r: Renderer) -> bool
         {
             if (text.Length == 0) return false;
             int lines = Buf.LineCount;
@@ -948,7 +948,7 @@ namespace FasetStudio.Ide
             return false;
         }
 
-        public void GoToLine(int line, int col, Renderer r)
+        public func GoToLine(line: int, col: int, r: Renderer)
         {
             SetCursor(new TextPos(line, col), false);
             // Centrar la línea en la vista.

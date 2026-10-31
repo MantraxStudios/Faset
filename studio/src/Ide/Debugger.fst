@@ -34,15 +34,15 @@ namespace FasetStudio.Ide
     // Valor de una respuesta MI: cadena (Kind 0), tupla {a=..} (1) o lista [..] (2).
     public memory_unsafe class MiValue
     {
-        public int Kind;
-        public string Str = "";
-        public List<string> Names = new List<string>();
-        public List<MiValue> Items = new List<MiValue>();
+        public var Kind: int;
+        public var Str: string = "";
+        public var Names: List<string> = new List<string>();
+        public var Items: List<MiValue> = new List<MiValue>();
 
-        public int Count => Items.Count;
-        public MiValue At(int i) => i >= 0 && i < Items.Count ? Items[i] : null;
+        public prop Count: int => Items.Count;
+        public func At(i: int) -> MiValue => i >= 0 && i < Items.Count ? Items[i] : null;
 
-        public MiValue Get(string name)
+        public func Get(name: string) -> MiValue
         {
             for (int i = 0; i < Names.Count; i++)
                 if (Names[i] == name) return Items[i];
@@ -50,14 +50,14 @@ namespace FasetStudio.Ide
         }
 
         // Texto de un campo ("" si no existe o no es una cadena).
-        public string S(string name)
+        public func S(name: string) -> string
         {
             MiValue v = Get(name);
             return v != null && v.Kind == 0 ? v.Str : "";
         }
 
         // Analiza "a=1,b={c="2"},d=[...]" (lo que sigue a la clase de un registro).
-        public static MiValue ParseResults(string s, int start)
+        public static func ParseResults(s: string, start: int) -> MiValue
         {
             MiValue t = new MiValue();
             t.Kind = 1;
@@ -78,7 +78,7 @@ namespace FasetStudio.Ide
             return t;
         }
 
-        static MiValue ParseResult(string s, ref int pos, out string name)
+        static func ParseResult(s: string, ref pos: int, out name: string) -> MiValue
         {
             int eq = pos;
             while (eq < s.Length && s[eq] != '=' && s[eq] != ',' && s[eq] != '{' && s[eq] != '"' && s[eq] != '[') eq++;
@@ -91,7 +91,7 @@ namespace FasetStudio.Ide
             return ParseValue(s, ref pos);
         }
 
-        static MiValue ParseValue(string s, ref int pos)
+        static func ParseValue(s: string, ref pos: int) -> MiValue
         {
             if (pos >= s.Length) return null;
             MiValue v = new MiValue();
@@ -131,7 +131,7 @@ namespace FasetStudio.Ide
         }
 
         // Cadena C de MI: \" \\ \n \t y \NNN (octal, bytes UTF-8).
-        public static string ParseCString(string s, ref int pos)
+        public static func ParseCString(s: string, ref pos: int) -> string
         {
             pos++;  // comilla inicial
             byte* buf = (byte*)Memory.Alloc(s.Length + 1);
@@ -173,49 +173,49 @@ namespace FasetStudio.Ide
 
     public class DbgBreakpoint
     {
-        public string Path = "";       // ruta absoluta del .fst
-        public int Line;               // 0..n-1
-        public string Condition = "";  // expresión de Faset ("" = siempre)
-        public int Number;             // número en gdb (0 = sin insertar)
-        public bool Verified;          // gdb encontró código en esa línea
+        public var Path: string = "";       // ruta absoluta del .fst
+        public var Line: int;               // 0..n-1
+        public var Condition: string = "";  // expresión de Faset ("" = siempre)
+        public var Number: int;             // número en gdb (0 = sin insertar)
+        public var Verified: bool;          // gdb encontró código en esa línea
     }
 
     public class DbgFrame
     {
-        public int Level;
-        public string Func = "";    // nombre de Faset (Jugador.Atacar)
-        public string CFunc = "";   // nombre en C
-        public string Path = "";    // ruta completa ("" si no hay fuente)
-        public int Line;            // 0..n-1
-        public bool IsUser => Path.EndsWith(".fst");
+        public var Level: int;
+        public var Func: string = "";    // nombre de Faset (Jugador.Atacar)
+        public var CFunc: string = "";   // nombre en C
+        public var Path: string = "";    // ruta completa ("" si no hay fuente)
+        public var Line: int;            // 0..n-1
+        public prop IsUser: bool => Path.EndsWith(".fst");
     }
 
     public class DbgVar
     {
-        public string Name = "";      // nombre de Faset
-        public string Value = "";     // texto mostrado
-        public string Type = "";      // tipo de Faset (o de C si no se reconoce)
-        public string CType = "";
-        public string Expr = "";      // expresión de C para gdb
-        public string Path = "";      // ruta en el árbol (para recordar lo expandido)
-        public int Depth;
-        public bool Expandable;
-        public bool Expanded;
-        public bool Loaded;
-        public bool IsPointer;
-        public bool IsList;
-        public bool Changed;          // cambió desde la última parada
-        public bool Error;
-        public List<DbgVar> Children = new List<DbgVar>();
+        public var Name: string = "";      // nombre de Faset
+        public var Value: string = "";     // texto mostrado
+        public var Type: string = "";      // tipo de Faset (o de C si no se reconoce)
+        public var CType: string = "";
+        public var Expr: string = "";      // expresión de C para gdb
+        public var Path: string = "";      // ruta en el árbol (para recordar lo expandido)
+        public var Depth: int;
+        public var Expandable: bool;
+        public var Expanded: bool;
+        public var Loaded: bool;
+        public var IsPointer: bool;
+        public var IsList: bool;
+        public var Changed: bool;          // cambió desde la última parada
+        public var Error: bool;
+        public var Children: List<DbgVar> = new List<DbgVar>();
     }
 
     // Acceso desde EditorView a los puntos de interrupción y a la línea actual.
     public static class DebugMarks
     {
-        public static Debugger Session;
+        public static var Session: Debugger;
 
         // Fondo de la línea donde está detenido el programa (antes del texto).
-        public static void Background(Renderer r, string path, int line, float x, float y, float w, float h)
+        public static func Background(r: Renderer, path: string, line: int, x: float, y: float, w: float, h: float)
         {
             Debugger d = Session;
             if (d == null || !d.Stopped || d.StopLine != line || d.StopPath != path) return;
@@ -225,7 +225,7 @@ namespace FasetStudio.Ide
         }
 
         // Punto rojo del punto de interrupción y flecha amarilla de la línea actual (margen izquierdo).
-        public static void Gutter(Renderer r, string path, int line, float x, float y, float lh)
+        public static func Gutter(r: Renderer, path: string, line: int, x: float, y: float, lh: float)
         {
             Debugger d = Session;
             if (d == null) return;
@@ -263,60 +263,60 @@ namespace FasetStudio.Ide
     public memory_unsafe class Debugger
     {
         // Estado público (lo lee el IDE)
-        public bool Active;         // hay una sesión de gdb
-        public bool Stopped;        // el programa está detenido
-        public bool Running;        // el programa está ejecutándose
-        public string StopPath = "";    // archivo y línea del marco seleccionado
-        public int StopLine = -1;
-        public string StopMessage = ""; // panic, señal o ""
-        public bool StopChanged;    // nueva parada (el IDE abre el archivo y la consume)
-        public bool Ended;          // la sesión terminó (el IDE la consume)
-        public string Status = "";  // mensaje para la barra de estado (el IDE lo consume)
-        public int SelectedFrame;
-        public int TopFrame;        // marco donde se detuvo (el primero de Faset si fue un panic o una señal)
-        public List<DbgBreakpoint> Breakpoints = new List<DbgBreakpoint>();
-        public List<DbgFrame> Frames = new List<DbgFrame>();
-        public List<DbgVar> Variables = new List<DbgVar>();
-        public List<string> WatchExprs = new List<string>();
-        public List<DbgVar> Watches = new List<DbgVar>();
-        public StringBuilder Output;      // panel de Salida del IDE
-        public bool BreakpointsChanged;   // hay que guardarlos (el IDE lo consume)
-        public bool JustMyCode = true;    // paso a paso sin entrar en la biblioteca estándar
+        public var Active: bool;         // hay una sesión de gdb
+        public var Stopped: bool;        // el programa está detenido
+        public var Running: bool;        // el programa está ejecutándose
+        public var StopPath: string = "";    // archivo y línea del marco seleccionado
+        public var StopLine: int = -1;
+        public var StopMessage: string = ""; // panic, señal o ""
+        public var StopChanged: bool;    // nueva parada (el IDE abre el archivo y la consume)
+        public var Ended: bool;          // la sesión terminó (el IDE la consume)
+        public var Status: string = "";  // mensaje para la barra de estado (el IDE lo consume)
+        public var SelectedFrame: int;
+        public var TopFrame: int;        // marco donde se detuvo (el primero de Faset si fue un panic o una señal)
+        public var Breakpoints: List<DbgBreakpoint> = new List<DbgBreakpoint>();
+        public var Frames: List<DbgFrame> = new List<DbgFrame>();
+        public var Variables: List<DbgVar> = new List<DbgVar>();
+        public var WatchExprs: List<string> = new List<string>();
+        public var Watches: List<DbgVar> = new List<DbgVar>();
+        public var Output: StringBuilder;      // panel de Salida del IDE
+        public var BreakpointsChanged: bool;   // hay que guardarlos (el IDE lo consume)
+        public var JustMyCode: bool = true;    // paso a paso sin entrar en la biblioteca estándar
 
         // Paneles: desplazamiento y filas visibles del último dibujo
-        public int VarsScroll;
-        public int StackScroll;
-        public int WatchScroll;
-        List<DbgVar> varRows = new List<DbgVar>();
-        List<DbgVar> watchRows = new List<DbgVar>();
+        public var VarsScroll: int;
+        public var StackScroll: int;
+        public var WatchScroll: int;
+        var varRows: List<DbgVar> = new List<DbgVar>();
+        var watchRows: List<DbgVar> = new List<DbgVar>();
 
-        Process gdb;
-        string gdbPath = "";
-        bool searched;
-        StringBuilder inBuf = new StringBuilder();
-        StringBuilder console = new StringBuilder();     // salida de consola (~"...") de la última orden
-        List<string> pending = new List<string>();   // registros asíncronos por atender
-        int nextToken = 1;
-        string lastError = "";
-        int pid;
-        string outFile = "";
-        int outOffset;
-        long lastOutputPoll;
-        List<int> panicBps = new List<int>();
-        int lastStep;               // 1 next, 2 step, 3 finish (para atravesar código sin .fst)
-        int autoSteps;
-        List<string> frameNames = new List<string>();   // nombres de C de las variables del marco
-        bool frameHasSelf;
-        Dictionary<string, string> prevValues = new Dictionary<string, string>();
-        Dictionary<string, string> curValues = new Dictionary<string, string>();
-        List<string> expanded = new List<string>();     // rutas expandidas (se conservan entre pasos)
+        var gdb: Process;
+        var gdbPath: string = "";
+        var searched: bool;
+        var inBuf: StringBuilder = new StringBuilder();
+        var console: StringBuilder = new StringBuilder();     // salida de consola (~"...") de la última orden
+        var pending: List<string> = new List<string>();   // registros asíncronos por atender
+        var nextToken: int = 1;
+        var lastError: string = "";
+        var pid: int;
+        var outFile: string = "";
+        var outOffset: int;
+        var lastOutputPoll: long;
+        var panicBps: List<int> = new List<int>();
+        var lastStep: int;               // 1 next, 2 step, 3 finish (para atravesar código sin .fst)
+        var autoSteps: int;
+        var frameNames: List<string> = new List<string>();   // nombres de C de las variables del marco
+        var frameHasSelf: bool;
+        var prevValues: Dictionary<string, string> = new Dictionary<string, string>();
+        var curValues: Dictionary<string, string> = new Dictionary<string, string>();
+        var expanded: List<string> = new List<string>();     // rutas expandidas (se conservan entre pasos)
 
-        public Debugger() { DebugMarks.Session = this; }
+        public init() { DebugMarks.Session = this; }
 
         // ------------------------------------------------------------------ gdb
 
         // Ruta de gdb ("" si no está instalado).
-        public string DebuggerPath()
+        public func DebuggerPath() -> string
         {
             if (!searched)
             {
@@ -335,7 +335,7 @@ namespace FasetStudio.Ide
         }
 
         // Arranca gdb con el ejecutable y lo pone en marcha. false (y Status) si no se pudo.
-        public bool Start(string exe, string cwd)
+        public func Start(exe: string, cwd: string) -> bool
         {
             if (Active) Stop();
             string path = DebuggerPath();
@@ -429,7 +429,7 @@ namespace FasetStudio.Ide
         }
 
         // Termina la sesión (mata el programa).
-        public void Stop()
+        public func Stop()
         {
             if (!Active) return;
             Say(L.T("[debugging stopped]"));
@@ -437,7 +437,7 @@ namespace FasetStudio.Ide
             Shutdown();
         }
 
-        void Shutdown()
+        func Shutdown()
         {
             if (gdb != null)
             {
@@ -479,14 +479,14 @@ namespace FasetStudio.Ide
             Ended = true;
         }
 
-        void Say(string text)
+        func Say(text: string)
         {
             if (Output == null || text.Length == 0) return;
             if (Output.Length > 0 && Output.View()[Output.Length - 1] != '\n') Output.Append("\n");
             Output.Append(text).Append("\n");
         }
 
-        static string Q(string s)
+        static func Q(s: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("\"");
@@ -502,9 +502,9 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        static string ShellQuote(string s) => String.Concat("'", Text.Replace(s, "'", "'\\''"), "'");
+        static func ShellQuote(s: string) -> string => String.Concat("'", Text.Replace(s, "'", "'\\''"), "'");
 
-        void Write(string cmd)
+        func Write(cmd: string)
         {
             if (gdb == null) return;
             Trace("> ", cmd);
@@ -513,9 +513,9 @@ namespace FasetStudio.Ide
         }
 
         // FASET_DEBUG_MI=<archivo>: copia el diálogo con gdb (para diagnosticar el depurador).
-        string traceFile = "";
-        bool traceChecked;
-        void Trace(string dir, string text)
+        var traceFile: string = "";
+        var traceChecked: bool;
+        func Trace(dir: string, text: string)
         {
             if (!traceChecked)
             {
@@ -526,7 +526,7 @@ namespace FasetStudio.Ide
         }
 
         // Siguiente línea completa de gdb (copia).
-        bool NextLine(out string line)
+        func NextLine(out line: string) -> bool
         {
             if (gdb != null) gdb.ReadOutput(inBuf);
             string all = inBuf.View();
@@ -547,7 +547,7 @@ namespace FasetStudio.Ide
 
         // Orden síncrona: espera su respuesta (^done, ^running...) y guarda los avisos que lleguen
         // mientras tanto. null si gdb respondió ^error (el mensaje queda en lastError).
-        MiValue Request(string cmd)
+        func Request(cmd: string) -> MiValue
         {
             if (gdb == null) return null;
             int token = nextToken++;
@@ -596,7 +596,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ bucle
 
         // Atiende a gdb sin bloquear. true si cambió algo que haya que redibujar.
-        public bool Update()
+        public func Update() -> bool
         {
             if (!Active) return false;
             bool changed = false;
@@ -622,7 +622,7 @@ namespace FasetStudio.Ide
         }
 
         // Copia al panel de Salida lo nuevo que escribió el programa.
-        bool PollOutput(bool force)
+        func PollOutput(force: bool) -> bool
         {
             if (outFile.Length == 0 || Output == null) return false;
             long now = Environment.TickCount64();
@@ -636,7 +636,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        void Handle(string rec)
+        func Handle(rec: string)
         {
             int comma = rec.IndexOf(",");
             string cls = comma < 0 ? rec.Substring(1) : rec.Substring(1, comma - 1);
@@ -661,7 +661,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void OnStopped(MiValue v)
+        func OnStopped(v: MiValue)
         {
             string reason = v.S("reason");
             Running = false;
@@ -737,7 +737,7 @@ namespace FasetStudio.Ide
             StopChanged = true;
         }
 
-        void SwapValues()
+        func SwapValues()
         {
             Dictionary<string, string> t = prevValues;
             prevValues = curValues;
@@ -745,7 +745,7 @@ namespace FasetStudio.Ide
             curValues.Clear();
         }
 
-        static string Unquote(string s)
+        static func Unquote(s: string) -> string
         {
             string t = s.Trim();
             int q1 = t.IndexOf("\"");
@@ -754,7 +754,7 @@ namespace FasetStudio.Ide
             return String.Copy(t);
         }
 
-        void LoadFrames()
+        func LoadFrames()
         {
             Frames.Clear();
             MiValue r = Request("-stack-list-frames 0 63");
@@ -778,7 +778,7 @@ namespace FasetStudio.Ide
         }
 
         // Selecciona un marco de la pila: variables, inspecciones y línea mostrada.
-        public void SelectFrame(int index)
+        public func SelectFrame(index: int)
         {
             if (!Stopped || index < 0 || index >= Frames.Count) return;
             SelectedFrame = index;
@@ -793,7 +793,7 @@ namespace FasetStudio.Ide
             RefreshWatches();
         }
 
-        void Resume(string cmd, int step)
+        func Resume(cmd: string, step: int)
         {
             if (!Active) return;
             if (SelectedFrame != 0) Request("-stack-select-frame 0");
@@ -808,10 +808,10 @@ namespace FasetStudio.Ide
             Running = true;
         }
 
-        public void Continue() { if (Stopped) { autoSteps = 0; Resume("-exec-continue", 0); } }
-        public void StepOver() { if (Stopped) { autoSteps = 0; Resume("-exec-next", 1); } }
-        public void StepInto() { if (Stopped) { autoSteps = 0; Resume("-exec-step", 2); } }
-        public void StepOut()
+        public func Continue() { if (Stopped) { autoSteps = 0; Resume("-exec-continue", 0); } }
+        public func StepOver() { if (Stopped) { autoSteps = 0; Resume("-exec-next", 1); } }
+        public func StepInto() { if (Stopped) { autoSteps = 0; Resume("-exec-step", 2); } }
+        public func StepOut()
         {
             if (!Stopped) return;
             autoSteps = 0;
@@ -821,18 +821,18 @@ namespace FasetStudio.Ide
                 if (Frames[i].IsUser) users++;
             Resume(users <= 1 ? "-exec-continue" : "-exec-finish", 3);
         }
-        public void Pause() { if (Active && Running) Request("-exec-interrupt"); }
+        public func Pause() { if (Active && Running) Request("-exec-interrupt"); }
 
         // ------------------------------------------------------------------ puntos de interrupción
 
-        public int BreakpointAt(string path, int line)
+        public func BreakpointAt(path: string, line: int) -> int
         {
             for (int i = 0; i < Breakpoints.Count; i++)
                 if (Breakpoints[i].Line == line && Breakpoints[i].Path == path) return i;
             return -1;
         }
 
-        public void ToggleBreakpoint(string path, int line)
+        public func ToggleBreakpoint(path: string, line: int)
         {
             int i = BreakpointAt(path, line);
             if (i >= 0) RemoveBreakpoint(i);
@@ -841,7 +841,7 @@ namespace FasetStudio.Ide
 
         // Se insertaron (delta > 0) o borraron (delta < 0) líneas a partir de 'line': los puntos que
         // quedan debajo se mueven con su código (en gdb se aplican en la próxima sesión).
-        public void ShiftBreakpoints(string path, int line, int delta)
+        public func ShiftBreakpoints(path: string, line: int, delta: int)
         {
             bool any = false;
             for (int i = Breakpoints.Count - 1; i >= 0; i--)
@@ -860,7 +860,7 @@ namespace FasetStudio.Ide
             if (any) BreakpointsChanged = true;
         }
 
-        public void AddBreakpoint(string path, int line, string condition)
+        public func AddBreakpoint(path: string, line: int, condition: string)
         {
             if (BreakpointAt(path, line) >= 0) return;
             DbgBreakpoint b = new DbgBreakpoint();
@@ -872,7 +872,7 @@ namespace FasetStudio.Ide
             BreakpointsChanged = true;
         }
 
-        public void RemoveBreakpoint(int i)
+        public func RemoveBreakpoint(i: int)
         {
             if (i < 0 || i >= Breakpoints.Count) return;
             DbgBreakpoint b = Breakpoints[i];
@@ -887,7 +887,7 @@ namespace FasetStudio.Ide
             BreakpointsChanged = true;
         }
 
-        public void SetCondition(int i, string condition)
+        public func SetCondition(i: int, condition: string)
         {
             if (i < 0 || i >= Breakpoints.Count) return;
             DbgBreakpoint b = Breakpoints[i];
@@ -903,7 +903,7 @@ namespace FasetStudio.Ide
             BreakpointsChanged = true;
         }
 
-        void Insert(DbgBreakpoint b)
+        func Insert(b: DbgBreakpoint)
         {
             StringBuilder cmd = new StringBuilder();
             cmd.Append("-break-insert -f ");
@@ -923,7 +923,7 @@ namespace FasetStudio.Ide
 
         // La condición se escribe en Faset; los nombres de C se buscan con 'info scope' en esa línea
         // (las variables visibles allí: l_i, p_x, self...).
-        string ConditionToC(DbgBreakpoint b)
+        func ConditionToC(b: DbgBreakpoint) -> string
         {
             StringBuilder cmd = new StringBuilder();
             cmd.Append("-interpreter-exec console ").Append(Q(String.Concat("info scope ", b.Path, ":") + String.FromInt(b.Line + 1)));
@@ -951,7 +951,7 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        void UpdateFromGdb(MiValue bk)
+        func UpdateFromGdb(bk: MiValue)
         {
             int no = bk.S("number").ToInt();
             for (int i = 0; i < Breakpoints.Count; i++)
@@ -959,7 +959,7 @@ namespace FasetStudio.Ide
         }
 
         // gdb mueve el punto a la primera línea con código: se refleja en el editor.
-        void ApplyLocation(DbgBreakpoint b, MiValue bk)
+        func ApplyLocation(b: DbgBreakpoint, bk: MiValue)
         {
             string ln = bk.S("line");
             if (ln.Length == 0)
@@ -980,7 +980,7 @@ namespace FasetStudio.Ide
         }
 
         // Guardado: "ruta\tlínea\tcondición\t..." (rutas relativas a 'root').
-        public string Serialize(string root)
+        public func Serialize(root: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < Breakpoints.Count; i++)
@@ -995,7 +995,7 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        public void Deserialize(string root, string data)
+        public func Deserialize(root: string, data: string)
         {
             Breakpoints.Clear();
             if (data.Trim().Length == 0) return;
@@ -1015,7 +1015,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ variables
 
         // Valor de una expresión de C ("" si gdb no puede evaluarla).
-        string Evaluate(string cexpr)
+        func Evaluate(cexpr: string) -> string
         {
             StringBuilder cmd = new StringBuilder();
             cmd.Append("-data-evaluate-expression ").Append(Q(cexpr));
@@ -1024,7 +1024,7 @@ namespace FasetStudio.Ide
             return r == null ? "" : String.Copy(r.S("value"));
         }
 
-        void LoadVariables()
+        func LoadVariables()
         {
             Variables.Clear();
             frameNames.Clear();
@@ -1072,7 +1072,7 @@ namespace FasetStudio.Ide
         }
 
         // Vuelve a expandir lo que el usuario tenía abierto.
-        void Restore(DbgVar v)
+        func Restore(v: DbgVar)
         {
             if (!v.Expandable || !expanded.Contains(v.Path) || v.Depth > 6) return;
             LoadChildren(v);
@@ -1080,7 +1080,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < v.Children.Count; i++) Restore(v.Children[i]);
         }
 
-        public void Toggle(DbgVar v)
+        public func Toggle(v: DbgVar)
         {
             if (!v.Expandable || !Stopped) return;
             if (v.Expanded)
@@ -1095,7 +1095,7 @@ namespace FasetStudio.Ide
         }
 
         // Nodo para una expresión de C (tipo y valor con -var-create).
-        DbgVar MakeNode(string name, string cexpr, string path, int depth)
+        func MakeNode(name: string, cexpr: string, path: string, depth: int) -> DbgVar
         {
             DbgVar v = new DbgVar();
             v.Name = String.Copy(name);
@@ -1120,7 +1120,7 @@ namespace FasetStudio.Ide
             return v;
         }
 
-        void Describe(DbgVar v, string ctype, string raw)
+        func Describe(v: DbgVar, ctype: string, raw: string)
         {
             string t = ctype.Trim();
             if (t.StartsWith("const ")) t = t.Substring(6);
@@ -1192,7 +1192,7 @@ namespace FasetStudio.Ide
             v.Changed = prevValues.TryGetValue(v.Path, out before) && before != v.Value;
         }
 
-        string ListElementType(string expr)
+        func ListElementType(expr: string) -> string
         {
             StringBuilder cmd = new StringBuilder();
             cmd.Append("-var-create - * ").Append(Q(String.Concat("(", expr, ")->f_items")));
@@ -1212,7 +1212,7 @@ namespace FasetStudio.Ide
         }
 
         // Texto de un faset_string {ptr, len}.
-        string StringValue(string expr)
+        func StringValue(expr: string) -> string
         {
             string lenText = Evaluate(String.Concat("(", expr, ").len"));
             long len = 0;
@@ -1230,7 +1230,7 @@ namespace FasetStudio.Ide
             return s;
         }
 
-        void LoadChildren(DbgVar v)
+        func LoadChildren(v: DbgVar)
         {
             v.Loaded = true;
             v.Children.Clear();
@@ -1299,7 +1299,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ inspección y hover
 
-        public void AddWatch(string expr)
+        public func AddWatch(expr: string)
         {
             string e = expr.Trim();
             if (e.Length == 0) return;
@@ -1307,14 +1307,14 @@ namespace FasetStudio.Ide
             RefreshWatches();
         }
 
-        public void RemoveWatch(int i)
+        public func RemoveWatch(i: int)
         {
             if (i < 0 || i >= WatchExprs.Count) return;
             WatchExprs.RemoveAt(i);
             RefreshWatches();
         }
 
-        void RefreshWatches()
+        func RefreshWatches()
         {
             Watches.Clear();
             for (int i = 0; i < WatchExprs.Count; i++)
@@ -1337,7 +1337,7 @@ namespace FasetStudio.Ide
         }
 
         // Texto emergente con el valor de una expresión de Faset ("" si no se puede evaluar).
-        public string HoverValue(string expr)
+        public func HoverValue(expr: string) -> string
         {
             if (!Stopped || expr.Length == 0) return "";
             DbgVar v = MakeNode(expr, FasetToC(expr, true), String.Concat("hover:", expr), 0);
@@ -1359,7 +1359,7 @@ namespace FasetStudio.Ide
 
         // Traduce una expresión sencilla de Faset a C: jugador.Vida -> l_jugador.f_Vida (gdb acepta '.'
         // sobre punteros), lista[i] -> l_lista->f_items[l_i], s.Length -> s.len, this -> self.
-        public string FasetToC(string e, bool probeTypes)
+        public func FasetToC(e: string, probeTypes: bool) -> string
         {
             StringBuilder sb = new StringBuilder();
             List<int> chainStarts = new List<int>();
@@ -1454,7 +1454,7 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        string TypeOfC(string cexpr)
+        func TypeOfC(cexpr: string) -> string
         {
             StringBuilder cmd = new StringBuilder();
             cmd.Append("-var-create - * ").Append(Q(cexpr));
@@ -1474,7 +1474,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ nombres
 
         // Nombre de Faset de una variable de C ("" para las temporales del compilador).
-        public static string FasetName(string cname)
+        public static func FasetName(cname: string) -> string
         {
             if (cname == "self") return String.Copy("this");
             if ((cname.StartsWith("l_") || cname.StartsWith("p_")) && cname.Length > 2) return String.Copy(cname.Substring(2));
@@ -1482,7 +1482,7 @@ namespace FasetStudio.Ide
         }
 
         // fs_Ns_Clase -> Ns.Clase; fs_std_collections_List_3 -> List (instancia de plantilla).
-        public static string TypeName(string cname)
+        public static func TypeName(cname: string) -> string
         {
             string s = cname.StartsWith("fs_") ? cname.Substring(3) : cname;
             // Sufijo numérico de las instancias de plantillas (List_3).
@@ -1493,7 +1493,7 @@ namespace FasetStudio.Ide
             return Text.Replace(s, "_", ".");
         }
 
-        static bool IsDigits(string s)
+        static func IsDigits(s: string) -> bool
         {
             if (s.Length == 0) return false;
             for (int i = 0; i < s.Length; i++)
@@ -1501,7 +1501,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        public static string CTypeName(string t)
+        public static func CTypeName(t: string) -> string
         {
             if (t == "int32_t" || t == "int") return String.Copy("int");
             if (t == "int64_t" || t == "long") return String.Copy("long");
@@ -1516,7 +1516,7 @@ namespace FasetStudio.Ide
             return String.Copy(t);
         }
 
-        static string OperatorName(string op)
+        static func OperatorName(op: string) -> string
         {
             if (op == "op_add") return "operator+";
             if (op == "op_sub") return "operator-";
@@ -1534,7 +1534,7 @@ namespace FasetStudio.Ide
         }
 
         // Nombre de Faset de una función de C.
-        public static string Demangle(string c)
+        public static func Demangle(c: string) -> string
         {
             if (!c.StartsWith("fs_")) return String.Copy(c);
             int m = c.IndexOf("__m_");
@@ -1582,9 +1582,9 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ paneles
 
-        static float RowHeight(Renderer r) => r.Code.LineHeight + 4;
+        static func RowHeight(r: Renderer) -> float => r.Code.LineHeight + 4;
 
-        void Flatten(List<DbgVar> from, List<DbgVar> into)
+        func Flatten(from: List<DbgVar>, into: List<DbgVar>)
         {
             for (int i = 0; i < from.Count; i++)
             {
@@ -1593,7 +1593,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DrawRows(Renderer r, List<DbgVar> rows, int scroll, float x, float y0, float w, float h, float mx, float my, bool watch)
+        func DrawRows(r: Renderer, rows: List<DbgVar>, scroll: int, x: float, y0: float, w: float, h: float, mx: float, my: float, watch: bool)
         {
             float rh = RowHeight(r);
             int visible = (int)(h / rh) + 1;
@@ -1627,10 +1627,10 @@ namespace FasetStudio.Ide
             }
         }
 
-        string Hint() => !Active ? L.T("Start debugging (F5) and stop at a breakpoint to see the values.")
+        func Hint() -> string => !Active ? L.T("Start debugging (F5) and stop at a breakpoint to see the values.")
                          : Running ? L.T("The program is running…") : "";
 
-        public void DrawVariables(Renderer r, float x, float y, float w, float h, float mx, float my)
+        public func DrawVariables(r: Renderer, x: float, y: float, w: float, h: float, mx: float, my: float)
         {
             r.PushClip(x, y, w, h);
             float y0 = y + 4;
@@ -1650,10 +1650,10 @@ namespace FasetStudio.Ide
             varsTop = y0;
             r.PopClip();
         }
-        float varsTop;
-        float watchTop;
+        var varsTop: float;
+        var watchTop: float;
 
-        public void DrawStack(Renderer r, float x, float y, float w, float h, float mx, float my)
+        public func DrawStack(r: Renderer, x: float, y: float, w: float, h: float, mx: float, my: float)
         {
             r.PushClip(x, y, w, h);
             float y0 = y + 4;
@@ -1683,7 +1683,7 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        public void DrawWatch(Renderer r, float x, float y, float w, float h, float mx, float my)
+        public func DrawWatch(r: Renderer, x: float, y: float, w: float, h: float, mx: float, my: float)
         {
             r.PushClip(x, y, w, h);
             float y0 = y + 4;
@@ -1701,7 +1701,7 @@ namespace FasetStudio.Ide
         }
 
         // Clic en el panel de variables: expande o contrae la fila.
-        public bool ClickVariables(Renderer r, float y)
+        public func ClickVariables(r: Renderer, y: float) -> bool
         {
             int row = VarsScroll + (int)Math.Floor((y - varsTop) / RowHeight(r));
             if (y < varsTop || row < 0 || row >= varRows.Count) return false;
@@ -1710,14 +1710,14 @@ namespace FasetStudio.Ide
         }
 
         // Fila de la pila bajo el ratón (-1 si ninguna).
-        public int StackRowAt(Renderer r, float panelTop, float y)
+        public func StackRowAt(r: Renderer, panelTop: float, y: float) -> int
         {
             int row = StackScroll + (int)Math.Floor((y - panelTop - 4) / RowHeight(r));
             return row >= 0 && row < Frames.Count && Stopped ? row : -1;
         }
 
         // Clic en el panel de inspección: 1 = añadir, 2 = expandido o quitado, 0 = nada.
-        public int ClickWatch(Renderer r, float x, float w, float px, float y)
+        public func ClickWatch(r: Renderer, x: float, w: float, px: float, y: float) -> int
         {
             int row = WatchScroll + (int)Math.Floor((y - watchTop) / RowHeight(r));
             if (y < watchTop || row < 0) return 0;
@@ -1735,7 +1735,7 @@ namespace FasetStudio.Ide
         }
 
         // Primer valor (para los guiones de pruebas): "nombre = valor" de la fila con ese nombre.
-        public DbgVar FindVar(string path)
+        public func FindVar(path: string) -> DbgVar
         {
             List<DbgVar> rows = new List<DbgVar>();
             Flatten(Variables, rows);

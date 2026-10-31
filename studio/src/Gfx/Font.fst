@@ -41,28 +41,28 @@ namespace FasetStudio.Gfx
 
     public struct Glyph
     {
-        public float U0;
-        public float V0;
-        public float U1;
-        public float V1;
-        public int Width;
-        public int Height;
-        public int Left;
-        public int Top;
-        public float Advance;
+        public var U0: float;
+        public var V0: float;
+        public var U1: float;
+        public var V1: float;
+        public var Width: int;
+        public var Height: int;
+        public var Left: int;
+        public var Top: int;
+        public var Advance: float;
     }
 
     // Textura de cobertura (un byte por píxel) con empaquetado por filas.
     public memory_unsafe class Atlas
     {
-        public byte* Pixels;
-        public int Size;
-        public bool Dirty = true;
-        int penX;
-        int penY;
-        int rowHeight;
+        public var Pixels: byte*;
+        public var Size: int;
+        public var Dirty: bool = true;
+        var penX: int;
+        var penY: int;
+        var rowHeight: int;
 
-        public Atlas(int size)
+        public init(size: int)
         {
             Size = size;
             Pixels = (byte*)Memory.AllocZeroed((long)size * size);
@@ -74,13 +74,13 @@ namespace FasetStudio.Gfx
             rowHeight = 4;
         }
 
-        ~Atlas() { Memory.Free(Pixels); }
+        deinit { Memory.Free(Pixels); }
 
-        public float WhiteU => 1.5f / Size;
-        public float WhiteV => 1.5f / Size;
+        public prop WhiteU: float => 1.5f / Size;
+        public prop WhiteV: float => 1.5f / Size;
 
         // Reserva un hueco de w x h píxeles; false si el atlas está lleno.
-        public bool Allocate(int w, int h, out int x, out int y)
+        public func Allocate(w: int, h: int, out x: int, out y: int) -> bool
         {
             if (penX + w + 1 >= Size)
             {
@@ -104,27 +104,27 @@ namespace FasetStudio.Gfx
 
     public memory_unsafe class Font
     {
-        static void* library;
+        static var library: void*;
 
-        void* face;
-        Atlas atlas;
-        Dictionary<char, Glyph> glyphs = new Dictionary<char, Glyph>();
+        var face: void*;
+        var atlas: Atlas;
+        var glyphs: Dictionary<char, Glyph> = new Dictionary<char, Glyph>();
 
-        public int PixelSize;
-        public float Ascent;
-        public float Descent;
-        public float LineHeight;
-        public float CharWidth;  // avance de 'M' (exacto en fuentes monoespaciadas)
+        public var PixelSize: int;
+        public var Ascent: float;
+        public var Descent: float;
+        public var LineHeight: float;
+        public var CharWidth: float;  // avance de 'M' (exacto en fuentes monoespaciadas)
 
-        ~Font() { delete glyphs; }
+        deinit { delete glyphs; }
 
 #if WINDOWS
-        void* fallback;   // fuente de símbolos para los caracteres que no tiene 'face'
+        var fallback: void*;   // fuente de símbolos para los caracteres que no tiene 'face'
 
         // Fuente de símbolos de respaldo (Windows: Segoe UI Symbol), "" si no hay.
-        public static string FallbackPath = "";
+        public static var FallbackPath: string = "";
 
-        public bool Load(string path, int pixelSize, Atlas target)
+        public func Load(path: string, pixelSize: int, target: Atlas) -> bool
         {
             string p = path.ToCString();
             float asc = 0, desc = 0;
@@ -147,7 +147,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 #else
-        public bool Load(string path, int pixelSize, Atlas target)
+        public func Load(path: string, pixelSize: int, target: Atlas) -> bool
         {
             if (library == null && FT_Init_FreeType(&library) != 0) return false;
             string p = path.ToCString();
@@ -167,9 +167,9 @@ namespace FasetStudio.Gfx
 #endif
 
         // Primera fuente existente de la lista (separada por ';').
-        public static string FindFile(string candidates)
+        public static func FindFile(candidates: string) -> string
         {
-            auto parts = std.text.Text.Split(candidates, ";");
+            var parts = std.text.Text.Split(candidates, ";");
             string found = "";
             for (int i = 0; i < parts.Count; i++)
                 if (File.Exists(parts[i]))
@@ -181,7 +181,7 @@ namespace FasetStudio.Gfx
             return found;
         }
 
-        public Glyph Get(char c)
+        public func Get(c: char) -> Glyph
         {
             Glyph g;
             if (glyphs.TryGetValue(c, out g)) return g;
@@ -190,7 +190,7 @@ namespace FasetStudio.Gfx
             return g;
         }
 
-        Glyph Render(char c)
+        func Render(c: char) -> Glyph
         {
             Glyph g = new Glyph();
 #if WINDOWS
@@ -226,7 +226,7 @@ namespace FasetStudio.Gfx
         }
 
         // Copia la cobertura del glifo al atlas y calcula sus coordenadas de textura.
-        Glyph Place(Glyph g, byte* buffer, int pitch)
+        func Place(g: Glyph, buffer: byte*, pitch: int) -> Glyph
         {
             int width = g.Width, rows = g.Height;
             if (width == 0 || rows == 0) return g;

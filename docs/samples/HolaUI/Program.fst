@@ -4,9 +4,9 @@ namespace HolaUI
 {
     public static class Program
     {
-        public static int Main()
+        public static func Main() -> int
         {
-            auto window = new MainWindow();
+            var window = new MainWindow();
             int code = Application.Run(window.Window);
             delete window;
             return code;

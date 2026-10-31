@@ -106,355 +106,355 @@ namespace FasetStudio.Gfx
 
     public struct VkApplicationInfo
     {
-        public int sType; public void* pNext;
-        public byte* pApplicationName; public uint applicationVersion;
-        public byte* pEngineName; public uint engineVersion; public uint apiVersion;
+        public var sType: int; public var pNext: void*;
+        public var pApplicationName: byte*; public var applicationVersion: uint;
+        public var pEngineName: byte*; public var engineVersion: uint; public var apiVersion: uint;
     }
 
     public struct VkInstanceCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public VkApplicationInfo* pApplicationInfo;
-        public uint enabledLayerCount; public byte** ppEnabledLayerNames;
-        public uint enabledExtensionCount; public byte** ppEnabledExtensionNames;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var pApplicationInfo: VkApplicationInfo*;
+        public var enabledLayerCount: uint; public var ppEnabledLayerNames: byte**;
+        public var enabledExtensionCount: uint; public var ppEnabledExtensionNames: byte**;
     }
 
 #if WINDOWS
     public struct VkWin32SurfaceCreateInfoKHR
     {
-        public int sType; public void* pNext; public uint flags;
-        public void* hinstance; public void* hwnd;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var hinstance: void*; public var hwnd: void*;
     }
 #else
     public struct VkXlibSurfaceCreateInfoKHR
     {
-        public int sType; public void* pNext; public uint flags;
-        public void* dpy; public ulong window;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var dpy: void*; public var window: ulong;
     }
 #endif
 
     public struct VkDeviceQueueCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint queueFamilyIndex; public uint queueCount; public float* pQueuePriorities;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var queueFamilyIndex: uint; public var queueCount: uint; public var pQueuePriorities: float*;
     }
 
     public struct VkDeviceCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint queueCreateInfoCount; public VkDeviceQueueCreateInfo* pQueueCreateInfos;
-        public uint enabledLayerCount; public byte** ppEnabledLayerNames;
-        public uint enabledExtensionCount; public byte** ppEnabledExtensionNames;
-        public void* pEnabledFeatures;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var queueCreateInfoCount: uint; public var pQueueCreateInfos: VkDeviceQueueCreateInfo*;
+        public var enabledLayerCount: uint; public var ppEnabledLayerNames: byte**;
+        public var enabledExtensionCount: uint; public var ppEnabledExtensionNames: byte**;
+        public var pEnabledFeatures: void*;
     }
 
     public struct VkQueueFamilyProperties
     {
-        public uint queueFlags; public uint queueCount; public uint timestampValidBits;
-        public uint granularityW; public uint granularityH; public uint granularityD;
+        public var queueFlags: uint; public var queueCount: uint; public var timestampValidBits: uint;
+        public var granularityW: uint; public var granularityH: uint; public var granularityD: uint;
     }
 
     public struct VkSurfaceCapabilitiesKHR
     {
-        public uint minImageCount; public uint maxImageCount;
-        public uint currentWidth; public uint currentHeight;
-        public uint minWidth; public uint minHeight;
-        public uint maxWidth; public uint maxHeight;
-        public uint maxImageArrayLayers; public uint supportedTransforms; public uint currentTransform;
-        public uint supportedCompositeAlpha; public uint supportedUsageFlags;
+        public var minImageCount: uint; public var maxImageCount: uint;
+        public var currentWidth: uint; public var currentHeight: uint;
+        public var minWidth: uint; public var minHeight: uint;
+        public var maxWidth: uint; public var maxHeight: uint;
+        public var maxImageArrayLayers: uint; public var supportedTransforms: uint; public var currentTransform: uint;
+        public var supportedCompositeAlpha: uint; public var supportedUsageFlags: uint;
     }
 
-    public struct VkSurfaceFormatKHR { public int format; public int colorSpace; }
+    public struct VkSurfaceFormatKHR { public var format: int; public var colorSpace: int; }
 
     public struct VkSwapchainCreateInfoKHR
     {
-        public int sType; public void* pNext; public uint flags;
-        public ulong surface; public uint minImageCount;
-        public int imageFormat; public int imageColorSpace;
-        public uint width; public uint height; public uint imageArrayLayers; public uint imageUsage;
-        public int imageSharingMode; public uint queueFamilyIndexCount; public uint* pQueueFamilyIndices;
-        public uint preTransform; public uint compositeAlpha; public int presentMode; public uint clipped;
-        public ulong oldSwapchain;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var surface: ulong; public var minImageCount: uint;
+        public var imageFormat: int; public var imageColorSpace: int;
+        public var width: uint; public var height: uint; public var imageArrayLayers: uint; public var imageUsage: uint;
+        public var imageSharingMode: int; public var queueFamilyIndexCount: uint; public var pQueueFamilyIndices: uint*;
+        public var preTransform: uint; public var compositeAlpha: uint; public var presentMode: int; public var clipped: uint;
+        public var oldSwapchain: ulong;
     }
 
     public struct VkImageViewCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public ulong image; public int viewType; public int format;
-        public int swizzleR; public int swizzleG; public int swizzleB; public int swizzleA;
-        public uint aspectMask; public uint baseMipLevel; public uint levelCount; public uint baseArrayLayer; public uint layerCount;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var image: ulong; public var viewType: int; public var format: int;
+        public var swizzleR: int; public var swizzleG: int; public var swizzleB: int; public var swizzleA: int;
+        public var aspectMask: uint; public var baseMipLevel: uint; public var levelCount: uint; public var baseArrayLayer: uint; public var layerCount: uint;
     }
 
     public struct VkAttachmentDescription
     {
-        public uint flags; public int format; public int samples;
-        public int loadOp; public int storeOp; public int stencilLoadOp; public int stencilStoreOp;
-        public int initialLayout; public int finalLayout;
+        public var flags: uint; public var format: int; public var samples: int;
+        public var loadOp: int; public var storeOp: int; public var stencilLoadOp: int; public var stencilStoreOp: int;
+        public var initialLayout: int; public var finalLayout: int;
     }
 
-    public struct VkAttachmentReference { public uint attachment; public int layout; }
+    public struct VkAttachmentReference { public var attachment: uint; public var layout: int; }
 
     public struct VkSubpassDescription
     {
-        public uint flags; public int pipelineBindPoint;
-        public uint inputAttachmentCount; public void* pInputAttachments;
-        public uint colorAttachmentCount; public VkAttachmentReference* pColorAttachments;
-        public void* pResolveAttachments; public void* pDepthStencilAttachment;
-        public uint preserveAttachmentCount; public uint* pPreserveAttachments;
+        public var flags: uint; public var pipelineBindPoint: int;
+        public var inputAttachmentCount: uint; public var pInputAttachments: void*;
+        public var colorAttachmentCount: uint; public var pColorAttachments: VkAttachmentReference*;
+        public var pResolveAttachments: void*; public var pDepthStencilAttachment: void*;
+        public var preserveAttachmentCount: uint; public var pPreserveAttachments: uint*;
     }
 
     public struct VkSubpassDependency
     {
-        public uint srcSubpass; public uint dstSubpass;
-        public uint srcStageMask; public uint dstStageMask;
-        public uint srcAccessMask; public uint dstAccessMask; public uint dependencyFlags;
+        public var srcSubpass: uint; public var dstSubpass: uint;
+        public var srcStageMask: uint; public var dstStageMask: uint;
+        public var srcAccessMask: uint; public var dstAccessMask: uint; public var dependencyFlags: uint;
     }
 
     public struct VkRenderPassCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint attachmentCount; public VkAttachmentDescription* pAttachments;
-        public uint subpassCount; public VkSubpassDescription* pSubpasses;
-        public uint dependencyCount; public VkSubpassDependency* pDependencies;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var attachmentCount: uint; public var pAttachments: VkAttachmentDescription*;
+        public var subpassCount: uint; public var pSubpasses: VkSubpassDescription*;
+        public var dependencyCount: uint; public var pDependencies: VkSubpassDependency*;
     }
 
     public struct VkFramebufferCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public ulong renderPass; public uint attachmentCount; public ulong* pAttachments;
-        public uint width; public uint height; public uint layers;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var renderPass: ulong; public var attachmentCount: uint; public var pAttachments: ulong*;
+        public var width: uint; public var height: uint; public var layers: uint;
     }
 
     public struct VkShaderModuleCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public ulong codeSize; public uint* pCode;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var codeSize: ulong; public var pCode: uint*;
     }
 
     public struct VkPipelineShaderStageCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint stage; public ulong module; public byte* pName; public void* pSpecializationInfo;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var stage: uint; public var module: ulong; public var pName: byte*; public var pSpecializationInfo: void*;
     }
 
-    public struct VkVertexInputBindingDescription { public uint binding; public uint stride; public int inputRate; }
+    public struct VkVertexInputBindingDescription { public var binding: uint; public var stride: uint; public var inputRate: int; }
 
-    public struct VkVertexInputAttributeDescription { public uint location; public uint binding; public int format; public uint offset; }
+    public struct VkVertexInputAttributeDescription { public var location: uint; public var binding: uint; public var format: int; public var offset: uint; }
 
     public struct VkPipelineVertexInputStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint vertexBindingDescriptionCount; public VkVertexInputBindingDescription* pVertexBindingDescriptions;
-        public uint vertexAttributeDescriptionCount; public VkVertexInputAttributeDescription* pVertexAttributeDescriptions;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var vertexBindingDescriptionCount: uint; public var pVertexBindingDescriptions: VkVertexInputBindingDescription*;
+        public var vertexAttributeDescriptionCount: uint; public var pVertexAttributeDescriptions: VkVertexInputAttributeDescription*;
     }
 
     public struct VkPipelineInputAssemblyStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public int topology; public uint primitiveRestartEnable;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var topology: int; public var primitiveRestartEnable: uint;
     }
 
     public struct VkPipelineViewportStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint viewportCount; public void* pViewports; public uint scissorCount; public void* pScissors;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var viewportCount: uint; public var pViewports: void*; public var scissorCount: uint; public var pScissors: void*;
     }
 
     public struct VkPipelineRasterizationStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint depthClampEnable; public uint rasterizerDiscardEnable;
-        public int polygonMode; public uint cullMode; public int frontFace;
-        public uint depthBiasEnable; public float depthBiasConstantFactor; public float depthBiasClamp;
-        public float depthBiasSlopeFactor; public float lineWidth;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var depthClampEnable: uint; public var rasterizerDiscardEnable: uint;
+        public var polygonMode: int; public var cullMode: uint; public var frontFace: int;
+        public var depthBiasEnable: uint; public var depthBiasConstantFactor: float; public var depthBiasClamp: float;
+        public var depthBiasSlopeFactor: float; public var lineWidth: float;
     }
 
     public struct VkPipelineMultisampleStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public int rasterizationSamples; public uint sampleShadingEnable; public float minSampleShading;
-        public void* pSampleMask; public uint alphaToCoverageEnable; public uint alphaToOneEnable;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var rasterizationSamples: int; public var sampleShadingEnable: uint; public var minSampleShading: float;
+        public var pSampleMask: void*; public var alphaToCoverageEnable: uint; public var alphaToOneEnable: uint;
     }
 
     public struct VkPipelineColorBlendAttachmentState
     {
-        public uint blendEnable;
-        public int srcColorBlendFactor; public int dstColorBlendFactor; public int colorBlendOp;
-        public int srcAlphaBlendFactor; public int dstAlphaBlendFactor; public int alphaBlendOp;
-        public uint colorWriteMask;
+        public var blendEnable: uint;
+        public var srcColorBlendFactor: int; public var dstColorBlendFactor: int; public var colorBlendOp: int;
+        public var srcAlphaBlendFactor: int; public var dstAlphaBlendFactor: int; public var alphaBlendOp: int;
+        public var colorWriteMask: uint;
     }
 
     public struct VkPipelineColorBlendStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint logicOpEnable; public int logicOp;
-        public uint attachmentCount; public VkPipelineColorBlendAttachmentState* pAttachments;
-        public float blendR; public float blendG; public float blendB; public float blendA;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var logicOpEnable: uint; public var logicOp: int;
+        public var attachmentCount: uint; public var pAttachments: VkPipelineColorBlendAttachmentState*;
+        public var blendR: float; public var blendG: float; public var blendB: float; public var blendA: float;
     }
 
     public struct VkPipelineDynamicStateCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint dynamicStateCount; public int* pDynamicStates;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var dynamicStateCount: uint; public var pDynamicStates: int*;
     }
 
-    public struct VkPushConstantRange { public uint stageFlags; public uint offset; public uint size; }
+    public struct VkPushConstantRange { public var stageFlags: uint; public var offset: uint; public var size: uint; }
 
     public struct VkPipelineLayoutCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint setLayoutCount; public ulong* pSetLayouts;
-        public uint pushConstantRangeCount; public VkPushConstantRange* pPushConstantRanges;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var setLayoutCount: uint; public var pSetLayouts: ulong*;
+        public var pushConstantRangeCount: uint; public var pPushConstantRanges: VkPushConstantRange*;
     }
 
     public struct VkGraphicsPipelineCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint stageCount; public VkPipelineShaderStageCreateInfo* pStages;
-        public void* pVertexInputState; public void* pInputAssemblyState; public void* pTessellationState;
-        public void* pViewportState; public void* pRasterizationState; public void* pMultisampleState;
-        public void* pDepthStencilState; public void* pColorBlendState; public void* pDynamicState;
-        public ulong layout; public ulong renderPass; public uint subpass;
-        public ulong basePipelineHandle; public int basePipelineIndex;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var stageCount: uint; public var pStages: VkPipelineShaderStageCreateInfo*;
+        public var pVertexInputState: void*; public var pInputAssemblyState: void*; public var pTessellationState: void*;
+        public var pViewportState: void*; public var pRasterizationState: void*; public var pMultisampleState: void*;
+        public var pDepthStencilState: void*; public var pColorBlendState: void*; public var pDynamicState: void*;
+        public var layout: ulong; public var renderPass: ulong; public var subpass: uint;
+        public var basePipelineHandle: ulong; public var basePipelineIndex: int;
     }
 
     public struct VkDescriptorSetLayoutBinding
     {
-        public uint binding; public int descriptorType; public uint descriptorCount;
-        public uint stageFlags; public ulong* pImmutableSamplers;
+        public var binding: uint; public var descriptorType: int; public var descriptorCount: uint;
+        public var stageFlags: uint; public var pImmutableSamplers: ulong*;
     }
 
     public struct VkDescriptorSetLayoutCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint bindingCount; public VkDescriptorSetLayoutBinding* pBindings;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var bindingCount: uint; public var pBindings: VkDescriptorSetLayoutBinding*;
     }
 
-    public struct VkDescriptorPoolSize { public int type; public uint descriptorCount; }
+    public struct VkDescriptorPoolSize { public var type: int; public var descriptorCount: uint; }
 
     public struct VkDescriptorPoolCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public uint maxSets; public uint poolSizeCount; public VkDescriptorPoolSize* pPoolSizes;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var maxSets: uint; public var poolSizeCount: uint; public var pPoolSizes: VkDescriptorPoolSize*;
     }
 
     public struct VkDescriptorSetAllocateInfo
     {
-        public int sType; public void* pNext;
-        public ulong descriptorPool; public uint descriptorSetCount; public ulong* pSetLayouts;
+        public var sType: int; public var pNext: void*;
+        public var descriptorPool: ulong; public var descriptorSetCount: uint; public var pSetLayouts: ulong*;
     }
 
-    public struct VkDescriptorImageInfo { public ulong sampler; public ulong imageView; public int imageLayout; }
+    public struct VkDescriptorImageInfo { public var sampler: ulong; public var imageView: ulong; public var imageLayout: int; }
 
     public struct VkWriteDescriptorSet
     {
-        public int sType; public void* pNext;
-        public ulong dstSet; public uint dstBinding; public uint dstArrayElement;
-        public uint descriptorCount; public int descriptorType;
-        public VkDescriptorImageInfo* pImageInfo; public void* pBufferInfo; public void* pTexelBufferView;
+        public var sType: int; public var pNext: void*;
+        public var dstSet: ulong; public var dstBinding: uint; public var dstArrayElement: uint;
+        public var descriptorCount: uint; public var descriptorType: int;
+        public var pImageInfo: VkDescriptorImageInfo*; public var pBufferInfo: void*; public var pTexelBufferView: void*;
     }
 
     public struct VkSamplerCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public int magFilter; public int minFilter; public int mipmapMode;
-        public int addressModeU; public int addressModeV; public int addressModeW;
-        public float mipLodBias; public uint anisotropyEnable; public float maxAnisotropy;
-        public uint compareEnable; public int compareOp; public float minLod; public float maxLod;
-        public int borderColor; public uint unnormalizedCoordinates;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var magFilter: int; public var minFilter: int; public var mipmapMode: int;
+        public var addressModeU: int; public var addressModeV: int; public var addressModeW: int;
+        public var mipLodBias: float; public var anisotropyEnable: uint; public var maxAnisotropy: float;
+        public var compareEnable: uint; public var compareOp: int; public var minLod: float; public var maxLod: float;
+        public var borderColor: int; public var unnormalizedCoordinates: uint;
     }
 
     public struct VkImageCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public int imageType; public int format;
-        public uint width; public uint height; public uint depth;
-        public uint mipLevels; public uint arrayLayers; public int samples; public int tiling;
-        public uint usage; public int sharingMode;
-        public uint queueFamilyIndexCount; public uint* pQueueFamilyIndices; public int initialLayout;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var imageType: int; public var format: int;
+        public var width: uint; public var height: uint; public var depth: uint;
+        public var mipLevels: uint; public var arrayLayers: uint; public var samples: int; public var tiling: int;
+        public var usage: uint; public var sharingMode: int;
+        public var queueFamilyIndexCount: uint; public var pQueueFamilyIndices: uint*; public var initialLayout: int;
     }
 
-    public struct VkMemoryRequirements { public ulong size; public ulong alignment; public uint memoryTypeBits; }
+    public struct VkMemoryRequirements { public var size: ulong; public var alignment: ulong; public var memoryTypeBits: uint; }
 
     public struct VkMemoryAllocateInfo
     {
-        public int sType; public void* pNext; public ulong allocationSize; public uint memoryTypeIndex;
+        public var sType: int; public var pNext: void*; public var allocationSize: ulong; public var memoryTypeIndex: uint;
     }
 
     public struct VkBufferCreateInfo
     {
-        public int sType; public void* pNext; public uint flags;
-        public ulong size; public uint usage; public int sharingMode;
-        public uint queueFamilyIndexCount; public uint* pQueueFamilyIndices;
+        public var sType: int; public var pNext: void*; public var flags: uint;
+        public var size: ulong; public var usage: uint; public var sharingMode: int;
+        public var queueFamilyIndexCount: uint; public var pQueueFamilyIndices: uint*;
     }
 
     public struct VkCommandPoolCreateInfo
     {
-        public int sType; public void* pNext; public uint flags; public uint queueFamilyIndex;
+        public var sType: int; public var pNext: void*; public var flags: uint; public var queueFamilyIndex: uint;
     }
 
     public struct VkCommandBufferAllocateInfo
     {
-        public int sType; public void* pNext; public ulong commandPool; public int level; public uint commandBufferCount;
+        public var sType: int; public var pNext: void*; public var commandPool: ulong; public var level: int; public var commandBufferCount: uint;
     }
 
     public struct VkCommandBufferBeginInfo
     {
-        public int sType; public void* pNext; public uint flags; public void* pInheritanceInfo;
+        public var sType: int; public var pNext: void*; public var flags: uint; public var pInheritanceInfo: void*;
     }
 
-    public struct VkClearColor { public float R; public float G; public float B; public float A; }
+    public struct VkClearColor { public var R: float; public var G: float; public var B: float; public var A: float; }
 
     public struct VkRenderPassBeginInfo
     {
-        public int sType; public void* pNext;
-        public ulong renderPass; public ulong framebuffer;
-        public int x; public int y; public uint width; public uint height;
-        public uint clearValueCount; public VkClearColor* pClearValues;
+        public var sType: int; public var pNext: void*;
+        public var renderPass: ulong; public var framebuffer: ulong;
+        public var x: int; public var y: int; public var width: uint; public var height: uint;
+        public var clearValueCount: uint; public var pClearValues: VkClearColor*;
     }
 
     public struct VkViewport
     {
-        public float x; public float y; public float width; public float height;
-        public float minDepth; public float maxDepth;
+        public var x: float; public var y: float; public var width: float; public var height: float;
+        public var minDepth: float; public var maxDepth: float;
     }
 
-    public struct VkRect2D { public int x; public int y; public uint width; public uint height; }
+    public struct VkRect2D { public var x: int; public var y: int; public var width: uint; public var height: uint; }
 
     public struct VkImageMemoryBarrier
     {
-        public int sType; public void* pNext;
-        public uint srcAccessMask; public uint dstAccessMask;
-        public int oldLayout; public int newLayout;
-        public uint srcQueueFamilyIndex; public uint dstQueueFamilyIndex;
-        public ulong image;
-        public uint aspectMask; public uint baseMipLevel; public uint levelCount; public uint baseArrayLayer; public uint layerCount;
+        public var sType: int; public var pNext: void*;
+        public var srcAccessMask: uint; public var dstAccessMask: uint;
+        public var oldLayout: int; public var newLayout: int;
+        public var srcQueueFamilyIndex: uint; public var dstQueueFamilyIndex: uint;
+        public var image: ulong;
+        public var aspectMask: uint; public var baseMipLevel: uint; public var levelCount: uint; public var baseArrayLayer: uint; public var layerCount: uint;
     }
 
     public struct VkBufferImageCopy
     {
-        public ulong bufferOffset; public uint bufferRowLength; public uint bufferImageHeight;
-        public uint aspectMask; public uint mipLevel; public uint baseArrayLayer; public uint layerCount;
-        public int offsetX; public int offsetY; public int offsetZ;
-        public uint width; public uint height; public uint depth;
+        public var bufferOffset: ulong; public var bufferRowLength: uint; public var bufferImageHeight: uint;
+        public var aspectMask: uint; public var mipLevel: uint; public var baseArrayLayer: uint; public var layerCount: uint;
+        public var offsetX: int; public var offsetY: int; public var offsetZ: int;
+        public var width: uint; public var height: uint; public var depth: uint;
     }
 
     public struct VkSubmitInfo
     {
-        public int sType; public void* pNext;
-        public uint waitSemaphoreCount; public ulong* pWaitSemaphores; public uint* pWaitDstStageMask;
-        public uint commandBufferCount; public void** pCommandBuffers;
-        public uint signalSemaphoreCount; public ulong* pSignalSemaphores;
+        public var sType: int; public var pNext: void*;
+        public var waitSemaphoreCount: uint; public var pWaitSemaphores: ulong*; public var pWaitDstStageMask: uint*;
+        public var commandBufferCount: uint; public var pCommandBuffers: void**;
+        public var signalSemaphoreCount: uint; public var pSignalSemaphores: ulong*;
     }
 
     public struct VkPresentInfoKHR
     {
-        public int sType; public void* pNext;
-        public uint waitSemaphoreCount; public ulong* pWaitSemaphores;
-        public uint swapchainCount; public ulong* pSwapchains; public uint* pImageIndices; public int* pResults;
+        public var sType: int; public var pNext: void*;
+        public var waitSemaphoreCount: uint; public var pWaitSemaphores: ulong*;
+        public var swapchainCount: uint; public var pSwapchains: ulong*; public var pImageIndices: uint*; public var pResults: int*;
     }
 
-    public struct VkSimpleCreateInfo { public int sType; public void* pNext; public uint flags; }
+    public struct VkSimpleCreateInfo { public var sType: int; public var pNext: void*; public var flags: uint; }
 
     // ------------------------------------------------------------------ funciones
 

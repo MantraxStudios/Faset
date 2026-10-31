@@ -16,16 +16,16 @@ namespace FasetStudio.Gfx
 {
     public struct Color
     {
-        public float R;
-        public float G;
-        public float B;
-        public float A;
+        public var R: float;
+        public var G: float;
+        public var B: float;
+        public var A: float;
 
-        public Color(float r, float g, float b, float a) { R = r; G = g; B = b; A = a; }
+        public init(r: float, g: float, b: float, a: float) { R = r; G = g; B = b; A = a; }
 
         // 0xRRGGBB
-        public static Color Hex(uint rgb) => new Color(((rgb >> 16) & 255) / 255.0f, ((rgb >> 8) & 255) / 255.0f, (rgb & 255) / 255.0f, 1);
-        public static Color Hex(uint rgb, float alpha)
+        public static func Hex(rgb: uint) -> Color => new Color(((rgb >> 16) & 255) / 255.0f, ((rgb >> 8) & 255) / 255.0f, (rgb & 255) / 255.0f, 1);
+        public static func Hex(rgb: uint, alpha: float) -> Color
         {
             Color c = Hex(rgb);
             c.A = alpha;
@@ -35,29 +35,29 @@ namespace FasetStudio.Gfx
 
     struct Vertex
     {
-        public float X;
-        public float Y;
-        public float U;
-        public float V;
-        public float R;
-        public float G;
-        public float B;
-        public float A;
-        public float LocalX;    // posición respecto al centro de la forma
-        public float LocalY;
-        public float HalfW;     // semitamaño de la forma
-        public float HalfH;
-        public float Radius;    // < 0: texto / textura
-        public float Border;    // > 0: solo el contorno
-        public float Soft;      // difuminado (sombras)
-        public float Pad;
+        public var X: float;
+        public var Y: float;
+        public var U: float;
+        public var V: float;
+        public var R: float;
+        public var G: float;
+        public var B: float;
+        public var A: float;
+        public var LocalX: float;    // posición respecto al centro de la forma
+        public var LocalY: float;
+        public var HalfW: float;     // semitamaño de la forma
+        public var HalfH: float;
+        public var Radius: float;    // < 0: texto / textura
+        public var Border: float;    // > 0: solo el contorno
+        public var Soft: float;      // difuminado (sombras)
+        public var Pad: float;
     }
 
     struct DrawCmd
     {
-        public int First;
-        public int Count;
-        public VkRect2D Clip;
+        public var First: int;
+        public var Count: int;
+        public var Clip: VkRect2D;
     }
 
     public memory_unsafe class Renderer
@@ -65,99 +65,99 @@ namespace FasetStudio.Gfx
         const int MaxVertices = 400000;
 
         // Vulkan
-        void* instance;
-        void* physical;
-        void* device;
-        void* queue;
-        uint queueFamily;
-        byte* memProps;
-        ulong surface;
-        ulong swapchain;
-        int imageCount;
-        ulong* images;
-        ulong* views;
-        ulong* framebuffers;
-        int colorFormat;
-        ulong renderPass;
-        ulong descriptorLayout;
-        ulong pipelineLayout;
-        ulong pipeline;
-        ulong descriptorPool;
-        ulong descriptorSet;
-        ulong sampler;
-        ulong atlasImage;
-        ulong atlasMemory;
-        ulong atlasView;
-        bool atlasReady;
+        var instance: void*;
+        var physical: void*;
+        var device: void*;
+        var queue: void*;
+        var queueFamily: uint;
+        var memProps: byte*;
+        var surface: ulong;
+        var swapchain: ulong;
+        var imageCount: int;
+        var images: ulong*;
+        var views: ulong*;
+        var framebuffers: ulong*;
+        var colorFormat: int;
+        var renderPass: ulong;
+        var descriptorLayout: ulong;
+        var pipelineLayout: ulong;
+        var pipeline: ulong;
+        var descriptorPool: ulong;
+        var descriptorSet: ulong;
+        var sampler: ulong;
+        var atlasImage: ulong;
+        var atlasMemory: ulong;
+        var atlasView: ulong;
+        var atlasReady: bool;
         // Imagen RGBA de hasta ImageSize x ImageSize (pantalla del dispositivo Android).
         public const int ImageSize = 1024;
-        ulong imageSampler;
-        ulong imageTex;
-        ulong imageMemory;
-        ulong imageView;
-        bool imageReady;
-        bool imageDirty;
-        ulong imageStaging;
-        ulong imageStagingMemory;
-        byte* imageMapped;
-        public int ImageWidth;
-        public int ImageHeight;
-        ulong stagingBuffer;
-        ulong stagingMemory;
-        void* stagingMapped;
-        ulong vertexBuffer;
-        ulong vertexMemory;
-        Vertex* vertices;
-        ulong commandPool;
-        void* cmd;
-        ulong imageAvailable;
-        ulong renderFinished;
-        ulong inFlight;
+        var imageSampler: ulong;
+        var imageTex: ulong;
+        var imageMemory: ulong;
+        var imageView: ulong;
+        var imageReady: bool;
+        var imageDirty: bool;
+        var imageStaging: ulong;
+        var imageStagingMemory: ulong;
+        var imageMapped: byte*;
+        public var ImageWidth: int;
+        public var ImageHeight: int;
+        var stagingBuffer: ulong;
+        var stagingMemory: ulong;
+        var stagingMapped: void*;
+        var vertexBuffer: ulong;
+        var vertexMemory: ulong;
+        var vertices: Vertex*;
+        var commandPool: ulong;
+        var cmd: void*;
+        var imageAvailable: ulong;
+        var renderFinished: ulong;
+        var inFlight: ulong;
 
         // Fuera de pantalla
-        bool offscreen;
-        ulong offImage;
-        ulong offMemory;
-        ulong readbackBuffer;
-        ulong readbackMemory;
+        var offscreen: bool;
+        var offImage: ulong;
+        var offMemory: ulong;
+        var readbackBuffer: ulong;
+        var readbackMemory: ulong;
 
-        Window window;
-        int width;
-        int height;
-        uint currentImage;
-        bool needsRecreate;
+        var window: Window;
+        var width: int;
+        var height: int;
+        var currentImage: uint;
+        var needsRecreate: bool;
 
         // Lote del fotograma actual
-        int vertexCount;
-        List<DrawCmd> commands = new List<DrawCmd>();
-        List<VkRect2D> clipStack = new List<VkRect2D>();
-        VkClearColor clear;
+        var vertexCount: int;
+        var commands: List<DrawCmd> = new List<DrawCmd>();
+        var clipStack: List<VkRect2D> = new List<VkRect2D>();
+        var clear: VkClearColor;
 
-        public Atlas Atlas;
-        public Font Code;        // fuente monoespaciada (editor)
-        public Font CodeBold;
-        public Font CodeItalic;
-        public Font Ui;          // fuente de la interfaz
-        public Font UiBold;
-        public Font UiSmall;
-        public Font Icons;       // símbolos (▸ ▾ ▶ ■ × ●)
-        public Font Title;       // títulos grandes
-        Dictionary<int, Glyph> logos = new Dictionary<int, Glyph>();
-        public string DeviceName = "";
-        public string Error = "";
+        public var Atlas: Atlas;
+        public var Code: Font;        // fuente monoespaciada (editor)
+        public var CodeBold: Font;
+        public var CodeItalic: Font;
+        public var Ui: Font;          // fuente de la interfaz
+        public var UiBold: Font;
+        public var UiSmall: Font;
+        public var Icons: Font;       // símbolos (▸ ▾ ▶ ■ × ●)
+        public var Title: Font;       // títulos grandes
+        var logos: Dictionary<int, Glyph> = new Dictionary<int, Glyph>();
+        public var DeviceName: string = "";
+        public var Error: string = "";
 
-        public int Width => width;
-        public int Height => height;
+        public prop Width: int => width;
+        public prop Height: int => height;
 
         // ------------------------------------------------------------------ inicialización
 
-        bool Fail(string message)
+        func Fail(message: string) -> bool
         {
             Error = message;
             return false;
         }
 
-        public bool InitWindow(Window win)
+        public func InitWindow(win: Window) -> bool
         {
             window = win;
             width = win.Width;
@@ -165,14 +165,14 @@ namespace FasetStudio.Gfx
             return Init(false);
         }
 
-        public bool InitOffscreen(int w, int h)
+        public func InitOffscreen(w: int, h: int) -> bool
         {
             width = w;
             height = h;
             return Init(true);
         }
 
-        bool Init(bool headless)
+        func Init(headless: bool) -> bool
         {
             offscreen = headless;
 #if WINDOWS
@@ -209,7 +209,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool CreateInstance()
+        func CreateInstance() -> bool
         {
             VkApplicationInfo app = new VkApplicationInfo();
             app.sType = VK.ST_APPLICATION_INFO;
@@ -234,7 +234,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool PickDevice()
+        func PickDevice() -> bool
         {
             uint count = 0;
             vkEnumeratePhysicalDevices(instance, &count, null);
@@ -281,7 +281,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool CreateDevice()
+        func CreateDevice() -> bool
         {
             float* priority = new float[1];
             priority[0] = 1;
@@ -306,7 +306,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        int FindMemory(uint typeBits, uint flags)
+        func FindMemory(typeBits: uint, flags: uint) -> int
         {
             uint count = *(uint*)memProps;
             for (uint i = 0; i < count; i++)
@@ -317,7 +317,7 @@ namespace FasetStudio.Gfx
             return -1;
         }
 
-        int ChooseSurfaceFormat()
+        func ChooseSurfaceFormat() -> int
         {
             uint count = 0;
             vkGetPhysicalDeviceSurfaceFormatsKHR(physical, surface, &count, null);
@@ -334,7 +334,7 @@ namespace FasetStudio.Gfx
             return chosen;
         }
 
-        bool CreateRenderPass()
+        func CreateRenderPass() -> bool
         {
             VkAttachmentDescription att = new VkAttachmentDescription();
             att.format = colorFormat;
@@ -370,7 +370,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        ulong CreateView(ulong image, int format)
+        func CreateView(image: ulong, format: int) -> ulong
         {
             VkImageViewCreateInfo vi = new VkImageViewCreateInfo();
             vi.sType = VK.ST_IMAGE_VIEW_CREATE_INFO;
@@ -385,7 +385,7 @@ namespace FasetStudio.Gfx
             return view;
         }
 
-        ulong CreateFramebuffer(ulong view)
+        func CreateFramebuffer(view: ulong) -> ulong
         {
             VkFramebufferCreateInfo fi = new VkFramebufferCreateInfo();
             fi.sType = VK.ST_FRAMEBUFFER_CREATE_INFO;
@@ -400,7 +400,7 @@ namespace FasetStudio.Gfx
             return fb;
         }
 
-        bool CreateSwapchain()
+        func CreateSwapchain() -> bool
         {
             VkSurfaceCapabilitiesKHR caps = new VkSurfaceCapabilitiesKHR();
             vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical, surface, &caps);
@@ -445,7 +445,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        void DestroySwapchainTargets()
+        func DestroySwapchainTargets()
         {
             for (int i = 0; i < imageCount; i++)
             {
@@ -461,7 +461,7 @@ namespace FasetStudio.Gfx
             imageCount = 0;
         }
 
-        bool CreateImage(int w, int h, int format, uint usage, out ulong image, out ulong memory)
+        func CreateImage(w: int, h: int, format: int, usage: uint, out image: ulong, out memory: ulong) -> bool
         {
             VkImageCreateInfo ii = new VkImageCreateInfo();
             ii.sType = VK.ST_IMAGE_CREATE_INFO;
@@ -494,7 +494,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool CreateBuffer(ulong size, uint usage, out ulong buffer, out ulong memory, out void* mapped)
+        func CreateBuffer(size: ulong, usage: uint, out buffer: ulong, out memory: ulong, out mapped: void*) -> bool
         {
             VkBufferCreateInfo bi = new VkBufferCreateInfo();
             bi.sType = VK.ST_BUFFER_CREATE_INFO;
@@ -523,7 +523,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool CreateOffscreenTarget()
+        func CreateOffscreenTarget() -> bool
         {
             if (!CreateImage(width, height, colorFormat, VK.IMAGE_USAGE_COLOR_ATTACHMENT | VK.IMAGE_USAGE_TRANSFER_SRC, out offImage, out offMemory))
                 return Fail("no se pudo crear la imagen fuera de pantalla");
@@ -538,7 +538,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        ulong CreateShader(uint* code, int words)
+        func CreateShader(code: uint*, words: int) -> ulong
         {
             VkShaderModuleCreateInfo si = new VkShaderModuleCreateInfo();
             si.sType = VK.ST_SHADER_MODULE_CREATE_INFO;
@@ -549,7 +549,7 @@ namespace FasetStudio.Gfx
             return module;
         }
 
-        bool CreatePipeline()
+        func CreatePipeline() -> bool
         {
             // binding 0: atlas (cobertura); binding 1: imagen RGBA
             VkDescriptorSetLayoutBinding* bindings = new VkDescriptorSetLayoutBinding[2];
@@ -681,7 +681,7 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        bool CreateResources()
+        func CreateResources() -> bool
         {
             Atlas = new Atlas(1024);
             if (!CreateImage(Atlas.Size, Atlas.Size, VK.FORMAT_R8_UNORM, VK.IMAGE_USAGE_SAMPLED | VK.IMAGE_USAGE_TRANSFER_DST, out atlasImage, out atlasMemory))
@@ -773,13 +773,13 @@ namespace FasetStudio.Gfx
             return true;
         }
 
-        string sansPath = "";
-        string sansBoldPath = "";
-        List<Font> sized = new List<Font>();
-        List<int> sizedKeys = new List<int>();
+        var sansPath: string = "";
+        var sansBoldPath: string = "";
+        var sized: List<Font> = new List<Font>();
+        var sizedKeys: List<int> = new List<int>();
 
         // Fuente de interfaz de cualquier tamaño (vista previa del diseñador); se cargan bajo demanda.
-        public Font Sans(int size, bool bold)
+        public func Sans(size: int, bold: bool) -> Font
         {
             if (size < 6) size = 6;
             if (size > 72) size = 72;
@@ -799,7 +799,7 @@ namespace FasetStudio.Gfx
 
 #if WINDOWS
         // "a.ttf;b.ttf" -> "<carpeta>/a.ttf;<carpeta>/b.ttf" (lista para Font.FindFile).
-        static string FontList(string folder, string names)
+        static func FontList(folder: string, names: string) -> string
         {
             List<string> parts = std.text.Text.Split(names, ";");
             StringBuilder sb = new StringBuilder();
@@ -817,7 +817,7 @@ namespace FasetStudio.Gfx
         }
 #endif
 
-        bool LoadFonts()
+        func LoadFonts() -> bool
         {
 #if WINDOWS
             // Fuentes del sistema (%WINDIR%\Fonts): Consolas para el código y Segoe UI para la interfaz;
@@ -872,7 +872,7 @@ namespace FasetStudio.Gfx
 
         // ------------------------------------------------------------------ fotograma
 
-        public void Resize(int w, int h)
+        public func Resize(w: int, h: int)
         {
             if (w == width && h == height) return;
             width = w;
@@ -880,7 +880,7 @@ namespace FasetStudio.Gfx
             needsRecreate = true;
         }
 
-        void Recreate()
+        func Recreate()
         {
             needsRecreate = false;
             vkDeviceWaitIdle(device);
@@ -888,7 +888,7 @@ namespace FasetStudio.Gfx
             CreateSwapchain();
         }
 
-        public void BeginFrame(Color background)
+        public func BeginFrame(background: Color)
         {
             ulong fence = inFlight;
             vkWaitForFences(device, 1, &fence, 1, VK.NO_TIMEOUT);
@@ -906,7 +906,7 @@ namespace FasetStudio.Gfx
             StartCommand();
         }
 
-        void StartCommand()
+        func StartCommand()
         {
             DrawCmd c = new DrawCmd();
             c.First = vertexCount;
@@ -914,7 +914,7 @@ namespace FasetStudio.Gfx
             commands.Add(c);
         }
 
-        public void PushClip(float x, float y, float w, float h)
+        public func PushClip(x: float, y: float, w: float, h: float)
         {
             VkRect2D parent = clipStack.Last();
             int x0 = Math.Max((int)x, parent.x), y0 = Math.Max((int)y, parent.y);
@@ -929,13 +929,13 @@ namespace FasetStudio.Gfx
             StartCommand();
         }
 
-        public void PopClip()
+        public func PopClip()
         {
             if (clipStack.Count > 1) clipStack.Pop();
             StartCommand();
         }
 
-        void Quad(float x0, float y0, float x1, float y1, float u0, float v0, float u1, float v1, Color c)
+        func Quad(x0: float, y0: float, x1: float, y1: float, u0: float, v0: float, u1: float, v1: float, c: Color)
         {
             if (vertexCount + 6 > MaxVertices) return;
             Vertex* v = vertices + vertexCount;
@@ -957,7 +957,7 @@ namespace FasetStudio.Gfx
         }
 
         // Rectángulo redondeado (relleno, contorno o sombra) evaluado en el shader.
-        public void Shape(float x, float y, float w, float h, float radius, float border, float soft, Color c)
+        public func Shape(x: float, y: float, w: float, h: float, radius: float, border: float, soft: float, c: Color)
         {
             if (w <= 0 || h <= 0 || vertexCount + 6 > MaxVertices) return;
             float pad = soft + 1;
@@ -979,10 +979,10 @@ namespace FasetStudio.Gfx
             }
         }
 
-        public void RoundRect(float x, float y, float w, float h, float radius, Color c) { Shape(x, y, w, h, radius, 0, 0, c); }
+        public func RoundRect(x: float, y: float, w: float, h: float, radius: float, c: Color) { Shape(x, y, w, h, radius, 0, 0, c); }
 
         // Rectángulo redondeado con degradado lineal (el color se interpola entre vértices).
-        public void GradientRoundRect(float x, float y, float w, float h, float radius, Color from, Color to, bool horizontal)
+        public func GradientRoundRect(x: float, y: float, w: float, h: float, radius: float, from: Color, to: Color, horizontal: bool)
         {
             int before = vertexCount;
             Shape(x, y, w, h, radius, 0, 0, from);
@@ -998,25 +998,25 @@ namespace FasetStudio.Gfx
             }
         }
 
-        public void RoundBorder(float x, float y, float w, float h, float radius, float thickness, Color c)
+        public func RoundBorder(x: float, y: float, w: float, h: float, radius: float, thickness: float, c: Color)
         {
             Shape(x, y, w, h, radius, thickness, 0, c);
         }
 
         // Sombra suave bajo una forma redondeada.
-        public void Shadow(float x, float y, float w, float h, float radius, float blur, Color c)
+        public func Shadow(x: float, y: float, w: float, h: float, radius: float, blur: float, c: Color)
         {
             Shape(x, y + blur / 4, w, h, radius, 0, blur, c);
         }
 
-        public void Rect(float x, float y, float w, float h, Color c)
+        public func Rect(x: float, y: float, w: float, h: float, c: Color)
         {
             if (w <= 0 || h <= 0) return;
             float u = Atlas.WhiteU, v = Atlas.WhiteV;
             Quad(x, y, x + w, y + h, u, v, u, v, c);
         }
 
-        public void RectOutline(float x, float y, float w, float h, float t, Color c)
+        public func RectOutline(x: float, y: float, w: float, h: float, t: float, c: Color)
         {
             Rect(x, y, w, t, c);
             Rect(x, y + h - t, w, t, c);
@@ -1025,7 +1025,7 @@ namespace FasetStudio.Gfx
         }
 
         // Decodifica el carácter UTF-8 que empieza en s[i]; avanza i.
-        public static char NextChar(string s, ref int i)
+        public static func NextChar(s: string, ref i: int) -> char
         {
             byte b = s[i];
             if (b < 0x80)
@@ -1054,7 +1054,7 @@ namespace FasetStudio.Gfx
         }
 
         // Dibuja texto con la parte superior de la línea en 'y'; devuelve la x final.
-        public float Text(Font f, float x, float y, string s, Color c)
+        public func Text(f: Font, x: float, y: float, s: string, c: Color) -> float
         {
             float baseline = (float)Math.Floor(y + f.Ascent + 1);
             float pen = x;
@@ -1075,7 +1075,7 @@ namespace FasetStudio.Gfx
         }
 
         // Logotipo de Faset de 'size' x 'size' píxeles (se rasteriza una vez por tamaño).
-        public void Logo(float x, float y, int size, Color c)
+        public func Logo(x: float, y: float, size: int, c: Color)
         {
             Glyph g;
             if (!logos.TryGetValue(size, out g))
@@ -1102,7 +1102,7 @@ namespace FasetStudio.Gfx
         }
 
         // Dibuja un solo carácter con la parte superior de la línea en 'y'.
-        public void Char(Font f, float x, float y, char ch, Color c)
+        public func Char(f: Font, x: float, y: float, ch: char, c: Color)
         {
             Glyph g = f.Get(ch);
             if (g.Width == 0) return;
@@ -1111,7 +1111,7 @@ namespace FasetStudio.Gfx
             Quad(gx, gy, gx + g.Width, gy + g.Height, g.U0, g.V0, g.U1, g.V1, c);
         }
 
-        public float TextWidth(Font f, string s)
+        public func TextWidth(f: Font, s: string) -> float
         {
             float w = 0;
             int i = 0;
@@ -1119,7 +1119,7 @@ namespace FasetStudio.Gfx
             return w;
         }
 
-        void UploadAtlas()
+        func UploadAtlas()
         {
             Memory.Copy(stagingMapped, Atlas.Pixels, (long)Atlas.Size * Atlas.Size);
             VkImageMemoryBarrier b = new VkImageMemoryBarrier();
@@ -1151,7 +1151,7 @@ namespace FasetStudio.Gfx
             atlasReady = true;
         }
 
-        void UploadImage()
+        func UploadImage()
         {
             VkImageMemoryBarrier b = new VkImageMemoryBarrier();
             b.sType = VK.ST_IMAGE_MEMORY_BARRIER;
@@ -1184,7 +1184,7 @@ namespace FasetStudio.Gfx
 
         // Carga una imagen RGBA (4 bytes por píxel, 'stride' bytes por fila); si es mayor que
         // ImageSize se reduce conservando la proporción. Se sube a la GPU en el siguiente fotograma.
-        public void SetImage(byte* rgba, int w, int h, int stride)
+        public func SetImage(rgba: byte*, w: int, h: int, stride: int)
         {
             if (w <= 0 || h <= 0) return;
             int tw = w, th = h;
@@ -1208,7 +1208,7 @@ namespace FasetStudio.Gfx
         }
 
         // Dibuja la imagen cargada con SetImage en el rectángulo indicado.
-        public void Image(float x, float y, float w, float h, Color tint)
+        public func Image(x: float, y: float, w: float, h: float, tint: Color)
         {
             if (ImageWidth == 0 || vertexCount + 6 > MaxVertices) return;
             Quad(x, y, x + w, y + h, 0, 0, ImageWidth / (float)ImageSize, ImageHeight / (float)ImageSize, tint);
@@ -1217,7 +1217,7 @@ namespace FasetStudio.Gfx
         }
 
         // Envía el fotograma a la GPU y lo presenta. Devuelve false si no se pudo dibujar.
-        public bool EndFrame()
+        public func EndFrame() -> bool
         {
             if (needsRecreate && !offscreen) Recreate();
             if (width <= 0 || height <= 0 || imageCount == 0) return false;
@@ -1317,7 +1317,7 @@ namespace FasetStudio.Gfx
         }
 
         // Guarda el último fotograma fuera de pantalla como imagen PPM.
-        public bool SaveScreenshot(string path)
+        public func SaveScreenshot(path: string) -> bool
         {
             if (!offscreen) return false;
             ulong fence = inFlight;
@@ -1342,7 +1342,7 @@ namespace FasetStudio.Gfx
             return ok;
         }
 
-        public void Shutdown()
+        public func Shutdown()
         {
             if (device == null) return;
             vkDeviceWaitIdle(device);

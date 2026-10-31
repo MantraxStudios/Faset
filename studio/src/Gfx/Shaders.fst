@@ -7,7 +7,7 @@ namespace FasetStudio.Gfx
         public const int VertexWords = 322;
 
         // Devuelve una copia en el heap (libérala con Memory.Free tras crear el módulo).
-        public static uint* Vertex()
+        public static func Vertex() -> uint*
         {
             uint* w = new uint[322];
             w[0] = 0x07230203u; w[1] = 0x00010000u; w[2] = 0x000d000au; w[3] = 0x00000038u; w[4] = 0x00000000u; w[5] = 0x00020011u;
@@ -70,7 +70,7 @@ namespace FasetStudio.Gfx
         public const int FragmentWords = 585;
 
         // Devuelve una copia en el heap (libérala con Memory.Free tras crear el módulo).
-        public static uint* Fragment()
+        public static func Fragment() -> uint*
         {
             uint* w = new uint[585];
             w[0] = 0x07230203u; w[1] = 0x00010000u; w[2] = 0x000d000au; w[3] = 0x000000b3u; w[4] = 0x00000000u; w[5] = 0x00020011u;

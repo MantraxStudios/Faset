@@ -15,16 +15,16 @@ namespace FasetStudio.Ide
 {
     class EditorGroup
     {
-        public List<EditorView> Tabs = new List<EditorView>();
-        public int Active = -1;
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
+        public var Tabs: List<EditorView> = new List<EditorView>();
+        public var Active: int = -1;
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
 
-        public EditorView Current => Active >= 0 && Active < Tabs.Count ? Tabs[Active] : null;
+        public prop Current: EditorView => Active >= 0 && Active < Tabs.Count ? Tabs[Active] : null;
 
-        ~EditorGroup()
+        deinit
         {
             for (int i = 0; i < Tabs.Count; i++) delete Tabs[i];
             delete Tabs;
@@ -33,25 +33,25 @@ namespace FasetStudio.Ide
 
     struct HitBox
     {
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
-        public int Id;     // acción o índice
-        public int Group;  // grupo de pestañas (pestañas) o -1
-        public bool Close; // botón de cerrar pestaña
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
+        public var Id: int;     // acción o índice
+        public var Group: int;  // grupo de pestañas (pestañas) o -1
+        public var Close: bool; // botón de cerrar pestaña
 
-        public bool Contains(float px, float py) => px >= X && px < X + W && py >= Y && py < Y + H;
+        public func Contains(px: float, py: float) -> bool => px >= X && px < X + W && py >= Y && py < Y + H;
     }
 
     struct Problem
     {
-        public string Path;     // copia propia
-        public string File;     // vista (nombre)
-        public int Line;
-        public int Col;
-        public int Severity;
-        public string Message;  // copia propia
+        public var Path: string;     // copia propia
+        public var File: string;     // vista (nombre)
+        public var Line: int;
+        public var Col: int;
+        public var Severity: int;
+        public var Message: string;  // copia propia
     }
 
     public enum Overlay
@@ -90,16 +90,16 @@ namespace FasetStudio.Ide
         const float Gap = 6;
         const float CardRadius = 10;
 
-        Renderer r;
-        Window win;
-        int forcedClicks;   // clics simulados (--script)
-        Highlighter hl = new Highlighter();
-        Analyzer analyzer;
-        Explorer explorer = new Explorer();
-        List<Document> docs = new List<Document>();
-        List<EditorGroup> groups = new List<EditorGroup>();
-        int activeGroup;
-        List<HitBox> hits = new List<HitBox>();
+        var r: Renderer;
+        var win: Window;
+        var forcedClicks: int;   // clics simulados (--script)
+        var hl: Highlighter = new Highlighter();
+        var analyzer: Analyzer;
+        var explorer: Explorer = new Explorer();
+        var docs: List<Document> = new List<Document>();
+        var groups: List<EditorGroup> = new List<EditorGroup>();
+        var activeGroup: int;
+        var hits: List<HitBox> = new List<HitBox>();
 
         // Paneles acoplables: Explorador (0), Salida (1), Problemas (2), Dispositivo (3) y los del depurador:
         // Variables (4), Pila de llamadas (5), Inspección (6) y Pruebas (7, Tests.fst). Cada uno está en un lado
@@ -109,126 +109,126 @@ namespace FasetStudio.Ide
         const int ActTarget = 41; // selector de destino (este equipo / Android)
 
         // Android: dispositivos, emulador y vista del dispositivo (panel 3).
-        AndroidTools android = new AndroidTools();
-        string buildTarget = "native";   // "native" o "android" (vista literal)
-        List<int> toolSide = new List<int>();
-        List<bool> toolShown = new List<bool>();
-        List<int> sideActive = new List<int>();     // panel visible en cada lado (-1: lado vacío)
-        List<float> toolRect = new List<float>();   // x, y, w, h de cada panel en el último dibujo (w = 0: no se ve)
-        float leftWidth = 270;
-        float rightWidth = 320;
-        float bottomHeight = 210;
-        float splitRatio = 0.5f;
-        int dragSplitter;  // 1 lado izquierdo, 2 lado inferior, 3 división de editores, 4 lado derecho
-        int outputScroll;
-        int problemsScroll;
-        float editorsX;
-        float editorsW;
-        float editorsBottom;
-        float bottomX;
-        float bottomW;
-        float splitLeftX;
-        float splitRightX;
-        float splitBottomY;
-        float splitGroupsX;
+        var android: AndroidTools = new AndroidTools();
+        var buildTarget: string = "native";   // "native" o "android" (vista literal)
+        var toolSide: List<int> = new List<int>();
+        var toolShown: List<bool> = new List<bool>();
+        var sideActive: List<int> = new List<int>();     // panel visible en cada lado (-1: lado vacío)
+        var toolRect: List<float> = new List<float>();   // x, y, w, h de cada panel en el último dibujo (w = 0: no se ve)
+        var leftWidth: float = 270;
+        var rightWidth: float = 320;
+        var bottomHeight: float = 210;
+        var splitRatio: float = 0.5f;
+        var dragSplitter: int;  // 1 lado izquierdo, 2 lado inferior, 3 división de editores, 4 lado derecho
+        var outputScroll: int;
+        var problemsScroll: int;
+        var editorsX: float;
+        var editorsW: float;
+        var editorsBottom: float;
+        var bottomX: float;
+        var bottomW: float;
+        var splitLeftX: float;
+        var splitRightX: float;
+        var splitBottomY: float;
+        var splitGroupsX: float;
         // Arrastre de una pestaña de panel para acoplarlo en otro lado.
-        int dockTool = -1;
-        bool dockDragging;
-        float dockPressX;
-        float dockPressY;
-        int dockTarget = -1;
-        int contextTool = -1;
-        float overlayInputX;
-        float overlayInputY;
-        float overlayInputW;
+        var dockTool: int = -1;
+        var dockDragging: bool;
+        var dockPressX: float;
+        var dockPressY: float;
+        var dockTarget: int = -1;
+        var contextTool: int = -1;
+        var overlayInputX: float;
+        var overlayInputY: float;
+        var overlayInputW: float;
 
         // Gestión de proyectos y archivos
-        public bool HubMode;
-        Menu menu;
-        string targetPath = "";     // archivo o carpeta sobre el que actúa un diálogo (copia propia)
-        string targetFolder = "";   // carpeta donde crear archivos (copia propia)
-        bool targetIsDir;
-        TextField fieldName = new TextField();
-        TextField fieldLocation = new TextField();
-        TextField fieldExtra = new TextField();
-        TextField fieldExtra2 = new TextField();
-        int projectTemplate;
-        string browsePath = "";
-        List<DirEntry> browseEntries;
-        int browseScroll;
-        ProjectFile props;
+        public var HubMode: bool;
+        var menu: Menu;
+        var targetPath: string = "";     // archivo o carpeta sobre el que actúa un diálogo (copia propia)
+        var targetFolder: string = "";   // carpeta donde crear archivos (copia propia)
+        var targetIsDir: bool;
+        var fieldName: TextField = new TextField();
+        var fieldLocation: TextField = new TextField();
+        var fieldExtra: TextField = new TextField();
+        var fieldExtra2: TextField = new TextField();
+        var projectTemplate: int;
+        var browsePath: string = "";
+        var browseEntries: List<DirEntry>;
+        var browseScroll: int;
+        var props: ProjectFile;
         // Diálogo de paquetes: proyecto, sus <PackageReference> y si el proceso en curso es una orden de paquetes.
-        string packagesProject = "";
-        List<PackageItem> packageItems = new List<PackageItem>();
-        bool processIsPackages;
-        int pressRow = -1;          // fila del explorador pulsada (clic o arrastre)
-        float pressX;
-        float pressY;
-        bool draggingFile;
+        var packagesProject: string = "";
+        var packageItems: List<PackageItem> = new List<PackageItem>();
+        var processIsPackages: bool;
+        var pressRow: int = -1;          // fila del explorador pulsada (clic o arrastre)
+        var pressX: float;
+        var pressY: float;
+        var draggingFile: bool;
         const int ActNewProject = 50;
         const int ActDesignView = 60;   // + índice del grupo
         const int ActCodeView = 70;     // + índice del grupo
         const int ActOpenFolder = 51;
-        StringBuilder output = new StringBuilder();
-        List<Problem> problems = new List<Problem>();
+        var output: StringBuilder = new StringBuilder();
+        var problems: List<Problem> = new List<Problem>();
 
         // Procesos (compilar / ejecutar)
-        ChildProcess process;
-        bool processIsRun;
-        long processStart;
+        var process: ChildProcess;
+        var processIsRun: bool;
+        var processStart: long;
 
         // IntelliSense
-        bool completionOpen;
-        List<CompletionItem> completions;
-        List<int> filtered = new List<int>();
-        int completionSel;
-        TextPos completionStart;
-        long lastEditMs;
-        bool analysisPending;
-        float mouseX;
-        float mouseY;
-        long mouseMoveMs;
-        string hoverText = "";
-        bool hoverOwned;
-        float hoverX;
-        float hoverY;
+        var completionOpen: bool;
+        var completions: List<CompletionItem>;
+        var filtered: List<int> = new List<int>();
+        var completionSel: int;
+        var completionStart: TextPos;
+        var lastEditMs: long;
+        var analysisPending: bool;
+        var mouseX: float;
+        var mouseY: float;
+        var mouseMoveMs: long;
+        var hoverText: string = "";
+        var hoverOwned: bool;
+        var hoverX: float;
+        var hoverY: float;
 
         // Diálogos
-        Overlay overlay = Overlay.None;
-        StringBuilder overlayInput = new StringBuilder();
-        List<string> quickFiles = new List<string>();
-        List<int> quickFiltered = new List<int>();
-        int overlaySel;
-        string findText = "";
-        int pendingCloseGroup = -1;
-        int pendingCloseTab = -1;
+        var overlay: Overlay = Overlay.None;
+        var overlayInput: StringBuilder = new StringBuilder();
+        var quickFiles: List<string> = new List<string>();
+        var quickFiltered: List<int> = new List<int>();
+        var overlaySel: int;
+        var findText: string = "";
+        var pendingCloseGroup: int = -1;
+        var pendingCloseTab: int = -1;
 
-        string status = "";
-        long statusMs;
-        string projectFile = "";   // ruta del .fstproj ("" si no hay; en una solución, el de inicio)
-        string projectName = "";
+        var status: string = "";
+        var statusMs: long;
+        var projectFile: string = "";   // ruta del .fstproj ("" si no hay; en una solución, el de inicio)
+        var projectName: string = "";
 
         // Solución (.fstp): varios proyectos en el explorador; compilar y ejecutar actúan sobre todos.
-        string solutionFile = "";      // ruta del .fstp ("" si se abrió un proyecto o una carpeta)
-        string solutionName = "";
-        JsonValue solutionInfo;        // 'faset sln list --json'
-        string contextProject = "";    // proyecto sobre el que se abrió el menú contextual
-        string contextFolder = "";     // carpeta de solución del menú contextual ("" = raíz)
-        float contextX;
-        float contextY;
-        bool newProjectInSolution;     // el diálogo de nuevo proyecto añade el proyecto a la solución
-        bool createSolution;           // casilla "Crear una solución" del diálogo de nuevo proyecto
-        bool browseForProject;         // el diálogo de abrir elige un proyecto para añadirlo a la solución
-        string rootFolder = "";
-        string configuration = "Debug";
-        bool needsRedraw = true;
-        long lastBlink;
-        int hoverButton = -1;
-        public bool QuitRequested;
+        var solutionFile: string = "";      // ruta del .fstp ("" si se abrió un proyecto o una carpeta)
+        var solutionName: string = "";
+        var solutionInfo: JsonValue;        // 'faset sln list --json'
+        var contextProject: string = "";    // proyecto sobre el que se abrió el menú contextual
+        var contextFolder: string = "";     // carpeta de solución del menú contextual ("" = raíz)
+        var contextX: float;
+        var contextY: float;
+        var newProjectInSolution: bool;     // el diálogo de nuevo proyecto añade el proyecto a la solución
+        var createSolution: bool;           // casilla "Crear una solución" del diálogo de nuevo proyecto
+        var browseForProject: bool;         // el diálogo de abrir elige un proyecto para añadirlo a la solución
+        var rootFolder: string = "";
+        var configuration: string = "Debug";
+        var needsRedraw: bool = true;
+        var lastBlink: long;
+        var hoverButton: int = -1;
+        public var QuitRequested: bool;
 
         // ------------------------------------------------------------------ arranque
 
-        public bool Init(Renderer renderer, Window window, string fasetPath)
+        public func Init(renderer: Renderer, window: Window, fasetPath: string) -> bool
         {
             r = renderer;
             win = window;
@@ -243,9 +243,9 @@ namespace FasetStudio.Ide
         // Libera recursos externos (archivos temporales del análisis, proceso en marcha).
         // Cuánto puede dormir el bucle principal esperando eventos: con la pantalla del
         // dispositivo en directo hay que despertar a menudo para mostrar cada fotograma.
-        public int IdleWaitMs => android.Streaming ? 8 : 30;
+        public prop IdleWaitMs: int => android.Streaming ? 8 : 30;
 
-        public void Shutdown()
+        public func Shutdown()
         {
             if (process != null && process.IsRunning) process.Kill();
             if (TestsRunning) testProcess.Kill();   // 'faset test' (Tests.fst)
@@ -256,7 +256,7 @@ namespace FasetStudio.Ide
         }
 
         // El único .fstp de una carpeta ("" si no hay ninguno o hay varios).
-        static string SolutionIn(string folder)
+        static func SolutionIn(folder: string) -> string
         {
             string found = "";
             int count = 0;
@@ -273,7 +273,7 @@ namespace FasetStudio.Ide
 
         // Abre una carpeta, un .fstproj, una solución .fstp o un archivo .fst. Una carpeta con un
         // .fstp se abre como solución; un .fstproj suelto, como siempre.
-        public void OpenWorkspace(string target)
+        public func OpenWorkspace(target: string)
         {
             string sln = target.EndsWith(".fstp") && File.Exists(target) ? Path.GetFullPath(target)
                        : Directory.Exists(target) ? SolutionIn(Path.GetFullPath(target)) : "";
@@ -336,7 +336,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ soluciones (.fstp)
 
-        void OpenSolution(string sln)
+        func OpenSolution(sln: string)
         {
             if (explorer.IsLoaded) CloseWorkspaceNow();
             HubMode = false;
@@ -376,7 +376,7 @@ namespace FasetStudio.Ide
         }
 
         // Lee la solución con 'faset sln list --json' y rehace el árbol del explorador.
-        bool LoadSolutionInfo()
+        func LoadSolutionInfo() -> bool
         {
             if (solutionFile.Length == 0 || !analyzer.Available) return false;
             string output;
@@ -402,7 +402,7 @@ namespace FasetStudio.Ide
         }
 
         // 'cd <solución> && faset sln <x.fstp> <orden>' (con los errores en la misma salida).
-        string SolutionCommandLine(string arguments)
+        func SolutionCommandLine(arguments: string) -> string
         {
             string qf = Analyzer.Quote(analyzer.Compiler), qd = Analyzer.Quote(rootFolder), qs = Analyzer.Quote(solutionFile);
             StringBuilder cmd = new StringBuilder();
@@ -413,7 +413,7 @@ namespace FasetStudio.Ide
         }
 
         // Ejecuta una orden 'faset sln' y vuelve a leer la solución. Si falla, muestra el error del compilador.
-        bool RunSolutionCommand(string arguments, string successStatus)
+        func RunSolutionCommand(arguments: string, successStatus: string) -> bool
         {
             if (!analyzer.Available)
             {
@@ -440,7 +440,7 @@ namespace FasetStudio.Ide
         }
 
         // Nombre del proyecto que contiene una carpeta (para el namespace de los archivos nuevos).
-        string ProjectNameFor(string folder)
+        func ProjectNameFor(folder: string) -> string
         {
             if (solutionInfo == null) return projectName;
             JsonValue projects = solutionInfo.Get("projects");
@@ -458,7 +458,7 @@ namespace FasetStudio.Ide
         }
 
         // Datos de un proyecto de la solución (o null).
-        JsonValue SolutionProjectInfo(string path)
+        func SolutionProjectInfo(path: string) -> JsonValue
         {
             if (solutionInfo == null) return null;
             JsonValue projects = solutionInfo.Get("projects");
@@ -468,7 +468,7 @@ namespace FasetStudio.Ide
         }
 
         // Proyecto a añadir con 'faset sln add' (en la carpeta de solución del menú contextual).
-        void AddProjectToSolution(string projPath)
+        func AddProjectToSolution(projPath: string)
         {
             if (SolutionProjectInfo(projPath) != null)
             {
@@ -483,7 +483,7 @@ namespace FasetStudio.Ide
         }
 
         // Menú con los demás proyectos de la solución para añadir una referencia (<ProjectReference>).
-        void OpenReferenceMenu()
+        func OpenReferenceMenu()
         {
             if (solutionInfo == null) return;
             JsonValue self = SolutionProjectInfo(contextProject);
@@ -508,7 +508,7 @@ namespace FasetStudio.Ide
             ShowMenu(m, contextX, contextY, -1);
         }
 
-        void SetStatus(string text)
+        func SetStatus(text: string)
         {
             if (status.Length > 0) String.Free(status);
             status = String.Copy(text);
@@ -516,19 +516,19 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        EditorGroup Group => groups[activeGroup];
-        EditorView Editor => groups[activeGroup].Current;
+        prop Group: EditorGroup => groups[activeGroup];
+        prop Editor: EditorView => groups[activeGroup].Current;
 
         // ------------------------------------------------------------------ documentos
 
-        Document FindDoc(string path)
+        func FindDoc(path: string) -> Document
         {
             for (int i = 0; i < docs.Count; i++)
                 if (docs[i].FullPath == path) return docs[i];
             return null;
         }
 
-        public EditorView OpenFile(string path)
+        public func OpenFile(path: string) -> EditorView
         {
             SyncBreakpoints();   // los del proyecto, antes de que se edite el archivo
             string full = Path.GetFullPath(path);
@@ -566,7 +566,7 @@ namespace FasetStudio.Ide
             return view;
         }
 
-        void ActivateTab(int group, int index)
+        func ActivateTab(group: int, index: int)
         {
             for (int k = 0; k < groups.Count; k++)
                 for (int i = 0; i < groups[k].Tabs.Count; i++) groups[k].Tabs[i].Focused = false;
@@ -582,7 +582,7 @@ namespace FasetStudio.Ide
             CloseCompletion();
         }
 
-        void CloseTab(int group, int index, bool force)
+        func CloseTab(group: int, index: int, force: bool)
         {
             EditorGroup g = groups[group];
             EditorView v = g.Tabs[index];
@@ -612,7 +612,7 @@ namespace FasetStudio.Ide
             ActivateTab(activeGroup, groups[activeGroup].Active);
         }
 
-        int CountViews(Document doc)
+        func CountViews(doc: Document) -> int
         {
             int n = 0;
             for (int k = 0; k < groups.Count; k++)
@@ -621,7 +621,7 @@ namespace FasetStudio.Ide
             return n;
         }
 
-        void SaveCurrent()
+        func SaveCurrent()
         {
             EditorView v = Editor;
             if (v == null) return;
@@ -630,7 +630,7 @@ namespace FasetStudio.Ide
             else SetStatus(L.T("Could not save the file"));
         }
 
-        int SaveAll()
+        func SaveAll() -> int
         {
             int saved = 0;
             for (int i = 0; i < docs.Count; i++)
@@ -638,14 +638,14 @@ namespace FasetStudio.Ide
             return saved;
         }
 
-        bool AnyModified()
+        func AnyModified() -> bool
         {
             for (int i = 0; i < docs.Count; i++)
                 if (docs[i].Modified) return true;
             return false;
         }
 
-        void ToggleSplit()
+        func ToggleSplit()
         {
             if (groups.Count == 2)
             {
@@ -682,7 +682,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ IntelliSense
 
-        void RunAnalysis()
+        func RunAnalysis()
         {
             analysisPending = false;
             EditorView v = Editor;
@@ -713,7 +713,7 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        void ClearProblems()
+        func ClearProblems()
         {
             for (int i = 0; i < problems.Count; i++)
             {
@@ -723,7 +723,7 @@ namespace FasetStudio.Ide
             problems.Clear();
         }
 
-        int ErrorCount()
+        func ErrorCount() -> int
         {
             int n = 0;
             for (int i = 0; i < problems.Count; i++)
@@ -731,7 +731,7 @@ namespace FasetStudio.Ide
             return n;
         }
 
-        void RequestCompletion()
+        func RequestCompletion()
         {
             EditorView v = Editor;
             if (v == null || !analyzer.Available) return;
@@ -754,7 +754,7 @@ namespace FasetStudio.Ide
             FilterCompletions();
         }
 
-        static bool StartsWithIgnoreCase(string s, string prefix)
+        static func StartsWithIgnoreCase(s: string, prefix: string) -> bool
         {
             if (prefix.Length > s.Length) return false;
             for (int i = 0; i < prefix.Length; i++)
@@ -762,7 +762,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        void FilterCompletions()
+        func FilterCompletions()
         {
             filtered.Clear();
             EditorView v = Editor;
@@ -789,7 +789,7 @@ namespace FasetStudio.Ide
             if (completionSel >= filtered.Count) completionSel = 0;
         }
 
-        void AcceptCompletion()
+        func AcceptCompletion()
         {
             EditorView v = Editor;
             if (v == null || !completionOpen || filtered.Count == 0) return;
@@ -824,13 +824,13 @@ namespace FasetStudio.Ide
             if (valueNext) RequestCompletion();
         }
 
-        void CloseCompletion()
+        func CloseCompletion()
         {
             completionOpen = false;
             filtered.Clear();
         }
 
-        void GoToDefinition()
+        func GoToDefinition()
         {
             EditorView v = Editor;
             if (v == null) return;
@@ -855,7 +855,7 @@ namespace FasetStudio.Ide
             if (target != null) target.GoToLine(line, col, r);
         }
 
-        void ClearHover()
+        func ClearHover()
         {
             if (hoverOwned) String.Free(hoverText);
             hoverText = "";
@@ -863,7 +863,7 @@ namespace FasetStudio.Ide
         }
 
         // Texto emergente para la posición del ratón (diagnóstico o símbolo).
-        void UpdateHover()
+        func UpdateHover()
         {
             ClearHover();
             for (int k = 0; k < groups.Count; k++)
@@ -911,10 +911,10 @@ namespace FasetStudio.Ide
 
         // Compila o ejecuta: la solución si hay una abierta (todos sus proyectos en orden de
         // dependencias y después el proyecto de inicio), si no el proyecto o el archivo actual.
-        void StartProcess(bool run) { StartProcessFor(run, solutionFile); }
+        func StartProcess(run: bool) { StartProcessFor(run, solutionFile); }
 
         // 'input': .fstproj o .fstp concreto ("" = el proyecto de la carpeta o el archivo actual).
-        void StartProcessFor(bool run, string input)
+        func StartProcessFor(run: bool, input: string)
         {
             if (process != null && process.IsRunning)
             {
@@ -974,7 +974,7 @@ namespace FasetStudio.Ide
             delete cmd;
         }
 
-        void StopProcess()
+        func StopProcess()
         {
             if (process != null && process.IsRunning)
             {
@@ -1003,7 +1003,7 @@ namespace FasetStudio.Ide
         }
 
         // Abre la ubicación de una línea de salida 'ruta:línea:col: ...'.
-        void OpenLocation(string line)
+        func OpenLocation(line: string)
         {
             int c1 = line.IndexOf(":");
             if (c1 <= 0) return;
@@ -1025,7 +1025,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ diálogos
 
-        void OpenOverlay(Overlay o)
+        func OpenOverlay(o: Overlay)
         {
             overlay = o;
             overlayInput.Clear();
@@ -1042,7 +1042,7 @@ namespace FasetStudio.Ide
             if (o == Overlay.Find && findText.Length > 0) overlayInput.Append(findText);
         }
 
-        void FilterQuickOpen()
+        func FilterQuickOpen()
         {
             quickFiltered.Clear();
             string q = overlayInput.View().ToLower();
@@ -1056,7 +1056,7 @@ namespace FasetStudio.Ide
             if (overlaySel >= quickFiltered.Count) overlaySel = 0;
         }
 
-        void OverlayAccept()
+        func OverlayAccept()
         {
             Overlay o = overlay;
             overlay = Overlay.None;
@@ -1155,13 +1155,13 @@ namespace FasetStudio.Ide
             }
         }
 
-        void FindNext()
+        func FindNext()
         {
             if (Editor == null || findText.Length == 0) return;
             if (!Editor.FindNext(findText, r)) SetStatus(L.T("Text not found"));
         }
 
-        void ConfirmChoice(int choice)
+        func ConfirmChoice(choice: int)
         {
             Overlay o = overlay;
             overlay = Overlay.None;
@@ -1194,14 +1194,14 @@ namespace FasetStudio.Ide
             }
         }
 
-        public void RequestQuit()
+        public func RequestQuit()
         {
             if (AnyModified()) OpenOverlay(Overlay.ConfirmQuit);
             else QuitRequested = true;
             needsRedraw = true;
         }
 
-        bool OverlayKey(Event e)
+        func OverlayKey(e: Event) -> bool
         {
             if (overlay == Overlay.None) return false;
             if (e.Key == Keys.Escape)
@@ -1251,7 +1251,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ eventos
 
-        public void HandleEvent(Event e)
+        public func HandleEvent(e: Event)
         {
             needsRedraw = true;
             if (e.Kind == EventKind.Resize)
@@ -1271,7 +1271,7 @@ namespace FasetStudio.Ide
             else if (e.Kind == EventKind.Scroll) MouseScroll(e);
         }
 
-        void HandleKey(Event e)
+        func HandleKey(e: Event)
         {
             ClearHover();
             if (menu != null)
@@ -1468,7 +1468,7 @@ namespace FasetStudio.Ide
 
         // .fstproj / .fstui: '<' abre la lista de elementos, '="' la de valores, ',' la siguiente opción
         // de una lista (Anchor) y el espacio dentro de una etiqueta la de atributos.
-        static bool XmlTrigger(string line, int col, char ch, byte prev)
+        static func XmlTrigger(line: string, col: int, ch: char, prev: byte) -> bool
         {
             int quotes = 0, lt = -1, gt = -1;
             for (int i = 0; i < col && i < line.Length; i++)
@@ -1485,13 +1485,13 @@ namespace FasetStudio.Ide
             return false;
         }
 
-        void MarkEdited()
+        func MarkEdited()
         {
             lastEditMs = Environment.TickCount64();
             analysisPending = true;
         }
 
-        void MouseDown(Event e)
+        func MouseDown(e: Event)
         {
             float x = e.X, y = e.Y;
             ClearHover();
@@ -1692,7 +1692,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ diseñador (.fstui)
 
         // Atiende lo que el diseñador pidió tras un evento.
-        void AfterDesigner(EditorView v)
+        func AfterDesigner(v: EditorView)
         {
             Designer d = v.Designer;
             if (d.Doc.Buffer.Version != d.Doc.AnalyzedVersion) MarkEdited();
@@ -1717,7 +1717,7 @@ namespace FasetStudio.Ide
 
         // Abre el código de la ventana (Nombre.fst junto a Nombre.fstui) en el manejador 'method',
         // creándolo (y creando el archivo) si no existe.
-        void OpenHandler(EditorView designView, string method, string parameters)
+        func OpenHandler(designView: EditorView, method: string, parameters: string)
         {
             string uiPath = designView.Doc.FullPath;
             string codePath = String.Copy(uiPath.Substring(0, uiPath.Length - 2));
@@ -1810,13 +1810,13 @@ namespace FasetStudio.Ide
             String.Free(ns);
         }
 
-        void GoToDefinitionAt(EditorView v, float x, float y)
+        func GoToDefinitionAt(v: EditorView, x: float, y: float)
         {
             v.SetCursor(v.PosFromPoint(r, x, y), false);
             GoToDefinition();
         }
 
-        void DoAction(int id)
+        func DoAction(id: int)
         {
             if (id >= 700 && id < 800)
             {
@@ -1858,7 +1858,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void MouseUp(Event e)
+        func MouseUp(e: Event)
         {
             android.MouseUp(e.X, e.Y);
             if (dockTool >= 0)
@@ -1914,7 +1914,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void MouseMove(Event e)
+        func MouseMove(e: Event)
         {
             mouseX = e.X;
             mouseY = e.Y;
@@ -1979,7 +1979,7 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        void MouseScroll(Event e)
+        func MouseScroll(e: Event)
         {
             ClearHover();
             float x = e.X, y = e.Y;
@@ -2008,7 +2008,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ actualización periódica
 
         // Devuelve true si hay que redibujar.
-        public bool Update()
+        public func Update() -> bool
         {
             long now = Environment.TickCount64();
             bool redraw = needsRedraw;
@@ -2072,10 +2072,10 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ proyectos y archivos
 
-        static bool IsConfirm(Overlay o) => o == Overlay.ConfirmQuit || o == Overlay.ConfirmCloseTab || o == Overlay.ConfirmDelete ||
+        static func IsConfirm(o: Overlay) -> bool => o == Overlay.ConfirmQuit || o == Overlay.ConfirmCloseTab || o == Overlay.ConfirmDelete ||
                                             o == Overlay.ConfirmCloseProject || o == Overlay.ConfirmDeleteProject;
 
-        void SetTarget(string path, bool isDir)
+        func SetTarget(path: string, isDir: bool)
         {
             string copy = String.Copy(path);
             if (targetPath.Length > 0) String.Free(targetPath);
@@ -2083,14 +2083,14 @@ namespace FasetStudio.Ide
             targetIsDir = isDir;
         }
 
-        void SetTargetFolder(string folder)
+        func SetTargetFolder(folder: string)
         {
             string copy = String.Copy(folder);
             if (targetFolder.Length > 0) String.Free(targetFolder);
             targetFolder = copy;
         }
 
-        void UpdateTitle()
+        func UpdateTitle()
         {
             if (win == null) return;
             if (projectName.Length > 0)
@@ -2103,7 +2103,7 @@ namespace FasetStudio.Ide
         }
 
         // Proyectos recientes: carpetas (o soluciones .fstp) separadas por '|' en la configuración.
-        List<string> RecentProjects()
+        func RecentProjects() -> List<string>
         {
             List<string> result = new List<string>();
             List<string> parts = Text.Split(Settings.Get("recent", ""), "|");
@@ -2114,7 +2114,7 @@ namespace FasetStudio.Ide
             return result;
         }
 
-        void SaveRecent(List<string> list)
+        func SaveRecent(list: List<string>)
         {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < list.Count && i < 12; i++)
@@ -2126,13 +2126,13 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        static void FreeStrings(List<string> l)
+        static func FreeStrings(l: List<string>)
         {
             for (int i = 0; i < l.Count; i++) String.Free(l[i]);
             delete l;
         }
 
-        void AddRecent(string folder)
+        func AddRecent(folder: string)
         {
             List<string> old = RecentProjects();
             List<string> list = new List<string>();
@@ -2144,7 +2144,7 @@ namespace FasetStudio.Ide
             FreeStrings(old);
         }
 
-        void RemoveRecent(string folder)
+        func RemoveRecent(folder: string)
         {
             List<string> old = RecentProjects();
             List<string> list = new List<string>();
@@ -2156,7 +2156,7 @@ namespace FasetStudio.Ide
         }
 
         // Cierra todos los documentos y el proyecto (sin preguntar).
-        void CloseWorkspaceNow()
+        func CloseWorkspaceNow()
         {
             dbg.Stop();
             debugExe = "";
@@ -2183,7 +2183,7 @@ namespace FasetStudio.Ide
             analyzer.Solution = "";
         }
 
-        public void ShowHub()
+        public func ShowHub()
         {
             CloseWorkspaceNow();
             HubMode = true;
@@ -2191,14 +2191,14 @@ namespace FasetStudio.Ide
             SetStatus(L.T("Ready"));
         }
 
-        void RequestCloseWorkspace()
+        func RequestCloseWorkspace()
         {
             if (AnyModified()) OpenOverlay(Overlay.ConfirmCloseProject);
             else ShowHub();
         }
 
         // Cierra los documentos abiertos dentro de 'path' (archivo o carpeta).
-        void CloseDocsUnder(string path)
+        func CloseDocsUnder(path: string)
         {
             for (int k = 0; k < groups.Count; k++)
                 for (int i = groups[k].Tabs.Count - 1; i >= 0; i--)
@@ -2211,7 +2211,7 @@ namespace FasetStudio.Ide
         }
 
         // Actualiza las rutas de los documentos abiertos tras mover o renombrar.
-        void RetargetDocs(string oldPath, string newPath)
+        func RetargetDocs(oldPath: string, newPath: string)
         {
             for (int i = 0; i < docs.Count; i++)
             {
@@ -2227,7 +2227,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void RenamePath(string path, string newName)
+        func RenamePath(path: string, newName: string)
         {
             if (newName.Contains("/"))
             {
@@ -2249,7 +2249,7 @@ namespace FasetStudio.Ide
             String.Free(dir);
         }
 
-        void MovePath(string path, string folder)
+        func MovePath(path: string, folder: string)
         {
             string dest = Path.Combine(folder, Path.GetFileName(path));
             bool isDir = Directory.Exists(path);
@@ -2266,7 +2266,7 @@ namespace FasetStudio.Ide
             String.Free(dest);
         }
 
-        void DeletePath(string path)
+        func DeletePath(path: string)
         {
             CloseDocsUnder(path);
             bool ok = Directory.Exists(path) ? Directory.Delete(path) : File.Delete(path);
@@ -2275,7 +2275,7 @@ namespace FasetStudio.Ide
             SetStatus(ok ? L.T("Deleted") : L.T("Could not delete"));
         }
 
-        void DuplicateFile(string path)
+        func DuplicateFile(path: string)
         {
             string dir = String.Copy(Path.GetDirectoryName(path));
             string stem = String.Copy(Path.GetFileNameWithoutExtension(path));
@@ -2308,7 +2308,7 @@ namespace FasetStudio.Ide
             String.Free(ext);
         }
 
-        string DefaultProjectsFolder()
+        func DefaultProjectsFolder() -> string
         {
             string saved = Settings.Get("projects.location", "");
             if (saved.Length > 0) return String.Copy(saved);
@@ -2318,7 +2318,7 @@ namespace FasetStudio.Ide
             return folder;
         }
 
-        void OpenNewProjectDialog()
+        func OpenNewProjectDialog()
         {
             CloseMenu();
             OpenOverlay(Overlay.NewProject);
@@ -2333,14 +2333,14 @@ namespace FasetStudio.Ide
         }
 
         // Nuevo proyecto dentro de la carpeta de la solución, que se añade a ella (y a 'contextFolder').
-        void OpenAddNewProjectDialog()
+        func OpenAddNewProjectDialog()
         {
             OpenNewProjectDialog();
             newProjectInSolution = true;
             fieldLocation.Set(rootFolder);
         }
 
-        void CreateProject()
+        func CreateProject()
         {
             if (analyzer.Compiler.Length == 0)
             {
@@ -2406,7 +2406,7 @@ namespace FasetStudio.Ide
             String.Free(dest);
         }
 
-        void BrowseTo(string folder)
+        func BrowseTo(folder: string)
         {
             if (!Directory.Exists(folder)) return;
             string full = Path.GetFullPath(folder);
@@ -2418,7 +2418,7 @@ namespace FasetStudio.Ide
             fieldExtra.Set(browsePath);
         }
 
-        void OpenFolderDialog()
+        func OpenFolderDialog()
         {
             CloseMenu();
             OpenOverlay(Overlay.OpenFolder);
@@ -2435,7 +2435,7 @@ namespace FasetStudio.Ide
         }
 
         // Diálogo de abrir para elegir un .fstproj existente y añadirlo a la solución.
-        void OpenAddExistingProjectDialog()
+        func OpenAddExistingProjectDialog()
         {
             OpenFolderDialog();
             browseForProject = true;
@@ -2445,7 +2445,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ paquetes (faset add/remove/restore)
 
         // ¿El .fstproj tiene algún <PackageReference>?
-        bool UsesPackages(string project)
+        func UsesPackages(project: string) -> bool
         {
             string text;
             if (project.Length == 0 || !File.TryReadAllText(project, out text)) return false;
@@ -2455,7 +2455,7 @@ namespace FasetStudio.Ide
         }
 
         // Al abrir un proyecto o una solución que usa paquetes: 'faset restore' en segundo plano.
-        void RestorePackagesOnOpen()
+        func RestorePackagesOnOpen()
         {
             if (!analyzer.Available || (process != null && process.IsRunning)) return;
             bool uses = false;
@@ -2469,7 +2469,7 @@ namespace FasetStudio.Ide
         }
 
         // 'faset <orden> [argumentos] --project <x.fstproj>' (o la .fstp) sin bloquear el editor: la salida va al panel Output.
-        void RunPackageCommand(string verb, string arguments, string project)
+        func RunPackageCommand(verb: string, arguments: string, project: string)
         {
             if (process != null && process.IsRunning)
             {
@@ -2505,7 +2505,7 @@ namespace FasetStudio.Ide
             delete cmd;
         }
 
-        void OpenPackagesFor(string project)
+        func OpenPackagesFor(project: string)
         {
             CloseMenu();
             if (project.Length == 0)
@@ -2523,7 +2523,7 @@ namespace FasetStudio.Ide
             fieldExtra2.Focused = false;
         }
 
-        void ReloadPackages()
+        func ReloadPackages()
         {
             if (packagesProject.Length == 0) return;
             for (int i = 0; i < packageItems.Count; i++) delete packageItems[i];
@@ -2534,7 +2534,7 @@ namespace FasetStudio.Ide
         }
 
         // 'faset add <nombre | url git | carpeta> [--version X]' con lo escrito en el diálogo.
-        void AddPackageFromDialog()
+        func AddPackageFromDialog()
         {
             string spec = fieldExtra.Text.Trim();
             if (spec.Length == 0)
@@ -2562,7 +2562,7 @@ namespace FasetStudio.Ide
             delete args;
         }
 
-        void DrawPackagesDialog()
+        func DrawPackagesDialog()
         {
             float w = 760, h = 540, x, y;
             DialogFrame(w, h, out x, out y);
@@ -2619,9 +2619,9 @@ namespace FasetStudio.Ide
             DialogButton(bx, y + h - 50, restore, 41, 2);
         }
 
-        void OpenPropertiesDialog() { OpenPropertiesFor(projectFile); }
+        func OpenPropertiesDialog() { OpenPropertiesFor(projectFile); }
 
-        void OpenPropertiesFor(string path)
+        func OpenPropertiesFor(path: string)
         {
             CloseMenu();
             if (path.Length == 0)
@@ -2645,7 +2645,7 @@ namespace FasetStudio.Ide
             fieldExtra2.Focused = false;
         }
 
-        void SaveProperties()
+        func SaveProperties()
         {
             if (props == null) return;
             string name = fieldName.Text.Trim();
@@ -2665,13 +2665,13 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ menús
 
-        void CloseMenu()
+        func CloseMenu()
         {
             delete menu;
             menu = null;
         }
 
-        void ShowMenu(Menu m, float x, float y, int owner)
+        func ShowMenu(m: Menu, x: float, y: float, owner: int)
         {
             CloseMenu();
             CloseCompletion();
@@ -2683,7 +2683,7 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        void OpenBarMenu(int index, float x, float y)
+        func OpenBarMenu(index: int, x: float, y: float)
         {
             bool ws = !HubMode;
             bool ed = ws && Editor != null;
@@ -2786,7 +2786,7 @@ namespace FasetStudio.Ide
             ShowMenu(m, x, y, index);
         }
 
-        void OpenContextMenu(int row, float x, float y)
+        func OpenContextMenu(row: int, x: float, y: float)
         {
             Menu m = new Menu();
             if (row < 0)
@@ -2898,7 +2898,7 @@ namespace FasetStudio.Ide
             ShowMenu(m, x, y, -1);
         }
 
-        void OpenEditorMenu(float x, float y)
+        func OpenEditorMenu(x: float, y: float)
         {
             Menu m = new Menu();
             m.Add(L.T("Go to definition"), "F12", 167, true);
@@ -2915,7 +2915,7 @@ namespace FasetStudio.Ide
         }
 
         // Simula un atajo de teclado sobre el editor activo.
-        void EditorShortcut(uint key, bool shift)
+        func EditorShortcut(key: uint, shift: bool)
         {
             Event e = new Event();
             e.Kind = EventKind.KeyDown;
@@ -2925,7 +2925,7 @@ namespace FasetStudio.Ide
             HandleKey(e);
         }
 
-        void ExecuteAction(int id)
+        func ExecuteAction(id: int)
         {
             needsRedraw = true;
             if (id == 100) OpenNewProjectDialog();
@@ -3069,7 +3069,7 @@ namespace FasetStudio.Ide
             else DoAction(id);
         }
 
-        void RunClean()
+        func RunClean()
         {
             if (projectFile.Length == 0 && solutionFile.Length == 0) return;
             string qf = Analyzer.Quote(analyzer.Compiler);
@@ -3090,7 +3090,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ diálogos con controles
 
-        TextField FocusedField()
+        func FocusedField() -> TextField
         {
             if (fieldName.Focused) return fieldName;
             if (fieldLocation.Focused) return fieldLocation;
@@ -3099,7 +3099,7 @@ namespace FasetStudio.Ide
             return null;
         }
 
-        void FocusField(TextField f)
+        func FocusField(f: TextField)
         {
             fieldName.Focused = f == fieldName;
             fieldLocation.Focused = f == fieldLocation;
@@ -3107,7 +3107,7 @@ namespace FasetStudio.Ide
             fieldExtra2.Focused = f == fieldExtra2;
         }
 
-        void DialogKey(Event e)
+        func DialogKey(e: Event)
         {
             TextField f = FocusedField();
             bool enter = e.Key == Keys.Return || e.Key == Keys.KeypadEnter;
@@ -3145,7 +3145,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DialogMouse(float x, float y)
+        func DialogMouse(x: float, y: float)
         {
             if (fieldName.Contains(x, y) && (overlay == Overlay.NewProject || overlay == Overlay.ProjectProperties)) FocusField(fieldName);
             else if (fieldLocation.Contains(x, y) && overlay == Overlay.NewProject) FocusField(fieldLocation);
@@ -3163,7 +3163,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DialogAction(int id)
+        func DialogAction(id: int)
         {
             needsRedraw = true;
             if (overlay == Overlay.About)
@@ -3255,7 +3255,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ Hub (ventana de inicio)
 
-        void HubMouse(float x, float y, int button)
+        func HubMouse(x: float, y: float, button: int)
         {
             for (int i = 0; i < hits.Count; i++)
             {
@@ -3291,7 +3291,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ dibujo
 
-        void AddHit(float x, float y, float w, float h, int id, int group, bool close)
+        func AddHit(x: float, y: float, w: float, h: float, id: int, group: int, close: bool)
         {
             HitBox b = new HitBox();
             b.X = x;
@@ -3304,14 +3304,14 @@ namespace FasetStudio.Ide
             hits.Add(b);
         }
 
-        float PillWidth(string label, string icon)
+        func PillWidth(label: string, icon: string) -> float
         {
             float iconW = icon.Length > 0 ? r.TextWidth(r.Icons, icon) + (label.Length > 0 ? 7 : 0) : 0;
             return r.TextWidth(r.Ui, label) + iconW + 26;
         }
 
         // Botón redondeado. style: 0 secundario, 1 principal (blanco), 2 fantasma.
-        float Pill(float x, float y, string label, string icon, int id, int style)
+        func Pill(x: float, y: float, label: string, icon: string, id: int, style: int) -> float
         {
             float w = PillWidth(label, icon);
             float h = 28;
@@ -3337,19 +3337,19 @@ namespace FasetStudio.Ide
             return w;
         }
 
-        void KeyChip(float x, float y, string key)
+        func KeyChip(x: float, y: float, key: string)
         {
             float w = r.TextWidth(r.UiSmall, key) + 12;
             r.RoundRect(x, y, w, 18, 5, Theme.Active);
             r.Text(r.UiSmall, x + 6, y + 2, key, Theme.TextSecondary);
         }
 
-        void Card(float x, float y, float w, float h, Color c)
+        func Card(x: float, y: float, w: float, h: float, c: Color)
         {
             r.RoundRect(x, y, w, h, CardRadius, c);
         }
 
-        public void Draw()
+        public func Draw()
         {
             hits.Clear();
             float W = r.Width, H = r.Height;
@@ -3423,7 +3423,7 @@ namespace FasetStudio.Ide
             r.EndFrame();
         }
 
-        void DrawTitleBar(float W)
+        func DrawTitleBar(W: float)
         {
             // Logotipo y nombre
             r.Logo(Gap + 8, 12, 24, Theme.White);
@@ -3527,7 +3527,7 @@ namespace FasetStudio.Ide
             AddHit(rx, 10, 28, 28, ActSplit, -1, false);
         }
 
-        void DrawGroup(EditorGroup g, int index)
+        func DrawGroup(g: EditorGroup, index: int)
         {
             Card(g.X, g.Y, g.W, g.H, Theme.Editor);
             bool focusedGroup = index == activeGroup;
@@ -3599,7 +3599,7 @@ namespace FasetStudio.Ide
             cur.Draw(r, hl, caretOn && overlay == Overlay.None);
         }
 
-        void DrawWelcome(float x, float y, float w, float h)
+        func DrawWelcome(x: float, y: float, w: float, h: float)
         {
             float cx = x + w / 2;
             float cy = y + h / 2 - 110;
@@ -3621,14 +3621,14 @@ namespace FasetStudio.Ide
             DrawShortcut(lx, ry + 150, colW, L.T("Go to definition"), "F12");
         }
 
-        void DrawShortcut(float x, float y, float w, string label, string key)
+        func DrawShortcut(x: float, y: float, w: float, label: string, key: string)
         {
             r.Text(r.Ui, x, y + 2, label, Theme.TextSecondary);
             float kw = r.TextWidth(r.UiSmall, key) + 12;
             KeyChip(x + w - kw, y + 1, key);
         }
 
-        float PanelTab(float x, float y, string label, int count, int id, bool active)
+        func PanelTab(x: float, y: float, label: string, count: int, id: int, active: bool) -> float
         {
             float w = r.TextWidth(r.Ui, label) + 26;
             string num = "";
@@ -3657,7 +3657,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ Android
 
         // Texto del selector de destino (copia).
-        string TargetLabel()
+        func TargetLabel() -> string
         {
             if (buildTarget != "android") return String.Copy(L.T(OS.IsWindows ? "Windows" : "Linux"));
             if (android.StartingAvd.Length > 0) return String.Copy(L.T("Starting emulator…"));
@@ -3666,7 +3666,7 @@ namespace FasetStudio.Ide
             return String.Copy(model.Length > 0 ? model : android.Device);
         }
 
-        void SetBuildTarget(string target)
+        func SetBuildTarget(target: string)
         {
             buildTarget = target == "android" ? "android" : "native";
             if (buildTarget == "android")
@@ -3677,7 +3677,7 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        void OpenTargetMenu(float x, float y)
+        func OpenTargetMenu(x: float, y: float)
         {
             android.Refresh();
             Menu m = new Menu();
@@ -3700,7 +3700,7 @@ namespace FasetStudio.Ide
             ShowMenu(m, x, y, -1);
         }
 
-        void InitLayout()
+        func InitLayout()
         {
             toolSide.Clear();
             toolShown.Clear();
@@ -3719,7 +3719,7 @@ namespace FasetStudio.Ide
         }
 
         // Disposición guardada: "lado:visible" por panel y los tamaños de los lados.
-        void LoadLayout()
+        func LoadLayout()
         {
             InitLayout();
             List<string> parts = Text.Split(Settings.Get("layout.tools", ""), ",");
@@ -3746,7 +3746,7 @@ namespace FasetStudio.Ide
             NormalizeSides();
         }
 
-        void SaveLayout()
+        func SaveLayout()
         {
             StringBuilder sb = new StringBuilder();
             for (int t = 0; t < ToolCount; t++)
@@ -3761,14 +3761,14 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        void ResetLayout()
+        func ResetLayout()
         {
             InitLayout();
             SaveLayout();
         }
 
         // Cada lado muestra uno de sus paneles visibles (o ninguno).
-        void NormalizeSides()
+        func NormalizeSides()
         {
             for (int s = 0; s < 3; s++)
             {
@@ -3780,9 +3780,9 @@ namespace FasetStudio.Ide
             }
         }
 
-        bool ToolVisible(int t) => toolShown[t] && sideActive[toolSide[t]] == t;
+        func ToolVisible(t: int) -> bool => toolShown[t] && sideActive[toolSide[t]] == t;
 
-        void ShowTool(int t)
+        func ShowTool(t: int)
         {
             if (t < 0 || t >= ToolCount) return;
             toolShown[t] = true;
@@ -3791,20 +3791,20 @@ namespace FasetStudio.Ide
             SaveLayout();
         }
 
-        void HideTool(int t)
+        func HideTool(t: int)
         {
             toolShown[t] = false;
             NormalizeSides();
             SaveLayout();
         }
 
-        void ToggleTool(int t)
+        func ToggleTool(t: int)
         {
             if (ToolVisible(t)) HideTool(t);
             else ShowTool(t);
         }
 
-        void DockTool(int t, int side)
+        func DockTool(t: int, side: int)
         {
             if (t < 0 || t >= ToolCount || side < 0 || side > 2) return;
             toolSide[t] = side;
@@ -3814,16 +3814,16 @@ namespace FasetStudio.Ide
             SaveLayout();
         }
 
-        static string ToolName(int t) => t == 0 ? "Explorer" : t == 1 ? "Output" : t == 2 ? "Problems" : t == 3 ? "Device"
+        static func ToolName(t: int) -> string => t == 0 ? "Explorer" : t == 1 ? "Output" : t == 2 ? "Problems" : t == 3 ? "Device"
                                        : t == 4 ? "Variables" : t == 5 ? "Call Stack" : t == 6 ? "Watch" : "Tests";
 
-        bool InTool(int t, float x, float y)
+        func InTool(t: int, x: float, y: float) -> bool
         {
             float w = toolRect[t * 4 + 2];
             return w > 0 && x >= toolRect[t * 4] && x < toolRect[t * 4] + w && y >= toolRect[t * 4 + 1] && y < toolRect[t * 4 + 1] + toolRect[t * 4 + 3];
         }
 
-        void OpenToolMenu(float x, float y)
+        func OpenToolMenu(x: float, y: float)
         {
             Menu m = new Menu();
             int side = toolSide[contextTool];
@@ -3837,7 +3837,7 @@ namespace FasetStudio.Ide
         }
 
         // Lado en el que caería el panel arrastrado (cerca de un borde), o -1.
-        int DockTargetAt(float x, float y)
+        func DockTargetAt(x: float, y: float) -> int
         {
             float top = TitleHeight, bottom = r.Height - StatusHeight;
             if (y < top || y > bottom) return -1;
@@ -3847,7 +3847,7 @@ namespace FasetStudio.Ide
             return -1;
         }
 
-        void DrawSide(int side, float x, float y, float w, float h)
+        func DrawSide(side: int, x: float, y: float, w: float, h: float)
         {
             Card(x, y, w, h, Theme.Surface);
             int active = sideActive[side];
@@ -3886,7 +3886,7 @@ namespace FasetStudio.Ide
             else android.Draw(r, x, y, w, h, mouseX, mouseY);
         }
 
-        void DrawOutput(float x, float y, float w, float h)
+        func DrawOutput(x: float, y: float, w: float, h: float)
         {
             float lh = r.Code.LineHeight;
             float y0 = y + PanelHeaderHeight + 4;
@@ -3910,7 +3910,7 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        void DrawProblems(float x, float y, float w, float h)
+        func DrawProblems(x: float, y: float, w: float, h: float)
         {
             float lh = r.Code.LineHeight;
             float y0 = y + PanelHeaderHeight + 4;
@@ -3937,7 +3937,7 @@ namespace FasetStudio.Ide
         }
 
         // Mientras se arrastra una pestaña: guías de los tres lados y vista previa del hueco.
-        void DrawDockGuides()
+        func DrawDockGuides()
         {
             float W = r.Width, top = TitleHeight, bottom = r.Height - StatusHeight;
             if (dockTarget >= 0)
@@ -3965,7 +3965,7 @@ namespace FasetStudio.Ide
             r.Text(r.Ui, mouseX + 24, mouseY + 12, name, Theme.White);
         }
 
-        void DockGuide(float cx, float cy, int side)
+        func DockGuide(cx: float, cy: float, side: int)
         {
             bool on = dockTarget == side;
             r.Shadow(cx - 22, cy - 22, 44, 44, 10, 14, Theme.Shadow);
@@ -3977,7 +3977,7 @@ namespace FasetStudio.Ide
             else r.Rect(cx - 11, cy + 3, 22, 6, Theme.White);
         }
 
-        void DrawStatus(float W, float H)
+        func DrawStatus(W: float, H: float)
         {
             bool running = process != null && process.IsRunning;
             float y = H - StatusHeight;
@@ -4028,7 +4028,7 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        string KindLabel(int kind)
+        func KindLabel(kind: int) -> string
         {
             switch (kind)
             {
@@ -4048,14 +4048,14 @@ namespace FasetStudio.Ide
             }
         }
 
-        void Popup(float x, float y, float w, float h)
+        func Popup(x: float, y: float, w: float, h: float)
         {
             r.Shadow(x, y, w, h, 10, 18, Theme.Shadow);
             r.RoundRect(x, y, w, h, 10, Theme.Elevated);
             r.RoundBorder(x, y, w, h, 10, 1, Theme.BorderStrong);
         }
 
-        void DrawCompletion()
+        func DrawCompletion()
         {
             EditorView v = Editor;
             if (v == null || filtered.Count == 0) return;
@@ -4097,7 +4097,7 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        void DrawTooltip(string text, float x, float y)
+        func DrawTooltip(text: string, x: float, y: float)
         {
             List<string> lines = Text.Split(text, "\n");
             float w = 0;
@@ -4120,7 +4120,7 @@ namespace FasetStudio.Ide
             delete lines;
         }
 
-        void DrawOverlay()
+        func DrawOverlay()
         {
             float W = r.Width, H = r.Height;
             if (overlay == Overlay.NewProject)
@@ -4241,7 +4241,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        float DrawMenuBar(float x)
+        func DrawMenuBar(x: float) -> float
         {
             for (int i = 0; i < 6; i++)
             {
@@ -4259,7 +4259,7 @@ namespace FasetStudio.Ide
         }
 
         // Botón de diálogo (grupo -5).
-        float DialogButton(float x, float y, string label, int id, int style)
+        func DialogButton(x: float, y: float, label: string, id: int, style: int) -> float
         {
             float w = Pill(x, y, label, "", id, style);
             hits.Pop();
@@ -4268,7 +4268,7 @@ namespace FasetStudio.Ide
         }
 
         // Control segmentado: opciones separadas por '|'. Devuelve el ancho.
-        float Segmented(float x, float y, string options, int selected, int baseId)
+        func Segmented(x: float, y: float, options: string, selected: int, baseId: int) -> float
         {
             List<string> parts = Text.Split(options, "|");
             float total = 4;
@@ -4290,7 +4290,7 @@ namespace FasetStudio.Ide
             return total;
         }
 
-        void Toggle(float x, float y, bool on, int id)
+        func Toggle(x: float, y: float, on: bool, id: int)
         {
             r.RoundRect(x, y, 40, 22, 11, on ? Theme.White : Theme.Active);
             r.RoundRect(on ? x + 20 : x + 2, y + 2, 18, 18, 9, on ? Theme.Black : Theme.TextSecondary);
@@ -4298,7 +4298,7 @@ namespace FasetStudio.Ide
         }
 
         // Fondo oscurecido y tarjeta del diálogo.
-        void DialogFrame(float w, float h, out float x, out float y)
+        func DialogFrame(w: float, h: float, out x: float, out y: float)
         {
             float W = r.Width, H = r.Height;
             r.Rect(0, 0, W, H, Color.Hex(0x000000, 0.55f));
@@ -4309,7 +4309,7 @@ namespace FasetStudio.Ide
             r.RoundBorder(x, y, w, h, 14, 1, Theme.BorderStrong);
         }
 
-        void DrawHub(float W, float H)
+        func DrawHub(W: float, H: float)
         {
             float cw = (float)Math.Min(1080.0, W - 80);
             float x0 = (float)Math.Floor((W - cw) / 2);
@@ -4389,7 +4389,7 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        void HubCard(float x, float y, float w, string title, string subtitle, int id, int icon)
+        func HubCard(x: float, y: float, w: float, title: string, subtitle: string, id: int, icon: int)
         {
             float h = 80;
             bool hover = hoverButton == id && overlay == Overlay.None;
@@ -4415,7 +4415,7 @@ namespace FasetStudio.Ide
         }
 
         // Texto en varias líneas cortado por palabras.
-        void WrapText(Font f, float x, float y, float maxW, string text, Color c)
+        func WrapText(f: Font, x: float, y: float, maxW: float, text: string, c: Color)
         {
             List<string> words = Text.Split(text, " ");
             StringBuilder line = new StringBuilder();
@@ -4442,20 +4442,20 @@ namespace FasetStudio.Ide
 
         const int TemplateCount = 5;
 
-        string TemplateTitle(int i) => i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app")
+        func TemplateTitle(i: int) -> string => i == 0 ? L.T("Console app") : i == 1 ? L.T("Class library") : i == 2 ? L.T("Window app")
                                      : i == 3 ? L.T("Desktop app (UI)") : L.T("Android app");
 
-        string TemplateDescription(int i) => i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
+        func TemplateDescription(i: int) -> string => i == 0 ? L.T("A program that runs in the terminal") : i == 1 ? L.T("Reusable code for other projects")
                                            : i == 2 ? L.T("A Windows app without a console") : i == 3 ? L.T("Windows and Linux, visual designer")
                                            : L.T("APK for phones and the emulator, visual designer");
 
         // Etiquetas separadas por ';' (se traducen una a una).
-        string TemplateTags(int i) => i == 0 ? "Faset;Linux;Windows;Console" : i == 1 ? "Faset;Linux;Windows;Android;Library"
+        func TemplateTags(i: int) -> string => i == 0 ? "Faset;Linux;Windows;Console" : i == 1 ? "Faset;Linux;Windows;Android;Library"
                                     : i == 2 ? "Faset;Windows;Desktop" : i == 3 ? "Faset;Linux;Windows;Desktop;UI" : "Faset;Android;Mobile;UI";
 
-        string TemplateOutput(int i) => i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : i == 3 ? "Exe + .fstui" : "APK";
+        func TemplateOutput(i: int) -> string => i == 0 ? "Exe" : i == 1 ? "Library" : i == 2 ? "WinExe" : i == 3 ? "Exe + .fstui" : "APK";
 
-        static bool ContainsIgnoreCase(string text, string query)
+        static func ContainsIgnoreCase(text: string, query: string) -> bool
         {
             if (query.Length == 0) return true;
             for (int i = 0; i + query.Length <= text.Length; i++)
@@ -4463,7 +4463,7 @@ namespace FasetStudio.Ide
             return false;
         }
 
-        bool TemplateVisible(int i)
+        func TemplateVisible(i: int) -> bool
         {
             string q = fieldExtra.Text.Trim();
             if (q.Length == 0) return true;
@@ -4481,13 +4481,13 @@ namespace FasetStudio.Ide
         }
 
         // Mueve la selección a la plantilla visible anterior (-1) o siguiente (+1).
-        void StepTemplate(int dir)
+        func StepTemplate(dir: int)
         {
             for (int i = projectTemplate + dir; i >= 0 && i < TemplateCount; i += dir)
                 if (TemplateVisible(i)) { projectTemplate = i; return; }
         }
 
-        float DrawTags(float x, float y, string tags, float maxX)
+        func DrawTags(x: float, y: float, tags: string, maxX: float) -> float
         {
             int a = 0;
             for (int k = 0; k <= tags.Length; k++)
@@ -4505,7 +4505,7 @@ namespace FasetStudio.Ide
             return x;
         }
 
-        void DrawTemplateIcon(int i, float x, float y, float s, bool sel)
+        func DrawTemplateIcon(i: int, x: float, y: float, s: float, sel: bool)
         {
             Color bg = sel ? Theme.White : Theme.Active, fg = sel ? Theme.Black : Theme.White;
             r.RoundRect(x, y, s, s, 9, bg);
@@ -4537,7 +4537,7 @@ namespace FasetStudio.Ide
         }
 
         // Parte un texto sin espacios (una ruta) por caracteres, hasta maxLines líneas.
-        void WrapPath(Font f, float x, float y, float maxW, string text, Color c, int maxLines)
+        func WrapPath(f: Font, x: float, y: float, maxW: float, text: string, c: Color, maxLines: int)
         {
             int a = 0;
             for (int line = 0; line < maxLines && a < text.Length; line++)
@@ -4549,7 +4549,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DrawNewProjectDialog()
+        func DrawNewProjectDialog()
         {
             float w = 1000, h = 590, x, y;
             DialogFrame(w, h, out x, out y);
@@ -4637,7 +4637,7 @@ namespace FasetStudio.Ide
             DialogButton(bx, y + h - 50, cancel, 20, 2);
         }
 
-        void DrawOpenFolderDialog()
+        func DrawOpenFolderDialog()
         {
             float w = 760, h = 540, x, y;
             DialogFrame(w, h, out x, out y);
@@ -4689,7 +4689,7 @@ namespace FasetStudio.Ide
             DialogButton(bx, y + h - 50, cancel, 30, 2);
         }
 
-        void DrawPropertiesDialog()
+        func DrawPropertiesDialog()
         {
             if (props == null) return;
             float w = 760, h = 640, x, y;
@@ -4732,7 +4732,7 @@ namespace FasetStudio.Ide
             DialogButton(bx, y + h - 50, cancel, 160, 2);
         }
 
-        float DrawEditableList(string label, List<string> items, TextField field, string placeholder, int removeBase, int addId, float lx, float cx, float y, float w)
+        func DrawEditableList(label: string, items: List<string>, field: TextField, placeholder: string, removeBase: int, addId: int, lx: float, cx: float, y: float, w: float) -> float
         {
             r.Text(r.Ui, lx, y + 8, label, Theme.TextSecondary);
             for (int i = 0; i < items.Count && i < 4; i++)
@@ -4752,7 +4752,7 @@ namespace FasetStudio.Ide
             return fy + 50;
         }
 
-        void DrawAboutDialog()
+        func DrawAboutDialog()
         {
             float w = 440, h = 300, x, y;
             DialogFrame(w, h, out x, out y);
@@ -4767,7 +4767,7 @@ namespace FasetStudio.Ide
         }
 
         // Forma del puntero según lo que hay bajo el ratón.
-        void UpdateCursor()
+        func UpdateCursor()
         {
             if (win == null) return;
             CursorKind kind = CursorKind.Arrow;
@@ -4826,7 +4826,7 @@ namespace FasetStudio.Ide
         }
 
         // 1: lado izquierdo, 2: lado inferior, 3: entre los dos editores, 4: lado derecho, 0: ninguno.
-        int SplitterAt(float x, float y)
+        func SplitterAt(x: float, y: float) -> int
         {
             float top = TitleHeight, bottom = r.Height - StatusHeight;
             if (y > top && y < bottom && sideActive[0] >= 0 && Math.Abs(x - splitLeftX) <= Gap / 2 + 2) return 1;
@@ -4836,7 +4836,7 @@ namespace FasetStudio.Ide
             return 0;
         }
 
-        int ProblemRowAt(float y)
+        func ProblemRowAt(y: float) -> int
         {
             float lh = r.Code.LineHeight;
             int row = problemsScroll + (int)Math.Floor((y - toolRect[9] - PanelHeaderHeight - 4) / lh);
@@ -4847,7 +4847,7 @@ namespace FasetStudio.Ide
 
         // Ejecuta una orden de prueba (modo --script): open, goto, type, key, hover, analyze,
         // split, build, run, panel, quickopen, find.
-        public void RunCommand(string command)
+        public func RunCommand(command: string)
         {
             string c = command.Trim();
             int sp = c.IndexOf(" ");

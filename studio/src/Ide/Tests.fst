@@ -25,28 +25,28 @@ namespace FasetStudio.Ide
     // Una prueba del panel.
     public class TestEntry
     {
-        public string Name = "";        // "Clase.Metodo(1, 2)" (copia propia)
-        public string ClassName = "";   // copia propia
-        public string File = "";        // ruta absoluta (copia propia)
-        public int Line;                // 1..n
-        public int Status;              // 0 sin ejecutar, 1 correcta, 2 fallida, 3 ignorada
-        public string Message = "";     // fallo: mensaje, esperado y obtenido (copia propia)
-        public string FailFile = "";    // copia propia ("" = la línea de la prueba)
-        public int FailLine;
-        public double Ms;
+        public var Name: string = "";        // "Clase.Metodo(1, 2)" (copia propia)
+        public var ClassName: string = "";   // copia propia
+        public var File: string = "";        // ruta absoluta (copia propia)
+        public var Line: int;                // 1..n
+        public var Status: int;              // 0 sin ejecutar, 1 correcta, 2 fallida, 3 ignorada
+        public var Message: string = "";     // fallo: mensaje, esperado y obtenido (copia propia)
+        public var FailFile: string = "";    // copia propia ("" = la línea de la prueba)
+        public var FailLine: int;
+        public var Ms: double;
     }
 
     // Marca ▶ en el margen de las líneas [Test] / [TestCase] (EditorView la dibuja).
     public static class TestMarks
     {
         // ¿Es la línea un atributo de prueba? ([Test], [TestCase(...)], [Test, Ignore(...)])
-        public static bool IsTestLine(string line)
+        public static func IsTestLine(line: string) -> bool
         {
             string t = line.Trim();
             return t.StartsWith("[Test]") || t.StartsWith("[Test,") || t.StartsWith("[TestCase(") || t.StartsWith("[Test ");
         }
 
-        public static void Gutter(Renderer r, string path, string line, float x, float y, float lh)
+        public static func Gutter(r: Renderer, path: string, line: string, x: float, y: float, lh: float)
         {
             if (!path.EndsWith(".fst") || !IsTestLine(line)) return;
             float cw = r.Code.CharWidth;
@@ -55,7 +55,7 @@ namespace FasetStudio.Ide
         }
 
         // Triángulo ▶ (franjas verticales cada vez más cortas: la fuente puede no tener el símbolo).
-        public static void Play(Renderer r, float cx, float cy, float size, Color c)
+        public static func Play(r: Renderer, cx: float, cy: float, size: float, c: Color)
         {
             for (int k = 0; k < 6; k++)
             {
@@ -72,19 +72,19 @@ namespace FasetStudio.Ide
         const int ActTestsRefresh = 82;
         const int TestsTool = 7;
 
-        List<TestEntry> testEntries = new List<TestEntry>();
-        List<int> testRowKind = new List<int>();   // 0 archivo, 1 clase, 2 prueba
-        List<int> testRowItem = new List<int>();   // prueba de la fila (la primera del grupo en 0 y 1)
-        int testsScroll;
-        ChildProcess testProcess;
-        string testReport = "";   // informe JSON de la ejecución en marcha
-        long testStart;
-        bool testsListed;         // ya se pidió la lista al menos una vez
+        var testEntries: List<TestEntry> = new List<TestEntry>();
+        var testRowKind: List<int> = new List<int>();   // 0 archivo, 1 clase, 2 prueba
+        var testRowItem: List<int> = new List<int>();   // prueba de la fila (la primera del grupo en 0 y 1)
+        var testsScroll: int;
+        var testProcess: ChildProcess;
+        var testReport: string = "";   // informe JSON de la ejecución en marcha
+        var testStart: long;
+        var testsListed: bool;         // ya se pidió la lista al menos una vez
 
         // ------------------------------------------------------------------ lista
 
         // Lo que se pasa a 'faset test': la solución, el proyecto o el archivo actual ("" si nada).
-        string TestTarget()
+        func TestTarget() -> string
         {
             if (solutionFile.Length > 0) return solutionFile;
             if (projectFile.Length > 0) return projectFile;
@@ -94,7 +94,7 @@ namespace FasetStudio.Ide
         }
 
         // Archivo temporal propio de FasetStudio ('sufijo' distingue los usos).
-        static string StudioTempFile(string suffix)
+        static func StudioTempFile(suffix: string) -> string
         {
 #if WINDOWS
             string tmp = Path.GetTempPath();
@@ -110,7 +110,7 @@ namespace FasetStudio.Ide
         }
 
         // Pide la lista de pruebas ('faset test --list --json') y conserva el resultado de las que ya estaban.
-        void RefreshTests()
+        func RefreshTests()
         {
             testsListed = true;
             string target = TestTarget();
@@ -158,14 +158,14 @@ namespace FasetStudio.Ide
             RebuildTestRows();
         }
 
-        static TestEntry FindTest(List<TestEntry> list, string name, string file)
+        static func FindTest(list: List<TestEntry>, name: string, file: string) -> TestEntry
         {
             for (int i = 0; i < list.Count; i++)
                 if (list[i].Name == name && list[i].File == file) return list[i];
             return null;
         }
 
-        static void CopyResult(TestEntry from, TestEntry to)
+        static func CopyResult(from: TestEntry, to: TestEntry)
         {
             to.Status = from.Status;
             to.Message = String.Copy(from.Message);
@@ -175,7 +175,7 @@ namespace FasetStudio.Ide
         }
 
         // Filas del árbol: archivo > clase > prueba (en el orden en que las da el compilador).
-        void RebuildTestRows()
+        func RebuildTestRows()
         {
             testRowKind.Clear();
             testRowItem.Clear();
@@ -200,7 +200,7 @@ namespace FasetStudio.Ide
         }
 
         // Al cerrar el proyecto: se detiene la ejecución y se olvida la lista.
-        void ResetTests()
+        func ResetTests()
         {
             if (TestsRunning) testProcess.Kill();
             for (int i = 0; i < testEntries.Count; i++) delete testEntries[i];
@@ -212,10 +212,10 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ ejecución
 
-        bool TestsRunning => testProcess != null && testProcess.IsRunning;
+        prop TestsRunning: bool => testProcess != null && testProcess.IsRunning;
 
         // Ejecuta las pruebas: 'filters' vacío = todas; 'exact' compara el nombre completo.
-        void RunTests(List<string> filters, bool exact)
+        func RunTests(filters: List<string>, exact: bool)
         {
             if (TestsRunning || (process != null && process.IsRunning))
             {
@@ -255,14 +255,14 @@ namespace FasetStudio.Ide
             SetStatus(L.T("Running tests…"));
         }
 
-        void RunAllTests()
+        func RunAllTests()
         {
             List<string> none = new List<string>();
             RunTests(none, false);
             delete none;
         }
 
-        void RunFailedTests()
+        func RunFailedTests()
         {
             List<string> failed = new List<string>();
             for (int i = 0; i < testEntries.Count; i++)
@@ -273,7 +273,7 @@ namespace FasetStudio.Ide
         }
 
         // Una prueba (o todas las de una clase, con 'wholeClass').
-        void RunOneTest(int index, bool wholeClass)
+        func RunOneTest(index: int, wholeClass: bool)
         {
             if (index < 0 || index >= testEntries.Count) return;
             List<string> f = new List<string>();
@@ -289,7 +289,7 @@ namespace FasetStudio.Ide
         }
 
         // Atiende la ejecución en marcha; true si hay que redibujar.
-        bool UpdateTests()
+        func UpdateTests() -> bool
         {
             if (testProcess == null || !testProcess.IsRunning) return false;
             bool redraw = Analyzer.ReadChild(testProcess, output);
@@ -323,7 +323,7 @@ namespace FasetStudio.Ide
         }
 
         // Resultados del informe (los de las pruebas que no se ejecutaron se conservan).
-        void ApplyTestReport(JsonValue root)
+        func ApplyTestReport(root: JsonValue)
         {
             JsonValue projects = root.Get("projects");
             bool added = false;
@@ -374,10 +374,10 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ dibujo y ratón
 
-        float TestRowHeight => r.Code.LineHeight + 6;
+        prop TestRowHeight: float => r.Code.LineHeight + 6;
         const float TestsToolbarHeight = 38;
 
-        void DrawTests(float x, float y, float w, float h)
+        func DrawTests(x: float, y: float, w: float, h: float)
         {
             if (!testsListed) RefreshTests();
             float ty = y + PanelHeaderHeight + 5;
@@ -452,7 +452,7 @@ namespace FasetStudio.Ide
         }
 
         // Fila del panel bajo 'y' (-1 si ninguna).
-        int TestRowAt(float y)
+        func TestRowAt(y: float) -> int
         {
             float y0 = toolRect[TestsTool * 4 + 1] + PanelHeaderHeight + TestsToolbarHeight;
             if (y < y0) return -1;
@@ -461,7 +461,7 @@ namespace FasetStudio.Ide
         }
 
         // Clic en el panel: ▶ ejecuta la prueba o la clase; en otro sitio abre la línea.
-        bool TestsMouseDown(float x, float y)
+        func TestsMouseDown(x: float, y: float) -> bool
         {
             if (!InTool(TestsTool, x, y) || y < toolRect[TestsTool * 4 + 1] + PanelHeaderHeight + TestsToolbarHeight) return false;
             int row = TestRowAt(y);
@@ -483,7 +483,7 @@ namespace FasetStudio.Ide
         }
 
         // ▶ del margen: la prueba de esa línea ([TestCase] concreto o todas las del método).
-        bool TestGutterClick(EditorView v, int line)
+        func TestGutterClick(v: EditorView, line: int) -> bool
         {
             if (line < 0 || line >= v.Doc.Buffer.LineCount || !TestMarks.IsTestLine(v.Doc.Buffer.LineText(line))) return false;
             RefreshTests();
@@ -514,7 +514,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        void TestsAction(int id)
+        func TestsAction(id: int)
         {
             if (id == ActTestsAll) RunAllTests();
             else if (id == ActTestsFailed) RunFailedTests();
@@ -523,10 +523,10 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ formato
 
-        bool FormatOnSave => Settings.Get("editor.formatOnSave", "0") == "1";
+        prop FormatOnSave: bool => Settings.Get("editor.formatOnSave", "0") == "1";
 
         // Formatea el documento con 'faset fmt' (un solo paso de deshacer; solo cambian las líneas distintas).
-        void FormatDocument(EditorView v, bool quiet)
+        func FormatDocument(v: EditorView, quiet: bool)
         {
             if (v == null || !v.Doc.FullPath.EndsWith(".fst") || !analyzer.Available) return;
             TextBuffer b = v.Doc.Buffer;

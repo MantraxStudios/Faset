@@ -9,24 +9,24 @@ namespace Juego::Modelo
 {
     struct Punto
     {
-        int X, Y;
-        Punto(int x, int y) { X = x; Y = y; }
-        static Punto operator +(Punto a, Punto b) => new Punto(a.X + b.X, a.Y + b.Y);
-        static bool operator ==(Punto a, Punto b) => a.X == b.X && a.Y == b.Y;
-        static bool operator <(Punto a, Punto b) => a.X < b.X || (a.X == b.X && a.Y < b.Y);
-        int Manhattan => Math::Abs(X) + Math::Abs(Y);
+        var X: int, Y: int;
+        init(x: int, y: int) { X = x; Y = y; }
+        operator +(a: Punto, b: Punto) -> Punto => new Punto(a.X + b.X, a.Y + b.Y);
+        operator ==(a: Punto, b: Punto) -> bool => a.X == b.X && a.Y == b.Y;
+        operator <(a: Punto, b: Punto) -> bool => a.X < b.X || (a.X == b.X && a.Y < b.Y);
+        prop Manhattan: int => Math::Abs(X) + Math::Abs(Y);
     }
 
     class Inventario
     {
     public:
-        Inventario() { }
-        ~Inventario() { delete items; }
-        void Agregar(string nombre, int cantidad) { items[nombre] += cantidad; }
-        int Cantidad(string nombre) => items.GetOrDefault(nombre, 0);
-        int Total => items.Count;
+        init() { }
+        deinit { delete items; }
+        func Agregar(nombre: string, cantidad: int) { items[nombre] += cantidad; }
+        func Cantidad(nombre: string) -> int => items.GetOrDefault(nombre, 0);
+        prop Total: int => items.Count;
     private:
-        Dictionary<string, int> items = new Dictionary<string, int>();
+        var items: Dictionary<string, int> = new Dictionary<string, int>();
     }
 }
 
@@ -35,24 +35,24 @@ int contadorGlobal = 0;
 
 void Incrementar(int& x) { x++; contadorGlobal++; }
 
-T Mayor<T>(T a, T b) => a < b ? b : a;
+func Mayor<T>(a: T, b: T) -> T => a < b ? b : a;
 
-int CompararDesc(int a, int b) => b - a;
-bool EsPar(int x) => x % 2 == 0;
-int AlCuadrado(int x) => x * x;
+func CompararDesc(a: int, b: int) -> int => b - a;
+func EsPar(x: int) -> bool => x % 2 == 0;
+func AlCuadrado(x: int) -> int => x * x;
 
 static class Extensiones
 {
-    public static int Doble(this int x) => x * 2;
+    public static func Doble(this x: int) -> int => x * 2;
 }
 
-int main()
+func main() -> int
 {
     using_test();
     return 0;
 }
 
-void using_test()
+func using_test()
 {
     // referencias
     int a = 5;
@@ -69,7 +69,7 @@ void using_test()
     println(Mayor("abc", "abd") == "abd");
 
     // List<T> con operator[] por referencia, lambdas vía punteros a función
-    auto lista = new List<int>();
+    var lista = new List<int>();
     for (int i = 10; i > 0; i--) lista.Add(i);
     lista[0] = 100;
     lista.Sort();
@@ -78,9 +78,9 @@ void using_test()
     println(lista.Sum());
     lista.Sort(&CompararDesc);
     println(lista.First());
-    auto pares = lista.Where(&EsPar);
+    var pares = lista.Where(&EsPar);
     println(pares.Count);
-    auto cuadrados = pares.Select<int>(&AlCuadrado);
+    var cuadrados = pares.Select<int>(&AlCuadrado);
     println(cuadrados.Max());
     delete lista; delete pares; delete cuadrados;
 
@@ -90,7 +90,7 @@ void using_test()
     println(p.Manhattan);
     println(p == new Juego::Modelo::Punto(4, -5));
     println(p != new Juego::Modelo::Punto(4, -5));
-    auto puntos = new List<Juego::Modelo::Punto>();
+    var puntos = new List<Juego::Modelo::Punto>();
     puntos.Add(new Juego::Modelo::Punto(3, 1));
     puntos.Add(new Juego::Modelo::Punto(1, 9));
     puntos.Add(new Juego::Modelo::Punto(1, 2));
@@ -100,7 +100,7 @@ void using_test()
     delete puntos;
 
     // Dictionary + clase con secciones public:/private:
-    auto inv = new Juego::Modelo::Inventario();
+    var inv = new Juego::Modelo::Inventario();
     inv.Agregar("espada", 1);
     inv.Agregar("poción", 3);
     inv.Agregar("poción", 2);
@@ -110,11 +110,11 @@ void using_test()
     delete inv;
 
     // texto
-    auto sb = new StringBuilder();
+    var sb = new StringBuilder();
     sb.Append("x=").Append(42).Append(", y=").Append(1.5).Append(' ').Append('ñ');
     println(sb.View());
     delete sb;
-    auto partes = Texto.Split("uno,dos,,tres", ",");
+    var partes = Texto.Split("uno,dos,,tres", ",");
     println(partes.Count);
     string unido = Text.Join(partes, " | ");
     println(unido);
@@ -129,15 +129,15 @@ void using_test()
     println(7.Doble());
 
     // HashSet, Stack, Queue
-    auto set = new HashSet<string>();
+    var set = new HashSet<string>();
     set.Add("a"); set.Add("b"); set.Add("a");
     println(set.Count);
     delete set;
-    auto pila = new Stack<char>();
+    var pila = new Stack<char>();
     pila.Push('x'); pila.Push('y');
     println(pila.Pop());
     delete pila;
-    auto cola = new Queue<long>();
+    var cola = new Queue<long>();
     for (long i = 0; i < 20; i++) cola.Enqueue(i);
     for (int i = 0; i < 5; i++) cola.Dequeue();
     println(cola.Peek());

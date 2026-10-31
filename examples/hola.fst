@@ -1,7 +1,7 @@
 // Ejemplo mínimo. Ejecuta:  faset run examples/hola.fst
 // 'std' se importa siempre: print/println, Console, Math, String...
 
-void main()
+func main()
 {
     println("¡Hola, mundo desde Faset!");
 

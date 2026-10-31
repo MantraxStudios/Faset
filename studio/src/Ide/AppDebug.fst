@@ -19,16 +19,16 @@ namespace FasetStudio.Ide
     public partial class App
     {
         // Depurador (Debugger.fst): gdb por MI. Paneles 4 Variables, 5 Pila de llamadas y 6 Inspección.
-        Debugger dbg = new Debugger();
-        string debugExe = "";        // ejecutable que se depura al terminar la compilación ("" = ninguno)
-        string debugCwd = "";
-        string extraBuildArgs = "";  // opciones añadidas a 'faset build' (al compilar para depurar: -g -o ...)
-        bool stoppedOnce;            // primera parada de la sesión: se muestran los paneles del depurador
-        string bpRoot = "";          // carpeta cuyos puntos de interrupción están cargados
-        int contextBreakpoint = -1;  // punto de interrupción del menú del margen
+        var dbg: Debugger = new Debugger();
+        var debugExe: string = "";        // ejecutable que se depura al terminar la compilación ("" = ninguno)
+        var debugCwd: string = "";
+        var extraBuildArgs: string = "";  // opciones añadidas a 'faset build' (al compilar para depurar: -g -o ...)
+        var stoppedOnce: bool;            // primera parada de la sesión: se muestran los paneles del depurador
+        var bpRoot: string = "";          // carpeta cuyos puntos de interrupción están cargados
+        var contextBreakpoint: int = -1;  // punto de interrupción del menú del margen
 
         // F5: compila con información de depuración (-g) y arranca gdb; si ya está detenido, continúa.
-        void StartDebugging()
+        func StartDebugging()
         {
             if (dbg.Active)
             {
@@ -83,7 +83,7 @@ namespace FasetStudio.Ide
         }
 
         // Al terminar la compilación para depurar.
-        void LaunchDebugger(bool built)
+        func LaunchDebugger(built: bool)
         {
             string exe = debugExe;
             debugExe = "";
@@ -105,7 +105,7 @@ namespace FasetStudio.Ide
         }
 
         // Puntos de interrupción del proyecto: se cargan al abrirlo y se guardan al cambiar.
-        void SyncBreakpoints()
+        func SyncBreakpoints()
         {
             if (dbg.BreakpointsChanged)
             {
@@ -120,7 +120,7 @@ namespace FasetStudio.Ide
         }
 
         // Atiende al depurador; true si hay que redibujar.
-        bool UpdateDebugger()
+        func UpdateDebugger() -> bool
         {
             SyncBreakpoints();
             if (!dbg.Active && !dbg.Ended) return false;
@@ -156,7 +156,7 @@ namespace FasetStudio.Ide
         }
 
         // Abre el archivo del marco seleccionado y muestra su línea (sin mover el cursor si ya se ve).
-        void ShowStopLocation()
+        func ShowStopLocation()
         {
             if (dbg.StopPath.Length == 0 || dbg.StopLine < 0 || !File.Exists(dbg.StopPath)) return;
             EditorView v = OpenFile(dbg.StopPath);
@@ -167,7 +167,7 @@ namespace FasetStudio.Ide
             needsRedraw = true;
         }
 
-        void DebugAction(int id)
+        func DebugAction(id: int)
         {
             needsRedraw = true;
             SyncBreakpoints();
@@ -229,7 +229,7 @@ namespace FasetStudio.Ide
         }
 
         // Clic en el margen del editor: punto de interrupción (izquierdo) o su menú (derecho).
-        bool GutterMouse(EditorView v, Event e, float x, float y)
+        func GutterMouse(v: EditorView, e: Event, x: float, y: float) -> bool
         {
             if (v.Designer != null && v.DesignMode) return false;
             if (x >= v.X + v.GutterWidth(r) - r.Code.CharWidth || !v.Doc.FullPath.EndsWith(".fst")) return false;
@@ -261,7 +261,7 @@ namespace FasetStudio.Ide
         }
 
         // Clics en Variables, Pila de llamadas e Inspección.
-        bool DebugPanelMouse(Event e, float x, float y)
+        func DebugPanelMouse(e: Event, x: float, y: float) -> bool
         {
             if (InTool(4, x, y) && y >= toolRect[17] + PanelHeaderHeight)
             {
@@ -287,7 +287,7 @@ namespace FasetStudio.Ide
         }
 
         // Expresión bajo el cursor: el identificador y los miembros que lo preceden (jugador.Vida).
-        string ExpressionAt(EditorView v, TextPos p)
+        func ExpressionAt(v: EditorView, p: TextPos) -> string
         {
             string line = v.Doc.Buffer.LineText(p.Line);
             int a = Math.Min(p.Col, line.Length), b = a;
@@ -302,10 +302,10 @@ namespace FasetStudio.Ide
             return String.Copy(line.Substring(a, b - a));
         }
 
-        static bool IdentByte(byte c) => Char.IsLetterOrDigit((char)c) || c == '_' || c >= 0x80;
+        static func IdentByte(c: byte) -> bool => Char.IsLetterOrDigit((char)c) || c == '_' || c >= 0x80;
 
         // Valor para el texto emergente mientras el programa está detenido ("" si no aplica).
-        string DebugHover(EditorView v, TextPos p)
+        func DebugHover(v: EditorView, p: TextPos) -> string
         {
             if (!dbg.Stopped || !v.Doc.FullPath.EndsWith(".fst")) return "";
             string e = ExpressionAt(v, p);
@@ -313,12 +313,12 @@ namespace FasetStudio.Ide
             return dbg.HoverValue(e);
         }
 
-        static bool IsKeyword(string w) => w == "int" || w == "string" || w == "bool" || w == "var" || w == "new" || w == "return" ||
+        static func IsKeyword(w: string) -> bool => w == "int" || w == "string" || w == "bool" || w == "var" || w == "new" || w == "return" ||
                                            w == "if" || w == "for" || w == "while" || w == "class" || w == "public" || w == "static" ||
                                            w == "void" || w == "using" || w == "namespace" || w == "else" || w == "float" || w == "double";
 
         // Barra de depuración (en el lugar del buscador): continuar, pausa, detener, reiniciar y pasos.
-        void DrawDebugToolbar(float sx, float sw)
+        func DrawDebugToolbar(sx: float, sw: float)
         {
             float bw = 32, n = 7;
             float tw = bw * n + 8;
@@ -370,7 +370,7 @@ namespace FasetStudio.Ide
         }
 
         // Guion: espera a que el programa depurado se detenga o termine (atiende la compilación previa).
-        void WaitDebugger(int ms)
+        func WaitDebugger(ms: int)
         {
             long until = Environment.TickCount64() + ms;
             while (Environment.TickCount64() < until)
@@ -384,7 +384,7 @@ namespace FasetStudio.Ide
         }
 
         // Verbos de depuración del modo de prueba (--script). true si 'verb' era uno de ellos.
-        bool DebugCommand(string verb, string arg)
+        func DebugCommand(verb: string, arg: string) -> bool
         {
             if (verb == "debug" || verb == "continue" || verb == "next" || verb == "step" || verb == "stepout" || verb == "restart")
             {

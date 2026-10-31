@@ -4,9 +4,9 @@ namespace Controles
 {
     public static class Program
     {
-        public static int Main()
+        public static func Main() -> int
         {
-            auto main = new MainWindow();
+            var main = new MainWindow();
             return Application.Run(main.Window);
         }
     }

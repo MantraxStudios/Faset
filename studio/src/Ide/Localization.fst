@@ -13,17 +13,17 @@ namespace FasetStudio.Ide
 {
     public static class L
     {
-        static Dictionary<string, string> table = new Dictionary<string, string>();
-        static string content = "";      // texto del archivo cargado (las claves son vistas)
-        static string current = "en";
-        static string currentName = "English";
-        static string folder = "";
+        static var table: Dictionary<string, string> = new Dictionary<string, string>();
+        static var content: string = "";      // texto del archivo cargado (las claves son vistas)
+        static var current: string = "en";
+        static var currentName: string = "English";
+        static var folder: string = "";
 
-        public static string Code => current;
-        public static string Name => currentName;
+        public static prop Code: string => current;
+        public static prop Name: string => currentName;
 
         // Traducción de un texto en inglés (o el propio texto si no hay traducción).
-        public static string T(string english)
+        public static func T(english: string) -> string
         {
             string t;
             if (table.TryGetValue(english, out t)) return t;
@@ -31,7 +31,7 @@ namespace FasetStudio.Ide
         }
 
         // Traduce y sustituye {0} y {1}. Devuelve una copia: libérala con String.Free.
-        public static string F(string english, string a, string b)
+        public static func F(english: string, a: string, b: string) -> string
         {
             string r1 = Text.Replace(T(english), "{0}", a);
             string r2 = Text.Replace(r1, "{1}", b);
@@ -39,10 +39,10 @@ namespace FasetStudio.Ide
             return r2;
         }
 
-        public static void Init(string langFolder) { folder = String.Copy(langFolder); }
+        public static func Init(langFolder: string) { folder = String.Copy(langFolder); }
 
         // Idiomas disponibles: "en" más un archivo por idioma en la carpeta lang/.
-        public static List<string> Available()
+        public static func Available() -> List<string>
         {
             List<string> codes = new List<string>();
             codes.Add(String.Copy("en"));
@@ -55,7 +55,7 @@ namespace FasetStudio.Ide
             return codes;
         }
 
-        public static bool Load(string code)
+        public static func Load(code: string) -> bool
         {
             table.Clear();
             if (content.Length > 0) String.Free(content);
@@ -90,7 +90,7 @@ namespace FasetStudio.Ide
         }
 
         // Siguiente idioma disponible (para el selector de la barra de estado).
-        public static string NextCode()
+        public static func NextCode() -> string
         {
             List<string> codes = Available();
             int idx = 0;
@@ -107,11 +107,11 @@ namespace FasetStudio.Ide
     // %APPDATA%\FasetStudio\settings.ini en Windows.
     public static class Settings
     {
-        static Dictionary<string, string> values = new Dictionary<string, string>();
-        static string path = "";
+        static var values: Dictionary<string, string> = new Dictionary<string, string>();
+        static var path: string = "";
 
         // Carpeta personal del usuario: HOME o, en Windows, USERPROFILE (copia; "" si no hay).
-        public static string HomeFolder()
+        public static func HomeFolder() -> string
         {
             string home = Environment.GetVariable("HOME");
             if (home.IsEmpty())
@@ -122,7 +122,7 @@ namespace FasetStudio.Ide
             return home;
         }
 
-        public static void Load()
+        public static func Load()
         {
 #if WINDOWS
             string appData = Environment.GetVariable("APPDATA");
@@ -163,9 +163,9 @@ namespace FasetStudio.Ide
             delete lines;
         }
 
-        public static string Get(string key, string fallback) => values.GetOrDefault(key, fallback);
+        public static func Get(key: string, fallback: string) -> string => values.GetOrDefault(key, fallback);
 
-        public static void Set(string key, string value)
+        public static func Set(key: string, value: string)
         {
             values.Set(String.Copy(key), String.Copy(value));
             if (path.Length == 0) return;

@@ -7,25 +7,25 @@ namespace Controles
     // (MenuBar, ContextMenu, TreeView, TabControl, PictureBox, Canvas y Timer).
     public partial class MainWindow
     {
-        float bolaX = 60;
-        float bolaY = 60;
-        float velX = 3.2f;
-        float velY = 2.4f;
-        int ticks;
-        int ratonX = -1;
-        int ratonY = -1;
-        List<int> estrellasX = new List<int>();
-        List<int> estrellasY = new List<int>();
-        Image estrella;
+        var bolaX: float = 60;
+        var bolaY: float = 60;
+        var velX: float = 3.2f;
+        var velY: float = 2.4f;
+        var ticks: int;
+        var ratonX: int = -1;
+        var ratonY: int = -1;
+        var estrellasX: List<int> = new List<int>();
+        var estrellasY: List<int> = new List<int>();
+        var estrella: Image;
 
-        public MainWindow()
+        public init()
         {
             InitializeComponent();
             estrella = Image.FromFile("Assets/estrella.png");
             if (picPaisaje.Image == null) lblImagen.Text = Image.LastError;
         }
 
-        void Estado(string texto)
+        func Estado(texto: string)
         {
             lblEstado.Text = texto;
             println(texto);
@@ -33,30 +33,30 @@ namespace Controles
 
         // ------------------------------------------------------------------ menús
 
-        void OnAbrir(Widget sender) { Estado("Abrir (" + sender.Text + ")"); }
+        func OnAbrir(sender: Widget) { Estado("Abrir (" + sender.Text + ")"); }
 
-        void OnGuardar(Widget sender) { Estado("Guardado: " + (txtNombre.Text.Length > 0 ? txtNombre.Text : "sin nombre")); }
+        func OnGuardar(sender: Widget) { Estado("Guardado: " + (txtNombre.Text.Length > 0 ? txtNombre.Text : "sin nombre")); }
 
-        void OnReciente(Widget sender) { Estado("Reciente: " + sender.Text); }
+        func OnReciente(sender: Widget) { Estado("Reciente: " + sender.Text); }
 
-        void OnSalir(Widget sender) { Window.Close(); }
+        func OnSalir(sender: Widget) { Window.Close(); }
 
-        void OnAnimar(Widget sender)
+        func OnAnimar(sender: Widget)
         {
             mnuAnimar.Checked = !mnuAnimar.Checked;
             reloj.Enabled = mnuAnimar.Checked;
             Estado(mnuAnimar.Checked ? "Animación activada" : "Animación en pausa");
         }
 
-        void OnAcercaDe(Widget sender) { Estado("std.ui: controles dibujados por software en Linux, Windows y Android"); }
+        func OnAcercaDe(sender: Widget) { Estado("std.ui: controles dibujados por software en Linux, Windows y Android"); }
 
-        void OnMenuArbol(Widget sender)
+        func OnMenuArbol(sender: Widget)
         {
             TreeNode n = tvProyecto.SelectedNode;
             Estado(sender.Text + ": " + (n != null ? n.Text : "(nada)"));
         }
 
-        void OnBorrarNodo(Widget sender)
+        func OnBorrarNodo(sender: Widget)
         {
             TreeNode n = tvProyecto.SelectedNode;
             if (n == null) return;
@@ -67,13 +67,13 @@ namespace Controles
 
         // ------------------------------------------------------------------ árbol y pestañas
 
-        void OnNodo(Widget sender)
+        func OnNodo(sender: Widget)
         {
             TreeNode n = tvProyecto.SelectedNode;
             if (n != null) Estado("Nodo: " + n.FullPath);
         }
 
-        void OnNodoActivado(Widget sender)
+        func OnNodoActivado(sender: Widget)
         {
             TreeNode n = tvProyecto.SelectedNode;
             if (n == null || n.Tag.Length == 0) return;
@@ -85,11 +85,11 @@ namespace Controles
             Estado("Abierto: " + n.Tag);
         }
 
-        void OnPestana(Widget sender) { Estado("Pestaña: " + tabs.SelectedPage.Text); }
+        func OnPestana(sender: Widget) { Estado("Pestaña: " + tabs.SelectedPage.Text); }
 
         // ------------------------------------------------------------------ imágenes
 
-        void OnModo(Widget sender)
+        func OnModo(sender: Widget)
         {
             picPaisaje.SizeMode = (PictureSizeMode)cmbModo.SelectedIndex;
             picPaisaje.Invalidate();
@@ -98,7 +98,7 @@ namespace Controles
 
         // ------------------------------------------------------------------ lienzo y temporizador
 
-        void OnTick(Widget sender)
+        func OnTick(sender: Widget)
         {
             ticks++;
             prgReloj.Value = ticks % 101;
@@ -111,7 +111,7 @@ namespace Controles
             if (tabs.SelectedIndex == 1) lienzo.Invalidate();
         }
 
-        void OnLienzoAbajo(Widget sender, MouseArgs e)
+        func OnLienzoAbajo(sender: Widget, e: MouseArgs)
         {
             estrellasX.Add(e.X);
             estrellasY.Add(e.Y);
@@ -119,14 +119,14 @@ namespace Controles
             sender.Invalidate();
         }
 
-        void OnLienzoMover(Widget sender, MouseArgs e)
+        func OnLienzoMover(sender: Widget, e: MouseArgs)
         {
             ratonX = e.X;
             ratonY = e.Y;
             sender.Invalidate();
         }
 
-        void OnPintar(Widget sender, Graphics g)
+        func OnPintar(sender: Widget, g: Graphics)
         {
             g.FillGradient(0, 0, g.Width, g.Height, Rgb.Of(0x14141c), Rgb.Of(0x1e1e2c), false);
             for (int x = 0; x < g.Width; x += 40) g.DrawLine(x, 0, x, g.Height, Rgb.Alpha(0xffffff, 0.05f));

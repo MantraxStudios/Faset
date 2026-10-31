@@ -11,32 +11,32 @@ namespace FasetStudio.Ide
     // Un <PackageReference> del proyecto, con la versión que dice paquetes.lock.
     public class PackageItem
     {
-        public string Name = "";      // copias propias
-        public string Wanted = "";    // "^1.2", "rama main", "commit a1b2c3d" o ""
-        public string Origin = "";    // URL git, ruta o "índice"
-        public string Resolved = "";  // versión o commit de paquetes.lock ("" = sin restaurar)
+        public var Name: string = "";      // copias propias
+        public var Wanted: string = "";    // "^1.2", "rama main", "commit a1b2c3d" o ""
+        public var Origin: string = "";    // URL git, ruta o "índice"
+        public var Resolved: string = "";  // versión o commit de paquetes.lock ("" = sin restaurar)
     }
 
     public class ProjectFile
     {
-        public string Path = "";            // copia propia
-        public string AssemblyName = "";    // todas las cadenas: copias propias
-        public string OutputType = "Exe";
-        public string TargetPlatform = "native";
-        public string TargetArch = "";
-        public string Configuration = "Debug";
-        public bool StaticLink;
-        public List<string> References = new List<string>();
-        public List<string> NativeLibraries = new List<string>();
-        public List<string> CompileRemove = new List<string>();
-        public List<string> CompileInclude = new List<string>();
-        public List<string> LibraryPaths = new List<string>();
+        public var Path: string = "";            // copia propia
+        public var AssemblyName: string = "";    // todas las cadenas: copias propias
+        public var OutputType: string = "Exe";
+        public var TargetPlatform: string = "native";
+        public var TargetArch: string = "";
+        public var Configuration: string = "Debug";
+        public var StaticLink: bool;
+        public var References: List<string> = new List<string>();
+        public var NativeLibraries: List<string> = new List<string>();
+        public var CompileRemove: List<string> = new List<string>();
+        public var CompileInclude: List<string> = new List<string>();
+        public var LibraryPaths: List<string> = new List<string>();
         // Lo que este diálogo no edita (Asset, PackageReference, propiedades de Android y de
         // paquetes...): se conserva tal cual al guardar.
-        public List<string> ExtraProperties = new List<string>();
-        public List<string> ExtraItems = new List<string>();
+        public var ExtraProperties: List<string> = new List<string>();
+        public var ExtraItems: List<string> = new List<string>();
 
-        ~ProjectFile()
+        deinit
         {
             FreeList(References);
             FreeList(NativeLibraries);
@@ -47,14 +47,14 @@ namespace FasetStudio.Ide
             FreeList(ExtraItems);
         }
 
-        static void FreeList(List<string> l)
+        static func FreeList(l: List<string>)
         {
             for (int i = 0; i < l.Count; i++) String.Free(l[i]);
             delete l;
         }
 
         // Valor de <Tag>valor</Tag> (vista) o "".
-        static string TagValue(string xml, string tag)
+        static func TagValue(xml: string, tag: string) -> string
         {
             string open = String.Concat("<", tag, ">");
             string close = String.Concat("</", tag, ">");
@@ -72,7 +72,7 @@ namespace FasetStudio.Ide
         }
 
         // Atributos Include/Remove de todos los <Element .../>.
-        static void Items(string xml, string element, string attribute, List<string> output)
+        static func Items(xml: string, element: string, attribute: string, output: List<string>)
         {
             string open = String.Concat("<", element, " ");
             string attr = String.Concat(attribute, "=\"");
@@ -103,7 +103,7 @@ namespace FasetStudio.Ide
         }
 
         // Copia del XML sin los comentarios <!-- ... -->.
-        static string StripComments(string xml)
+        static func StripComments(xml: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             int pos = 0;
@@ -122,7 +122,7 @@ namespace FasetStudio.Ide
         }
 
         // Valor del atributo 'name' en una etiqueta (vista; "" si no está).
-        public static string Attr(string tag, string name)
+        public static func Attr(tag: string, name: string) -> string
         {
             string key = String.Concat(" ", name, "=\"");
             int a = tag.IndexOf(key);
@@ -137,10 +137,10 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        static bool IsSpace(byte c) => c == ' ' || c == '\t' || c == '\r' || c == '\n';
+        static func IsSpace(c: byte) -> bool => c == ' ' || c == '\t' || c == '\r' || c == '\n';
 
         // Nombre del elemento que empieza en 'pos' ('<' incluido).
-        static string ElementName(string xml, int pos)
+        static func ElementName(xml: string, pos: int) -> string
         {
             int e = pos + 1;
             while (e < xml.Length && !IsSpace(xml[e]) && xml[e] != '>' && xml[e] != '/') e++;
@@ -148,7 +148,7 @@ namespace FasetStudio.Ide
         }
 
         // Fin (exclusivo) del elemento que empieza en 'pos': '/>' o su etiqueta de cierre.
-        static int ElementEnd(string xml, int pos)
+        static func ElementEnd(xml: string, pos: int) -> int
         {
             int gt = xml.IndexOf(">", pos);
             if (gt < 0) return xml.Length;
@@ -161,7 +161,7 @@ namespace FasetStudio.Ide
         }
 
         // Hijos directos de cada <group> que no están en 'known' ("|A|B|"): texto original.
-        static void ExtraChildren(string xml, string group, string known, List<string> output)
+        static func ExtraChildren(xml: string, group: string, known: string, output: List<string>)
         {
             string open = String.Concat("<", group, ">");
             string close = String.Concat("</", group, ">");
@@ -187,7 +187,7 @@ namespace FasetStudio.Ide
         }
 
         // <PackageReference> del proyecto y su estado en paquetes.lock (junto al .fstproj).
-        public static List<PackageItem> LoadPackages(string projectPath)
+        public static func LoadPackages(projectPath: string) -> List<PackageItem>
         {
             List<PackageItem> list = new List<PackageItem>();
             string raw;
@@ -228,7 +228,7 @@ namespace FasetStudio.Ide
             return list;
         }
 
-        public static ProjectFile Load(string path)
+        public static func Load(path: string) -> ProjectFile
         {
             string raw;
             if (!File.TryReadAllText(path, out raw)) return null;
@@ -257,12 +257,12 @@ namespace FasetStudio.Ide
             return p;
         }
 
-        static void Item(StringBuilder sb, string element, string attribute, string value)
+        static func Item(sb: StringBuilder, element: string, attribute: string, value: string)
         {
             sb.Append("    <").Append(element).Append(" ").Append(attribute).Append("=\"").Append(value).Append("\" />\n");
         }
 
-        public bool Save()
+        public func Save() -> bool
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("<Project>\n  <PropertyGroup>\n");

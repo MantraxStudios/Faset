@@ -27,22 +27,22 @@ namespace FasetStudio.Ide
     // RGBA y deja listo el último; el IDE lo sube a la GPU únicamente cuando hay uno nuevo.
     public memory_unsafe class ScreenStream
     {
-        public int Width;                // tamaño de los fotogramas
-        public int Height;
-        public int DeviceW;              // pantalla lógica del dispositivo al arrancar (para el ratón)
-        public int DeviceH;
-        public long StartedMs;
-        Process proc;
-        Thread thread;
-        Mutex mutex = new Mutex();
-        AtomicInt stop = new AtomicInt();
-        AtomicInt ended = new AtomicInt();
-        AtomicLong frames = new AtomicLong();
-        byte* ready;                     // último fotograma completo (RGBA), protegido por 'mutex'
-        byte* spare;                     // el siguiente que escribe el hilo
-        bool fresh;                      // 'ready' aún no se ha subido (protegido por 'mutex')
+        public var Width: int;                // tamaño de los fotogramas
+        public var Height: int;
+        public var DeviceW: int;              // pantalla lógica del dispositivo al arrancar (para el ratón)
+        public var DeviceH: int;
+        public var StartedMs: long;
+        var proc: Process;
+        var thread: Thread;
+        var mutex: Mutex = new Mutex();
+        var stop: AtomicInt = new AtomicInt();
+        var ended: AtomicInt = new AtomicInt();
+        var frames: AtomicLong = new AtomicLong();
+        var ready: byte*;                     // último fotograma completo (RGBA), protegido por 'mutex'
+        var spare: byte*;                     // el siguiente que escribe el hilo
+        var fresh: bool;                      // 'ready' aún no se ha subido (protegido por 'mutex')
 
-        ~ScreenStream()
+        deinit
         {
             Stop();
             if (proc != null) delete proc;
@@ -55,7 +55,7 @@ namespace FasetStudio.Ide
         }
 
         // 'unlimited': --time-limit 0 (Android 11+); si no, 180 s (el máximo antiguo).
-        public bool Start(string adb, string serial, int w, int h, int deviceW, int deviceH, bool unlimited)
+        public func Start(adb: string, serial: string, w: int, h: int, deviceW: int, deviceH: int, unlimited: bool) -> bool
         {
             Width = w;
             Height = h;
@@ -88,7 +88,7 @@ namespace FasetStudio.Ide
         }
 
         // Para el hilo (que termina adb) y espera a que acabe.
-        public void Stop()
+        public func Stop()
         {
             if (thread == null) return;
             stop.Set(1);
@@ -97,13 +97,13 @@ namespace FasetStudio.Ide
             thread = null;
         }
 
-        public long Frames => frames.Value;
+        public prop Frames: long => frames.Value;
 
         // adb terminó (dispositivo desconectado, límite de tiempo, screenrecord no disponible...).
-        public bool Ended => ended.Value != 0;
+        public prop Ended: bool => ended.Value != 0;
 
         // Sube el último fotograma si hay uno nuevo. Devuelve true si lo subió.
-        public bool TakeFrame(Renderer r)
+        public func TakeFrame(r: Renderer) -> bool
         {
             mutex.Lock();
             bool got = fresh;
@@ -115,7 +115,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ hilo lector
 
-        static void Loop(ScreenStream s)
+        static func Loop(s: ScreenStream)
         {
             long frameBytes = (long)s.Width * s.Height * 3;
             byte* rgb = (byte*)Memory.Alloc(frameBytes);
@@ -153,7 +153,7 @@ namespace FasetStudio.Ide
         }
 
         // RGB -> RGBA opaco en el búfer libre y se intercambia con el listo.
-        void Publish(byte* rgb)
+        func Publish(rgb: byte*)
         {
             long n = (long)Width * Height;
             uint* d = (uint*)spare;
@@ -177,70 +177,70 @@ namespace FasetStudio.Ide
     {
         public const float ToolbarHeight = 44;
 
-        public string Compiler = "";                          // ruta del compilador (vista)
-        public List<string> Serials = new List<string>();     // dispositivos listos (copias)
-        public List<string> Models = new List<string>();
-        public List<string> Avds = new List<string>();        // emuladores instalados (copias)
-        public string Device = String.Copy("");               // dispositivo elegido (copia)
-        public string StartingAvd = String.Copy("");          // emulador arrancando ("" = ninguno)
-        public string Status = "";                            // mensaje para la barra de estado (vista literal)
-        public bool Focused;                                   // el teclado va al dispositivo
-        public int ScreenW;                                    // tamaño lógico de la pantalla (píxeles del dispositivo)
-        public int ScreenH;
-        public bool HasFrame;
-        public bool Listed;                                    // ya se consultó la lista al menos una vez
-        public double Fps;                                     // fotogramas mostrados por segundo
+        public var Compiler: string = "";                          // ruta del compilador (vista)
+        public var Serials: List<string> = new List<string>();     // dispositivos listos (copias)
+        public var Models: List<string> = new List<string>();
+        public var Avds: List<string> = new List<string>();        // emuladores instalados (copias)
+        public var Device: string = String.Copy("");               // dispositivo elegido (copia)
+        public var StartingAvd: string = String.Copy("");          // emulador arrancando ("" = ninguno)
+        public var Status: string = "";                            // mensaje para la barra de estado (vista literal)
+        public var Focused: bool;                                   // el teclado va al dispositivo
+        public var ScreenW: int;                                    // tamaño lógico de la pantalla (píxeles del dispositivo)
+        public var ScreenH: int;
+        public var HasFrame: bool;
+        public var Listed: bool;                                    // ya se consultó la lista al menos una vez
+        public var Fps: double;                                     // fotogramas mostrados por segundo
 
-        string adb = String.Copy("");
-        ChildProcess listProc;
-        StringBuilder listOut = new StringBuilder();
-        int listStage;                                         // 0 dispositivos, 1 AVD
-        ChildProcess emuProc;
-        StringBuilder emuOut = new StringBuilder();
-        ChildProcess screenProc;                               // screencap (solo si no hay flujo)
-        string screenFile = String.Copy("");
-        long lastShotMs;
-        List<ChildProcess> inputs = new List<ChildProcess>();
+        var adb: string = String.Copy("");
+        var listProc: ChildProcess;
+        var listOut: StringBuilder = new StringBuilder();
+        var listStage: int;                                         // 0 dispositivos, 1 AVD
+        var emuProc: ChildProcess;
+        var emuOut: StringBuilder = new StringBuilder();
+        var screenProc: ChildProcess;                               // screencap (solo si no hay flujo)
+        var screenFile: string = String.Copy("");
+        var lastShotMs: long;
+        var inputs: List<ChildProcess> = new List<ChildProcess>();
 
         // Flujo continuo de la pantalla (screenrecord) y su estado.
-        ScreenStream stream;
-        bool streamUnsupported;                                // falló varias veces: se usa screencap
-        bool unlimited = true;                                 // --time-limit 0 (si falla, 180 s)
-        int streamFailures;
-        long streamRetryMs;
-        int wantW;                                             // tamaño de flujo deseado (último calculado)
-        int wantH;
-        long wantSinceMs;
-        float boxW;                                            // hueco para la pantalla en el panel (de Draw)
-        float boxH;
-        long fpsMs;
-        long fpsFrames;
+        var stream: ScreenStream;
+        var streamUnsupported: bool;                                // falló varias veces: se usa screencap
+        var unlimited: bool = true;                                 // --time-limit 0 (si falla, 180 s)
+        var streamFailures: int;
+        var streamRetryMs: long;
+        var wantW: int;                                             // tamaño de flujo deseado (último calculado)
+        var wantH: int;
+        var wantSinceMs: long;
+        var boxW: float;                                            // hueco para la pantalla en el panel (de Draw)
+        var boxH: float;
+        var fpsMs: long;
+        var fpsFrames: long;
 
         // 'adb shell' persistente: recibe las órdenes 'input' y las consultas de tamaño y giro.
-        Process shell;
-        StringBuilder shellOut = new StringBuilder();
-        long shellRetryMs;
-        int naturalW;                                          // 'wm size' (orientación natural)
-        int naturalH;
-        int rotation = -1;                                     // 0..3 (-1 = aún no se sabe)
-        long probeMs;
-        long firstProbeMs;
+        var shell: Process;
+        var shellOut: StringBuilder = new StringBuilder();
+        var shellRetryMs: long;
+        var naturalW: int;                                          // 'wm size' (orientación natural)
+        var naturalH: int;
+        var rotation: int = -1;                                     // 0..3 (-1 = aún no se sabe)
+        var probeMs: long;
+        var firstProbeMs: long;
 
         // Geometría del último dibujo (para el ratón).
-        float imgX;
-        float imgY;
-        float imgW;
-        float imgH;
-        float barX;
-        float barY;
-        float barW;
-        bool pressing;
-        float pressX;
-        float pressY;
-        long pressMs;
-        public int HoverButton = -1;
+        var imgX: float;
+        var imgY: float;
+        var imgW: float;
+        var imgH: float;
+        var barX: float;
+        var barY: float;
+        var barW: float;
+        var pressing: bool;
+        var pressX: float;
+        var pressY: float;
+        var pressMs: long;
+        public var HoverButton: int = -1;
 
-        public AndroidTools()
+        public init()
         {
             string tmp = Path.GetTempPath();
             string pid = Convert.ToString(Environment.ProcessId);
@@ -253,7 +253,7 @@ namespace FasetStudio.Ide
             FindAdb();
         }
 
-        ~AndroidTools()
+        deinit
         {
             FreeAll(Serials);
             FreeAll(Models);
@@ -277,14 +277,14 @@ namespace FasetStudio.Ide
             String.Free(adb);
         }
 
-        static void FreeAll(List<string> l)
+        static func FreeAll(l: List<string>)
         {
             for (int i = 0; i < l.Count; i++) String.Free(l[i]);
             l.Clear();
         }
 
         // Termina el flujo de la pantalla y el shell persistente (al cerrar el IDE o cambiar de dispositivo).
-        public void Shutdown()
+        public func Shutdown()
         {
             StopStream();
             if (shell != null)
@@ -297,21 +297,21 @@ namespace FasetStudio.Ide
             shellOut.Clear();
         }
 
-        void StopStream()
+        func StopStream()
         {
             if (stream == null) return;
             delete stream;   // el destructor para el hilo y termina adb
             stream = null;
         }
 
-        public bool AdbFound => adb.Length > 0;
+        public prop AdbFound: bool => adb.Length > 0;
 
         // Hay un flujo de pantalla activo: el bucle principal debe despertar más a menudo.
-        public bool Streaming => stream != null;
-        public bool Busy => (listProc != null && listProc.IsRunning) || StartingAvd.Length > 0;
+        public prop Streaming: bool => stream != null;
+        public prop Busy: bool => (listProc != null && listProc.IsRunning) || StartingAvd.Length > 0;
 
         // adb: $ANDROID_HOME, $ANDROID_SDK_ROOT o ~/Android/Sdk (platform-tools), o el PATH.
-        void FindAdb()
+        func FindAdb()
         {
             string exe = OS.IsWindows ? "adb.exe" : "adb";
             string home = Settings.HomeFolder();
@@ -360,14 +360,14 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ dispositivos
 
         // Vuelve a consultar dispositivos conectados y emuladores instalados (en segundo plano).
-        public void Refresh()
+        public func Refresh()
         {
             if (Compiler.Length == 0 || (listProc != null && listProc.IsRunning)) return;
             listStage = 0;
             StartList("devices");
         }
 
-        void StartList(string what)
+        func StartList(what: string)
         {
             listOut.Clear();
             if (listProc == null) listProc = new ChildProcess();
@@ -379,7 +379,7 @@ namespace FasetStudio.Ide
         }
 
         // Arranca un emulador sin ventana: su pantalla se ve en el panel Dispositivo.
-        public void StartEmulator(string avd)
+        public func StartEmulator(avd: string)
         {
             if (Compiler.Length == 0 || StartingAvd.Length > 0) return;
             String.Free(StartingAvd);
@@ -396,7 +396,7 @@ namespace FasetStudio.Ide
             Status = "Starting the Android emulator…";
         }
 
-        public void Select(string serial)
+        public func Select(serial: string)
         {
             if (serial == Device) return;
             Shutdown();
@@ -414,14 +414,14 @@ namespace FasetStudio.Ide
             streamRetryMs = 0;
         }
 
-        public string ModelOf(string serial)
+        public func ModelOf(serial: string) -> string
         {
             for (int i = 0; i < Serials.Count; i++)
                 if (Serials[i] == serial) return Models[i];
             return "";
         }
 
-        public bool IsOnline(string serial)
+        public func IsOnline(serial: string) -> bool
         {
             for (int i = 0; i < Serials.Count; i++)
                 if (Serials[i] == serial) return true;
@@ -432,7 +432,7 @@ namespace FasetStudio.Ide
 
         // Atiende los procesos en marcha; 'showing' indica si el panel del dispositivo se ve.
         // Devuelve true si hay que redibujar.
-        public bool Update(Renderer r, bool showing)
+        public func Update(r: Renderer, showing: bool) -> bool
         {
             bool redraw = false;
             long now = Environment.TickCount64();
@@ -527,7 +527,7 @@ namespace FasetStudio.Ide
 
         // Arranca, reinicia (tamaño o giro distintos, adb terminado) o para el flujo y sube el
         // último fotograma. Devuelve true si hay que redibujar.
-        bool UpdateStream(Renderer r, bool wanted, long now)
+        func UpdateStream(r: Renderer, wanted: bool, now: long) -> bool
         {
             if (!wanted || streamUnsupported)
             {
@@ -603,7 +603,7 @@ namespace FasetStudio.Ide
 
         // Tamaño del flujo: la pantalla lógica reducida al hueco del panel (y a la textura del
         // renderizador), conservando la proporción. Pedir menos píxeles es lo que da fluidez.
-        void StreamSize(int lw, int lh, out int tw, out int th)
+        func StreamSize(lw: int, lh: int, out tw: int, out th: int)
         {
             double bw = boxW > 0 ? (double)boxW : (double)Renderer.ImageSize;
             double bh = boxH > 0 ? (double)boxH : (double)Renderer.ImageSize;
@@ -618,7 +618,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ shell persistente
 
         // Arranca 'adb -s <serial> shell' con la entrada redirigida (si no está ya en marcha).
-        bool EnsureShell(long now)
+        func EnsureShell(now: long) -> bool
         {
             if (shell != null && !shell.HasExited) return true;
             if (shell != null)
@@ -643,7 +643,7 @@ namespace FasetStudio.Ide
 
         // Envía una orden de shell al dispositivo. Por el shell persistente no hay que lanzar un
         // proceso (ni abrir una conexión con adb) por cada toque o tecla.
-        void Send(string command)
+        func Send(command: string)
         {
             if (adb.Length == 0 || Device.Length == 0) return;
             if (EnsureShell(Environment.TickCount64()))
@@ -663,7 +663,7 @@ namespace FasetStudio.Ide
         }
 
         // Pregunta tamaño y giro de la pantalla cada segundo (barato: no crea procesos).
-        void Probe(long now)
+        func Probe(now: long)
         {
             if (now - probeMs < 1000) return;
             probeMs = now;
@@ -674,7 +674,7 @@ namespace FasetStudio.Ide
 
         // Lee las respuestas del shell: "Physical size: 1080x2400", "Override size: ..." y
         // "mCurrentOrientation=1". Lo demás (errores de 'input'...) se descarta.
-        void ReadShell()
+        func ReadShell()
         {
             shell.ReadOutput(shellOut);
             for (;;)
@@ -712,7 +712,7 @@ namespace FasetStudio.Ide
             if (shellOut.Length > 4096) shellOut.Clear();
         }
 
-        void ParseDevices()
+        func ParseDevices()
         {
             FreeAll(Serials);
             FreeAll(Models);
@@ -732,7 +732,7 @@ namespace FasetStudio.Ide
             if (Device.Length == 0 && Serials.Count > 0) Select(Serials[0]);
         }
 
-        void ParseAvds()
+        func ParseAvds()
         {
             FreeAll(Avds);
             List<string> lines = Text.Split(listOut.View(), "\n");
@@ -745,7 +745,7 @@ namespace FasetStudio.Ide
         }
 
         // Cabecera de screencap: ancho, alto, formato (1 = RGBA_8888) y, en Android 9+, espacio de color.
-        void LoadFrame(Renderer r)
+        func LoadFrame(r: Renderer)
         {
             byte* data = null;
             long len = 0;
@@ -772,7 +772,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ entrada
 
         // Lanza 'adb -s <serial> <args>' en un proceso aparte (órdenes de adb como 'emu rotate').
-        void Shell(string args)
+        func Shell(args: string)
         {
             if (adb.Length == 0 || Device.Length == 0) return;
             string qa = Analyzer.Quote(adb), qs = Analyzer.Quote(Device);
@@ -786,7 +786,7 @@ namespace FasetStudio.Ide
             String.Free(qs);
         }
 
-        void KeyEvent(int code)
+        func KeyEvent(code: int)
         {
             string n = Convert.ToString(code);
             string args = String.Concat("input keyevent ", n);
@@ -795,30 +795,30 @@ namespace FasetStudio.Ide
             String.Free(n);
         }
 
-        public void Rotate()
+        public func Rotate()
         {
             Shell("emu rotate");
             probeMs = Environment.TickCount64() - 300;   // vuelve a preguntar el giro enseguida
         }
 
         // Punto de la ventana -> píxel del dispositivo.
-        void ToDevice(float px, float py, out int dx, out int dy)
+        func ToDevice(px: float, py: float, out dx: int, out dy: int)
         {
             dx = (int)Math.Clamp((px - imgX) / imgW * ScreenW, 0.0, ScreenW - 1.0);
             dy = (int)Math.Clamp((py - imgY) / imgH * ScreenH, 0.0, ScreenH - 1.0);
         }
 
-        bool InScreen(float px, float py) => HasFrame && px >= imgX && py >= imgY && px < imgX + imgW && py < imgY + imgH;
+        func InScreen(px: float, py: float) -> bool => HasFrame && px >= imgX && py >= imgY && px < imgX + imgW && py < imgY + imgH;
 
         // Botones bajo la pantalla: 0 atrás, 1 inicio, 2 recientes, 3 girar.
-        int ButtonAt(float px, float py)
+        func ButtonAt(px: float, py: float) -> int
         {
             if (Device.Length == 0 || py < barY || py >= barY + 32 || px < barX || px >= barX + barW) return -1;
             return (int)Math.Floor((px - barX) / (barW / 4));
         }
 
         // Devuelve true si el panel usó el clic.
-        public bool MouseDown(float px, float py)
+        public func MouseDown(px: float, py: float) -> bool
         {
             int b = ButtonAt(px, py);
             if (b >= 0)
@@ -839,7 +839,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        public void MouseUp(float px, float py)
+        public func MouseUp(px: float, py: float)
         {
             if (!pressing) return;
             pressing = false;
@@ -863,7 +863,7 @@ namespace FasetStudio.Ide
             delete sb;
         }
 
-        public void Scroll(float px, float py, int lines)
+        public func Scroll(px: float, py: float, lines: int)
         {
             if (!InScreen(px, py)) return;
             int x = 0, y = 0;
@@ -877,7 +877,7 @@ namespace FasetStudio.Ide
         }
 
         // Teclado con el panel enfocado: se escribe en el dispositivo. Devuelve true si la usó.
-        public bool Key(Event e)
+        public func Key(e: Event) -> bool
         {
             if (!Focused || Device.Length == 0) return false;
             uint k = e.Key;
@@ -909,7 +909,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ dibujo
 
-        public void Draw(Renderer r, float x, float y, float w, float h, float mouseX, float mouseY)
+        public func Draw(r: Renderer, x: float, y: float, w: float, h: float, mouseX: float, mouseY: float)
         {
             float top = y + 46, bottom = y + h - 8;
             float availW = w - 32, availH = bottom - top - ToolbarHeight - 16;
@@ -980,12 +980,12 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        void Center(Renderer r, float x, float w, float y, string title, string hint)
+        func Center(r: Renderer, x: float, w: float, y: float, title: string, hint: string)
         {
             r.Text(r.UiBold, x + (w - r.TextWidth(r.UiBold, title)) / 2, y, title, Theme.Text);
             r.Text(r.UiSmall, x + (w - r.TextWidth(r.UiSmall, hint)) / 2, y + 24, hint, Theme.TextTertiary);
         }
 
-        public bool Contains(float px, float py) => InScreen(px, py) || ButtonAt(px, py) >= 0;
+        public func Contains(px: float, py: float) -> bool => InScreen(px, py) || ButtonAt(px, py) >= 0;
     }
 }

@@ -37,17 +37,17 @@ namespace FasetStudio.Platform
 
     public struct Event
     {
-        public EventKind Kind;
-        public int X;
-        public int Y;
-        public int Button;      // 1 izquierdo, 2 central, 3 derecho
-        public uint Key;        // keysym (letras en minúscula)
-        public char Char;       // carácter escrito (0 si no hay)
-        public bool Ctrl;
-        public bool Shift;
-        public bool Alt;
-        public int Width;
-        public int Height;
-        public int ScrollLines; // positivo = hacia abajo
+        public var Kind: EventKind;
+        public var X: int;
+        public var Y: int;
+        public var Button: int;      // 1 izquierdo, 2 central, 3 derecho
+        public var Key: uint;        // keysym (letras en minúscula)
+        public var Char: char;       // carácter escrito (0 si no hay)
+        public var Ctrl: bool;
+        public var Shift: bool;
+        public var Alt: bool;
+        public var Width: int;
+        public var Height: int;
+        public var ScrollLines: int; // positivo = hacia abajo
     }
 }

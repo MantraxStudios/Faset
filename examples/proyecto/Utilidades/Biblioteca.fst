@@ -2,6 +2,6 @@ namespace Utilidades
 {
     public static class Saludo
     {
-        public static string Texto() => "¡Hola desde la biblioteca Utilidades!";
+        public static func Texto() -> string => "¡Hola desde la biblioteca Utilidades!";
     }
 }

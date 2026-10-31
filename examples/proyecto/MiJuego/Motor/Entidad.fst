@@ -5,9 +5,9 @@ namespace MiJuego.Motor
     public class Entidad
     {
     public:
-        string Nombre;
-        Vec2 Posicion;
-        Entidad(string nombre, double x, double y) { Nombre = nombre; Posicion = new Vec2(x, y); }
-        void Mover(Vec2 delta) { Posicion = Posicion + delta; }
+        var Nombre: string;
+        var Posicion: Vec2;
+        init(nombre: string, x: double, y: double) { Nombre = nombre; Posicion = new Vec2(x, y); }
+        func Mover(delta: Vec2) { Posicion = Posicion + delta; }
     }
 }

@@ -6,13 +6,13 @@ namespace HolaUI
     // (lblTitle, txtName, btnGreet...) in the other half of this partial class.
     public partial class MainWindow
     {
-        int greetings;
+        var greetings: int;
 
-        public MainWindow() { InitializeComponent(); }
+        public init() { InitializeComponent(); }
 
-        ~MainWindow() { delete Window; }
+        deinit { delete Window; }
 
-        void OnNameChanged(Widget sender)
+        func OnNameChanged(sender: Widget)
         {
             string name = txtName.Text.Length > 0 ? txtName.Text : "Faset";
             string title = String.Concat("Hello, ", name, chkExcited.Checked ? "!" : "");
@@ -20,9 +20,9 @@ namespace HolaUI
             String.Free(title);
         }
 
-        void OnVolumeChanged(Widget sender) { prgVolume.Value = sldVolume.Value; }
+        func OnVolumeChanged(sender: Widget) { prgVolume.Value = sldVolume.Value; }
 
-        void OnGreetClick(Widget sender)
+        func OnGreetClick(sender: Widget)
         {
             greetings++;
             string n = Convert.ToString(greetings);
@@ -32,6 +32,6 @@ namespace HolaUI
             String.Free(n);
         }
 
-        void OnCloseClick(Widget sender) { Window.Close(); }
+        func OnCloseClick(sender: Widget) { Window.Close(); }
     }
 }

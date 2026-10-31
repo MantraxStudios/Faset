@@ -16,41 +16,41 @@ namespace FasetStudio.Ide
 {
     public struct Diagnostic
     {
-        public int Line;        // 0..n-1
-        public int Col;         // columna en bytes
-        public int Severity;    // 1 error, 3 nota
-        public string Message;  // copia propia
+        public var Line: int;        // 0..n-1
+        public var Col: int;         // columna en bytes
+        public var Severity: int;    // 1 error, 3 nota
+        public var Message: string;  // copia propia
     }
 
     public struct SymbolRef
     {
-        public int Line;
-        public int Col;
-        public int Length;
-        public string Hover;    // copia propia
-        public string DefPath;  // copia propia ("" si no hay)
-        public int DefLine;
-        public int DefCol;
+        public var Line: int;
+        public var Col: int;
+        public var Length: int;
+        public var Hover: string;    // copia propia
+        public var DefPath: string;  // copia propia ("" si no hay)
+        public var DefLine: int;
+        public var DefCol: int;
     }
 
     public struct CompletionItem
     {
-        public string Label;   // copia propia
-        public string Detail;  // copia propia
-        public int Kind;       // CompletionItemKind de LSP
-        public string Insert;  // texto a insertar ("" = Label); "$0" marca el cursor (copia propia)
+        public var Label: string;   // copia propia
+        public var Detail: string;  // copia propia
+        public var Kind: int;       // CompletionItemKind de LSP
+        public var Insert: string;  // texto a insertar ("" = Label); "$0" marca el cursor (copia propia)
     }
 
     public class Document
     {
-        public string FullPath;  // ruta absoluta (copia propia)
-        public string Name;      // vista de FullPath
-        public TextBuffer Buffer = new TextBuffer();
-        public List<Diagnostic> Diagnostics = new List<Diagnostic>();
-        public List<SymbolRef> Refs = new List<SymbolRef>();
-        public int AnalyzedVersion = -1;
+        public var FullPath: string;  // ruta absoluta (copia propia)
+        public var Name: string;      // vista de FullPath
+        public var Buffer: TextBuffer = new TextBuffer();
+        public var Diagnostics: List<Diagnostic> = new List<Diagnostic>();
+        public var Refs: List<SymbolRef> = new List<SymbolRef>();
+        public var AnalyzedVersion: int = -1;
 
-        ~Document()
+        deinit
         {
             ClearDiagnostics();
             ClearRefs();
@@ -60,7 +60,7 @@ namespace FasetStudio.Ide
             String.Free(FullPath);
         }
 
-        public static Document Open(string path)
+        public static func Open(path: string) -> Document
         {
             string content;
             if (!File.TryReadAllText(path, out content)) return null;
@@ -72,7 +72,7 @@ namespace FasetStudio.Ide
             return d;
         }
 
-        public bool Save()
+        public func Save() -> bool
         {
             string text = Buffer.GetAll();
             bool ok = File.WriteAllText(FullPath, text);
@@ -81,18 +81,18 @@ namespace FasetStudio.Ide
             return ok;
         }
 
-        public bool Modified => Buffer.Modified;
+        public prop Modified: bool => Buffer.Modified;
 
         // .fstproj, .fstp y .fstui: el IntelliSense es el del esquema XML (elementos, atributos y valores).
-        public bool IsXml => FullPath.EndsWith(".fstproj") || FullPath.EndsWith(".fstp") || FullPath.EndsWith(".fstui");
+        public prop IsXml: bool => FullPath.EndsWith(".fstproj") || FullPath.EndsWith(".fstp") || FullPath.EndsWith(".fstui");
 
-        public void ClearDiagnostics()
+        public func ClearDiagnostics()
         {
             for (int i = 0; i < Diagnostics.Count; i++) String.Free(Diagnostics[i].Message);
             Diagnostics.Clear();
         }
 
-        public void ClearRefs()
+        public func ClearRefs()
         {
             for (int i = 0; i < Refs.Count; i++)
             {
@@ -102,7 +102,7 @@ namespace FasetStudio.Ide
             Refs.Clear();
         }
 
-        public int ErrorCount
+        public prop ErrorCount: int
         {
             get
             {
@@ -114,7 +114,7 @@ namespace FasetStudio.Ide
         }
 
         // Último símbolo registrado que cubre (línea, columna).
-        public int RefAt(int line, int col)
+        public func RefAt(line: int, col: int) -> int
         {
             int found = -1;
             for (int i = 0; i < Refs.Count; i++)
@@ -128,18 +128,18 @@ namespace FasetStudio.Ide
 
     public class Analyzer
     {
-        string faset;      // ruta del compilador
-        string requestPath;
-        string resultPath;
-        public bool Available;
-        public long LastDurationMs;
-        public bool LastFailed;   // el último análisis no devolvió resultado (el compilador falló)
+        var faset: string;      // ruta del compilador
+        var requestPath: string;
+        var resultPath: string;
+        public var Available: bool;
+        public var LastDurationMs: long;
+        public var LastFailed: bool;   // el último análisis no devolvió resultado (el compilador falló)
         // Solución abierta (.fstp, "" si no hay): el analizador elige con ella el proyecto de cada archivo.
-        public string Solution = "";
+        public var Solution: string = "";
 
-        public string Compiler => faset;
+        public prop Compiler: string => faset;
 
-        public Analyzer(string fasetPath)
+        public init(fasetPath: string)
         {
             faset = String.Copy(fasetPath);
             Available = fasetPath.Length > 0;
@@ -163,7 +163,7 @@ namespace FasetStudio.Ide
             String.Free(tmp);
         }
 
-        ~Analyzer()
+        deinit
         {
             File.Delete(requestPath);
             File.Delete(resultPath);
@@ -174,7 +174,7 @@ namespace FasetStudio.Ide
 
         // ChildProcess.ReadAvailable sin los '\r' de los finales de línea de Windows (en los
         // paneles se verían como un carácter desconocido). true si añadió algo.
-        public static bool ReadChild(ChildProcess p, StringBuilder into)
+        public static func ReadChild(p: ChildProcess, into: StringBuilder) -> bool
         {
 #if WINDOWS
             StringBuilder tmp = new StringBuilder();
@@ -194,7 +194,7 @@ namespace FasetStudio.Ide
 
         // Entrecomilla un argumento para la línea de shell de Process.Capture / ChildProcess:
         // sh ('...') en Linux; en Windows, cmd.exe ("..." con las reglas de CommandLineToArgvW).
-        public static string Quote(string s)
+        public static func Quote(s: string) -> string
         {
 #if WINDOWS
             return CommandLine.QuoteCmd(s);
@@ -209,7 +209,7 @@ namespace FasetStudio.Ide
 
         // Lanza el análisis. 'focusText' (opcional) reemplaza el texto del documento enfocado.
         // Devuelve el JSON de resultado (libéralo con delete) o null.
-        public JsonValue Run(Document focus, List<Document> open, string focusText, bool hasFocusText)
+        public func Run(focus: Document, open: List<Document>, focusText: string, hasFocusText: bool) -> JsonValue
         {
             if (!Available) return null;
             StringBuilder req = new StringBuilder();
@@ -272,7 +272,7 @@ namespace FasetStudio.Ide
         }
 
         // Aplica diagnósticos y referencias de un resultado a los documentos abiertos.
-        public void Apply(JsonValue result, List<Document> open)
+        public func Apply(result: JsonValue, open: List<Document>)
         {
             // Solo se renuevan los documentos analizados: en una solución, los de otros proyectos
             // conservan sus errores hasta que se analicen.
@@ -315,7 +315,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < open.Count; i++) open[i].AnalyzedVersion = open[i].Buffer.Version;
         }
 
-        static bool Listed(JsonValue list, string path)
+        static func Listed(list: JsonValue, path: string) -> bool
         {
             for (int i = 0; i < list.Count; i++)
                 if (list.At(i).AsString() == path) return true;
@@ -323,14 +323,14 @@ namespace FasetStudio.Ide
         }
 
         // Diagnósticos sin documento abierto (por ejemplo de otros archivos del proyecto).
-        public static Document Find(List<Document> docs, string path)
+        public static func Find(docs: List<Document>, path: string) -> Document
         {
             for (int i = 0; i < docs.Count; i++)
                 if (docs[i].FullPath == path) return docs[i];
             return null;
         }
 
-        public static List<CompletionItem> Completions(JsonValue result)
+        public static func Completions(result: JsonValue) -> List<CompletionItem>
         {
             List<CompletionItem> items = new List<CompletionItem>();
             JsonValue list = result.Get("completions");
@@ -347,7 +347,7 @@ namespace FasetStudio.Ide
             return items;
         }
 
-        public static void FreeCompletions(List<CompletionItem> items)
+        public static func FreeCompletions(items: List<CompletionItem>)
         {
             for (int i = 0; i < items.Count; i++)
             {

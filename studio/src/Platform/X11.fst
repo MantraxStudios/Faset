@@ -37,33 +37,33 @@ namespace FasetStudio.Platform
 
     public memory_unsafe class Window
     {
-        void* display;
-        ulong window;
-        ulong wmDelete;
-        ulong atomClipboard;
-        ulong atomUtf8;
-        ulong atomTargets;
-        ulong atomPaste;
-        byte* ev;
-        int width;
-        int height;
-        string clipboard;   // copia propia del texto que ofrecemos
-        ulong* cursors;          // uno por CursorKind
-        CursorKind currentCursor = CursorKind.Text;
-        long lastClickMs;
-        int clickCount;
-        int lastClickX;
-        int lastClickY;
+        var display: void*;
+        var window: ulong;
+        var wmDelete: ulong;
+        var atomClipboard: ulong;
+        var atomUtf8: ulong;
+        var atomTargets: ulong;
+        var atomPaste: ulong;
+        var ev: byte*;
+        var width: int;
+        var height: int;
+        var clipboard: string;   // copia propia del texto que ofrecemos
+        var cursors: ulong*;          // uno por CursorKind
+        var currentCursor: CursorKind = CursorKind.Text;
+        var lastClickMs: long;
+        var clickCount: int;
+        var lastClickX: int;
+        var lastClickY: int;
 
-        public bool IsOpen;
+        public var IsOpen: bool;
 
-        public void* Display => display;
-        public ulong Handle => window;
-        public int Width => width;
-        public int Height => height;
-        public int ClickCount => clickCount;
+        public prop Display: void* => display;
+        public prop Handle: ulong => window;
+        public prop Width: int => width;
+        public prop Height: int => height;
+        public prop ClickCount: int => clickCount;
 
-        public bool Create(string title, int w, int h)
+        public func Create(title: string, w: int, h: int) -> bool
         {
             display = XOpenDisplay(null);
             if (display == null) return false;
@@ -97,7 +97,7 @@ namespace FasetStudio.Platform
             return true;
         }
 
-        ~Window()
+        deinit
         {
             Memory.Free(ev);
             String.Free(clipboard);
@@ -109,9 +109,9 @@ namespace FasetStudio.Platform
         }
 
         // Muestra un error fatal (en Linux, por la salida de errores).
-        public static void ShowError(string message) { Console.ErrorLine(message); }
+        public static func ShowError(message: string) { Console.ErrorLine(message); }
 
-        public void SetTitle(string title)
+        public func SetTitle(title: string)
         {
             // Todas las propiedades del título en UTF-8: XStoreName las marca como Latin-1 y el
             // "—" de "Proyecto — FasetStudio" se veía como letras raras en la barra de título.
@@ -125,7 +125,7 @@ namespace FasetStudio.Platform
         }
 
         // Icono de la ventana (_NET_WM_ICON): píxeles ARGB de w x h.
-        public void SetIcon(uint* argb, int w, int h)
+        public func SetIcon(argb: uint*, w: int, h: int)
         {
             long count = 2 + (long)w * h;
             ulong* data = (ulong*)Memory.Alloc(count * 8);  // formato 32 de Xlib = 'long' de C
@@ -139,7 +139,7 @@ namespace FasetStudio.Platform
         }
 
         // Cambia la forma del puntero (solo si es distinta de la actual).
-        public void SetCursor(CursorKind kind)
+        public func SetCursor(kind: CursorKind)
         {
             if (kind == currentCursor || cursors == null) return;
             currentCursor = kind;
@@ -147,19 +147,19 @@ namespace FasetStudio.Platform
             XFlush(display);
         }
 
-        static int I32(byte* p, int off) => *(int*)(p + off);
-        static uint U32(byte* p, int off) => *(uint*)(p + off);
-        static ulong U64(byte* p, int off) => *(ulong*)(p + off);
+        static func I32(p: byte*, off: int) -> int => *(int*)(p + off);
+        static func U32(p: byte*, off: int) -> uint => *(uint*)(p + off);
+        static func U64(p: byte*, off: int) -> ulong => *(ulong*)(p + off);
 
         // Espera hasta 'ms' milisegundos a que haya eventos.
-        public void Wait(int ms)
+        public func Wait(ms: int)
         {
             if (XPending(display) > 0) return;
             EventWait.WaitFd(XConnectionNumber(display), ms);
         }
 
         // Devuelve el siguiente evento útil (false si no hay más por ahora).
-        public bool Poll(out Event e)
+        public func Poll(out e: Event) -> bool
         {
             e = new Event();
             while (XPending(display) > 0)
@@ -254,7 +254,7 @@ namespace FasetStudio.Platform
 
         // ---------------------------------------------------------- portapapeles
 
-        public void SetClipboard(string text)
+        public func SetClipboard(text: string)
         {
             String.Free(clipboard);
             clipboard = String.Copy(text);
@@ -263,7 +263,7 @@ namespace FasetStudio.Platform
         }
 
         // Texto del portapapeles del sistema (copia: libérala con String.Free).
-        public string GetClipboard()
+        public func GetClipboard() -> string
         {
             if (XGetSelectionOwner(display, atomClipboard) == window) return String.Copy(clipboard);
             XConvertSelection(display, atomClipboard, atomUtf8, atomPaste, window, 0);
@@ -296,7 +296,7 @@ namespace FasetStudio.Platform
             return String.Copy("");
         }
 
-        void AnswerSelectionRequest()
+        func AnswerSelectionRequest()
         {
             ulong requestor = U64(ev, 40);
             ulong selection = U64(ev, 48);

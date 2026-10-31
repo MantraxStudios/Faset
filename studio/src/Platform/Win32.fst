@@ -65,36 +65,36 @@ namespace FasetStudio.Platform
 
     public memory_unsafe class Window
     {
-        static Window current;   // la ventana a la que llegan los mensajes (solo hay una)
+        static var current: Window;   // la ventana a la que llegan los mensajes (solo hay una)
 
-        void* hwnd;
-        byte* msg;               // MSG (48 bytes)
-        byte* peek;              // MSG auxiliar para recoger WM_CHAR
-        int width;
-        int height;
-        bool minimized;
-        uint style;
-        void** cursors;          // uno por CursorKind
-        CursorKind currentCursor = CursorKind.Text;
-        void* icon;
-        List<Event> queue = new List<Event>();
-        long lastClickMs;
-        int clickCount;
-        int lastClickX;
-        int lastClickY;
-        int wheelAccum;          // restos de la rueda (ratones de alta resolución)
-        int buttonsDown;         // botones pulsados (para SetCapture / ReleaseCapture)
-        uint pendingHigh;        // primera mitad de un par suplente UTF-16 a la espera de la segunda
+        var hwnd: void*;
+        var msg: byte*;               // MSG (48 bytes)
+        var peek: byte*;              // MSG auxiliar para recoger WM_CHAR
+        var width: int;
+        var height: int;
+        var minimized: bool;
+        var style: uint;
+        var cursors: void**;          // uno por CursorKind
+        var currentCursor: CursorKind = CursorKind.Text;
+        var icon: void*;
+        var queue: List<Event> = new List<Event>();
+        var lastClickMs: long;
+        var clickCount: int;
+        var lastClickX: int;
+        var lastClickY: int;
+        var wheelAccum: int;          // restos de la rueda (ratones de alta resolución)
+        var buttonsDown: int;         // botones pulsados (para SetCapture / ReleaseCapture)
+        var pendingHigh: uint;        // primera mitad de un par suplente UTF-16 a la espera de la segunda
 
-        public bool IsOpen;
+        public var IsOpen: bool;
 
-        public void* Display => null;
-        public void* Hwnd => hwnd;
-        public int Width => width;
-        public int Height => height;
-        public int ClickCount => clickCount;
+        public prop Display: void* => null;
+        public prop Hwnd: void* => hwnd;
+        public prop Width: int => width;
+        public prop Height: int => height;
+        public prop ClickCount: int => clickCount;
 
-        public bool Create(string title, int w, int h)
+        public func Create(title: string, w: int, h: int) -> bool
         {
             current = this;
             EnableDpiAwareness();
@@ -146,7 +146,7 @@ namespace FasetStudio.Platform
             return true;
         }
 
-        ~Window()
+        deinit
         {
             if (hwnd != null) User32.DestroyWindow(hwnd);
             if (icon != null) User32.DeleteObject(icon);
@@ -159,7 +159,7 @@ namespace FasetStudio.Platform
 
         // Escalado por monitor: la ventana trabaja en píxeles reales (sin el estirado borroso de
         // Windows). SetProcessDpiAwarenessContext existe desde Windows 10 1703; si no, el modo de sistema.
-        static void EnableDpiAwareness()
+        static func EnableDpiAwareness()
         {
             ushort* name = Utf16.Encode("user32.dll");
             void* user32 = User32.LoadLibraryW(name);
@@ -175,7 +175,7 @@ namespace FasetStudio.Platform
         }
 
         // Muestra un error fatal en un cuadro de diálogo (una aplicación de ventana no tiene consola).
-        public static void ShowError(string message)
+        public static func ShowError(message: string)
         {
             ushort* text = Utf16.Encode(message);
             ushort* caption = Utf16.Encode("FasetStudio");
@@ -184,7 +184,7 @@ namespace FasetStudio.Platform
             Memory.Free(caption);
         }
 
-        public void SetTitle(string title)
+        public func SetTitle(title: string)
         {
             ushort* t = Utf16.Encode(title);
             User32.SetWindowTextW(hwnd, t);
@@ -192,7 +192,7 @@ namespace FasetStudio.Platform
         }
 
         // Icono de la ventana: píxeles ARGB de w x h (en memoria, BGRA: el formato de un DIB de 32 bits).
-        public void SetIcon(uint* argb, int w, int h)
+        public func SetIcon(argb: uint*, w: int, h: int)
         {
             byte* bmi = (byte*)Memory.AllocZeroed(124);   // BITMAPV5HEADER
             *(uint*)bmi = 124;
@@ -229,7 +229,7 @@ namespace FasetStudio.Platform
         }
 
         // Cambia la forma del puntero (solo si es distinta de la actual).
-        public void SetCursor(CursorKind kind)
+        public func SetCursor(kind: CursorKind)
         {
             if (kind == currentCursor || cursors == null) return;
             currentCursor = kind;
@@ -237,7 +237,7 @@ namespace FasetStudio.Platform
         }
 
         // Espera hasta 'ms' milisegundos a que haya mensajes (o a que otro hilo despierte el bucle).
-        public void Wait(int ms)
+        public func Wait(ms: int)
         {
             if (queue.Count > 0) return;
             if (User32.PeekMessageW(msg, null, 0, 0, 0) != 0) return;   // PM_NOREMOVE
@@ -245,7 +245,7 @@ namespace FasetStudio.Platform
         }
 
         // Devuelve el siguiente evento útil (false si no hay más por ahora).
-        public bool Poll(out Event e)
+        public func Poll(out e: Event) -> bool
         {
             while (queue.Count == 0 && User32.PeekMessageW(msg, null, 0, 0, 1) != 0)   // PM_REMOVE
             {
@@ -269,10 +269,10 @@ namespace FasetStudio.Platform
 
         // ---------------------------------------------------------- teclado
 
-        static bool Down(int vk) => User32.GetKeyState(vk) < 0;
+        static func Down(vk: int) -> bool => User32.GetKeyState(vk) < 0;
 
         // Tecla virtual sin carácter -> keysym de X11 (0 si escribe un carácter).
-        static uint SpecialKey(uint vk, bool extended)
+        static func SpecialKey(vk: uint, extended: bool) -> uint
         {
             if (vk == 0x08) return Keys.BackSpace;
             if (vk == 0x09) return Keys.Tab;
@@ -292,14 +292,14 @@ namespace FasetStudio.Platform
             return 0;
         }
 
-        static bool IsModifier(uint vk) =>
+        static func IsModifier(vk: uint) -> bool =>
             vk == 0x10 || vk == 0x11 || vk == 0x12 || vk == 0x14 || vk == 0x5B || vk == 0x5C || vk == 0x5D ||
             vk == 0x90 || vk == 0x91 || (vk >= 0xA0 && vk <= 0xA5);
 
         // WM_KEYDOWN / WM_SYSKEYDOWN: un único evento con la tecla y el carácter que escribe
         // (como XLookupString). Se gestiona aquí, sin DispatchMessage, para que Alt y F10 no
         // activen el menú del sistema.
-        void KeyDown(bool sys)
+        func KeyDown(sys: bool)
         {
             uint vk = (uint)*(ulong*)(msg + 16);
             long lp = *(long*)(msg + 24);
@@ -368,10 +368,10 @@ namespace FasetStudio.Platform
 
         // ---------------------------------------------------------- mensajes
 
-        static int LoWord(long lp) => (int)(short)(lp & 0xffff);
-        static int HiWord(long lp) => (int)(short)((lp >> 16) & 0xffff);
+        static func LoWord(lp: long) -> int => (int)(short)(lp & 0xffff);
+        static func HiWord(lp: long) -> int => (int)(short)((lp >> 16) & 0xffff);
 
-        void MouseButton(uint m, ulong wp, long lp)
+        func MouseButton(m: uint, wp: ulong, lp: long)
         {
             // WM_LBUTTONDOWN/UP 0x201/0x202, WM_RBUTTONDOWN/UP 0x204/0x205, WM_MBUTTONDOWN/UP 0x207/0x208.
             bool down = m == 0x0201 || m == 0x0204 || m == 0x0207;
@@ -405,7 +405,7 @@ namespace FasetStudio.Platform
             queue.Add(e);
         }
 
-        static long WndProc(void* hwnd, uint m, ulong wp, long lp)
+        static func WndProc(hwnd: void*, m: uint, wp: ulong, lp: long) -> long
         {
             Window w = current;
             if (w == null || (w.hwnd != null && w.hwnd != hwnd)) return User32.DefWindowProcW(hwnd, m, wp, lp);
@@ -539,7 +539,7 @@ namespace FasetStudio.Platform
 
         // ---------------------------------------------------------- portapapeles (CF_UNICODETEXT)
 
-        public void SetClipboard(string text)
+        public func SetClipboard(text: string)
         {
             if (User32.OpenClipboard(hwnd) == 0) return;
             User32.EmptyClipboard();
@@ -562,7 +562,7 @@ namespace FasetStudio.Platform
         }
 
         // Texto del portapapeles del sistema (copia: libérala con String.Free).
-        public string GetClipboard()
+        public func GetClipboard() -> string
         {
             if (User32.OpenClipboard(hwnd) == 0) return String.Copy("");
             string r = String.Copy("");

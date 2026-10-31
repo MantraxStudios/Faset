@@ -17,22 +17,22 @@ namespace FasetStudio.Ide
     // Un elemento del .fstui con sus atributos en el orden original.
     public class UiNode
     {
-        public string Kind;                       // copia propia
-        public List<string> Keys = new List<string>();
-        public List<string> Values = new List<string>();
-        public List<UiNode> Children = new List<UiNode>();
-        public UiNode Parent;
+        public var Kind: string;                       // copia propia
+        public var Keys: List<string> = new List<string>();
+        public var Values: List<string> = new List<string>();
+        public var Children: List<UiNode> = new List<UiNode>();
+        public var Parent: UiNode;
         // Rectángulo en pantalla del último dibujo (para el ratón).
-        public float SX;
-        public float SY;
-        public float SW;
-        public float SH;
+        public var SX: float;
+        public var SY: float;
+        public var SW: float;
+        public var SH: float;
         // TabControl: página que se ve en el diseñador (-1 = la de SelectedIndex). No se guarda.
-        public int ShownPage = -1;
+        public var ShownPage: int = -1;
 
-        public UiNode(string kind) { Kind = String.Copy(kind); }
+        public init(kind: string) { Kind = String.Copy(kind); }
 
-        ~UiNode()
+        deinit
         {
             String.Free(Kind);
             for (int i = 0; i < Keys.Count; i++)
@@ -46,33 +46,33 @@ namespace FasetStudio.Ide
             delete Children;
         }
 
-        public bool IsContainer => Kind == "Window" || Kind == "Panel" || Kind == "TabPage";
+        public prop IsContainer: bool => Kind == "Window" || Kind == "Panel" || Kind == "TabPage";
 
         // Componentes no visuales (bandeja bajo la ventana). Para añadir otro, inclúyelo aquí.
-        public static bool IsComponentKind(string k) => UiComponents.IsComponent(k);
-        public bool IsComponent => IsComponentKind(Kind);
-        public bool IsMenuEntry => Kind == "Menu" || Kind == "MenuItem" || Kind == "Separator";
+        public static func IsComponentKind(k: string) -> bool => UiComponents.IsComponent(k);
+        public prop IsComponent: bool => IsComponentKind(Kind);
+        public prop IsMenuEntry: bool => Kind == "Menu" || Kind == "MenuItem" || Kind == "Separator";
         // Partes de otro control: su sitio lo decide el contenedor (no se mueven con el ratón).
-        public bool IsPart => Kind == "TabPage" || Kind == "TreeNode" || IsMenuEntry;
-        public bool Movable => !IsComponent && !IsPart && Kind != "Window" && Kind != "MenuBar";
+        public prop IsPart: bool => Kind == "TabPage" || Kind == "TreeNode" || IsMenuEntry;
+        public prop Movable: bool => !IsComponent && !IsPart && Kind != "Window" && Kind != "MenuBar";
 
-        int IndexOfKey(string key)
+        func IndexOfKey(key: string) -> int
         {
             for (int i = 0; i < Keys.Count; i++)
                 if (Keys[i] == key) return i;
             return -1;
         }
 
-        public bool Has(string key) => IndexOfKey(key) >= 0;
+        public func Has(key: string) -> bool => IndexOfKey(key) >= 0;
 
         // Valor del atributo (vista) o "" si no está.
-        public string Get(string key)
+        public func Get(key: string) -> string
         {
             int i = IndexOfKey(key);
             return i < 0 ? "" : Values[i];
         }
 
-        public void Set(string key, string value)
+        public func Set(key: string, value: string)
         {
             int i = IndexOfKey(key);
             if (i >= 0)
@@ -86,14 +86,14 @@ namespace FasetStudio.Ide
             Values.Add(String.Copy(value));
         }
 
-        public void SetInt(string key, int v)
+        public func SetInt(key: string, v: int)
         {
             string s = Convert.ToString(v);
             Set(key, s);
             String.Free(s);
         }
 
-        public void Remove(string key)
+        public func Remove(key: string)
         {
             int i = IndexOfKey(key);
             if (i < 0) return;
@@ -103,7 +103,7 @@ namespace FasetStudio.Ide
             Values.RemoveAt(i);
         }
 
-        public int Int(string key, int def)
+        public func Int(key: string, def: int) -> int
         {
             long v = 0;
             string s = Get(key);
@@ -111,7 +111,7 @@ namespace FasetStudio.Ide
             return (int)v;
         }
 
-        public float Num(string key, float def)
+        public func Num(key: string, def: float) -> float
         {
             double v = 0;
             string s = Get(key);
@@ -119,14 +119,14 @@ namespace FasetStudio.Ide
             return (float)v;
         }
 
-        public bool Bool(string key, bool def)
+        public func Bool(key: string, def: bool) -> bool
         {
             string s = Get(key);
             if (s.Length == 0) return def;
             return s.ToLower() == "true";
         }
 
-        public UiNode Clone()
+        public func Clone() -> UiNode
         {
             UiNode n = new UiNode(Kind);
             for (int i = 0; i < Keys.Count; i++) n.Set(Keys[i], Values[i]);
@@ -139,14 +139,14 @@ namespace FasetStudio.Ide
             return n;
         }
 
-        public bool IsAncestorOf(UiNode n)
+        public func IsAncestorOf(n: UiNode) -> bool
         {
             for (UiNode p = n; p != null; p = p.Parent)
                 if (p == this) return true;
             return false;
         }
 
-        public UiNode FindByName(string name)
+        public func FindByName(name: string) -> UiNode
         {
             if (Get("Name") == name) return this;
             for (int i = 0; i < Children.Count; i++)
@@ -161,11 +161,11 @@ namespace FasetStudio.Ide
     // Lectura y escritura del XML de los .fstui.
     public memory_unsafe static class UiXml
     {
-        static bool IsSpace(byte c) => c == ' ' || c == '\t' || c == '\n' || c == '\r';
-        static bool IsNameChar(byte c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == ':' || c == '.';
+        static func IsSpace(c: byte) -> bool => c == ' ' || c == '\t' || c == '\n' || c == '\r';
+        static func IsNameChar(c: byte) -> bool => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == ':' || c == '.';
 
         // Analiza el documento; null y 'error' (copia) si no es válido.
-        public static UiNode Parse(string s, out string error)
+        public static func Parse(s: string, out error: string) -> UiNode
         {
             error = String.Copy("");
             int i = 0;
@@ -260,14 +260,14 @@ namespace FasetStudio.Ide
             return root;
         }
 
-        static UiNode Fail(out string error, string message, UiNode root)
+        static func Fail(out error: string, message: string, root: UiNode) -> UiNode
         {
             error = String.Copy(message);
             if (root != null) delete root;
             return null;
         }
 
-        static string Decode(string v)
+        static func Decode(v: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             int i = 0;
@@ -291,7 +291,7 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        static void Escape(StringBuilder sb, string v)
+        static func Escape(sb: StringBuilder, v: string)
         {
             for (int i = 0; i < v.Length; i++)
             {
@@ -305,7 +305,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        public static string Write(UiNode root)
+        public static func Write(root: UiNode) -> string
         {
             StringBuilder sb = new StringBuilder();
             WriteNode(sb, root, 0);
@@ -314,7 +314,7 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        static void WriteNode(StringBuilder sb, UiNode n, int depth)
+        static func WriteNode(sb: StringBuilder, n: UiNode, depth: int)
         {
             for (int i = 0; i < depth; i++) sb.Append("  ");
             sb.Append("<").Append(n.Kind);
@@ -339,22 +339,22 @@ namespace FasetStudio.Ide
     // Definición de una propiedad editable.
     struct PropDef
     {
-        public string Key;
-        public int Type;        // 0 texto, 1 entero, 2 número, 3 booleano, 4 opciones, 5 anclaje, 6 evento, 7 identificador
-        public string Options;  // separadas por '|'
-        public string Default;
-        public string Section;
+        public var Key: string;
+        public var Type: int;        // 0 texto, 1 entero, 2 número, 3 booleano, 4 opciones, 5 anclaje, 6 evento, 7 identificador
+        public var Options: string;  // separadas por '|'
+        public var Default: string;
+        public var Section: string;
     }
     // Tipo 8: color "#RRGGBB" (muestra + código + paleta).
 
     struct PropRow
     {
-        public string Key;
-        public int Type;
-        public float Y;
-        public float VX;   // inicio del control
-        public float VW;
-        public string Options;
+        public var Key: string;
+        public var Type: int;
+        public var Y: float;
+        public var VX: float;   // inicio del control
+        public var VW: float;
+        public var Options: string;
     }
 
     public partial class Designer
@@ -369,44 +369,44 @@ namespace FasetStudio.Ide
         const float Margin = 48;
         const int Grid = 8;
 
-        public Document Doc;
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
+        public var Doc: Document;
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
 
-        UiNode root;
-        string error = String.Copy("");
-        int syncedVersion = -1;
-        UiNode selected;
-        List<string> undo = new List<string>();
-        List<string> redo = new List<string>();
+        var root: UiNode;
+        var error: string = String.Copy("");
+        var syncedVersion: int = -1;
+        var selected: UiNode;
+        var undo: List<string> = new List<string>();
+        var redo: List<string> = new List<string>();
 
         // Arrastre: 0 nada, 1 mover, 2 redimensionar, 3 nuevo desde la caja de herramientas, 4 tamaño de la ventana
-        int dragMode;
-        int handle;
-        float pressX;
-        float pressY;
-        float mouseX;
-        float mouseY;
-        int origX;
-        int origY;
-        int origW;
-        int origH;
-        bool dragMoved;
-        string newKind = String.Copy("");
-        UiNode dropTarget;
-        List<float> guidesX = new List<float>();
-        List<float> guidesY = new List<float>();
+        var dragMode: int;
+        var handle: int;
+        var pressX: float;
+        var pressY: float;
+        var mouseX: float;
+        var mouseY: float;
+        var origX: int;
+        var origY: int;
+        var origW: int;
+        var origH: int;
+        var dragMoved: bool;
+        var newKind: string = String.Copy("");
+        var dropTarget: UiNode;
+        var guidesX: List<float> = new List<float>();
+        var guidesY: List<float> = new List<float>();
 
-        float scrollX;
-        float scrollY;
+        var scrollX: float;
+        var scrollY: float;
         // Arrastre con el botón central (rueda pulsada) para mover el lienzo.
-        bool panning;
+        var panning: bool;
         // Zoom del lienzo (Ctrl+rueda) y cuadrícula (se recuerda entre sesiones).
-        float zoom = 1;
-        static int gridState = -1;   // -1: aún sin leer de los ajustes
-        static bool showGrid
+        var zoom: float = 1;
+        static var gridState: int = -1;   // -1: aún sin leer de los ajustes
+        static prop showGrid: bool
         {
             get
             {
@@ -415,53 +415,53 @@ namespace FasetStudio.Ide
             }
             set { gridState = value ? 1 : 0; }
         }
-        static string zoomSteps = "0.25|0.33|0.5|0.67|0.75|0.9|1|1.1|1.25|1.5|1.75|2|2.5|3|4";
+        static var zoomSteps: string = "0.25|0.33|0.5|0.67|0.75|0.9|1|1.1|1.25|1.5|1.75|2|2.5|3|4";
         const float BarH = 30;           // barra de zoom y cuadrícula (abajo a la derecha del lienzo)
-        float panX;
-        float panY;
-        float panScrollX;
-        float panScrollY;
-        float propsScroll;
-        float originX;   // esquina del contenido de la ventana diseñada en pantalla
-        float originY;
+        var panX: float;
+        var panY: float;
+        var panScrollX: float;
+        var panScrollY: float;
+        var propsScroll: float;
+        var originX: float;   // esquina del contenido de la ventana diseñada en pantalla
+        var originY: float;
 
-        List<PropRow> rows = new List<PropRow>();
+        var rows: List<PropRow> = new List<PropRow>();
         TextField field = new TextField();
-        string editingKey = String.Copy("");
-        int toolHover = -1;
-        int leftTab;                  // 0 herramientas, 1 esquema
-        float outlineScroll;
-        List<UiNode> outline = new List<UiNode>();
-        List<int> outlineDepth = new List<int>();
-        int arrangeHover = -1;
+        var editingKey: string = String.Copy("");
+        var toolHover: int = -1;
+        var leftTab: int;                  // 0 herramientas, 1 esquema
+        var outlineScroll: float;
+        var outline: List<UiNode> = new List<UiNode>();
+        var outlineDepth: List<int> = new List<int>();
+        var arrangeHover: int = -1;
         // Paleta de colores abierta para la propiedad 'colorKey' ("" = cerrada).
-        string colorKey = String.Copy("");
-        float colorPopX;
-        float colorPopY;
+        var colorKey: string = String.Copy("");
+        var colorPopX: float;
+        var colorPopY: float;
         const float SwatchSize = 30;
-        static string swatches = "#000000|#18181b|#27272a|#3f3f46|#71717a|#a1a1aa|#e4e4e7|#ffffff|" +
+        static var swatches: string = "#000000|#18181b|#27272a|#3f3f46|#71717a|#a1a1aa|#e4e4e7|#ffffff|" +
                                  "#ef4444|#f97316|#f59e0b|#eab308|#84cc16|#22c55e|#10b981|#14b8a6|" +
                                  "#06b6d4|#0ea5e9|#3b82f6|#6366f1|#8b5cf6|#a855f7|#d946ef|#ec4899|" +
                                  "#7f1d1d|#7c2d12|#78350f|#365314|#14532d|#134e4a|#1e3a8a|#4c1d95";
 
         // Portapapeles de controles (XML), compartido entre diseñadores.
-        static string clipboard = "";
-        static bool clipboardOwned;
+        static var clipboard: string = "";
+        static var clipboardOwned: bool;
 
-        public string RequestHandler = String.Copy("");   // método que la aplicación debe abrir en el código (copia)
-        public string Status = "";           // mensaje para la barra de estado (vista de literal)
-        public bool SwitchToCode;            // pide pasar a la vista de código
+        public var RequestHandler: string = String.Copy("");   // método que la aplicación debe abrir en el código (copia)
+        public var Status: string = "";           // mensaje para la barra de estado (vista de literal)
+        public var SwitchToCode: bool;            // pide pasar a la vista de código
 
-        static string kinds = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel|" +
+        static var kinds: string = "Label|Button|TextBox|CheckBox|RadioButton|ComboBox|ListBox|Slider|ProgressBar|Panel|" +
                               "WebView|VideoPlayer|PictureBox|TabControl|TreeView|MenuBar|Canvas|Timer|ContextMenu|Sound|Music";
         const int KindCount = 21;
-        float toolScroll;
+        var toolScroll: float;
         const float TrayH = 46;   // bandeja de componentes bajo la ventana
-        public string RequestParams = "Widget sender";   // parámetros del manejador pedido
+        public var RequestParams: string = "Widget sender";   // parámetros del manejador pedido
 
-        public Designer(Document doc) { Doc = doc; }
+        public init(doc: Document) { Doc = doc; }
 
-        ~Designer()
+        deinit
         {
             if (root != null) delete root;
             String.Free(error);
@@ -480,21 +480,21 @@ namespace FasetStudio.Ide
             String.Free(RequestHandler);
         }
 
-        static void FreeAll(List<string> l)
+        static func FreeAll(l: List<string>)
         {
             for (int i = 0; i < l.Count; i++) String.Free(l[i]);
             l.Clear();
         }
 
-        public bool Editing => editingKey.Length > 0;
-        public string ClassName => root != null ? root.Get("Class") : "";
-        public string NamespaceName => root != null ? root.Get("Namespace") : "";
-        public bool HasError => root == null;
+        public prop Editing: bool => editingKey.Length > 0;
+        public prop ClassName: string => root != null ? root.Get("Class") : "";
+        public prop NamespaceName: string => root != null ? root.Get("Namespace") : "";
+        public prop HasError: bool => root == null;
 
         // ------------------------------------------------------------------ sincronización
 
         // Vuelve a leer el XML si el texto cambió fuera del diseñador.
-        public void Sync()
+        public func Sync()
         {
             if (Doc.Buffer.Version == syncedVersion) return;
             syncedVersion = Doc.Buffer.Version;
@@ -526,7 +526,7 @@ namespace FasetStudio.Ide
         }
 
         // Escribe el árbol en el documento (un paso de deshacer).
-        void Commit(string before)
+        func Commit(before: string)
         {
             string xml = UiXml.Write(root);
             if (before == xml)
@@ -541,7 +541,7 @@ namespace FasetStudio.Ide
             String.Free(xml);
         }
 
-        void WriteBuffer(string xml)
+        func WriteBuffer(xml: string)
         {
             TextBuffer b = Doc.Buffer;
             b.NewGroup();
@@ -551,9 +551,9 @@ namespace FasetStudio.Ide
             syncedVersion = b.Version;
         }
 
-        string Snapshot() => UiXml.Write(root);
+        func Snapshot() -> string => UiXml.Write(root);
 
-        void Restore(List<string> from, List<string> to)
+        func Restore(from: List<string>, to: List<string>)
         {
             if (from.Count == 0 || root == null) return;
             string keep = selected != null ? String.Copy(selected.Get("Name")) : String.Copy("");
@@ -570,20 +570,20 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ geometría
 
-        float CanvasX => X + ToolboxWidth;
-        float CanvasW => W - ToolboxWidth - PropsWidth;
-        float PropsX => X + W - PropsWidth;
+        prop CanvasX: float => X + ToolboxWidth;
+        prop CanvasW: float => W - ToolboxWidth - PropsWidth;
+        prop PropsX: float => X + W - PropsWidth;
 
         const int TabHeader = 36;   // alto de las pestañas (igual que std.ui)
 
-        float ContentX(UiNode n)
+        func ContentX(n: UiNode) -> float
         {
             float x = originX;
             for (UiNode p = n; p != null && p != root; p = p.Parent) x += (p.Kind == "TabPage" ? 1 : p.Int("X", 0)) * zoom;
             return x;
         }
 
-        float ContentY(UiNode n)
+        func ContentY(n: UiNode) -> float
         {
             float y = originY;
             for (UiNode p = n; p != null && p != root; p = p.Parent) y += (p.Kind == "TabPage" ? TabHeader : p.Int("Y", 0)) * zoom;
@@ -591,7 +591,7 @@ namespace FasetStudio.Ide
         }
 
         // Página de un TabControl que se ve en el diseñador.
-        static int ShownIndex(UiNode tabs)
+        static func ShownIndex(tabs: UiNode) -> int
         {
             int n = tabs.Children.Count;
             int i = tabs.ShownPage >= 0 ? tabs.ShownPage : tabs.Int("SelectedIndex", 0);
@@ -601,20 +601,20 @@ namespace FasetStudio.Ide
         }
 
         // Al elegir un control de una página oculta, esa página pasa a verse.
-        static void RevealPages(UiNode n)
+        static func RevealPages(n: UiNode)
         {
             for (UiNode p = n; p != null && p.Parent != null; p = p.Parent)
                 if (p.Kind == "TabPage" && p.Parent.Kind == "TabControl") p.Parent.ShownPage = p.Parent.Children.IndexOf(p);
         }
 
-        void Layout()
+        func Layout()
         {
             originX = CanvasX + Margin - scrollX;
             originY = Y + Margin + TitleBar * zoom - scrollY;
         }
 
         // Nodo más interno bajo el punto (sin contar la ventana).
-        UiNode HitTest(UiNode n, float px, float py)
+        func HitTest(n: UiNode, px: float, py: float) -> UiNode
         {
             if (n == root)
             {
@@ -636,14 +636,14 @@ namespace FasetStudio.Ide
         }
 
         // Panel (o la ventana) que recibiría un control soltado en el punto.
-        UiNode ContainerAt(float px, float py, UiNode exclude)
+        func ContainerAt(px: float, py: float, exclude: UiNode) -> UiNode
         {
             UiNode best = root;
             FindContainer(root, px, py, exclude, ref best);
             return best;
         }
 
-        void FindContainer(UiNode n, float px, float py, UiNode exclude, ref UiNode best)
+        func FindContainer(n: UiNode, px: float, py: float, exclude: UiNode, ref best: UiNode)
         {
             for (int i = 0; i < n.Children.Count; i++)
             {
@@ -658,7 +658,7 @@ namespace FasetStudio.Ide
         }
 
         // Asa de redimensión bajo el punto (0..7 desde arriba-izquierda en sentido horario) o -1.
-        int HandleAt(float px, float py)
+        func HandleAt(px: float, py: float) -> int
         {
             if (!Placeable || !selected.Movable) return -1;
             for (int i = 0; i < 8; i++)
@@ -670,7 +670,7 @@ namespace FasetStudio.Ide
             return -1;
         }
 
-        static void HandlePos(UiNode n, int i, out float hx, out float hy)
+        static func HandlePos(n: UiNode, i: int, out hx: float, out hy: float)
         {
             float l = n.SX, t = n.SY, r = n.SX + n.SW, b = n.SY + n.SH;
             float cx = (l + r) / 2, cy = (t + b) / 2;
@@ -678,7 +678,7 @@ namespace FasetStudio.Ide
             hy = i <= 2 ? t : (i == 3 || i == 7 ? cy : b);
         }
 
-        bool OverWindowCorner(float px, float py)
+        func OverWindowCorner(px: float, py: float) -> bool
         {
             if (root == null) return false;
             float rx = originX + root.Int("Width", 800) * zoom, ry = originY + root.Int("Height", 600) * zoom;
@@ -686,7 +686,7 @@ namespace FasetStudio.Ide
         }
 
         // Cursor para la posición del ratón (CursorKind).
-        public CursorKind CursorAt(float px, float py)
+        public func CursorAt(px: float, py: float) -> CursorKind
         {
             if (root == null) return CursorKind.Arrow;
             if (dragMode == 1 || panning) return CursorKind.Arrow;
@@ -706,7 +706,7 @@ namespace FasetStudio.Ide
             return CursorKind.Arrow;
         }
 
-        int ToolAt(float px, float py)
+        func ToolAt(px: float, py: float) -> int
         {
             if (leftTab != 0 || px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
             int i = (int)Math.Floor((py - (Y + 52) + toolScroll) / ToolRow);
@@ -714,30 +714,30 @@ namespace FasetStudio.Ide
         }
 
         // Pestaña (0 herramientas, 1 esquema) bajo el punto, o -1.
-        int TabAt(float px, float py)
+        func TabAt(px: float, py: float) -> int
         {
             if (py < Y + 10 || py >= Y + 38 || px < X + 10 || px >= X + ToolboxWidth - 10) return -1;
             return px < X + ToolboxWidth / 2 ? 0 : 1;
         }
 
         // Fila del esquema bajo el punto, o -1.
-        int OutlineAt(float px, float py)
+        func OutlineAt(px: float, py: float) -> int
         {
             if (leftTab != 1 || px < X + 6 || px >= X + ToolboxWidth - 6 || py < Y + 52) return -1;
             int i = (int)Math.Floor((py - (Y + 52) + outlineScroll) / OutlineRow);
             return i >= 0 && i < outline.Count ? i : -1;
         }
 
-        void BuildOutline(UiNode n, int depth)
+        func BuildOutline(n: UiNode, depth: int)
         {
             outline.Add(n);
             outlineDepth.Add(depth);
             for (int i = 0; i < n.Children.Count; i++) BuildOutline(n.Children[i], depth + 1);
         }
 
-        static string KindAt(int i)
+        static func KindAt(i: int) -> string
         {
-            auto parts = Text.Split(kinds, "|");
+            var parts = Text.Split(kinds, "|");
             string k = parts[i];
             delete parts;
             return k;
@@ -745,17 +745,17 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ edición
 
-        static int Snap(int v) => showGrid ? (int)Math.Round(v / (double)Grid) * Grid : v;
+        static func Snap(v: int) -> int => showGrid ? (int)Math.Round(v / (double)Grid) * Grid : v;
 
-        float Z(float v) => v * zoom;
+        func Z(v: float) -> float => v * zoom;
 
         // Fuente de la vista previa a la escala del zoom.
-        Font ZFont(Renderer r, int size, bool bold) => r.Sans((int)Math.Round(size * zoom), bold);
+        func ZFont(r: Renderer, size: int, bold: bool) -> Font => r.Sans((int)Math.Round(size * zoom), bold);
 
         // Cambia el zoom al paso siguiente (dir > 0) o anterior, manteniendo fijo el punto bajo el ratón.
-        void ZoomStep(int dir, float px, float py)
+        func ZoomStep(dir: int, px: float, py: float)
         {
-            auto steps = Text.Split(zoomSteps, "|");
+            var steps = Text.Split(zoomSteps, "|");
             float next = zoom;
             if (dir > 0)
             {
@@ -779,7 +779,7 @@ namespace FasetStudio.Ide
             SetZoom(next, px, py);
         }
 
-        void SetZoom(float next, float px, float py)
+        func SetZoom(next: float, px: float, py: float)
         {
             if (root == null || next == zoom) return;
             Layout();
@@ -792,23 +792,23 @@ namespace FasetStudio.Ide
             Layout();
         }
 
-        void ToggleGrid()
+        func ToggleGrid()
         {
             showGrid = !showGrid;
             Settings.Set("designer.grid", showGrid ? "true" : "false");
         }
 
         // Barra del lienzo: 0 cuadrícula, 1 alejar, 2 porcentaje (100 %), 3 acercar; -1 fuera.
-        float BarX => CanvasX + CanvasW - 12 - 4 * 34;
-        float BarY => Y + H - 12 - BarH;
+        prop BarX: float => CanvasX + CanvasW - 12 - 4 * 34;
+        prop BarY: float => Y + H - 12 - BarH;
 
-        int BarAt(float px, float py)
+        func BarAt(px: float, py: float) -> int
         {
             if (py < BarY || py >= BarY + BarH || px < BarX || px >= BarX + 4 * 34) return -1;
             return (int)Math.Floor((px - BarX) / 34);
         }
 
-        void BarClick(int i)
+        func BarClick(i: int)
         {
             float cx = CanvasX + CanvasW / 2, cy = Y + H / 2;
             if (i == 0) ToggleGrid();
@@ -817,7 +817,7 @@ namespace FasetStudio.Ide
             else if (i == 3) ZoomStep(1, cx, cy);
         }
 
-        void DrawBar(Renderer r)
+        func DrawBar(r: Renderer)
         {
             float x = BarX, y = BarY;
             r.Shadow(x, y, 4 * 34, BarH, 8, 10, Color.Hex(0x000000, 0.4f));
@@ -867,14 +867,14 @@ namespace FasetStudio.Ide
             }
         }
 
-        void Select(UiNode n)
+        func Select(n: UiNode)
         {
             if (selected != n) CommitEdit();
             selected = n;
             RevealPages(n);
         }
 
-        string UniqueName(string kind)
+        func UniqueName(kind: string) -> string
         {
             if (kind == "Sound" || kind == "Music") return UniqueComponentName(kind);
             string prefix = kind == "Label" ? "label" : kind == "Button" ? "button" : kind == "TextBox" ? "textBox"
@@ -895,7 +895,7 @@ namespace FasetStudio.Ide
         }
 
         // Hijo sin nombre (página, nodo o elemento de menú) con un texto.
-        static UiNode Part(UiNode parent, string kind, string text)
+        static func Part(parent: UiNode, kind: string, text: string) -> UiNode
         {
             UiNode c = new UiNode(kind);
             if (text.Length > 0) c.Set("Text", text);
@@ -904,7 +904,7 @@ namespace FasetStudio.Ide
             return c;
         }
 
-        UiNode CreateNode(string kind)
+        func CreateNode(kind: string) -> UiNode
         {
             UiNode n = new UiNode(kind);
             if (kind == "TabPage" || kind == "TreeNode" || kind == "Menu" || kind == "MenuItem" || kind == "Separator")
@@ -1044,7 +1044,7 @@ namespace FasetStudio.Ide
             return n;
         }
 
-        void AddNode(string kind, UiNode parent, int x, int y)
+        func AddNode(kind: string, parent: UiNode, x: int, y: int)
         {
             string before = Snapshot();
             UiNode n = CreateNode(kind);
@@ -1066,7 +1066,7 @@ namespace FasetStudio.Ide
         }
 
         // Acciones de los botones "Añadir..." del panel de propiedades.
-        void RunAction(string action)
+        func RunAction(action: string)
         {
             if (selected == null) return;
             UiNode target = selected;
@@ -1099,7 +1099,7 @@ namespace FasetStudio.Ide
         }
 
         // Partes (páginas, nodos, elementos de menú): Ctrl+↑/↓ las cambia de orden.
-        void MoveSibling(int dir)
+        func MoveSibling(dir: int)
         {
             if (selected == null || selected.Parent == null) return;
             List<UiNode> list = selected.Parent.Children;
@@ -1112,7 +1112,7 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        void DeleteSelected()
+        func DeleteSelected()
         {
             if (selected == null || selected == root) return;
             string before = Snapshot();
@@ -1123,7 +1123,7 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        void DuplicateSelected()
+        func DuplicateSelected()
         {
             if (selected == null || selected == root) return;
             string before = Snapshot();
@@ -1141,7 +1141,7 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        void RenameTree(UiNode n)
+        func RenameTree(n: UiNode)
         {
             if (n.Has("Name"))
             {
@@ -1152,7 +1152,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < n.Children.Count; i++) RenameTree(n.Children[i]);
         }
 
-        void Nudge(int dx, int dy)
+        func Nudge(dx: int, dy: int)
         {
             if (!Placeable || !selected.Movable) return;
             string before = Snapshot();
@@ -1161,7 +1161,7 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        void CopySelected()
+        func CopySelected()
         {
             if (selected == null || selected == root) return;
             if (clipboardOwned) String.Free(clipboard);
@@ -1171,7 +1171,7 @@ namespace FasetStudio.Ide
         }
 
         // Pega dentro del panel seleccionado o junto al control seleccionado.
-        void Paste()
+        func Paste()
         {
             if (clipboard.Length == 0) return;
             string err;
@@ -1208,7 +1208,7 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        void RenameConflicts(UiNode n)
+        func RenameConflicts(n: UiNode)
         {
             if (n.Has("Name") && root.FindByName(n.Get("Name")) != null)
             {
@@ -1221,7 +1221,7 @@ namespace FasetStudio.Ide
 
         // Dónde va un control pegado: en el contenedor elegido, junto al control elegido o en la ventana.
         // Las partes solo se pegan en un padre de su tipo (una página en un TabControl...).
-        UiNode DropParent(UiNode n)
+        func DropParent(n: UiNode) -> UiNode
         {
             UiNode s = selected != null ? selected : root;
             if (n.IsComponent || n.Kind == "MenuBar") return root;
@@ -1238,7 +1238,7 @@ namespace FasetStudio.Ide
 
         // 0..5: alinear a la izquierda, centro, derecha, arriba, medio, abajo del contenedor;
         // 6: traer al frente; 7: enviar al fondo.
-        void Arrange(int what)
+        func Arrange(what: int)
         {
             if (!Placeable || !selected.Movable) return;
             UiNode p = selected.Parent;
@@ -1261,13 +1261,13 @@ namespace FasetStudio.Ide
             Commit(before);
         }
 
-        static string ArrangeTip(int i) =>
+        static func ArrangeTip(i: int) -> string =>
             i == 0 ? "Align left" : i == 1 ? "Center horizontally" : i == 2 ? "Align right" : i == 3 ? "Align top"
             : i == 4 ? "Center vertically" : i == 5 ? "Align bottom" : i == 6 ? "Bring to front" : "Send to back";
 
-        float ArrangeButtonWidth => (PropsWidth - 36) / 8;
+        prop ArrangeButtonWidth: float => (PropsWidth - 36) / 8;
 
-        int ArrangeAt(float px, float py)
+        func ArrangeAt(px: float, py: float) -> int
         {
             if (!Placeable || !selected.Movable) return -1;
             float ty = Y + ArrangeTop;
@@ -1277,7 +1277,7 @@ namespace FasetStudio.Ide
         }
 
         // Selecciona el siguiente (o anterior) control en el orden del esquema.
-        void SelectNext(bool back)
+        func SelectNext(back: bool)
         {
             outline.Clear();
             outlineDepth.Clear();
@@ -1290,7 +1290,7 @@ namespace FasetStudio.Ide
         }
 
         // Nombre del método para un evento: btnSave + Click -> OnSaveClick.
-        string HandlerName(UiNode n, string ev)
+        func HandlerName(n: UiNode, ev: string) -> string
         {
             string name = n.Get("Name");
             if (name.Length == 0) name = Identifier(n.Get("Text"));   // elementos de menú sin nombre: por su texto
@@ -1298,7 +1298,7 @@ namespace FasetStudio.Ide
             string pre = "btn|txt|lbl|chk|sld|prg|pnl|rad|rdo|cmb|cbo|lst|pic|img|tab|tv|tree|mnu|menu|tmr|cnv|ctx|" +
                          "button|textBox|label|checkBox|slider|progressBar|panel|radioButton|comboBox|listBox|pictureBox|tabControl|" +
                          "treeView|menuItem|menuBar|canvas|timer|contextMenu";
-            auto parts = Text.Split(pre, "|");
+            var parts = Text.Split(pre, "|");
             for (int i = 0; i < parts.Count; i++)
                 if (name.StartsWith(parts[i]) && name.Length > parts[i].Length && Char.IsUpper((char)name[parts[i].Length]))
                 {
@@ -1320,7 +1320,7 @@ namespace FasetStudio.Ide
         }
 
         // Letras y dígitos ASCII de un texto ("Guardar como..." -> "GuardarComo").
-        static string Identifier(string text)
+        static func Identifier(text: string) -> string
         {
             StringBuilder sb = new StringBuilder();
             bool upper = true;
@@ -1356,11 +1356,11 @@ namespace FasetStudio.Ide
         }
 
         // Parámetros del manejador de cada evento.
-        static string EventParams(string ev) =>
+        static func EventParams(ev: string) -> string =>
             ev == "MessageReceived" ? "Widget sender, string message" : ev == "Paint" ? "Widget sender, Graphics g" : (ev == "MouseDown" || ev == "MouseMove" || ev == "MouseUp" ? "Widget sender, MouseArgs e" : "Widget sender");
 
         // Pide abrir (o crear) el manejador del evento principal del control.
-        void OpenEvent(UiNode n, string ev)
+        func OpenEvent(n: UiNode, ev: string)
         {
             if (n == null || n == root || ev.Length == 0) return;
             RequestParams = EventParams(ev);
@@ -1377,7 +1377,7 @@ namespace FasetStudio.Ide
             RequestHandler = method;
         }
 
-        static string MainEvent(string kind) =>
+        static func MainEvent(kind: string) -> string =>
             kind == "WebView" ? "Navigated" : kind == "VideoPlayer" ? "Ended"
             : kind == "Sound" || kind == "Music" ? ""
             : kind == "TextBox" || kind == "Slider" || kind == "ComboBox" || kind == "ListBox" || kind == "RadioButton" ? "Changed"
@@ -1386,7 +1386,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ propiedades
 
-        void Def(List<PropDef> l, string key, int type, string options, string def, string section)
+        func Def(l: List<PropDef>, key: string, type: int, options: string, def: string, section: string)
         {
             PropDef d = new PropDef();
             d.Key = key;
@@ -1397,9 +1397,9 @@ namespace FasetStudio.Ide
             l.Add(d);
         }
 
-        List<PropDef> PropsFor(UiNode n)
+        func PropsFor(n: UiNode) -> List<PropDef>
         {
-            auto l = new List<PropDef>();
+            var l = new List<PropDef>();
             string k = n.Kind;
             if (k == "Window")
             {
@@ -1514,7 +1514,7 @@ namespace FasetStudio.Ide
         }
 
         // VideoPlayer: vídeo, disposición, colores y eventos propios (Opened, Ended, Failed).
-        List<PropDef> VideoProps(List<PropDef> l)
+        func VideoProps(l: List<PropDef>) -> List<PropDef>
         {
             Def(l, "Source", 0, "", "", "Video");
             Def(l, "AutoPlay", 3, "", "false", "Video");
@@ -1538,7 +1538,7 @@ namespace FasetStudio.Ide
         }
 
         // Propiedades de los componentes, de la barra de menús y de las partes (páginas, nodos, menús).
-        void PartProps(List<PropDef> l, UiNode n)
+        func PartProps(l: List<PropDef>, n: UiNode)
         {
             string k = n.Kind;
             if (k != "Separator") Def(l, "Name", 7, "", "", "Control");
@@ -1596,7 +1596,7 @@ namespace FasetStudio.Ide
         }
 
         // ContextMenu de un control: opciones con los <ContextMenu> de la ventana.
-        void ContextMenuProp(List<PropDef> l)
+        func ContextMenuProp(l: List<PropDef>)
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("(none)");
@@ -1616,17 +1616,17 @@ namespace FasetStudio.Ide
             else if (count > 3) Def(l, "ContextMenu", 7, "", "", "Behavior");
         }
 
-        PropDef FindDef(string key)
+        func FindDef(key: string) -> PropDef
         {
             PropDef found = new PropDef();
-            auto defs = PropsFor(selected);
+            var defs = PropsFor(selected);
             for (int i = 0; i < defs.Count; i++)
                 if (defs[i].Key == key) found = defs[i];
             delete defs;
             return found;
         }
 
-        void BeginEdit(PropRow row)
+        func BeginEdit(row: PropRow)
         {
             CommitEdit();
             String.Free(editingKey);
@@ -1635,14 +1635,14 @@ namespace FasetStudio.Ide
             field.Focused = true;
         }
 
-        void CancelEdit()
+        func CancelEdit()
         {
             String.Free(editingKey);
             editingKey = String.Copy("");
             field.Focused = false;
         }
 
-        static bool IsIdentifier(string s)
+        static func IsIdentifier(s: string) -> bool
         {
             if (s.Length == 0 || !(Char.IsLetter((char)s[0]) || s[0] == '_')) return false;
             for (int i = 0; i < s.Length; i++)
@@ -1651,7 +1651,7 @@ namespace FasetStudio.Ide
         }
 
         // Aplica el valor del campo en edición.
-        void CommitEdit()
+        func CommitEdit()
         {
             if (!Editing || selected == null)
             {
@@ -1683,7 +1683,7 @@ namespace FasetStudio.Ide
             String.Free(v);
         }
 
-        void SetProp(string key, string value)
+        func SetProp(key: string, value: string)
         {
             string before = Snapshot();
             if (value == "(none)") selected.Remove(key);
@@ -1692,7 +1692,7 @@ namespace FasetStudio.Ide
         }
 
         // "#RGB", "#RRGGBB" o "#RRGGBBAA".
-        public static bool ParseColor(string s, out Color c)
+        public static func ParseColor(s: string, out c: Color) -> bool
         {
             c = new Color(0, 0, 0, 0);
             if (s.Length < 4 || s[0] != '#') return false;
@@ -1718,7 +1718,7 @@ namespace FasetStudio.Ide
         }
 
         // Color de una propiedad del nodo, o 'def' si no tiene.
-        static Color NodeColor(UiNode n, string key, Color def)
+        static func NodeColor(n: UiNode, key: string, def: Color) -> Color
         {
             Color c = def;
             if (n.Has(key) && !ParseColor(n.Get(key), out c)) c = def;
@@ -1726,7 +1726,7 @@ namespace FasetStudio.Ide
         }
 
         // Fondo propio del nodo (sólido o degradado); false si usa el del tema.
-        bool FillNodeBackground(Renderer r, UiNode n, float x, float y, float w, float h, float rad)
+        func FillNodeBackground(r: Renderer, n: UiNode, x: float, y: float, w: float, h: float, rad: float) -> bool
         {
             Color a = new Color(0, 0, 0, 0);
             if (!n.Has("Background") || !ParseColor(n.Get("Background"), out a)) return false;
@@ -1737,7 +1737,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        void OpenColorPopup(PropRow row)
+        func OpenColorPopup(row: PropRow)
         {
             String.Free(colorKey);
             colorKey = String.Copy(row.Key);
@@ -1747,14 +1747,14 @@ namespace FasetStudio.Ide
             if (colorPopY + ph > Y + H - 8) colorPopY = row.Y - ph - 2;
         }
 
-        void CloseColorPopup()
+        func CloseColorPopup()
         {
             String.Free(colorKey);
             colorKey = String.Copy("");
         }
 
         // Clic dentro de la paleta: true si la usó.
-        bool ColorPopupMouse(float px, float py)
+        func ColorPopupMouse(px: float, py: float) -> bool
         {
             float pw = 8 * (SwatchSize + 4) + 12, ph = 4 * (SwatchSize + 4) + 54;
             if (px < colorPopX || py < colorPopY || px >= colorPopX + pw || py >= colorPopY + ph) return false;
@@ -1773,7 +1773,7 @@ namespace FasetStudio.Ide
             int rowI = (int)Math.Floor((py - colorPopY - 8) / (SwatchSize + 4));
             if (col >= 0 && col < 8 && rowI >= 0 && rowI < 4)
             {
-                auto parts = Text.Split(swatches, "|");
+                var parts = Text.Split(swatches, "|");
                 SetProp(key, parts[rowI * 8 + col]);
                 delete parts;
                 CloseColorPopup();
@@ -1782,14 +1782,14 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        void DrawColorPopup(Renderer r)
+        func DrawColorPopup(r: Renderer)
         {
             float pw = 8 * (SwatchSize + 4) + 12, ph = 4 * (SwatchSize + 4) + 54;
             float x = colorPopX, y = colorPopY;
             r.Shadow(x, y, pw, ph, 10, 18, Color.Hex(0x000000, 0.6f));
             r.RoundRect(x, y, pw, ph, 10, Theme.Elevated);
             r.RoundBorder(x, y, pw, ph, 10, 1, Theme.BorderStrong);
-            auto parts = Text.Split(swatches, "|");
+            var parts = Text.Split(swatches, "|");
             string cur = selected.Get(colorKey).ToLower();
             for (int i = 0; i < parts.Count; i++)
             {
@@ -1811,13 +1811,13 @@ namespace FasetStudio.Ide
         }
 
         // Muestra vacía: cuadro con una diagonal.
-        static void DrawNoneSwatch(Renderer r, float x, float y, float s)
+        static func DrawNoneSwatch(r: Renderer, x: float, y: float, s: float)
         {
             r.RoundBorder(x, y, s, s, 4, 1.2f, Theme.TextTertiary);
             for (int i = 2; i < (int)s - 2; i++) r.Rect(x + s - 1 - i, y + i, 1.5f, 1.5f, Theme.Error);
         }
 
-        void ToggleAnchor(string flag)
+        func ToggleAnchor(flag: string)
         {
             string cur = selected.Has("Anchor") ? selected.Get("Anchor") : "Left,Top";
             bool l = cur.Contains("Left"), t = cur.Contains("Top"), r = cur.Contains("Right"), b = cur.Contains("Bottom");
@@ -1842,7 +1842,7 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ ratón y teclado
 
-        public void MouseDown(float px, float py, int clicks, bool shift, bool ctrl)
+        public func MouseDown(px: float, py: float, clicks: int, shift: bool, ctrl: bool)
         {
             mouseX = px;
             mouseY = py;
@@ -1946,9 +1946,9 @@ namespace FasetStudio.Ide
             undoBefore = Snapshot();
         }
 
-        string undoBefore = String.Copy("");
+        var undoBefore: string = String.Copy("");
 
-        void SaveOrig(UiNode n)
+        func SaveOrig(n: UiNode)
         {
             origX = n.Int("X", 0);
             origY = n.Int("Y", 0);
@@ -1956,7 +1956,7 @@ namespace FasetStudio.Ide
             origH = n.Int("Height", 32);
         }
 
-        public void MouseMove(float px, float py, bool down, bool ctrl)
+        public func MouseMove(px: float, py: float, down: bool, ctrl: bool)
         {
             mouseX = px;
             mouseY = py;
@@ -2033,7 +2033,7 @@ namespace FasetStudio.Ide
 
         // Ajusta una posición a los bordes y centros de los vecinos y del contenedor (guías
         // inteligentes); si no hay ninguno cerca, a la cuadrícula.
-        int SnapAxis(UiNode n, int pos, int size, bool horizontal)
+        func SnapAxis(n: UiNode, pos: int, size: int, horizontal: bool) -> int
         {
             UiNode parent = n.Parent;
             int best = 7, result = Snap(pos);
@@ -2075,7 +2075,7 @@ namespace FasetStudio.Ide
             return result;
         }
 
-        int SnapEdge(UiNode n, int edge, bool horizontal)
+        func SnapEdge(n: UiNode, edge: int, horizontal: bool) -> int
         {
             UiNode parent = n.Parent;
             int best = 7, result = Snap(edge);
@@ -2107,7 +2107,7 @@ namespace FasetStudio.Ide
             return result;
         }
 
-        public void MouseUp(float px, float py)
+        public func MouseUp(px: float, py: float)
         {
             if (panning)
             {
@@ -2171,7 +2171,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        public void Scroll(float px, float py, int lines, bool shift, bool ctrl)
+        public func Scroll(px: float, py: float, lines: int, shift: bool, ctrl: bool)
         {
             if (ctrl && px >= CanvasX && px < PropsX)
             {
@@ -2195,7 +2195,7 @@ namespace FasetStudio.Ide
         }
 
         // Botón central pulsado sobre el lienzo: empieza a mover la vista.
-        public void PanStart(float px, float py)
+        public func PanStart(px: float, py: float)
         {
             if (root == null || px < CanvasX || px >= PropsX) return;
             panning = true;
@@ -2205,10 +2205,10 @@ namespace FasetStudio.Ide
             panScrollY = scrollY;
         }
 
-        public bool Panning => panning;
+        public prop Panning: bool => panning;
 
         // La ventana diseñada puede moverse hasta media vista más allá de cada borde, sin perderse.
-        void ClampScroll()
+        func ClampScroll()
         {
             if (root == null) return;
             float cw = CanvasW, ch = H;
@@ -2219,7 +2219,7 @@ namespace FasetStudio.Ide
             scrollY = (float)Math.Clamp((double)scrollY, (double)minY, (double)maxY);
         }
 
-        void PropsMouse(float px, float py)
+        func PropsMouse(px: float, py: float)
         {
             if (selected == null) return;
             if (colorKey.Length > 0)
@@ -2269,14 +2269,14 @@ namespace FasetStudio.Ide
                 }
                 else if (row.Type == 4)
                 {
-                    auto opts = Text.Split(row.Options, "|");
+                    var opts = Text.Split(row.Options, "|");
                     int idx = (int)Math.Floor((px - row.VX) / (row.VW / opts.Count));
                     if (idx >= 0 && idx < opts.Count) SetProp(row.Key, opts[idx]);
                     delete opts;
                 }
                 else if (row.Type == 9)
                 {
-                    auto opts = Text.Split(row.Options, "|");
+                    var opts = Text.Split(row.Options, "|");
                     int idx = (int)Math.Floor((px - (row.VX - 94)) / ((row.VW + 94) / opts.Count));
                     if (idx >= 0 && idx < opts.Count) RunAction(opts[idx]);
                     delete opts;
@@ -2300,7 +2300,7 @@ namespace FasetStudio.Ide
         }
 
         // Devuelve true si el diseñador usó la tecla.
-        public bool Key(Event e)
+        public func Key(e: Event) -> bool
         {
             if (root == null) return false;
             uint k = e.Key;
@@ -2397,7 +2397,7 @@ namespace FasetStudio.Ide
         // ------------------------------------------------------------------ dibujo
 
         // Paleta de std.ui (debe coincidir con lib/std/ui.fst).
-        Color Pal(int which)
+        func Pal(which: int) -> Color
         {
             bool light = root != null && root.Get("Theme").ToLower() == "light";
             switch (which)
@@ -2416,9 +2416,9 @@ namespace FasetStudio.Ide
             }
         }
 
-        static Color Accent => Color.Hex(0x4c8dff);
+        static prop Accent: Color => Color.Hex(0x4c8dff);
 
-        public void Draw(Renderer r)
+        public func Draw(r: Renderer)
         {
             Sync();
             r.PushClip(X, Y, W, H);
@@ -2442,7 +2442,7 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        void DrawError(Renderer r)
+        func DrawError(r: Renderer)
         {
             r.Rect(X, Y, W, H, Theme.Base);
             float cx = X + W / 2;
@@ -2453,7 +2453,7 @@ namespace FasetStudio.Ide
             r.Text(r.Ui, cx - r.TextWidth(r.Ui, hint) / 2, Y + H / 2 + 12, hint, Theme.TextTertiary);
         }
 
-        void DrawDots(Renderer r)
+        func DrawDots(r: Renderer)
         {
             Color dot = Color.Hex(0xffffff, 0.05f);
             float step = 16;
@@ -2463,7 +2463,7 @@ namespace FasetStudio.Ide
                 for (float x = sx; x < CanvasX + CanvasW; x += step) r.Rect(x, y, 1.5f, 1.5f, dot);
         }
 
-        void DrawWindow(Renderer r)
+        func DrawWindow(r: Renderer)
         {
             float w = root.Int("Width", 800) * zoom, h = root.Int("Height", 600) * zoom;
             float tb = TitleBar * zoom;
@@ -2554,7 +2554,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        static string Pair(int a, string sep, int b)
+        static func Pair(a: int, sep: string, b: int) -> string
         {
             string sa = Convert.ToString(a), sb = Convert.ToString(b);
             string r = String.Concat(sa, sep, sb);
@@ -2564,23 +2564,23 @@ namespace FasetStudio.Ide
         }
 
         // Elemento i de una lista "a;b;c" (copia; "" si no existe).
-        static string ItemAt(string list, int i)
+        static func ItemAt(list: string, i: int) -> string
         {
             if (i < 0 || list.Length == 0) return String.Copy("");
-            auto parts = Text.Split(list, ";");
+            var parts = Text.Split(list, ";");
             string r = i < parts.Count ? String.Copy(parts[i].Trim()) : String.Copy("");
             delete parts;
             return r;
         }
 
-        void CenteredText(Renderer r, Font f, string s, float x, float y, float w, float h, int align, Color c)
+        func CenteredText(r: Renderer, f: Font, s: string, x: float, y: float, w: float, h: float, align: int, c: Color)
         {
             float tw = r.TextWidth(f, s);
             float tx = align == 1 ? x + (w - tw) / 2 : (align == 2 ? x + w - tw : x);
             r.Text(f, tx, y + (h - (f.Ascent + f.Descent)) / 2 - 1, s, c);
         }
 
-        void DrawNode(Renderer r, UiNode n, float ox, float oy)
+        func DrawNode(r: Renderer, n: UiNode, ox: float, oy: float)
         {
             if (n.IsComponent) return;   // se dibujan en la bandeja (DrawTray)
             float x = ox + n.Int("X", 0) * zoom, y = oy + n.Int("Y", 0) * zoom;
@@ -2744,7 +2744,7 @@ namespace FasetStudio.Ide
                 float rad = Z(n.Int("CornerRadius", 8));
                 if (!FillNodeBackground(r, n, x, y, w, h, rad)) r.RoundRect(x, y, w, h, rad, Pal(4));
                 r.RoundBorder(x, y, w, h, rad, 1, border2);
-                auto items = Text.Split(n.Get("Items"), ";");
+                var items = Text.Split(n.Get("Items"), ";");
                 int sel = n.Int("SelectedIndex", -1);
                 float rh = ((float)Math.Ceiling(r.Sans(fs, false).Ascent + r.Sans(fs, false).Descent) + 14) * zoom;
                 r.PushClip(x + 1, y + 1, w - 2, h - 2);
@@ -2790,7 +2790,7 @@ namespace FasetStudio.Ide
 
         // VideoPlayer en el diseñador: fondo oscuro, fotograma de película con "reproducir",
         // el nombre del archivo y una barra de controles de muestra (si ShowControls).
-        void DrawVideoNode(Renderer r, UiNode n, float x, float y, float w, float h)
+        func DrawVideoNode(r: Renderer, n: UiNode, x: float, y: float, w: float, h: float)
         {
             r.Rect(x, y, w, h, NodeColor(n, "Background", Color.Hex(0x000000)));
             if (n.Has("BorderColor")) r.RoundBorder(x, y, w, h, 0, 1, NodeColor(n, "BorderColor", Pal(2)));
@@ -2832,7 +2832,7 @@ namespace FasetStudio.Ide
         }
 
         // Triángulo de "reproducir" con columnas de 1 px (el renderer no tiene polígonos).
-        static void PlayGlyph(Renderer r, float cx, float cy, float s, Color c)
+        static func PlayGlyph(r: Renderer, cx: float, cy: float, s: float, c: Color)
         {
             float left = cx - s * 0.75f, len = s * 1.75f;
             for (float dx = 0; dx < len; dx += 1)
@@ -2844,17 +2844,17 @@ namespace FasetStudio.Ide
 
         // ------------------------------------------------------------------ controles nuevos: vista previa
 
-        static Dictionary<string, std.ui.Image> previews = new Dictionary<string, std.ui.Image>();
+        static var previews: Dictionary<string, std.ui.Image> = new Dictionary<string, std.ui.Image>();
         // Pestañas dibujadas en el último fotograma (para el ratón): nodo, índice (-2 = '+'), x y ancho.
-        List<UiNode> tabNodes = new List<UiNode>();
-        List<int> tabIndex = new List<int>();
-        List<float> tabX = new List<float>();
-        List<float> tabW = new List<float>();
+        var tabNodes: List<UiNode> = new List<UiNode>();
+        var tabIndex: List<int> = new List<int>();
+        var tabX: List<float> = new List<float>();
+        var tabW: List<float> = new List<float>();
         // Elementos de los menús desplegados en el diseñador (para el ratón).
-        List<UiNode> popupItems = new List<UiNode>();
+        var popupItems: List<UiNode> = new List<UiNode>();
 
         // Imagen de Source/Icon, relativa a la carpeta del .fstui o a una superior (la del proyecto).
-        std.ui.Image Preview(string rel)
+        func Preview(rel: string) -> std.ui.Image
         {
             if (rel.Length == 0) return null;
             string dir = Path.GetDirectoryName(Doc.FullPath);
@@ -2879,7 +2879,7 @@ namespace FasetStudio.Ide
 
         // Dibuja la región (sx, sy, sw, sh) de la imagen en un rectángulo de la pantalla como una rejilla
         // de celdas de color (el renderizador solo tiene una textura de imagen: la del dispositivo Android).
-        void DrawPreviewImage(Renderer r, std.ui.Image img, float sx, float sy, float sw, float sh, float dx, float dy, float dw, float dh)
+        func DrawPreviewImage(r: Renderer, img: std.ui.Image, sx: float, sy: float, sw: float, sh: float, dx: float, dy: float, dw: float, dh: float)
         {
             if (img == null || dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
             int cols = (int)Math.Clamp((double)(dw / 3), 1.0, 110.0), rows = (int)Math.Clamp((double)(dh / 3), 1.0, 110.0);
@@ -2906,7 +2906,7 @@ namespace FasetStudio.Ide
         }
 
         // Imagen de un PictureBox según su SizeMode (como Widget.DrawPictureBox de std.ui).
-        void DrawPicture(Renderer r, std.ui.Image img, string mode, float x, float y, float w, float h)
+        func DrawPicture(r: Renderer, img: std.ui.Image, mode: string, x: float, y: float, w: float, h: float)
         {
             float iw = img.Width, ih = img.Height;
             if (mode == "Stretch") DrawPreviewImage(r, img, 0, 0, iw, ih, x, y, w, h);
@@ -2933,14 +2933,14 @@ namespace FasetStudio.Ide
         }
 
         // Pestaña de un TabControl bajo el punto (último fotograma): índice, -2 para '+', -1 nada.
-        int TabHeaderAt(UiNode tabs, float px)
+        func TabHeaderAt(tabs: UiNode, px: float) -> int
         {
             for (int i = 0; i < tabNodes.Count; i++)
                 if (tabNodes[i] == tabs && px >= tabX[i] && px < tabX[i] + tabW[i]) return tabIndex[i];
             return -1;
         }
 
-        void DrawNewKind(Renderer r, UiNode n, float x, float y, float w, float h, Font f, Color fg, Color accent, Color border2)
+        func DrawNewKind(r: Renderer, n: UiNode, x: float, y: float, w: float, h: float, f: Font, fg: Color, accent: Color, border2: Color)
         {
             string k = n.Kind;
             if (k == "PictureBox")
@@ -3071,7 +3071,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DrawTreeRows(Renderer r, UiNode t, int depth, float x, float w, float rh, Font f, Color fg, ref float ry, float bottom, bool shown)
+        func DrawTreeRows(r: Renderer, t: UiNode, depth: int, x: float, w: float, rh: float, f: Font, fg: Color, ref ry: float, bottom: float, shown: bool)
         {
             if (t.Kind != "TreeNode") return;
             if (!shown || ry > bottom)
@@ -3104,11 +3104,11 @@ namespace FasetStudio.Ide
         }
 
         // Menús desplegados en el diseñador: los del elemento elegido (y sus menús padre).
-        void DrawMenuPreview(Renderer r)
+        func DrawMenuPreview(r: Renderer)
         {
             popupItems.Clear();
             if (selected == null) return;
-            auto chain = new List<UiNode>();
+            var chain = new List<UiNode>();
             for (UiNode p = selected; p != null && p != root; p = p.Parent)
                 if (p.Kind == "ContextMenu" || (p.IsMenuEntry && p.Kind != "Separator" && p.Children.Count > 0)) chain.Insert(0, p);
             float px = 0, py = 0, lastRight = 0;
@@ -3140,7 +3140,7 @@ namespace FasetStudio.Ide
             delete chain;
         }
 
-        float PopupHeight(UiNode m)
+        func PopupHeight(m: UiNode) -> float
         {
             float h = Z(10);
             for (int i = 0; i < m.Children.Count; i++)
@@ -3153,7 +3153,7 @@ namespace FasetStudio.Ide
         }
 
         // Devuelve el borde derecho del menú dibujado.
-        float DrawPopup(Renderer r, UiNode m, float x, float y)
+        func DrawPopup(r: Renderer, m: UiNode, x: float, y: float) -> float
         {
             Font f = ZFont(r, m.Int("FontSize", 14), false);
             float w = Z(180);
@@ -3230,7 +3230,7 @@ namespace FasetStudio.Ide
         }
 
         // Elemento de un menú desplegado bajo el punto (o null).
-        UiNode PopupHit(float px, float py)
+        func PopupHit(px: float, py: float) -> UiNode
         {
             for (int i = popupItems.Count - 1; i >= 0; i--)
             {
@@ -3241,7 +3241,7 @@ namespace FasetStudio.Ide
         }
 
         // Bandeja de componentes (Timer, ContextMenu...) bajo la ventana diseñada.
-        void DrawTray(Renderer r, float x, float y, float w)
+        func DrawTray(r: Renderer, x: float, y: float, w: float)
         {
             int count = 0;
             for (int i = 0; i < root.Children.Count; i++)
@@ -3270,7 +3270,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DrawToolbox(Renderer r)
+        func DrawToolbox(r: Renderer)
         {
             r.Rect(X, Y, ToolboxWidth, H, Theme.Surface);
             r.Rect(X + ToolboxWidth - 1, Y, 1, H, Theme.Border);
@@ -3288,7 +3288,7 @@ namespace FasetStudio.Ide
             if (leftTab == 1) DrawOutline(r);
             else
             {
-                auto parts = Text.Split(kinds, "|");
+                var parts = Text.Split(kinds, "|");
                 for (int i = 0; i < parts.Count; i++)
                 {
                     float iy = Y + 52 + i * ToolRow - toolScroll;
@@ -3309,7 +3309,7 @@ namespace FasetStudio.Ide
                     r.Rect(X + 16, hy, ToolboxWidth - 32, 1, Theme.Border);
                     string hints = "Drag a control onto the window|Double-click: go to its event|Ctrl while dragging: no snapping|" +
                                    "Ctrl+D duplicate · Del delete|Ctrl+C / Ctrl+V copy and paste|Tab: next control|Wheel: scroll · middle button: pan|G: grid · Ctrl+wheel: zoom";
-                    auto lines = Text.Split(hints, "|");
+                    var lines = Text.Split(hints, "|");
                     for (int i = 0; i < lines.Count && hy + 14 + i * 18 + 16 <= Y + H; i++)
                         r.Text(r.UiSmall, X + 16, hy + 14 + i * 18, L.T(lines[i]), Theme.TextTertiary);
                     delete lines;
@@ -3319,7 +3319,7 @@ namespace FasetStudio.Ide
         }
 
         // Árbol de controles: clic para seleccionar, doble clic para ir al evento.
-        void DrawOutline(Renderer r)
+        func DrawOutline(r: Renderer)
         {
             outline.Clear();
             outlineDepth.Clear();
@@ -3354,7 +3354,7 @@ namespace FasetStudio.Ide
         }
 
         // Vista previa del WebView: marco de navegador con la dirección (la página se ve al ejecutar).
-        void DrawWebViewNode(Renderer r, UiNode n, float x, float y, float w, float h, Color border)
+        func DrawWebViewNode(r: Renderer, n: UiNode, x: float, y: float, w: float, h: float, border: Color)
         {
             float rad = Z(n.Int("CornerRadius", 8));
             r.RoundRect(x, y, w, h, rad, NodeColor(n, "Background", Pal(1)));
@@ -3391,7 +3391,7 @@ namespace FasetStudio.Ide
             r.PopClip();
         }
 
-        void DrawToolIcon(Renderer r, string kind, float x, float y)
+        func DrawToolIcon(r: Renderer, kind: string, x: float, y: float)
         {
             Color c = Theme.TextSecondary;
             Color dim = Theme.BorderStrong;
@@ -3517,7 +3517,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        void DrawGhost(Renderer r)
+        func DrawGhost(r: Renderer)
         {
             UiNode tmp = CreateNode(newKind);
             float w = tmp.Int("Width", 100) * zoom, h = tmp.Int("Height", 32) * zoom;
@@ -3528,7 +3528,7 @@ namespace FasetStudio.Ide
             CenteredText(r, r.UiSmall, L.T(newKind), gx, gy, w, h, 1, Color.Hex(0xffffff));
         }
 
-        void DrawProps(Renderer r)
+        func DrawProps(r: Renderer)
         {
             float px = PropsX;
             r.Rect(px, Y, PropsWidth, H, Theme.Surface);
@@ -3552,7 +3552,7 @@ namespace FasetStudio.Ide
                 top = Y + ArrangeTop + 38;
             }
             r.PushClip(px, top, PropsWidth, H - (top - Y));
-            auto defs = PropsFor(selected);
+            var defs = PropsFor(selected);
             float y = top + 4 - propsScroll;
             string section = "";
             float lx = px + 18, vx = px + 112, vw = PropsWidth - 112 - 16;
@@ -3577,7 +3577,7 @@ namespace FasetStudio.Ide
                 if (d.Type == 9)
                 {
                     // Botones de acción ("Añadir página"...): ocupan toda la fila.
-                    auto acts = Text.Split(d.Options, "|");
+                    var acts = Text.Split(d.Options, "|");
                     float aw = (vw + (vx - lx)) / acts.Count;
                     for (int o = 0; o < acts.Count; o++)
                     {
@@ -3645,7 +3645,7 @@ namespace FasetStudio.Ide
                 }
                 else if (d.Type == 4)
                 {
-                    auto opts = Text.Split(d.Options, "|");
+                    var opts = Text.Split(d.Options, "|");
                     float ow = vw / opts.Count;
                     r.RoundRect(vx, y + 1, vw, 34, 8, Theme.Base);
                     for (int o = 0; o < opts.Count; o++)
@@ -3689,7 +3689,7 @@ namespace FasetStudio.Ide
             if (arrangeHover >= 0 && selected != root) DrawTip(r, L.T(ArrangeTip(arrangeHover)), px + 18 + arrangeHover * ArrangeButtonWidth, Y + ArrangeTop + 34);
         }
 
-        void DrawTip(Renderer r, string tip, float x, float y)
+        func DrawTip(r: Renderer, tip: string, x: float, y: float)
         {
             float tw = r.TextWidth(r.UiSmall, tip) + 16;
             if (x + tw > X + W - 8) x = X + W - 8 - tw;
@@ -3700,7 +3700,7 @@ namespace FasetStudio.Ide
         }
 
         // Alinear en el contenedor (izq., centro, der., arriba, medio, abajo) y orden (frente, fondo).
-        void DrawArrangeBar(Renderer r, float x, float y)
+        func DrawArrangeBar(r: Renderer, x: float, y: float)
         {
             float bw = ArrangeButtonWidth;
             r.RoundRect(x, y, bw * 8, 30, 8, Theme.Base);

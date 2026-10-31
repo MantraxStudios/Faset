@@ -9,29 +9,29 @@ namespace FasetStudio.Ide
 {
     public struct TextPos
     {
-        public int Line;
-        public int Col;
+        public var Line: int;
+        public var Col: int;
 
-        public TextPos(int line, int col) { Line = line; Col = col; }
+        public init(line: int, col: int) { Line = line; Col = col; }
 
-        public static bool operator ==(TextPos a, TextPos b) => a.Line == b.Line && a.Col == b.Col;
-        public static bool operator <(TextPos a, TextPos b) => a.Line < b.Line || (a.Line == b.Line && a.Col < b.Col);
-        public static bool operator <=(TextPos a, TextPos b) => a < b || a == b;
-        public static TextPos Min(TextPos a, TextPos b) => a < b ? a : b;
-        public static TextPos Max(TextPos a, TextPos b) => a < b ? b : a;
+        public operator ==(a: TextPos, b: TextPos) -> bool => a.Line == b.Line && a.Col == b.Col;
+        public operator <(a: TextPos, b: TextPos) -> bool => a.Line < b.Line || (a.Line == b.Line && a.Col < b.Col);
+        public operator <=(a: TextPos, b: TextPos) -> bool => a < b || a == b;
+        public static func Min(a: TextPos, b: TextPos) -> TextPos => a < b ? a : b;
+        public static func Max(a: TextPos, b: TextPos) -> TextPos => a < b ? b : a;
     }
 
     public memory_unsafe class Line
     {
-        public byte* Data;
-        public int Length;
-        int capacity;
+        public var Data: byte*;
+        public var Length: int;
+        var capacity: int;
 
-        ~Line() { Memory.Free(Data); }
+        deinit { Memory.Free(Data); }
 
-        public string View => String.FromBytes(Data, Length);
+        public prop View: string => String.FromBytes(Data, Length);
 
-        void Reserve(int n)
+        func Reserve(n: int)
         {
             if (n <= capacity) return;
             int c = capacity < 16 ? 16 : capacity;
@@ -40,7 +40,7 @@ namespace FasetStudio.Ide
             capacity = c;
         }
 
-        public void Insert(int at, string s)
+        public func Insert(at: int, s: string)
         {
             if (s.Length == 0) return;
             Reserve(Length + s.Length);
@@ -49,44 +49,44 @@ namespace FasetStudio.Ide
             Length += s.Length;
         }
 
-        public void Delete(int at, int count)
+        public func Delete(at: int, count: int)
         {
             if (count <= 0) return;
             Memory.Copy(Data + at, Data + at + count, Length - at - count);
             Length -= count;
         }
 
-        public void Append(string s) { Insert(Length, s); }
-        public void Truncate(int n) { if (n < Length) Length = n; }
+        public func Append(s: string) { Insert(Length, s); }
+        public func Truncate(n: int) { if (n < Length) Length = n; }
     }
 
     // Una operación de edición, para deshacer.
     class EditRecord
     {
-        public bool IsInsert;
-        public TextPos Start;
-        public string Text;  // copia propia
-        public TextPos CursorBefore;
-        public TextPos CursorAfter;
-        public int Group;
+        public var IsInsert: bool;
+        public var Start: TextPos;
+        public var Text: string;  // copia propia
+        public var CursorBefore: TextPos;
+        public var CursorAfter: TextPos;
+        public var Group: int;
 
-        ~EditRecord() { String.Free(Text); }
+        deinit { String.Free(Text); }
     }
 
     public memory_unsafe class TextBuffer
     {
-        public List<Line> Lines = new List<Line>();
-        List<EditRecord> undo = new List<EditRecord>();
-        List<EditRecord> redo = new List<EditRecord>();
-        int group;
-        bool recording = true;
+        public var Lines: List<Line> = new List<Line>();
+        var undo: List<EditRecord> = new List<EditRecord>();
+        var redo: List<EditRecord> = new List<EditRecord>();
+        var group: int;
+        var recording: bool = true;
 
-        public int Version;        // cambia con cada edición
-        public int SavedVersion;   // versión guardada en disco
+        public var Version: int;        // cambia con cada edición
+        public var SavedVersion: int;   // versión guardada en disco
 
-        public TextBuffer() { Lines.Add(new Line()); }
+        public init() { Lines.Add(new Line()); }
 
-        ~TextBuffer()
+        deinit
         {
             for (int i = 0; i < Lines.Count; i++) delete Lines[i];
             delete Lines;
@@ -95,12 +95,12 @@ namespace FasetStudio.Ide
             delete redo;
         }
 
-        public int LineCount => Lines.Count;
-        public bool Modified => Version != SavedVersion;
-        public string LineText(int i) => Lines[i].View;
-        public int LineLength(int i) => Lines[i].Length;
+        public prop LineCount: int => Lines.Count;
+        public prop Modified: bool => Version != SavedVersion;
+        public func LineText(i: int) -> string => Lines[i].View;
+        public func LineLength(i: int) -> int => Lines[i].Length;
 
-        public void ClearHistory()
+        public func ClearHistory()
         {
             for (int i = 0; i < undo.Count; i++) delete undo[i];
             for (int i = 0; i < redo.Count; i++) delete redo[i];
@@ -109,10 +109,10 @@ namespace FasetStudio.Ide
         }
 
         // Cada acción del usuario es un grupo: se deshace de una vez.
-        public void NewGroup() { group++; }
-        public int CurrentGroup => group;
+        public func NewGroup() { group++; }
+        public prop CurrentGroup: int => group;
 
-        public TextPos Clamp(TextPos p)
+        public func Clamp(p: TextPos) -> TextPos
         {
             if (p.Line < 0) return new TextPos(0, 0);
             if (p.Line >= Lines.Count) return new TextPos(Lines.Count - 1, Lines.Last().Length);
@@ -121,10 +121,10 @@ namespace FasetStudio.Ide
             return p;
         }
 
-        public TextPos End => new TextPos(Lines.Count - 1, Lines.Last().Length);
+        public prop End: TextPos => new TextPos(Lines.Count - 1, Lines.Last().Length);
 
         // Inserta texto (puede tener saltos de línea) y devuelve la posición final.
-        public TextPos Insert(TextPos p, string text, TextPos cursorBefore)
+        public func Insert(p: TextPos, text: string, cursorBefore: TextPos) -> TextPos
         {
             p = Clamp(p);
             TextPos start = p;
@@ -160,7 +160,7 @@ namespace FasetStudio.Ide
             return p;
         }
 
-        public void Delete(TextPos a, TextPos b, TextPos cursorBefore)
+        public func Delete(a: TextPos, b: TextPos, cursorBefore: TextPos)
         {
             a = Clamp(a);
             b = Clamp(b);
@@ -189,7 +189,7 @@ namespace FasetStudio.Ide
         }
 
         // Texto entre dos posiciones (copia: libérala con String.Free).
-        public string GetText(TextPos a, TextPos b)
+        public func GetText(a: TextPos, b: TextPos) -> string
         {
             a = Clamp(a);
             b = Clamp(b);
@@ -213,10 +213,10 @@ namespace FasetStudio.Ide
             return r;
         }
 
-        public string GetAll() => GetText(new TextPos(0, 0), End);
+        public func GetAll() -> string => GetText(new TextPos(0, 0), End);
 
         // Reemplaza todo el contenido sin registrar en el historial.
-        public void SetAll(string text)
+        public func SetAll(text: string)
         {
             for (int i = 0; i < Lines.Count; i++) delete Lines[i];
             Lines.Clear();
@@ -229,7 +229,7 @@ namespace FasetStudio.Ide
             SavedVersion = Version;
         }
 
-        void Record(bool isInsert, TextPos start, string text, TextPos before, TextPos after)
+        func Record(isInsert: bool, start: TextPos, text: string, before: TextPos, after: TextPos)
         {
             EditRecord r = new EditRecord();
             r.IsInsert = isInsert;
@@ -244,7 +244,7 @@ namespace FasetStudio.Ide
         }
 
         // Fusiona la última inserción con un carácter escrito justo después (escritura continua).
-        public bool CanMergeTyping(TextPos at)
+        public func CanMergeTyping(at: TextPos) -> bool
         {
             if (undo.Count == 0) return false;
             EditRecord last = undo.Last();
@@ -252,7 +252,7 @@ namespace FasetStudio.Ide
                    !last.Text.Contains("\n");
         }
 
-        void Apply(EditRecord r, bool forward)
+        func Apply(r: EditRecord, forward: bool)
         {
             recording = false;
             bool insert = r.IsInsert == forward;
@@ -265,7 +265,7 @@ namespace FasetStudio.Ide
             recording = true;
         }
 
-        TextPos Advance(TextPos p, string text)
+        func Advance(p: TextPos, text: string) -> TextPos
         {
             for (int i = 0; i < text.Length; i++)
             {
@@ -279,7 +279,7 @@ namespace FasetStudio.Ide
             return p;
         }
 
-        public bool Undo(out TextPos cursor)
+        public func Undo(out cursor: TextPos) -> bool
         {
             cursor = new TextPos(0, 0);
             if (undo.Count == 0) return false;
@@ -294,7 +294,7 @@ namespace FasetStudio.Ide
             return true;
         }
 
-        public bool Redo(out TextPos cursor)
+        public func Redo(out cursor: TextPos) -> bool
         {
             cursor = new TextPos(0, 0);
             if (redo.Count == 0) return false;

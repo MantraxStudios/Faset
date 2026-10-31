@@ -25,7 +25,7 @@ namespace FasetStudio
     public memory_unsafe static class Program
     {
         // Ruta real del ejecutable: argv[0] no sirve si se lanzó desde el PATH o con un enlace.
-        static string ExecutablePath()
+        static func ExecutablePath() -> string
         {
 #if WINDOWS
             ushort* wbuf = Memory.New<ushort>(32768);   // admite rutas largas (\\?\...)
@@ -45,7 +45,7 @@ namespace FasetStudio
         }
 
         // Busca el compilador 'faset': variable FASET, carpetas superiores al ejecutable o PATH.
-        static string FindCompiler()
+        static func FindCompiler() -> string
         {
             string env = Environment.GetVariable("FASET");
             if (env.Length > 0 && File.Exists(env)) return env;
@@ -75,7 +75,7 @@ namespace FasetStudio
         }
 
         // Icono: logotipo blanco sobre un cuadrado negro redondeado.
-        static uint* MakeIcon(int size)
+        static func MakeIcon(size: int) -> uint*
         {
             uint* px = new uint[size * size];
             float radius = size * 0.22f;
@@ -100,7 +100,7 @@ namespace FasetStudio
         }
 
         // Carpeta de traducciones: junto al ejecutable o en studio/lang subiendo carpetas.
-        static string FindLangFolder()
+        static func FindLangFolder() -> string
         {
             string dir = ExecutablePath();
             for (int level = 0; level < 8; level++)
@@ -121,7 +121,7 @@ namespace FasetStudio
             return String.Copy("");
         }
 
-        public static int Main()
+        public static func Main() -> int
         {
             Settings.Load();
             L.Init(FindLangFolder());

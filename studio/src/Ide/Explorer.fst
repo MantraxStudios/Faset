@@ -11,23 +11,23 @@ namespace FasetStudio.Ide
 {
     class TreeNode
     {
-        public string Name;   // copia propia
-        public string Path;   // copia propia
-        public bool IsDir;
-        public bool Expanded;
-        public bool Loaded;
-        public int Depth;
-        public List<TreeNode> Children = new List<TreeNode>();
+        public var Name: string;   // copia propia
+        public var Path: string;   // copia propia
+        public var IsDir: bool;
+        public var Expanded: bool;
+        public var Loaded: bool;
+        public var Depth: int;
+        public var Children: List<TreeNode> = new List<TreeNode>();
         // Soluciones: 0 archivo o carpeta, 1 la solución, 2 carpeta de solución, 3 proyecto.
-        public int Kind;
-        public string Label = "";        // texto mostrado (solución y proyectos)
-        public string Folder = "";       // carpeta de solución ("A/B")
-        public string ProjectPath = "";  // .fstproj del proyecto
-        public bool Startup;             // proyecto de inicio (en negrita)
-        public bool Missing;             // el .fstproj no existe
-        public int Count;                // la solución: número de proyectos
+        public var Kind: int;
+        public var Label: string = "";        // texto mostrado (solución y proyectos)
+        public var Folder: string = "";       // carpeta de solución ("A/B")
+        public var ProjectPath: string = "";  // .fstproj del proyecto
+        public var Startup: bool;             // proyecto de inicio (en negrita)
+        public var Missing: bool;             // el .fstproj no existe
+        public var Count: int;                // la solución: número de proyectos
 
-        ~TreeNode()
+        deinit
         {
             for (int i = 0; i < Children.Count; i++) delete Children[i];
             delete Children;
@@ -38,30 +38,30 @@ namespace FasetStudio.Ide
 
     public class Explorer
     {
-        TreeNode root;
-        List<TreeNode> rows = new List<TreeNode>();
-        public int Scroll;
-        public int HoverRow = -1;
-        public string SelectedPath = "";   // copia propia (ver Select)
-        bool selectedOwned;
-        public string RootPath = "";
+        var root: TreeNode;
+        var rows: List<TreeNode> = new List<TreeNode>();
+        public var Scroll: int;
+        public var HoverRow: int = -1;
+        public var SelectedPath: string = "";   // copia propia (ver Select)
+        var selectedOwned: bool;
+        public var RootPath: string = "";
 
-        public float X;
-        public float Y;
-        public float W;
-        public float H;
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var H: float;
 
         public const float RowHeight = 26;
         public const float HeaderHeight = 38;
 
-        ~Explorer()
+        deinit
         {
             delete root;
             delete rows;
         }
 
         // Guarda una copia de la ruta: el documento original puede cerrarse.
-        public void Select(string path)
+        public func Select(path: string)
         {
             if (path == SelectedPath) return;
             string copy = String.Copy(path);
@@ -70,9 +70,9 @@ namespace FasetStudio.Ide
             selectedOwned = true;
         }
 
-        public bool IsSolution;   // el árbol es el de una solución .fstp
+        public var IsSolution: bool;   // el árbol es el de una solución .fstp
 
-        public void Load(string folder)
+        public func Load(folder: string)
         {
             delete root;
             IsSolution = false;
@@ -88,7 +88,7 @@ namespace FasetStudio.Ide
 
         // Árbol de una solución a partir de 'faset sln list --json'. Conserva lo que estaba abierto;
         // la primera vez se abren las carpetas de solución y el proyecto de inicio.
-        public void LoadSolution(JsonValue info, string solutionPath)
+        public func LoadSolution(info: JsonValue, solutionPath: string)
         {
             List<string> open = new List<string>();
             bool first = root == null || !IsSolution;
@@ -157,7 +157,7 @@ namespace FasetStudio.Ide
             Rebuild();
         }
 
-        static bool Has(List<string> list, string key)
+        static func Has(list: List<string>, key: string) -> bool
         {
             for (int i = 0; i < list.Count; i++)
                 if (list[i] == key) return true;
@@ -165,23 +165,23 @@ namespace FasetStudio.Ide
         }
 
         // Nodo de una carpeta de solución (o la raíz si no existe).
-        TreeNode FolderNode(List<TreeNode> nodes, string folder)
+        func FolderNode(nodes: List<TreeNode>, folder: string) -> TreeNode
         {
             for (int i = 0; i < nodes.Count; i++)
                 if (nodes[i].Folder == folder) return nodes[i];
             return root;
         }
 
-        static string ExpandKey(TreeNode n) => n.Kind == 2 ? String.Concat("f:", n.Folder) : n.Kind == 3 ? String.Concat("p:", n.ProjectPath) : String.Copy(n.Path);
+        static func ExpandKey(n: TreeNode) -> string => n.Kind == 2 ? String.Concat("f:", n.Folder) : n.Kind == 3 ? String.Concat("p:", n.ProjectPath) : String.Copy(n.Path);
 
-        void CollectExpanded(TreeNode n, List<string> output)
+        func CollectExpanded(n: TreeNode, output: List<string>)
         {
             if (!n.Expanded) return;
             output.Add(ExpandKey(n));
             for (int i = 0; i < n.Children.Count; i++) CollectExpanded(n.Children[i], output);
         }
 
-        void ReExpand(TreeNode n, List<string> open)
+        func ReExpand(n: TreeNode, open: List<string>)
         {
             for (int i = 0; i < n.Children.Count; i++)
             {
@@ -196,14 +196,14 @@ namespace FasetStudio.Ide
         }
 
         // Vuelve a leer las carpetas abiertas (tras crear archivos o compilar).
-        public void Refresh()
+        public func Refresh()
         {
             if (root == null) return;
             Reload(root);
             Rebuild();
         }
 
-        void Reload(TreeNode n)
+        func Reload(n: TreeNode)
         {
             if (!n.IsDir || !n.Loaded) return;
             if (n.Kind == 1 || n.Kind == 2 || n.Missing)
@@ -235,9 +235,9 @@ namespace FasetStudio.Ide
             delete open;
         }
 
-        static bool Hidden(string name) => name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules";
+        static func Hidden(name: string) -> bool => name.StartsWith(".") || name == "bin" || name == "obj" || name == "node_modules";
 
-        void LoadChildren(TreeNode n)
+        func LoadChildren(n: TreeNode)
         {
             if (n.Loaded) return;
             n.Loaded = true;
@@ -256,45 +256,45 @@ namespace FasetStudio.Ide
             Directory.FreeEntries(entries);
         }
 
-        void Rebuild()
+        func Rebuild()
         {
             rows.Clear();
             if (root != null) Flatten(root);
         }
 
-        void Flatten(TreeNode n)
+        func Flatten(n: TreeNode)
         {
             rows.Add(n);
             if (!n.IsDir || !n.Expanded) return;
             for (int i = 0; i < n.Children.Count; i++) Flatten(n.Children[i]);
         }
 
-        public int DropTarget = -1;   // carpeta resaltada al arrastrar un archivo
-        public int RowCount => rows.Count;
-        public bool IsLoaded => root != null;
+        public var DropTarget: int = -1;   // carpeta resaltada al arrastrar un archivo
+        public prop RowCount: int => rows.Count;
+        public prop IsLoaded: bool => root != null;
 
         // Datos de una fila (vistas válidas hasta el próximo Refresh).
-        public string RowPath(int row) => rows[row].Path;
-        public bool RowIsDir(int row) => rows[row].IsDir;
-        public bool RowIsRoot(int row) => rows[row] == root;
-        public int RowKind(int row) => rows[row].Kind;
-        public string RowProject(int row) => rows[row].ProjectPath;
-        public string RowSolutionFolder(int row) => rows[row].Folder;
-        public bool RowIsStartup(int row) => rows[row].Startup;
+        public func RowPath(row: int) -> string => rows[row].Path;
+        public func RowIsDir(row: int) -> bool => rows[row].IsDir;
+        public func RowIsRoot(row: int) -> bool => rows[row] == root;
+        public func RowKind(row: int) -> int => rows[row].Kind;
+        public func RowProject(row: int) -> string => rows[row].ProjectPath;
+        public func RowSolutionFolder(row: int) -> string => rows[row].Folder;
+        public func RowIsStartup(row: int) -> bool => rows[row].Startup;
         // Se puede arrastrar (archivos y carpetas normales) o soltar algo encima (carpetas y proyectos).
-        public bool RowDraggable(int row) => rows[row] != root && rows[row].Kind == 0;
-        public bool RowDropTarget(int row) => rows[row].IsDir && (rows[row].Kind == 0 || (rows[row].Kind == 3 && !rows[row].Missing));
+        public func RowDraggable(row: int) -> bool => rows[row] != root && rows[row].Kind == 0;
+        public func RowDropTarget(row: int) -> bool => rows[row].IsDir && (rows[row].Kind == 0 || (rows[row].Kind == 3 && !rows[row].Missing));
         // Para los guiones de prueba: nombre o texto mostrado.
-        public bool RowMatches(int row, string text) => rows[row].Name == text || rows[row].Label == text;
+        public func RowMatches(row: int, text: string) -> bool => rows[row].Name == text || rows[row].Label == text;
 
         // Carpeta asociada a una fila: la propia carpeta o la que contiene el archivo.
-        public string RowFolder(int row)
+        public func RowFolder(row: int) -> string
         {
             TreeNode n = rows[row];
             return n.IsDir ? n.Path : Path.GetDirectoryName(n.Path);
         }
 
-        public void Unload()
+        public func Unload()
         {
             delete root;
             root = null;
@@ -305,7 +305,7 @@ namespace FasetStudio.Ide
         }
 
         // Abre o cierra una carpeta.
-        public void Toggle(int row)
+        public func Toggle(row: int)
         {
             TreeNode n = rows[row];
             if (!n.IsDir) return;
@@ -314,7 +314,7 @@ namespace FasetStudio.Ide
             Rebuild();
         }
 
-        public int RowAt(float px, float py)
+        public func RowAt(px: float, py: float) -> int
         {
             if (px < X || px >= X + W || py < Y + HeaderHeight) return -1;
             int row = Scroll + (int)((py - Y - HeaderHeight) / RowHeight);
@@ -322,7 +322,7 @@ namespace FasetStudio.Ide
         }
 
         // Clic: abre/cierra carpetas; devuelve la ruta del archivo a abrir (vista) o "".
-        public string Click(float px, float py)
+        public func Click(px: float, py: float) -> string
         {
             int row = RowAt(px, py);
             if (row < 0) return "";
@@ -338,18 +338,18 @@ namespace FasetStudio.Ide
             return SelectedPath;
         }
 
-        public void ScrollBy(int lines)
+        public func ScrollBy(lines: int)
         {
             Scroll = Math.Clamp(Scroll + lines, 0, Math.Max(0, rows.Count - 3));
         }
 
         // Todos los archivos .fst y .fstproj (para "Abrir rápido").
-        public void CollectFiles(List<string> output)
+        public func CollectFiles(output: List<string>)
         {
             if (root != null) Collect(root, output);
         }
 
-        void Collect(TreeNode n, List<string> output)
+        func Collect(n: TreeNode, output: List<string>)
         {
             if (!n.IsDir)
             {
@@ -361,7 +361,7 @@ namespace FasetStudio.Ide
             for (int i = 0; i < n.Children.Count; i++) Collect(n.Children[i], output);
         }
 
-        public void Draw(Renderer r, string projectName)
+        public func Draw(r: Renderer, projectName: string)
         {
             r.PushClip(X, Y + HeaderHeight, W, H - HeaderHeight - 4);
             int visible = (int)((H - HeaderHeight) / RowHeight) + 1;

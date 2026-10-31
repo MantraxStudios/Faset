@@ -10,29 +10,29 @@ namespace FasetStudio.Ide
 {
     public struct MenuItem
     {
-        public string Label;      // vista (texto ya traducido)
-        public string Shortcut;   // vista ("" si no hay)
-        public int Action;        // 0 = separador
-        public bool Enabled;
-        public bool Danger;       // acción destructiva (se muestra en rojo)
+        public var Label: string;      // vista (texto ya traducido)
+        public var Shortcut: string;   // vista ("" si no hay)
+        public var Action: int;        // 0 = separador
+        public var Enabled: bool;
+        public var Danger: bool;       // acción destructiva (se muestra en rojo)
     }
 
     // Menú desplegable (barra de menús o menú contextual).
     public class Menu
     {
-        public List<MenuItem> Items = new List<MenuItem>();
-        public float X;
-        public float Y;
-        public float W;
-        public int Hover = -1;
-        public int Owner = -1;   // índice del menú de la barra que lo abrió (-1: contextual)
+        public var Items: List<MenuItem> = new List<MenuItem>();
+        public var X: float;
+        public var Y: float;
+        public var W: float;
+        public var Hover: int = -1;
+        public var Owner: int = -1;   // índice del menú de la barra que lo abrió (-1: contextual)
 
         const float ItemHeight = 28;
         const float SeparatorHeight = 9;
 
-        ~Menu() { delete Items; }
+        deinit { delete Items; }
 
-        public void Add(string label, string shortcut, int action, bool enabled)
+        public func Add(label: string, shortcut: string, action: int, enabled: bool)
         {
             MenuItem m = new MenuItem();
             m.Label = label;
@@ -42,7 +42,7 @@ namespace FasetStudio.Ide
             Items.Add(m);
         }
 
-        public void AddDanger(string label, string shortcut, int action)
+        public func AddDanger(label: string, shortcut: string, action: int)
         {
             Add(label, shortcut, action, true);
             MenuItem m = Items.Pop();
@@ -50,18 +50,18 @@ namespace FasetStudio.Ide
             Items.Add(m);
         }
 
-        public void Separator() { Add("", "", 0, false); }
+        public func Separator() { Add("", "", 0, false); }
 
-        float ItemY(int i)
+        func ItemY(i: int) -> float
         {
             float y = Y + 6;
             for (int k = 0; k < i; k++) y += Items[k].Action == 0 ? SeparatorHeight : ItemHeight;
             return y;
         }
 
-        public float Height => ItemY(Items.Count) - Y + 6;
+        public prop Height: float => ItemY(Items.Count) - Y + 6;
 
-        public void Layout(Renderer r, float screenW, float screenH)
+        public func Layout(r: Renderer, screenW: float, screenH: float)
         {
             float w = 220;
             for (int i = 0; i < Items.Count; i++)
@@ -75,7 +75,7 @@ namespace FasetStudio.Ide
             if (Y + Height > screenH - 6) Y = (float)Math.Max(6.0, screenH - 6 - Height);
         }
 
-        public int ItemAt(float px, float py)
+        public func ItemAt(px: float, py: float) -> int
         {
             if (px < X || px >= X + W) return -1;
             for (int i = 0; i < Items.Count; i++)
@@ -87,9 +87,9 @@ namespace FasetStudio.Ide
             return -1;
         }
 
-        public bool Contains(float px, float py) => px >= X && px < X + W && py >= Y && py < Y + Height;
+        public func Contains(px: float, py: float) -> bool => px >= X && px < X + W && py >= Y && py < Y + Height;
 
-        public void Move(int delta)
+        public func Move(delta: int)
         {
             if (Items.Count == 0) return;
             int i = Hover;
@@ -104,7 +104,7 @@ namespace FasetStudio.Ide
             }
         }
 
-        public void Draw(Renderer r)
+        public func Draw(r: Renderer)
         {
             float h = Height;
             r.Shadow(X, Y, W, h, 10, 20, Theme.Shadow);
@@ -134,18 +134,18 @@ namespace FasetStudio.Ide
     // Campo de texto de una línea (el cursor siempre al final).
     public class TextField
     {
-        public StringBuilder Value = new StringBuilder();
-        public bool Focused;
-        public float X;
-        public float Y;
-        public float W;
+        public var Value: StringBuilder = new StringBuilder();
+        public var Focused: bool;
+        public var X: float;
+        public var Y: float;
+        public var W: float;
         public const float Height = 34;
 
-        ~TextField() { delete Value; }
+        deinit { delete Value; }
 
-        public string Text => Value.View();
+        public prop Text: string => Value.View();
 
-        public void Set(string text)
+        public func Set(text: string)
         {
             string copy = String.Copy(text);
             Value.Clear();
@@ -153,10 +153,10 @@ namespace FasetStudio.Ide
             String.Free(copy);
         }
 
-        public bool Contains(float px, float py) => px >= X && px < X + W && py >= Y && py < Y + Height;
+        public func Contains(px: float, py: float) -> bool => px >= X && px < X + W && py >= Y && py < Y + Height;
 
         // Teclas de edición; devuelve true si cambió el texto.
-        public bool Key(Event e)
+        public func Key(e: Event) -> bool
         {
             if (e.Key == Keys.BackSpace)
             {
@@ -178,7 +178,7 @@ namespace FasetStudio.Ide
             return false;
         }
 
-        public void Draw(Renderer r, float x, float y, float w, string placeholder)
+        public func Draw(r: Renderer, x: float, y: float, w: float, placeholder: string)
         {
             X = x;
             Y = y;

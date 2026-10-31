@@ -12,19 +12,19 @@ namespace FasetStudio.Gfx
         const float OriginY = 408;
         const float Box = 462;
 
-        static float* points;   // x, y normalizados
-        static int* starts;     // inicio de cada polígono
-        static int* counts;     // número de puntos de cada polígono
+        static var points: float*;   // x, y normalizados
+        static var starts: int*;     // inicio de cada polígono
+        static var counts: int*;     // número de puntos de cada polígono
         const int Polygons = 3;
 
-        static void Add(float* p, ref int n, float x, float y)
+        static func Add(p: float*, ref n: int, x: float, y: float)
         {
             p[n * 2] = (x - OriginX) / Box;
             p[n * 2 + 1] = (y - OriginY) / Box;
             n++;
         }
 
-        static void Init()
+        static func Init()
         {
             if (points != null) return;
             points = new float[64];
@@ -56,7 +56,7 @@ namespace FasetStudio.Gfx
         }
 
         // ¿El punto (x, y) en [0,1] está dentro del logotipo?
-        public static bool Inside(float x, float y)
+        public static func Inside(x: float, y: float) -> bool
         {
             Init();
             for (int poly = 0; poly < Polygons; poly++)
@@ -76,7 +76,7 @@ namespace FasetStudio.Gfx
         }
 
         // Cobertura (0..255) del logotipo para un píxel de una imagen de 'size' x 'size'.
-        public static byte Coverage(int px, int py, int size)
+        public static func Coverage(px: int, py: int, size: int) -> byte
         {
             int hits = 0;
             for (int sy = 0; sy < 4; sy++)
