@@ -17,6 +17,18 @@ else()
   target_compile_options(faset PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
 
+# Comptime evaluation recurses on the native stack, so deep compile-time recursion must have room
+# to hit the kCtMaxDepth guard (which reports "recursion too deep") instead of overflowing the
+# default 1 MB Windows stack and crashing the compiler. Reserve a large stack (address space only,
+# committed lazily). On Linux the main-thread stack is governed by ulimit, so this is Windows-only.
+if(WIN32)
+  if(MSVC)
+    target_link_options(faset PRIVATE /STACK:268435456)
+  else()
+    target_link_options(faset PRIVATE -Wl,/STACK:268435456)
+  endif()
+endif()
+
 # La biblioteca estándar (lib/) se copia junto al ejecutable para que 'faset' la encuentre.
 add_custom_command(TARGET faset POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/lib $<TARGET_FILE_DIR:faset>/lib)
