@@ -393,7 +393,7 @@ void Parser::parseEnumBody(ClassDecl* c) {
     }
 }
 
-void Parser::parseParams(MethodDecl* m) {
+void Parser::parseParams(MethodDecl* m, bool rustStyle) {
     expectP("(");
     if (!isP(")")) {
         do {
@@ -419,10 +419,16 @@ void Parser::parseParams(MethodDecl* m) {
                 prm.isParams = true;
                 allowArraySuffix_ = true;
             }
-            prm.tref = parseType();
+            if (rustStyle) {  // 'func' form: name : Type
+                prm.name = expectIdent();
+                expectP(":");
+                prm.tref = parseType();
+            } else {
+                prm.tref = parseType();
+                prm.name = expectIdent();
+            }
             allowArraySuffix_ = false;
             if (byRef) prm.tref->isRef = true;
-            prm.name = expectIdent();
             if (acceptP("=")) prm.defaultValue = parseExpr();  // parámetro opcional (Members.cpp)
             m->params.push_back(prm);
         } while (acceptP(","));
@@ -499,6 +505,40 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
             m->body = parseBlock();
         }
     };
+
+    // Modern declaration form: 'func Name<T>(params) -> Ret { }' / '=> expr;'. Contextual keyword
+    // (not reserved: 'func' is still usable as an identifier, e.g. a parameter name). Lowers to the
+    // same MethodDecl as the C#/C++ 'Ret Name(params)' form; omitting '-> Ret' means void.
+    if (cur().kind == TokKind::Ident && cur().text == "func" && peekTok().kind == TokKind::Ident) {
+        p_++;  // 'func'
+        auto* m = new MethodDecl();
+        m->loc = cur().loc;
+        m->mods = mods;
+        m->attrs = attrs;
+        m->name = expectIdent();
+        stamp(m);
+        if (isP("<")) {
+            m->typeParams = parseTypeParams();
+            m->tokens = toks_;
+            m->tokBegin = begin;
+        }
+        parseParams(m, /*rustStyle=*/true);
+        if (m->hasCtParams && !m->tokens) {
+            m->tokens = toks_;
+            m->tokBegin = begin;
+        }
+        if (acceptP("->")) {
+            m->retRef = parseType();
+        } else {
+            auto* vr = new TypeRef();
+            vr->loc = m->loc;
+            vr->parts.push_back("void");
+            m->retRef = vr;
+        }
+        finishMethod(m);
+        c->methods.push_back(m);
+        return;
+    }
 
     // Destructor: ~Nombre()
     if (acceptP("~")) {
@@ -969,6 +1009,8 @@ VarDeclStmt* Parser::parseVarDecl(bool requireSemicolon) {
     auto* d = new VarDeclStmt(cur().loc);
     if (acceptK("const")) d->isConst = true;
     d->tref = parseType();
+    // 'let' is an immutable inferred binding (Rust-style): same as 'const var', any initializer.
+    if (d->tref->parts.size() == 1 && d->tref->parts[0] == "let") d->isConst = true;
     do {
         VarDeclStmt::Declarator dc;
         dc.loc = cur().loc;

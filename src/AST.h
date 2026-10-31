@@ -43,8 +43,8 @@ struct TypeRef {
     int arrayRank = 0;
     Type* preset = nullptr;
     bool isVar() const {
-        return parts.size() == 1 && (parts[0] == "var" || parts[0] == "auto") && ptrDepth == 0 && typeArgs.empty() &&
-               !isFuncPtr;
+        return parts.size() == 1 && (parts[0] == "var" || parts[0] == "auto" || parts[0] == "let") && ptrDepth == 0 &&
+               typeArgs.empty() && !isFuncPtr;
     }
     std::string str() const {
         std::string s;

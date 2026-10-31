@@ -69,7 +69,7 @@ private:
     void parseEnumBody(ClassDecl* c);
     std::vector<Attribute> parseAttributes();
     Modifiers parseModifiers();
-    void parseParams(MethodDecl* m);
+    void parseParams(MethodDecl* m, bool rustStyle = false);
     std::vector<std::string> parseTypeParams();
     void skipWhereClauses();
 

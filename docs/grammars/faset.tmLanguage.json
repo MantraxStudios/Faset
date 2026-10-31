@@ -281,7 +281,7 @@
     },
     {
      "name": "storage.type.faset",
-     "match": "\\b(class|struct|enum|interface|namespace|delegate|operator|var|auto|typename|where|get|set)\\b"
+     "match": "\\b(class|struct|enum|interface|namespace|delegate|operator|var|auto|let|func|typename|where|get|set)\\b"
     },
     {
      "name": "constant.language.faset",
