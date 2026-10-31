@@ -1,13 +1,13 @@
-24|no es un parámetro de tipo de 'Mala'
-32|no cumple la restricción 'IComparable<Piedra>'
-33|el tipo 'Abstracta' no cumple la restricción 'new\(\)'
-34|el tipo 'SinVacio' no cumple la restricción 'new\(\)'
-35|el tipo 'int' no cumple la restricción 'class'
-36|no cumple la restricción 'struct'
-38|el tipo 'Piedra' no cumple la restricción 'Animal'
-40|del parámetro de tipo 'T' de 'Jaula'
-44|no contiene una propiedad 'Z'
-45|'with' solo se puede usar con registros
-46|el tipo 'string' en 'int'
-48|el tipo 'Color' en 'object'
-49|es de solo lectura
+24|'U' is not a type parameter of 'Mala' \('where' clause\)
+32|type 'Piedra' does not satisfy the constraint 'IComparable<Piedra>' of type parameter 'T' of 'Mayor'
+33|type 'Abstracta' does not satisfy the constraint 'new\(\)' of type parameter 'T' of 'Crear'
+34|type 'SinVacio' does not satisfy the constraint 'new\(\)' of type parameter 'T' of 'Crear'
+35|type 'int' does not satisfy the constraint 'class' of type parameter 'T' of 'SoloClases'
+36|type 'Perro' does not satisfy the constraint 'struct' of type parameter 'T' of 'SoloValores'
+38|type 'Piedra' does not satisfy the constraint 'Animal' of type parameter 'T' of 'SoloAnimales'
+40|type 'Piedra' does not satisfy the constraint 'Animal' of type parameter 'T' of 'Jaula'
+44|'Punto' does not contain a property 'Z'
+45|'with' can only be used with records \(record\), not with 'Piedra'
+46|cannot implicitly convert type 'string' to 'int'
+48|cannot implicitly convert type 'Color' to 'object'
+49|property 'X' is read-only \(it has no 'set'\)

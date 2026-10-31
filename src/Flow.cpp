@@ -108,7 +108,7 @@ Type* Sema::checkPipe(PipeExpr* e) {
     if (rhs->kind == EK::Lambda) {
         auto* l = static_cast<LambdaExpr*>(rhs);
         if (l->params.size() != 1) {
-            diag.error(l->loc, "la lambda de '|>' debe tener un parámetro (recibe el valor de la izquierda)");
+            diag.error(l->loc, "the '|>' lambda must have one parameter (it receives the value on the left)");
             return tc_.error();
         }
         Type* A = checkValue(e->lhs);
@@ -120,7 +120,7 @@ Type* Sema::checkPipe(PipeExpr* e) {
             A = pt;
         }
         if (A->isVoid()) {
-            diag.error(e->lhs->loc, "la parte izquierda de '|>' no produce ningún valor (es 'void')");
+            diag.error(e->lhs->loc, "the left side of '|>' does not produce a value (it is 'void')");
             return tc_.error();
         }
         if (l->exprBody && !l->isAsync) {  // a |> x => cuerpo  ->  (x = a, cuerpo)

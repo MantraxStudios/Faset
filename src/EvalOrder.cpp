@@ -751,7 +751,7 @@ Type* Sema::checkPropertyCompound(AssignExpr* e) {
     MethodDecl* getter = mem ? mem->getter : static_cast<NameExpr*>(e->lhs)->getter;
     MethodDecl* setter = mem ? mem->setter : static_cast<NameExpr*>(e->lhs)->setter;
     if (!setter) {
-        diag.error(e->lhs->loc, "la propiedad '" + getter->name + "' es de solo lectura (no tiene 'set')");
+        diag.error(e->lhs->loc, "property '" + getter->name + "' is read-only (it has no 'set')");
         checkValue(e->rhs);
         return tc_.error();
     }
@@ -767,8 +767,8 @@ Type* Sema::checkPropertyCompound(AssignExpr* e) {
         VarInfo* tmp = nullptr;
         if (!stable) {
             if (getter->isStatic() || !obj->type || !obj->type->isClass() || mem->arrow) {
-                diag.error(e->loc, "'" + e->op + "' sobre la propiedad de un valor temporal no está soportado; usa "
-                                   "una variable: 'var x = ...; x." + mem->name + " " + e->op + " valor'");
+                diag.error(e->loc, "'" + e->op + "' on the property of a temporary value is not supported; use "
+                                   "a variable: 'var x = ...; x." + mem->name + " " + e->op + " value'");
                 checkValue(e->rhs);
                 return tc_.error();
             }

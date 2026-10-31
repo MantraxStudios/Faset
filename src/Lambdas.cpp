@@ -93,12 +93,12 @@ std::string memberName(Expr* e) {
 void Sema::registerDelegates() {
     for (MethodDecl* d : prog_.delegates) {
         if (d->owner->isTemplate()) {
-            diag.error(d->loc, "no se puede declarar un delegado dentro de una clase genérica; declaralo en el namespace");
+            diag.error(d->loc, "cannot declare a delegate inside a generic class; declare it in the namespace");
             continue;
         }
         NamespaceSym* ns = getNs(d->owner->ns, true);
         if (ns->types.count(d->name) || ns->delegates.count(d->name)) {
-            diag.error(d->loc, "el tipo '" + d->name + "' ya está definido en '" + ns->display() + "'");
+            diag.error(d->loc, "type '" + d->name + "' is already defined in '" + ns->display() + "'");
             continue;
         }
         ns->delegates[d->name] = d;
@@ -108,10 +108,10 @@ void Sema::registerDelegates() {
 // Firma de un delegado declarado con sus argumentos de tipo: Predicate<int> -> Func<int, bool>.
 Type* Sema::delegateFromDecl(MethodDecl* d, TypeRef* tr) {
     if (tr->typeArgs.size() != d->typeParams.size()) {
-        if (d->typeParams.empty()) diag.error(tr->loc, "'" + d->name + "' no es un tipo genérico");
+        if (d->typeParams.empty()) diag.error(tr->loc, "'" + d->name + "' is not a generic type");
         else
-            diag.error(tr->loc, "el delegado genérico '" + d->name + "' requiere " + std::to_string(d->typeParams.size()) +
-                                    " argumento(s) de tipo");
+            diag.error(tr->loc, "the generic delegate '" + d->name + "' requires " + std::to_string(d->typeParams.size()) +
+                                    " type argument(s)");
         return tc_.error();
     }
     std::vector<Type*> args;
@@ -127,7 +127,7 @@ Type* Sema::delegateFromDecl(MethodDecl* d, TypeRef* tr) {
     }
     static std::set<MethodDecl*> resolving;  // delegate void D(D d): recursión
     if (resolving.count(d)) {
-        diag.error(d->loc, "el delegado '" + d->name + "' no puede usarse a sí mismo en su firma");
+        diag.error(d->loc, "the delegate '" + d->name + "' cannot use itself in its signature");
         return tc_.error();
     }
     resolving.insert(d);
@@ -156,7 +156,7 @@ Type* Sema::builtinDelegateType(TypeRef* tr) {
     bool func = false;
     if (!isBuiltinDelegateRef(tr, func)) {
         if (tr->parts.size() == 1 && tr->parts[0] == "Func" && tr->typeArgs.empty() && !tr->isFuncPtr) {
-            diag.error(tr->loc, "'Func' requiere al menos un argumento de tipo (el de retorno): Func<int>, Func<int, bool>...");
+            diag.error(tr->loc, "'Func' requires at least one type argument (the return type): Func<int>, Func<int, bool>...");
             return tc_.error();
         }
         return nullptr;
@@ -173,7 +173,7 @@ Type* Sema::builtinDelegateType(TypeRef* tr) {
         ret = resolveType(tr->typeArgs.back(), true);
         if (ret->isError()) return ret;
         if (ret->isVoid()) {
-            diag.error(tr->loc, "'Func' no puede devolver 'void'; usa 'Action<...>'");
+            diag.error(tr->loc, "'Func' cannot return 'void'; use 'Action<...>'");
             return tc_.error();
         }
     }
@@ -184,7 +184,7 @@ Type* Sema::builtinDelegateType(TypeRef* tr) {
 
 void Sema::checkEventField(FieldDecl* f) {
     if (f->type && !f->type->isDelegate() && !f->type->isError())
-        diag.error(f->loc, "el tipo de un evento debe ser un delegado (Action<...>, Func<...> o un delegado declarado), no '" +
+        diag.error(f->loc, "an event's type must be a delegate (Action<...>, Func<...> or a declared delegate), not '" +
                                f->type->str() + "'");
 }
 
@@ -195,8 +195,8 @@ bool Sema::eventAccessible(FieldDecl* f, Expr* e) {
     ClassDecl* cur = ctx_.cls;
     if (cur == owner) return true;
     if (owner->templateOf && cur && cur->templateOf == owner->templateOf) return true;
-    diag.error(e->loc, "el evento '" + owner->displayName + "." + f->name + "' solo se puede invocar o asignar dentro de '" +
-                           owner->displayName + "'; desde fuera usa '+=' o '-='");
+    diag.error(e->loc, "the event '" + owner->displayName + "." + f->name + "' can only be invoked or assigned inside '" +
+                           owner->displayName + "'; from outside use '+=' or '-='");
     return false;
 }
 
@@ -205,8 +205,8 @@ bool Sema::eventAccessible(FieldDecl* f, Expr* e) {
 void Sema::noteLocalUse(VarInfo* v, SourceLoc loc) {
     if (v->fnDepth >= (int)lambdaStack_.size()) return;
     if (v->isRef) {
-        diag.error(loc, "no se puede usar la referencia '" + v->name +
-                            "' dentro de una lambda (las variables y parámetros 'ref' no se pueden capturar)");
+        diag.error(loc, "cannot use the reference '" + v->name +
+                            "' inside a lambda ('ref' variables and parameters cannot be captured)");
         return;
     }
     v->captured = true;
@@ -219,8 +219,8 @@ void Sema::noteLocalUse(VarInfo* v, SourceLoc loc) {
 void Sema::noteThisUse(SourceLoc loc) {
     if (lambdaStack_.empty()) return;
     if (ctx_.cls && ctx_.cls->kind == ClassKind::Struct) {
-        diag.error(loc, "una lambda no puede usar 'this' (ni campos o métodos de instancia) dentro de un struct; "
-                        "copia lo que necesites a una variable local");
+        diag.error(loc, "a lambda cannot use 'this' (nor instance fields or methods) inside a struct; "
+                        "copy what you need to a local variable");
         return;
     }
     for (LambdaExpr* l : lambdaStack_) l->usesThis = true;
@@ -259,8 +259,8 @@ bool Sema::lambdaReturn(ReturnStmt* rs) {
         if (lret->isVoid() && rs->value && rs->fromExprBody) {  // async () => expr con Task o void
             Type* t = checkOperand(rs->value);
             if (!t->isVoid() && !t->isError() && !statementLike(rs->value) && rs->value->kind != EK::Await)
-                diag.error(rs->value->loc, "el cuerpo de una lambda async sin resultado debe ser una llamada, una "
-                                           "asignación, 'new' o un 'await'");
+                diag.error(rs->value->loc, "the body of an async lambda with no result must be a call, an "
+                                           "assignment, 'new' or an 'await'");
             return true;
         }
     }
@@ -271,10 +271,10 @@ bool Sema::lambdaReturn(ReturnStmt* rs) {
     if (lret->isVoid()) {
         if (rs->value) {
             checkOperand(rs->value);
-            diag.error(rs->loc, "esta lambda corresponde a un delegado sin valor de retorno ('void') y no puede devolver un valor");
+            diag.error(rs->loc, "this lambda corresponds to a delegate with no return value ('void') and cannot return a value");
         }
     } else if (!rs->value) {
-        diag.error(rs->loc, "la lambda debe devolver un valor de tipo '" + lret->str() + "'");
+        diag.error(rs->loc, "the lambda must return a value of type '" + lret->str() + "'");
     } else {
         checkOperand(rs->value);
         int c = convCost(rs->value, lret);
@@ -325,12 +325,12 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
         Type* t = checkOperand(l->exprBody);
         if (ret && ret->isVoid()) {
             if (!t->isError() && !statementLike(l->exprBody))
-                diag.error(l->exprBody->loc, "el cuerpo de una lambda sin valor de retorno debe ser una llamada, una "
-                                             "asignación, un incremento o 'new' (el delegado es '" +
+                diag.error(l->exprBody->loc, "the body of a lambda with no return value must be a call, an "
+                                             "assignment, an increment or 'new' (the delegate is '" +
                                                  tc_.delegateType(params, ret)->str() + "')");
         } else if (ret) {
             if (t->isVoid()) {
-                diag.error(l->exprBody->loc, "la lambda debe devolver un valor de tipo '" + ret->str() + "'");
+                diag.error(l->exprBody->loc, "the lambda must return a value of type '" + ret->str() + "'");
             } else {
                 l->retCost = convCost(l->exprBody, ret);
                 coerce(l->exprBody, ret);
@@ -345,7 +345,7 @@ bool Sema::bindLambda(LambdaExpr* l, const std::vector<Type*>& params, Type* ret
             mustReturn = fn->async->result;
         }
         if (mustReturn && !mustReturn->isVoid() && !mustReturn->isError() && !alwaysReturns(l->blockBody))
-            diag.error(l->loc, "no todas las rutas de código de la lambda devuelven un valor");
+            diag.error(l->loc, "not all of the lambda's code paths return a value");
     }
     lambdaStack_.pop_back();
     l->bound = true;
@@ -457,12 +457,12 @@ MethodDecl* Sema::groupMatch(Expr* e, Type* d, bool report) {
     }
     if (found.size() == 1) return found[0];
     if (report && found.empty() && ctParams)
-        diag.error(e->loc, "'" + memberName(e) + "' tiene parámetros 'comptime' y no se puede convertir en delegado; usa una lambda");
+        diag.error(e->loc, "'" + memberName(e) + "' has 'comptime' parameters and cannot be converted to a delegate; use a lambda");
     else if (report)
-        diag.error(e->loc, found.empty() ? "ninguna sobrecarga de '" + memberName(e) + "' coincide con el delegado '" +
+        diag.error(e->loc, found.empty() ? "no overload of '" + memberName(e) + "' matches the delegate '" +
                                                d->str() + "'"
-                                         : "la conversión de '" + memberName(e) + "' al delegado '" + d->str() +
-                                               "' es ambigua");
+                                         : "the conversion of '" + memberName(e) + "' to the delegate '" + d->str() +
+                                               "' is ambiguous");
     return nullptr;
 }
 
@@ -494,25 +494,25 @@ void Sema::convertPending(Expr*& e, Type* to) {
             bindLambda(l, errs, tc_.error());
         };
         if (!to->isDelegate()) {
-            diag.error(e->loc, "no se puede convertir una expresión lambda en '" + to->str() + "' (no es un tipo delegado)");
+            diag.error(e->loc, "cannot convert a lambda expression to '" + to->str() + "' (not a delegate type)");
             ideFallback();
             return;
         }
         if (l->bound) {
             if (l->type != to)
-                diag.error(e->loc, "la lambda ya se convirtió en '" + (l->type ? l->type->str() : "?") + "'");
+                diag.error(e->loc, "the lambda was already converted to '" + (l->type ? l->type->str() : "?") + "'");
             return;
         }
         if (l->params.size() != to->params.size()) {
-            diag.error(l->loc, "la lambda tiene " + std::to_string(l->params.size()) + " parámetro(s) pero el delegado '" +
-                                   to->str() + "' espera " + std::to_string(to->params.size()));
+            diag.error(l->loc, "the lambda has " + std::to_string(l->params.size()) + " parameter(s) but the delegate '" +
+                                   to->str() + "' expects " + std::to_string(to->params.size()));
             ideFallback();
             return;
         }
         for (size_t i = 0; i < l->params.size(); i++)
             if (i < l->paramTypes.size() && l->paramTypes[i] && l->paramTypes[i] != to->params[i]) {
-                diag.error(l->params[i].loc, "el parámetro '" + l->params[i].name + "' de la lambda es de tipo '" +
-                                                 l->paramTypes[i]->str() + "' pero el delegado '" + to->str() + "' espera '" +
+                diag.error(l->params[i].loc, "the lambda's parameter '" + l->params[i].name + "' is of type '" +
+                                                 l->paramTypes[i]->str() + "' but the delegate '" + to->str() + "' expects '" +
                                                  to->params[i]->str() + "'");
                 ideFallback();
                 return;
@@ -528,11 +528,11 @@ void Sema::convertPending(Expr*& e, Type* to) {
 
     // Grupo de métodos -> delegado: Func<int, int> f = Doble;  obj.Metodo
     if (!to->isDelegate()) {
-        diag.error(e->loc, "un grupo de métodos no es válido en este contexto (¿faltan paréntesis de llamada?)");
+        diag.error(e->loc, "a method group is not valid in this context (missing call parentheses?)");
         return;
     }
     if (e->kind == EK::Member && static_cast<MemberExpr*>(e)->extension) {
-        diag.error(e->loc, "un método de extensión no se puede convertir en delegado; usa una lambda (x => obj.Metodo(x))");
+        diag.error(e->loc, "an extension method cannot be converted to a delegate; use a lambda (x => obj.Metodo(x))");
         return;
     }
     MethodDecl* m = groupMatch(e, to, true);
@@ -543,7 +543,7 @@ void Sema::convertPending(Expr*& e, Type* to) {
     if (!m->isStatic()) {
         if (e->kind == EK::Name) {
             if (ctx_.isStatic) {
-                diag.error(e->loc, "se requiere una referencia de objeto para el método no estático '" +
+                diag.error(e->loc, "an object reference is required for the non-static method '" +
                                        m->owner->displayName + "." + m->name + "'");
                 return;
             }
@@ -552,7 +552,7 @@ void Sema::convertPending(Expr*& e, Type* to) {
         } else {
             auto* me = static_cast<MemberExpr*>(e);
             if (me->obj->vk != ValKind::Value) {
-                diag.error(e->loc, "se requiere una referencia de objeto para el método no estático '" +
+                diag.error(e->loc, "an object reference is required for the non-static method '" +
                                        m->owner->displayName + "." + m->name + "'");
                 return;
             }
@@ -560,8 +560,8 @@ void Sema::convertPending(Expr*& e, Type* to) {
             dc->receiverArrow = me->arrow;
         }
     } else if (e->kind == EK::Member && static_cast<MemberExpr*>(e)->obj->vk == ValKind::Value) {
-        diag.error(e->loc, "el método estático '" + m->owner->displayName + "." + m->name +
-                               "' no se puede usar con una referencia de instancia; califícalo con el nombre del tipo");
+        diag.error(e->loc, "the static method '" + m->owner->displayName + "." + m->name +
+                               "' cannot be used with an instance reference; qualify it with the type name");
         return;
     }
     checkAccess(m->mods.access, m->owner, m->name, e->loc);
@@ -589,8 +589,8 @@ Type* Sema::naturalType(Expr*& e) {
         auto* l = static_cast<LambdaExpr*>(e);
         for (Type* t : l->paramTypes)
             if (!t) {
-                diag.error(l->loc, "no se puede inferir el tipo de la lambda: indica el tipo de sus parámetros "
-                                   "((int x) => ...) o declara la variable con un tipo delegado (Func<int, int> f = x => ...)");
+                diag.error(l->loc, "cannot infer the type of the lambda: specify the type of its parameters "
+                                   "((int x) => ...) or declare the variable with a delegate type (Func<int, int> f = x => ...)");
                 return tc_.error();
             }
         LambdaExpr* t = lambdaTrial(l, l->paramTypes, nullptr);
@@ -599,8 +599,8 @@ Type* Sema::naturalType(Expr*& e) {
             if (!t || t->trialErrors) {
                 bindLambda(l, l->paramTypes, nullptr);  // muestra los errores del cuerpo
             } else {
-                diag.error(l->loc, "no se puede inferir el tipo de retorno de la lambda; declara la variable con un tipo "
-                                   "delegado (Func<...> o Action<...>)");
+                diag.error(l->loc, "cannot infer the return type of the lambda; declare the variable with a "
+                                   "delegate type (Func<...> or Action<...>)");
             }
             return tc_.error();
         }
@@ -625,8 +625,8 @@ Type* Sema::naturalType(Expr*& e) {
             return d;
         }
     }
-    diag.error(e->loc, "no se puede inferir el tipo del grupo de métodos '" + memberName(e) +
-                           "'; declara la variable con un tipo delegado (Func<...> o Action<...>)");
+    diag.error(e->loc, "cannot infer the type of the method group '" + memberName(e) +
+                           "'; declare the variable with a delegate type (Func<...> or Action<...>)");
     return tc_.error();
 }
 
@@ -800,8 +800,8 @@ Type* Sema::checkOperand(Expr* e) {
 Type* Sema::checkDelegateCall(CallExpr* e) {
     Type* d = e->callee->type;
     if (e->args.size() != d->params.size()) {
-        diag.error(e->loc, "el delegado '" + d->str() + "' espera " + std::to_string(d->params.size()) +
-                               " argumento(s), no " + std::to_string(e->args.size()));
+        diag.error(e->loc, "the delegate '" + d->str() + "' expects " + std::to_string(d->params.size()) +
+                               " argument(s), not " + std::to_string(e->args.size()));
         return tc_.error();
     }
     for (size_t i = 0; i < e->args.size(); i++) coerce(e->args[i], d->params[i]);

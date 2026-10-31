@@ -1,2 +1,2 @@
-2|'unsafe' no existe en Faset; usa 'memory_unsafe'
-10|'unsafe' no existe en Faset; usa 'memory_unsafe'
+2|'unsafe' does not exist in Faset; use 'memory_unsafe' \(replace 'unsafe' with 'memory_unsafe'\)
+10|'unsafe' does not exist in Faset; use 'memory_unsafe' \(replace 'unsafe' with 'memory_unsafe'\)

@@ -1,10 +1,10 @@
-6|no es exhaustivo: falta el caso Rect\(_, _\)
-7|no es exhaustivo: falta el caso Some\(None\)
-8|'Forma' no tiene el caso 'Triangulo'
-9|tiene 2 campo\(s\), pero el patrón tiene 1
-10|no se puede inferir el tipo de 'None'
-11|el operador '\?' necesita un Result<T, E> o un Option<T>
-13|solo se puede usar en un método que devuelve Result<T, E>
-16|ninguna sobrecarga de 'Circulo' acepta los argumentos
-17|la expresión no se puede invocar
-18|no se puede convertir el caso 'Err' de 'Result' en 'Option<int>'
+6|the 'switch' over 'Forma' is not exhaustive: missing case Rect\(_, _\) \(add their arms or '_ => \.\.\.'\)
+7|the 'switch' over 'Option<Option<int>>' is not exhaustive: missing case Some\(None\) \(add their arms or '_ => \.\.\.'\)
+8|'Forma' does not have case 'Triangulo' \(its cases: Circulo, Rect, Punto\)
+9|case 'Rect\(double A, double B\)' has 2 field\(s\), but the pattern has 1
+10|cannot infer the type of 'None': specify the target type \(Option<\.\.\.> x = None;\) or write Option<\.\.\.>\.None
+11|the '\?' operator needs a Result<T, E> or an Option<T> \(the value is of type 'string'\)
+13|the '\?' operator over a Result can only be used in a method that returns Result<T, E> \(this one returns 'int'\)
+16|no overload of 'Circulo' accepts the arguments \(int, int\)
+17|the expression cannot be invoked
+18|cannot convert case 'Err' of 'Result' to 'Option<int>'

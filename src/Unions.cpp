@@ -210,13 +210,13 @@ Type* Sema::unionCallHook(CallExpr* e) {
     ClassDecl* tm = u->tmpl;
     const UnionCaseInfo& uc = tm->unionInfo->cases[tm->unionInfo->find(u->name)];
     if (uc.unit()) {
-        diag.error(e->loc, "el caso '" + u->name + "' no tiene campos: se escribe sin paréntesis (" + baseName(tm) + "." +
+        diag.error(e->loc, "case '" + u->name + "' has no fields: write it without parentheses (" + baseName(tm) + "." +
                                u->name + ")");
         return tc_.error();
     }
     if (e->args.size() != uc.fields.size()) {
-        diag.error(e->loc, "el caso '" + caseShape(uc, true) + "' espera " + std::to_string(uc.fields.size()) +
-                               " argumento(s), no " + std::to_string(e->args.size()));
+        diag.error(e->loc, "case '" + caseShape(uc, true) + "' expects " + std::to_string(uc.fields.size()) +
+                               " argument(s), not " + std::to_string(e->args.size()));
         return tc_.error();
     }
     for (Expr* a : e->args)
@@ -249,7 +249,7 @@ Expr* Sema::unionBuild(ClassDecl* inst, UnionCaseExpr* u, SourceLoc loc) {
     UnionInfo* ui = inst->unionInfo;
     int k = ui ? ui->find(u->name) : -1;
     if (k < 0) {
-        diag.error(loc, "'" + inst->displayName + "' no tiene el caso '" + u->name + "'");
+        diag.error(loc, "'" + inst->displayName + "' does not have case '" + u->name + "'");
         return nullptr;
     }
     const UnionCaseInfo& uc = ui->cases[k];
@@ -265,7 +265,7 @@ Expr* Sema::unionBuild(ClassDecl* inst, UnionCaseExpr* u, SourceLoc loc) {
         return c;
     }
     if (!u->hasCall) {
-        diag.error(loc, "el caso '" + caseShape(uc, true) + "' necesita sus campos: " + baseName(inst) + "." + uc.name + "(...)");
+        diag.error(loc, "case '" + caseShape(uc, true) + "' needs its fields: " + baseName(inst) + "." + uc.name + "(...)");
         return nullptr;
     }
     MethodDecl* m = nullptr;
@@ -277,8 +277,8 @@ Expr* Sema::unionBuild(ClassDecl* inst, UnionCaseExpr* u, SourceLoc loc) {
     for (size_t i = 0; i < args.size(); i++) {
         Type* pt = m->params[i].type;
         if (!canImplicit(args[i], args[i]->type, pt)) {
-            diag.error(args[i]->loc, "el campo '" + uc.fields[i].name + "' de " + inst->displayName + "." + uc.name +
-                                         " es de tipo '" + pt->str() + "'; no se puede convertir '" + args[i]->type->str() + "'");
+            diag.error(args[i]->loc, "field '" + uc.fields[i].name + "' of " + inst->displayName + "." + uc.name +
+                                         " is of type '" + pt->str() + "'; cannot convert '" + args[i]->type->str() + "'");
             return nullptr;
         }
         coerce(args[i], pt);
@@ -382,7 +382,7 @@ bool Sema::unionConvertPending(Expr*& e, Type* to) {
     if (!e->lowered || e->lowered->kind != EK::UnionCase) return false;
     auto* u = static_cast<UnionCaseExpr*>(e->lowered);
     if (!to->isAggregate() || !to->decl || to->decl->templateOf != u->tmpl) {
-        diag.error(e->loc, "no se puede convertir el caso '" + u->name + "' de '" + baseName(u->tmpl) + "' en '" + to->str() +
+        diag.error(e->loc, "cannot convert case '" + u->name + "' of '" + baseName(u->tmpl) + "' to '" + to->str() +
                                "'");
         e->type = tc_.error();
         return true;
@@ -440,8 +440,8 @@ bool Sema::unionNaturalType(Expr* e) {
     if (e->type == tc_.pendingCase() && pendingCond(e)) return unionNaturalType(static_cast<CondExpr*>(e)->a);
     if (!e->lowered || e->lowered->kind != EK::UnionCase) return false;
     auto* u = static_cast<UnionCaseExpr*>(e->lowered);
-    diag.error(e->loc, "no se puede inferir el tipo de '" + u->name + "': indica el tipo de destino (" + baseName(u->tmpl) +
-                           "<...> x = " + u->name + (u->hasCall ? "(...)" : "") + ";) o escribe " + baseName(u->tmpl) +
+    diag.error(e->loc, "cannot infer the type of '" + u->name + "': specify the target type (" + baseName(u->tmpl) +
+                           "<...> x = " + u->name + (u->hasCall ? "(...)" : "") + ";) or write " + baseName(u->tmpl) +
                            "<...>." + u->name);
     return true;
 }
@@ -479,7 +479,7 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
     if (!ui) {
         if (p->kind != PK::Case) return nullptr;
         if (!st->isError())
-            diag.error(l, "el patrón '" + p->tref->str() + "(...)' es de un caso de unión, pero el valor es de tipo '" +
+            diag.error(l, "the pattern '" + p->tref->str() + "(...)' is for a union case, but the value is of type '" +
                               st->str() + "'");
         return mkBool(false, l);
     }
@@ -495,7 +495,7 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
         if (p->kind != PK::Case) return nullptr;
         std::string list;
         for (const UnionCaseInfo& uc : ui->cases) list += (list.empty() ? "" : ", ") + uc.name;
-        diag.error(l, "'" + c->displayName + "' no tiene el caso '" + p->tref->str() + "' (sus casos: " + list + ")");
+        diag.error(l, "'" + c->displayName + "' does not have case '" + p->tref->str() + "' (its cases: " + list + ")");
         return mkBool(false, l);
     }
     const UnionCaseInfo& uc = ui->cases[k];
@@ -512,8 +512,8 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
     auto conj = [&](Expr* t) { test = mkBin("&&", test, t, l); };
     if (p->kind == PK::Case) {
         if (p->elems.size() != uc.fields.size()) {
-            diag.error(l, "el caso '" + caseShape(uc, true) + "' tiene " + std::to_string(uc.fields.size()) +
-                              " campo(s), pero el patrón tiene " + std::to_string(p->elems.size()));
+            diag.error(l, "case '" + caseShape(uc, true) + "' has " + std::to_string(uc.fields.size()) +
+                              " field(s), but the pattern has " + std::to_string(p->elems.size()));
             return mkBool(false, l);
         }
         for (size_t i = 0; i < p->elems.size(); i++) {
@@ -531,8 +531,8 @@ Expr* Sema::unionPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
             if (!f || !f->type) {
                 std::string list;
                 for (const Param& fp : uc.fields) list += (list.empty() ? "" : ", ") + fp.name;
-                diag.error(nl, "el caso '" + uc.name + "' no tiene el campo '" + name + "'" +
-                                   (list.empty() ? " (no tiene campos)" : " (sus campos: " + list + ")"));
+                diag.error(nl, "case '" + uc.name + "' does not have field '" + name + "'" +
+                                   (list.empty() ? " (it has no fields)" : " (its fields: " + list + ")"));
                 return mkBool(false, l);
             }
             if (ideMode) addRef(nl, (int)name.size(), "(campo de " + uc.name + ") " + f->type->str() + " " + name, &uc.loc);
@@ -771,8 +771,8 @@ void Sema::unionExhaustive(Type* st, const std::vector<std::pair<Pattern*, Expr*
         if (any && !news && !all && !a) {
             bool prevAll = true;
             for (bool x : cov) prevAll = prevAll && x;
-            diag.error(pat->loc, prevAll ? "este brazo del 'switch' nunca se alcanza: los anteriores ya cubren todos los casos"
-                                         : "este patrón nunca coincide: los anteriores ya cubren sus casos");
+            diag.error(pat->loc, prevAll ? "this 'switch' arm is never reached: the earlier ones already cover all cases"
+                                         : "this pattern never matches: the earlier ones already cover its cases");
         }
         if (a) all = true;
         for (size_t i = 0; i < c.size(); i++) cov[i] = cov[i] || c[i] || a;
@@ -790,8 +790,8 @@ void Sema::unionExhaustive(Type* st, const std::vector<std::pair<Pattern*, Expr*
         missing += (missing.empty() ? "" : ", ") + m;
         n++;
     }
-    diag.error(loc, "el 'switch' sobre '" + st->str() + "' no es exhaustivo: " + (n == 1 ? "falta el caso " : "faltan los casos ") +
-                        missing + (isExpr ? " (añade sus brazos o '_ => ...')" : " (añade sus 'case' o 'default:')"));
+    diag.error(loc, "the 'switch' over '" + st->str() + "' is not exhaustive: " + (n == 1 ? "missing case " : "missing cases ") +
+                        missing + (isExpr ? " (add their arms or '_ => ...')" : " (add their 'case' or 'default:')"));
 }
 
 // ================================================================== operador '?'
@@ -804,14 +804,14 @@ Type* Sema::checkPropagate(PropagateExpr* e) {
     if (ot->isError()) return ot;
     bool isOpt = unionStd(ot, "Option"), isRes = unionStd(ot, "Result");
     if (!isOpt && !isRes) {
-        diag.error(loc, "el operador '?' necesita un Result<T, E> o un Option<T> (el valor es de tipo '" + ot->str() + "')");
+        diag.error(loc, "the '?' operator needs a Result<T, E> or an Option<T> (the value is of type '" + ot->str() + "')");
         return tc_.error();
     }
     // Tipo que devuelve la función actual (T de Task<T> en un método o lambda async).
     Type* R = nullptr;
     LambdaExpr* lam = lambdaStack_.empty() ? nullptr : lambdaStack_.back();
     if (lam && lam->exprBody) {
-        diag.error(loc, "el operador '?' no se puede usar en una lambda de expresión: usa un cuerpo de bloque "
+        diag.error(loc, "the '?' operator cannot be used in an expression lambda: use a block body "
                         "(x => { return F(x)?; })");
         return tc_.error();
     }
@@ -819,17 +819,17 @@ Type* Sema::checkPropagate(PropagateExpr* e) {
     else if (lam) R = lam->ret;
     else if (ctx_.method) R = ctx_.method->ret;
     if (!R) {
-        diag.error(loc, "el operador '?' necesita conocer el tipo que devuelve la lambda (declárala con un tipo delegado: "
+        diag.error(loc, "the '?' operator needs to know the type the lambda returns (declare it with a delegate type: "
                         "Func<string, Result<int, string>> f = ...)");
         return tc_.error();
     }
     if (R->isError()) return R;
     const char* want = isOpt ? "Option" : "Result";
     if (!unionStd(R, want)) {
-        diag.error(loc, std::string("el operador '?' sobre un ") + want + " solo se puede usar en un método que devuelve " +
-                            (isOpt ? "Option<T>" : "Result<T, E>") + " (este devuelve '" + R->str() + "')" +
-                            (isOpt && unionStd(R, "Result") ? "; convierte el Option con .OkOr(error)?"
-                             : !isOpt && unionStd(R, "Option") ? "; convierte el Result con .ToOption()?" : ""));
+        diag.error(loc, std::string("the '?' operator over a ") + want + " can only be used in a method that returns " +
+                            (isOpt ? "Option<T>" : "Result<T, E>") + " (this one returns '" + R->str() + "')" +
+                            (isOpt && unionStd(R, "Result") ? "; convert the Option with .OkOr(error)?"
+                             : !isOpt && unionStd(R, "Option") ? "; convert the Result with .ToOption()?" : ""));
         return tc_.error();
     }
     UnionInfo* ui = ot->decl->unionInfo;
@@ -865,10 +865,10 @@ Type* Sema::checkPropagate(PropagateExpr* e) {
                 }
             if (!from) {
                 bool own = F->isAggregate() && F->decl && F->decl->loc.file >= 0 && !F->decl->templateOf;
-                diag.error(loc, "el operador '?' no puede convertir el error '" + E->str() + "' en '" + F->str() +
-                                    "' (el método devuelve '" + R->str() + "'): " +
-                                    (own ? "añade 'public static " + F->str() + " From(" + E->str() + " e)' a " + F->str() + " o " : "") +
-                                    "conviértelo antes con .MapErr(...)");
+                diag.error(loc, "the '?' operator cannot convert the error '" + E->str() + "' to '" + F->str() +
+                                    "' (the method returns '" + R->str() + "'): " +
+                                    (own ? "add 'public static " + F->str() + " From(" + E->str() + " e)' to " + F->str() + " or " : "") +
+                                    "convert it first with .MapErr(...)");
                 return tc_.error();
             }
             err = mkCall(mkMember(typeNameExpr(F, loc), "From", loc), {err}, loc);
@@ -934,9 +934,9 @@ Expr* Sema::propagateSpill(PropagateExpr* e, std::vector<Stmt*>& pre) {
 void Sema::propagateValidate() {
     for (PropagateExpr* e : propagates_)
         if (!e->spilled && e->value && e->type && !e->type->isError())
-            diag.error(e->loc, "no se puede usar '?' en esta posición (dentro de '?.' o '?\?=', en la condición o el "
-                               "incremento de un 'for', en la condición de un 'do-while' o en un inicializador de campo); "
-                               "guarda antes el resultado en una variable: var x = expr?;");
+            diag.error(e->loc, "'?' cannot be used in this position (inside '?.' or '?\?=', in the condition or "
+                               "increment of a 'for', in the condition of a 'do-while', or in a field initializer); "
+                               "store the result in a variable first: var x = expr?;");
     propagates_.clear();
 }
 

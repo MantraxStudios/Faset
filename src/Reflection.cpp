@@ -52,15 +52,15 @@ bool Sema::reflectStep() {
     if (!R) {
         for (; st.reflectDone < st.reflectQueue.size(); st.reflectDone++)
             diag.error(st.reflectQueue[st.reflectDone].second,
-                       "la reflexión al ejecutar ([Reflectable], GetFields, Activator...) necesita 'using std.reflection;'");
+                       "runtime reflection ([Reflectable], GetFields, Activator...) needs 'using std.reflection;'");
         return false;
     }
     resolveClassSignatures(R);
     while (st.reflectDone < st.reflectQueue.size()) {
         auto [c, loc] = st.reflectQueue[st.reflectDone++];
         if ((c->kind != ClassKind::Class && c->kind != ClassKind::Struct) || c->isInterface() || c->isStaticClass()) {
-            diag.error(loc, "la reflexión al ejecutar solo admite clases y structs ('" + c->displayName +
-                                "' no lo es); para enums usa la reflexión de tiempo de compilación (Tipo<T>)");
+            diag.error(loc, "runtime reflection only supports classes and structs ('" + c->displayName +
+                                "' is not one); for enums use compile-time reflection (Tipo<T>)");
             continue;
         }
         auto* f = new FieldDecl();

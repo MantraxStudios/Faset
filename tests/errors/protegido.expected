@@ -1,7 +1,7 @@
-22|.Cuenta\.saldo. no es accesible debido a su nivel de protección
-23|.Cuenta\.Interno. no es accesible
-31|.Cuenta\.titular. no es accesible
-32|.Cuenta\.Auditar. no es accesible
-33|.Cuenta\.Version. no es accesible
-34|.Cuenta\.Cuenta. no es accesible
-42|.Cuenta\.Auditar. no es accesible
+22|'Cuenta\.saldo' is not accessible due to its protection level
+23|'Cuenta\.Interno' is not accessible due to its protection level
+31|'Cuenta\.titular' is not accessible due to its protection level
+32|'Cuenta\.Auditar' is not accessible due to its protection level
+33|'Cuenta\.Version' is not accessible due to its protection level
+34|'Cuenta\.Cuenta' is not accessible due to its protection level
+42|'Cuenta\.Auditar' is not accessible due to its protection level

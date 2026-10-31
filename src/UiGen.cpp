@@ -68,7 +68,7 @@ struct Gen {
         for (size_t i = 0; i < v.size(); i++)
             if (!(std::isdigit((unsigned char)v[i]) || (i == 0 && v[i] == '-'))) good = false;
         if (!good) {
-            error(n.line, "el atributo '" + key + "' debe ser un número entero (es '" + v + "')");
+            error(n.line, "attribute '" + key + "' must be an integer (it is '" + v + "')");
             out = "0";
             return true;
         }
@@ -83,7 +83,7 @@ struct Gen {
         char* end = nullptr;
         std::strtod(v.c_str(), &end);
         if (v.empty() || *end) {
-            error(n.line, "el atributo '" + key + "' debe ser un número (es '" + v + "')");
+            error(n.line, "attribute '" + key + "' must be a number (it is '" + v + "')");
             out = "0f";
             return true;
         }
@@ -98,7 +98,7 @@ struct Gen {
         for (char c : hex)
             if (!std::isxdigit((unsigned char)c)) good = false;
         if (!good) {
-            error(n.line, "el atributo '" + key + "' debe ser un color '#RRGGBB' o '#RRGGBBAA' (es '" + v + "')");
+            error(n.line, "attribute '" + key + "' must be a color '#RRGGBB' or '#RRGGBBAA' (it is '" + v + "')");
             return "0";
         }
         if (hex.size() == 3) hex = std::string{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]};
@@ -113,7 +113,7 @@ struct Gen {
     std::string boolValue(const XmlNode& n, const std::string& key, const std::string& v) {
         std::string l = lower(v);
         if (l == "true" || l == "false") return l;
-        error(n.line, "el atributo '" + key + "' debe ser 'true' o 'false'");
+        error(n.line, "attribute '" + key + "' must be 'true' or 'false'");
         return "false";
     }
 
@@ -123,13 +123,13 @@ struct Gen {
             if (lower(o) == lower(v)) return type + "." + o;
         std::string list;
         for (const std::string& o : options) list += (list.empty() ? "" : ", ") + o;
-        error(n.line, "valor no válido para '" + key + "': '" + v + "' (opciones: " + list + ")");
+        error(n.line, "invalid value for '" + key + "': '" + v + "' (options: " + list + ")");
         return type + "." + options[0];
     }
 
     std::string handler(const XmlNode& n, const std::string& key) {
         const std::string& h = n.attrs.at(key);
-        if (!isIdent(h)) error(n.line, "'" + key + "' debe ser el nombre de un método (es '" + h + "')");
+        if (!isIdent(h)) error(n.line, "'" + key + "' must be the name of a method (it is '" + h + "')");
         return h;
     }
 
@@ -151,28 +151,28 @@ struct Gen {
         const std::string& k = n.name;
         bool known = isVisual(k) || isMenuEntry(k) || isComponent(k) || isAudio(k) || k == "TabPage" || k == "TreeNode";
         if (!known) {
-            error(n.line, "control desconocido '<" + k + ">' (válidos: Panel, Label, Button, TextBox, CheckBox, Slider, "
+            error(n.line, "unknown control '<" + k + ">' (valid: Panel, Label, Button, TextBox, CheckBox, Slider, "
                           "ProgressBar, RadioButton, ComboBox, ListBox, PictureBox, TabControl, TreeView, MenuBar, Canvas, "
-                          "WebView, VideoPlayer, Timer, ContextMenu, Sound y Music)");
+                          "WebView, VideoPlayer, Timer, ContextMenu, Sound and Music)");
             return false;
         }
         std::string where;
         if (k == "TabPage") {
-            if (parentKind != "TabControl") where = "<TabPage> solo puede ir dentro de <TabControl>";
+            if (parentKind != "TabControl") where = "<TabPage> can only go inside <TabControl>";
         } else if (k == "TreeNode") {
-            if (parentKind != "TreeView" && parentKind != "TreeNode") where = "<TreeNode> solo puede ir dentro de <TreeView> o de otro <TreeNode>";
+            if (parentKind != "TreeView" && parentKind != "TreeNode") where = "<TreeNode> can only go inside <TreeView> or another <TreeNode>";
         } else if (isMenuEntry(k)) {
-            if (!isMenuOwner(parentKind)) where = "<" + k + "> solo puede ir dentro de <MenuBar>, <ContextMenu> o de otro <Menu>";
+            if (!isMenuOwner(parentKind)) where = "<" + k + "> can only go inside <MenuBar>, <ContextMenu>, or another <Menu>";
         } else if (isComponent(k) || isAudio(k)) {
-            if (parentKind != "Window") where = "<" + k + "> es un componente: va directamente dentro de <Window>";
+            if (parentKind != "Window") where = "<" + k + "> is a component: it goes directly inside <Window>";
         } else if (parentKind == "TabControl") {
-            where = "<TabControl> solo puede contener <TabPage> (pon <" + k + "> dentro de una página)";
+            where = "<TabControl> can only contain <TabPage> (put <" + k + "> inside a page)";
         } else if (parentKind == "TreeView" || parentKind == "TreeNode") {
-            where = "<" + parentKind + "> solo puede contener <TreeNode>";
+            where = "<" + parentKind + "> can only contain <TreeNode>";
         } else if (isMenuOwner(parentKind)) {
-            where = "<" + parentKind + "> solo puede contener <Menu>, <MenuItem> y <Separator>";
+            where = "<" + parentKind + "> can only contain <Menu>, <MenuItem>, and <Separator>";
         } else if (parentKind != "Window" && parentKind != "Panel" && parentKind != "TabPage") {
-            where = "solo <Window>, <Panel> y <TabPage> pueden contener controles (<" + parentKind + "> no)";
+            where = "only <Window>, <Panel>, and <TabPage> can contain controls (<" + parentKind + "> cannot)";
         }
         if (!where.empty()) {
             error(n.line, where);
@@ -192,8 +192,8 @@ struct Gen {
         auto nm = n.attrs.find("Name");
         if (nm != n.attrs.end()) {
             const std::string& name = nm->second;
-            if (!isIdent(name)) error(n.line, "'Name' debe ser un identificador válido (es '" + name + "')");
-            else if (name == "Window" || !names.insert(name).second) error(n.line, "ya existe un control llamado '" + name + "'");
+            if (!isIdent(name)) error(n.line, "'Name' must be a valid identifier (it is '" + name + "')");
+            else if (name == "Window" || !names.insert(name).second) error(n.line, "a control named '" + name + "' already exists");
             return name;
         }
         return prefix + std::to_string(++unnamed);
@@ -211,7 +211,7 @@ struct Gen {
             if (key == "Name" || key == "Text") continue;
             if (key == "Tag") code += " " + name + ".Tag = " + quote(v) + ";";
             else if (key == "Expanded") code += " " + name + ".Expanded = " + boolValue(n, key, v) + ";";
-            else error(n.line, "atributo desconocido '" + key + "' en <TreeNode> (válidos: Name, Text, Expanded, Tag)");
+            else error(n.line, "unknown attribute '" + key + "' on <TreeNode> (valid: Name, Text, Expanded, Tag)");
         }
         emit(n.line, " if (ev == 0) { " + code + " }");
         for (const XmlNode& c : n.children) node(c, name, "TreeNode");
@@ -256,7 +256,7 @@ struct Gen {
         audio = true;
         auto src = n.attrs.find("Source");
         if (src == n.attrs.end() || src->second.empty())
-            error(n.line, "<" + n.name + "> necesita un atributo 'Source' con el archivo de audio (WAV, OGG o MP3)");
+            error(n.line, "<" + n.name + "> needs a 'Source' attribute with the audio file (WAV, OGG, or MP3)");
         std::string code = name + " = " + n.name + ".Load(" + quote(src == n.attrs.end() ? "" : src->second) + ");";
         std::string autoPlay;
         for (const std::string& key : n.attrOrder) {
@@ -266,10 +266,10 @@ struct Gen {
             if (key == "Volume" || key == "Pan" || key == "Speed") numAttr(n, key, num), code += " " + name + "." + key + " = " + num + ";";
             else if (key == "Loop") code += " " + name + ".Loop = " + boolValue(n, key, v) + ";";
             else if (key == "AutoPlay") autoPlay = boolValue(n, key, v) == "true" ? " " + name + ".Play();" : "";
-            else error(n.line, "atributo desconocido '" + key + "' en <" + n.name + "> (válidos: Name, Source, Volume, Pan, Speed, Loop, AutoPlay)");
+            else error(n.line, "unknown attribute '" + key + "' on <" + n.name + "> (valid: Name, Source, Volume, Pan, Speed, Loop, AutoPlay)");
         }
         emit(n.line, " if (ev == 0) { " + code + autoPlay + " }");
-        if (!n.children.empty()) error(n.children[0].line, "<" + n.name + "> no puede contener otros elementos");
+        if (!n.children.empty()) error(n.children[0].line, "<" + n.name + "> cannot contain other elements");
         return true;
     }
 
@@ -311,7 +311,7 @@ struct Gen {
             const std::string& v = n.attrs.at(key);
             std::string num;
             if (key == "Name" || key == "X" || key == "Y" || key == "Width" || key == "Height") {
-                if (!sized && key != "Name") error(n.line, "<" + n.name + "> no admite '" + key + "' (su tamaño lo decide su contenedor)");
+                if (!sized && key != "Name") error(n.line, "<" + n.name + "> does not allow '" + key + "' (its size is decided by its container)");
                 continue;
             }
             if (video && videoAttr(n, name, key, v, vcode, vpost, events, videoIds)) continue;
@@ -328,7 +328,7 @@ struct Gen {
                 continue;
             }
             if (n.name == "Separator") {
-                if (key != "Visible") error(n.line, "<Separator> solo admite Name y Visible");
+                if (key != "Visible") error(n.line, "<Separator> only allows Name and Visible");
                 else code += " " + name + ".Visible = " + boolValue(n, key, v) + ";";
                 continue;
             }
@@ -371,7 +371,7 @@ struct Gen {
                 }
                 if (!flags.empty()) code += " " + name + ".Anchor = " + flags + ";";
             } else if (key == "ContextMenu") {
-                if (!isIdent(v)) error(n.line, "'ContextMenu' debe ser el nombre (Name) de un <ContextMenu> (es '" + v + "')");
+                if (!isIdent(v)) error(n.line, "'ContextMenu' must be the (Name) of a <ContextMenu> (it is '" + v + "')");
                 else {
                     late += " " + name + ".ContextMenu = " + v + ";";
                     menuRefs.push_back({n.line, v});
@@ -380,20 +380,20 @@ struct Gen {
                        key == "Paint" || key == "MouseDown" || key == "MouseMove" || key == "MouseUp") {
                 std::string bad;
                 if ((key == "Paint" || key == "MouseDown" || key == "MouseMove" || key == "MouseUp") && kind != "Canvas")
-                    bad = "solo <Canvas>";
-                else if (key == "Tick" && kind != "Timer") bad = "solo <Timer>";
-                else if (key == "NodeActivated" && kind != "TreeView") bad = "solo <TreeView>";
+                    bad = "only <Canvas>";
+                else if (key == "Tick" && kind != "Timer") bad = "only <Timer>";
+                else if (key == "NodeActivated" && kind != "TreeView") bad = "only <TreeView>";
                 else if (key == "SelectedChanged" && kind != "TabControl" && kind != "TreeView" && kind != "ListBox" && kind != "ComboBox")
-                    bad = "solo <TabControl>, <TreeView>, <ListBox> y <ComboBox>";
+                    bad = "only <TabControl>, <TreeView>, <ListBox>, and <ComboBox>";
                 if (!bad.empty()) {
-                    error(n.line, "el evento '" + key + "' no existe en <" + n.name + "> (lo tienen " + bad + ")");
+                    error(n.line, "event '" + key + "' does not exist on <" + n.name + "> (" + bad + " has it)");
                     continue;
                 }
                 int id = nextEvent++;
                 wired.push_back({key, id});
                 events += " if (ev == " + std::to_string(id) + ") " + eventCall(key, handler(n, key));
             } else {
-                error(n.line, "atributo desconocido '" + key + "' en <" + n.name + ">");
+                error(n.line, "unknown attribute '" + key + "' on <" + n.name + ">");
             }
         }
         code += post;
@@ -427,11 +427,11 @@ std::string generateUiSource(const std::string& xml, int fileId) {
     Gen g;
     g.fileId = fileId;
     if (!parseXml(xml, root, err)) {
-        g.error(1, "XML no válido: " + err);
+        g.error(1, "invalid XML: " + err);
         return "";
     }
     if (root.name != "Window") {
-        g.error(root.line, "el elemento raíz de un .fstui debe ser <Window>");
+        g.error(root.line, "the root element of a .fstui must be <Window>");
         return "";
     }
     auto attr = [&](const std::string& k, const std::string& def) {
@@ -440,7 +440,7 @@ std::string generateUiSource(const std::string& xml, int fileId) {
     };
     std::string cls = attr("Class", "");
     if (!Gen::isIdent(cls)) {
-        g.error(root.line, "<Window> necesita un atributo 'Class' con el nombre de la clase (p. ej. Class=\"MainWindow\")");
+        g.error(root.line, "<Window> needs a 'Class' attribute with the class name (e.g. Class=\"MainWindow\")");
         return "";
     }
     std::string ns = attr("Namespace", "");
@@ -459,13 +459,13 @@ std::string generateUiSource(const std::string& xml, int fileId) {
         else if (key == "GradientDirection")
             code += " Window.GradientHorizontal = " +
                     std::string(g.enumValue(root, key, v, "X", {"Vertical", "Horizontal"}) == "X.Horizontal" ? "true" : "false") + ";";
-        else g.error(root.line, "atributo desconocido '" + key + "' en <Window>");
+        else g.error(root.line, "unknown attribute '" + key + "' on <Window>");
     }
     g.emit(root.line, " if (ev == 0) { " + code + " }");
     g.windowWidth = std::atoi(w.c_str());
     for (const XmlNode& c : root.children) g.node(c, "Window", "Window");
     for (auto& [line, name] : g.menuRefs)
-        if (!g.contextMenus.count(name)) g.error(line, "no existe un <ContextMenu Name='" + name + "'> en la ventana");
+        if (!g.contextMenus.count(name)) g.error(line, "there is no <ContextMenu Name='" + name + "'> in the window");
     // Referencias entre controles (ContextMenu, páginas elegidas): cuando ya existen todos.
     if (!g.late.empty()) g.emit(std::max<int>(1, (int)g.lines.size()), " if (ev == 0) {" + g.late + " }");
 

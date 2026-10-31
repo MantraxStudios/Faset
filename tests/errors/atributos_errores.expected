@@ -1,10 +1,10 @@
-14|el atributo \[SoloCampo\] no se puede aplicar a clases
-19|el atributo \[Rango\] está repetido
-20|atributo desconocido 'Desconocido'
-21|ninguna sobrecarga del constructor de 'Rango' acepta \(string\)
-22|'Rango' no tiene un campo o propiedad pública modificable 'Max'
-23|'NoEsAtributo' no es un atributo
-24|el atributo \[SoloCampo\] no se puede aplicar a métodos
-25|el atributo \[Export\] no se puede aplicar a campos
-29|\[Conditional\] solo se puede aplicar a métodos 'void'
-33|'Prohibido' está obsoleto: ya no existe
+14|attribute \[SoloCampo\] cannot be applied to classes; per its \[AttributeUsage\] it is only valid for fields
+19|attribute \[Rango\] is duplicated \(use \[AttributeUsage\(\.\.\., AllowMultiple = true\)\] to allow it\)
+20|unknown attribute 'Desconocido' \(there is no class 'Desconocido' or 'DesconocidoAttribute' deriving from Attribute\)
+21|attribute \[Rango\]: ninguna sobrecarga del constructor de 'Rango' acepta \(string\) en tiempo de compilación
+22|'Rango' has no writable public field or property 'Max'
+23|'NoEsAtributo' is not an attribute: an attribute class must derive from Attribute
+24|attribute \[SoloCampo\] cannot be applied to methods; per its \[AttributeUsage\] it is only valid for fields
+25|attribute \[Export\] cannot be applied to fields \(only to methods\)
+29|\[Conditional\] can only be applied to 'void' methods
+33|'Prohibido' is obsolete: ya no existe

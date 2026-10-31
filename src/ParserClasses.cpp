@@ -58,7 +58,7 @@ void Parser::synthesizeRecord(ClassDecl* c, const std::vector<Param>& params, bo
         for (size_t i = 0; i < params.size(); i++) {
             const Param& p = params[i];
             if (p.tref->isRef) {
-                diag.error(p.loc, "los parámetros de un 'record' no pueden ser referencias");
+                diag.error(p.loc, "the parameters of a 'record' cannot be references");
                 continue;
             }
             members.push_back({"public " + p.tref->str() + " " + p.name + " { get; }", 0});

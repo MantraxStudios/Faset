@@ -179,12 +179,12 @@ ClassDecl* Sema::nullableTemplate() {
 Type* Sema::nullableOf(Type* t, SourceLoc loc) {
     if (t->isError() || t->isRefLike() || nullableElem(t)) return t;  // las clases ya admiten null
     if (t->isVoid()) {
-        diag.error(loc, "'void?' no es un tipo válido");
+        diag.error(loc, "'void?' is not a valid type");
         return tc_.error();
     }
     ClassDecl* tm = nullableTemplate();
     if (!tm) {
-        diag.error(loc, "los tipos 'T?' necesitan std.Nullable<T> (biblioteca estándar no encontrada)");
+        diag.error(loc, "'T?' types need std.Nullable<T> (standard library not found)");
         return tc_.error();
     }
     ClassDecl* inst = instantiate(tm, {t}, loc);
@@ -240,7 +240,7 @@ Type* Sema::tupleType(const std::vector<Type*>& elems, const std::vector<std::st
         if (n.empty()) continue;
         any = true;
         if (!seen.insert(n).second) {
-            diag.error(loc, "el nombre de elemento '" + n + "' está repetido en la tupla");
+            diag.error(loc, "element name '" + n + "' is repeated in the tuple");
             return c->type;
         }
     }
@@ -266,7 +266,7 @@ Type* Sema::resolveSugarType(TypeRef* tr, bool allowVoid) {
         }
         Type* base = tupleType(elems, tr->tupleNames, tr->loc);
         if (tr->nullable) base = nullableOf(base, tr->loc);
-        if (tr->ptrDepth > 0 && !unsafeCtx()) unsafeError(tr->loc, "el tipo puntero '" + tr->str() + "'");
+        if (tr->ptrDepth > 0 && !unsafeCtx()) unsafeError(tr->loc, "the pointer type '" + tr->str() + "'");
         for (int i = 0; i < tr->ptrDepth; i++) base = tc_.pointerTo(base);
         return base;
     }
@@ -396,23 +396,23 @@ Type* Sema::checkInterp(InterpExpr* e) {
         Type* t = checkValue(part.expr);
         if (t->isError()) continue;
         if (t->isVoid()) {
-            diag.error(part.expr->loc, "un hueco de cadena interpolada no puede ser 'void'");
+            diag.error(part.expr->loc, "an interpolated string hole cannot be 'void'");
             continue;
         }
         if (!toStringable(t)) {
-            diag.error(part.expr->loc, "no se puede convertir '" + t->str() + "' en texto en una cadena interpolada" +
-                                           (t->isAggregate() ? " (define 'public string ToString()' en el tipo)" : ""));
+            diag.error(part.expr->loc, "cannot convert '" + t->str() + "' to string in an interpolated string" +
+                                           (t->isAggregate() ? " (define 'public string ToString()' on the type)" : ""));
             continue;
         }
         part.toString = findToString(t);
         if (!part.format.empty()) {
             Type* nt = nullableElem(t) ? nullableElem(t) : t;
             if (!nt->isNumeric() && !nt->isEnum())
-                diag.error(part.expr->loc, "el formato ':" + part.format + "' solo se aplica a números (el valor es '" +
+                diag.error(part.expr->loc, "format ':" + part.format + "' only applies to numbers (the value is '" +
                                                t->str() + "')");
             else if (!validFormat(part.format, nt))
-                diag.error(part.expr->loc, "formato numérico no válido ':" + part.format + "' para '" + nt->str() +
-                                               "' (usa D, X, F, N, E, P, G con dígitos opcionales, o '0.00', '#,##0')");
+                diag.error(part.expr->loc, "invalid numeric format ':" + part.format + "' for '" + nt->str() +
+                                               "' (use D, X, F, N, E, P, G with optional digits, or '0.00', '#,##0')");
         }
     }
     return tc_.get(TK::String);
@@ -436,8 +436,8 @@ Type* Sema::checkCoalesce(BinaryExpr* e, Type* L) {
         cond = mkBin("!=", refTo(a, loc), new NullExpr(loc), loc);
         val = refTo(a, loc);
     } else {
-        diag.error(e->lhs->loc, "el operador '?\?' necesita a la izquierda un valor que admita null (una clase o un "
-                                "tipo T?); '" + L->str() + "' nunca es null");
+        diag.error(e->lhs->loc, "the '?\?' operator needs a nullable value on the left (a class or a "
+                                "T? type); '" + L->str() + "' is never null");
         checkValue(e->rhs);
         return tc_.error();
     }
@@ -459,13 +459,13 @@ Type* Sema::checkCoalesceAssign(AssignExpr* e) {
     Type* R = checkValue(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
     if (!isLValue(e->lhs) || isConstTarget(e->lhs)) {
-        diag.error(e->lhs->loc, "el lado izquierdo de '?\?=' debe ser una variable, un campo o un elemento");
+        diag.error(e->lhs->loc, "the left-hand side of '?\?=' must be a variable, a field or an element");
         return tc_.error();
     }
     Type* el = nullableElem(L);
     if (!el && !(L->isRefLike() && !L->is(TK::Null))) {
-        diag.error(e->lhs->loc, "el operador '?\?=' necesita a la izquierda un valor que admita null (una clase o un "
-                                "tipo T?); '" + L->str() + "' nunca es null");
+        diag.error(e->lhs->loc, "the '?\?=' operator needs a nullable value on the left (a class or a "
+                                "T? type); '" + L->str() + "' is never null");
         return tc_.error();
     }
     coerce(e->rhs, L);
@@ -488,8 +488,8 @@ Type* Sema::checkCondAccess(CondAccessExpr* e) {
     } else if (O->isClass() || O->isDelegate()) {  // obj?.Campo, accion?.Invoke(x)
         e->recvType = O;
     } else {
-        diag.error(e->loc, "el operador '?.' necesita un valor que admita null (una clase, un delegado o un tipo T?); '" + O->str() +
-                               "' nunca es null (usa '.')");
+        diag.error(e->loc, "the '?.' operator needs a nullable value (a class, a delegate or a T? type); '" + O->str() +
+                               "' is never null (use '.')");
         return tc_.error();
     }
     e->tmp = hiddenLocal(O, e->loc, true);
@@ -511,10 +511,10 @@ Type* Sema::checkTuple(TupleExpr* e) {
         if (t->isError()) {
             bad = true;
         } else if (t->is(TK::Null)) {
-            diag.error(e->elems[i]->loc, "no se puede inferir el tipo de 'null' en una tupla (usa un cast)");
+            diag.error(e->elems[i]->loc, "cannot infer the type of 'null' in a tuple (use a cast)");
             bad = true;
         } else if (t->isVoid()) {
-            diag.error(e->elems[i]->loc, "un elemento de tupla no puede ser 'void'");
+            diag.error(e->elems[i]->loc, "a tuple element cannot be 'void'");
             bad = true;
         }
         elems.push_back(t);
@@ -540,13 +540,13 @@ Type* Sema::checkTuple(TupleExpr* e) {
 Type* Sema::checkDeconstructAssign(AssignExpr* e) {
     auto* lhs = static_cast<TupleExpr*>(e->lhs);
     if (e->op != "=") {
-        diag.error(e->loc, "solo se puede usar '=' para deconstruir una tupla");
+        diag.error(e->loc, "only '=' can be used to deconstruct a tuple");
         return tc_.error();
     }
     Type* R = checkValue(e->rhs);
     if (R->isError()) return R;
     if (!isTupleType(R) || R->decl->fields.size() != lhs->elems.size()) {
-        diag.error(e->loc, "no se puede deconstruir un valor de tipo '" + R->str() + "' en " +
+        diag.error(e->loc, "cannot deconstruct a value of type '" + R->str() + "' into " +
                                std::to_string(lhs->elems.size()) + " variables");
         return tc_.error();
     }
@@ -593,8 +593,8 @@ Type* Sema::sugarBinary(BinaryExpr* e, Type*& L, Type*& R) {
     SourceLoc loc = e->loc;
     if (nl || nr) {
         if (!eq && !rel) {
-            diag.error(e->loc, "el operador '" + op + "' no está definido para '" + (nl ? L : R)->str() +
-                                   "'; obtén antes el valor con '?\?' o '.Value'");
+            diag.error(e->loc, "the '" + op + "' operator is not defined for '" + (nl ? L : R)->str() +
+                                   "'; get the value first with '?\?' or '.Value'");
             return tc_.error();
         }
         auto* let = new LetExpr(loc);
@@ -607,7 +607,7 @@ Type* Sema::sugarBinary(BinaryExpr* e, Type*& L, Type*& R) {
         };
         if (L->is(TK::Null) || R->is(TK::Null)) {  // x == null
             if (!eq) {
-                diag.error(e->loc, "no se puede comparar con null usando '" + op + "'");
+                diag.error(e->loc, "cannot compare with null using '" + op + "'");
                 return tc_.error();
             }
             VarInfo* a = hiddenLocal(nl ? L : R, loc, true);
@@ -639,7 +639,7 @@ Type* Sema::sugarBinary(BinaryExpr* e, Type*& L, Type*& R) {
     }
     if (eq && isTupleType(L) && isTupleType(R)) {
         if (L->decl->fields.size() != R->decl->fields.size()) {
-            diag.error(e->loc, "no se pueden comparar tuplas de distinto tamaño ('" + L->str() + "' y '" + R->str() + "')");
+            diag.error(e->loc, "cannot compare tuples of different sizes ('" + L->str() + "' and '" + R->str() + "')");
             return tc_.error();
         }
         auto* let = new LetExpr(loc);
@@ -744,8 +744,8 @@ Expr* Sema::patternTest(Pattern* p, const SubjectFn& subj, Type* st) {
         case PK::List: case PK::Slice: return listPatternTest(p, subj, st);  // [1, .., x] (Arrays.cpp)
         case PK::Positional: {
             if (!isTupleType(st) || st->decl->fields.size() != p->elems.size()) {
-                diag.error(l, "el patrón posicional de " + std::to_string(p->elems.size()) +
-                                  " elementos necesita una tupla del mismo tamaño (el valor es '" + st->str() + "')");
+                diag.error(l, "the positional pattern of " + std::to_string(p->elems.size()) +
+                                  " elements needs a tuple of the same size (the value is '" + st->str() + "')");
                 return mkBool(false, l);
             }
             Expr* all = nullptr;
@@ -795,10 +795,10 @@ Expr* Sema::lowerTypePattern(Pattern* p, Type* target, const SubjectFn& subj, Ty
             return as;
         };
     } else if (target->isClass() && !st->isRefLike()) {
-        diag.error(l, "el operador 'is' requiere una referencia a clase o interfaz (el tipo es '" + st->str() + "')");
+        diag.error(l, "the 'is' operator requires a class or interface reference (the type is '" + st->str() + "')");
         return mkBool(false, l);
     } else {
-        diag.error(l, "el patrón de tipo '" + target->str() + "' no puede coincidir con un valor de tipo '" + st->str() + "'");
+        diag.error(l, "the type pattern '" + target->str() + "' cannot match a value of type '" + st->str() + "'");
         return mkBool(false, l);
     }
     auto conj = [&](Expr* t) { test = test ? mkBin("&&", test, t, l) : t; };
@@ -832,7 +832,7 @@ Type* Sema::checkSwitchExpr(SwitchExpr* e) {
     std::vector<Expr*> conds;
     bool covered = false;
     for (auto& arm : e->arms) {
-        if (covered) diag.error(arm.loc, "este brazo del 'switch' nunca se alcanza: uno anterior ya cubre todos los valores");
+        if (covered) diag.error(arm.loc, "this 'switch' arm is never reached: an earlier one already covers all values");
         ctx_.scopes.emplace_back();
         Expr* cond = patternTest(arm.pat, subj, st);
         if (arm.guard) cond = mkBin("&&", cond, arm.guard, arm.loc);
@@ -870,16 +870,16 @@ Type* Sema::checkSwitchExpr(SwitchExpr* e) {
             T = vt, src = arm.value;
             continue;
         }
-        diag.error(arm.value->loc, "los brazos del 'switch' no tienen un tipo común ('" + T->str() + "' y '" + vt->str() + "')");
+        diag.error(arm.value->loc, "the 'switch' arms do not have a common type ('" + T->str() + "' and '" + vt->str() + "')");
         bad = true;
     }
     if (bad) return tc_.error();
     if (!T) {
-        diag.error(loc, "no se puede inferir el tipo del 'switch' (todos los brazos son null)");
+        diag.error(loc, "cannot infer the type of the 'switch' (all arms are null)");
         return tc_.error();
     }
     if (T->isVoid()) {
-        diag.error(loc, "los brazos de un 'switch' de expresión deben producir un valor");
+        diag.error(loc, "the arms of a 'switch' expression must produce a value");
         return tc_.error();
     }
     if (sawNull) T = nullableOf(T, loc);
@@ -935,7 +935,7 @@ bool Sema::lowerSwitchStmt(SwitchStmt* s) {
         if (!sec.hasDefault) {
             order.push_back(&sec);
         } else if (def) {
-            diag.error(s->loc, "el 'switch' ya tiene una etiqueta 'default'");
+            diag.error(s->loc, "the 'switch' already has a 'default' label");
         } else {
             def = &sec;
         }
@@ -965,7 +965,7 @@ bool Sema::lowerSwitchStmt(SwitchStmt* s) {
         body->stmts = sec->body;
         checkStmt(body);
         if (!sectionEnds(sec->body))
-            diag.error(s->loc, "el control no puede pasar de una etiqueta 'case' a otra (falta 'break')");
+            diag.error(s->loc, "control cannot fall through from one 'case' label to another (missing 'break')");
         ctx_.scopes.pop_back();
         auto* is = new IfStmt(loc);
         is->cond = cond;
@@ -998,7 +998,7 @@ bool Sema::checkSugarStmt(Stmt* s) {
         case SK::Using: checkUsing(static_cast<UsingStmt*>(s)); return true;
         case SK::Switch: return lowerSwitchStmt(static_cast<SwitchStmt*>(s));
         case SK::Defer:  // las demás se convierten en try/finally al comprobar su bloque (Flow.cpp)
-            diag.error(s->loc, "'defer' debe ir directamente dentro de un bloque { ... }");
+            diag.error(s->loc, "'defer' must appear directly inside a { ... } block");
             return true;
         default: return false;
     }
@@ -1027,9 +1027,9 @@ void Sema::checkForeach(ForeachStmt* s) {
             if (m->params[0].type && (m->params[0].type == ct || m->isTemplate())) has = true;
     }
     if (!has) {
-        diag.error(s->coll->loc, "'foreach' no puede recorrer un valor de tipo '" + ct->str() +
-                                     "': necesita un método GetEnumerator() (como List<T>, Dictionary<K, V>, "
-                                     "HashSet<T>, Span<T> o string)");
+        diag.error(s->coll->loc, "'foreach' cannot iterate over a value of type '" + ct->str() +
+                                     "': it needs a GetEnumerator() method (like List<T>, Dictionary<K, V>, "
+                                     "HashSet<T>, Span<T> or string)");
         return fallback();
     }
     VarInfo* cv = hiddenLocal(ct, loc, false);
@@ -1085,8 +1085,8 @@ void Sema::checkDeconstruct(DeconstructStmt* s) {
     size_t n = s->names.size();
     if (isTupleType(t)) {
         if (t->decl->fields.size() != n) {
-            diag.error(loc, "no se puede deconstruir una tupla de " + std::to_string(t->decl->fields.size()) +
-                                " elementos en " + std::to_string(n) + " variables");
+            diag.error(loc, "cannot deconstruct a tuple of " + std::to_string(t->decl->fields.size()) +
+                                " elements into " + std::to_string(n) + " variables");
             return fallback();
         }
         for (size_t i = 0; i < n; i++) {
@@ -1114,8 +1114,8 @@ void Sema::checkDeconstruct(DeconstructStmt* s) {
             if (allRef) dm = m;
         }
     if (!dm) {
-        diag.error(loc, "no se puede deconstruir un valor de tipo '" + t->str() + "' en " + std::to_string(n) +
-                            " variables (se esperaba una tupla o un método Deconstruct(out ...))");
+        diag.error(loc, "cannot deconstruct a value of type '" + t->str() + "' into " + std::to_string(n) +
+                            " variables (expected a tuple or a Deconstruct(out ...) method)");
         return fallback();
     }
     std::vector<Expr*> args;
@@ -1128,7 +1128,7 @@ void Sema::checkDeconstruct(DeconstructStmt* s) {
             if (s->types[i]) {
                 Type* want = resolveType(s->types[i]);
                 if (!want->isError() && want != pt)
-                    diag.error(s->locs[i], "'" + s->names[i] + "' debe ser de tipo '" + pt->str() + "' (lo que devuelve Deconstruct)");
+                    diag.error(s->locs[i], "'" + s->names[i] + "' must be of type '" + pt->str() + "' (what Deconstruct returns)");
             }
             v = declareLocal(s->names[i], pt, s->locs[i], "l_");
             if (ideMode) addRef(s->locs[i], (int)s->names[i].size(), "(variable local) " + pt->str() + " " + s->names[i], &s->locs[i]);
@@ -1150,8 +1150,8 @@ void Sema::checkUsing(UsingStmt* s) {
         Type* t = v->type;
         if (t->isError()) return;
         if (!t->isClass()) {
-            diag.error(l, "'using' necesita un objeto de clase (se libera con su destructor al salir); '" + t->str() +
-                              "' no lo es");
+            diag.error(l, "'using' needs a class object (released by its destructor on exit); '" + t->str() +
+                              "' is not one");
             return;
         }
         useMethod(t->decl->dtor);
@@ -1179,10 +1179,10 @@ void Sema::checkParamsSignature(MethodDecl* m) {
     for (size_t i = 0; i < m->params.size(); i++) {
         Param& p = m->params[i];
         if (!p.isParams) continue;
-        if (i + 1 != m->params.size()) diag.error(p.loc, "'params' solo se puede usar en el último parámetro");
-        if (p.isRef()) diag.error(p.loc, "un parámetro 'params' no puede ser ref ni out");
+        if (i + 1 != m->params.size()) diag.error(p.loc, "'params' can only be used on the last parameter");
+        if (p.isRef()) diag.error(p.loc, "a 'params' parameter cannot be ref or out");
         if (p.type && !p.type->isError() && !listElem(p.type) && !vectorElemOf(p.type))
-            diag.error(p.loc, "un parámetro 'params' debe ser un arreglo T[] o List<T>");
+            diag.error(p.loc, "a 'params' parameter must be a T[] array or List<T>");
     }
 }
 
@@ -1250,7 +1250,7 @@ void Sema::packParams(MethodDecl* m, std::vector<Expr*>& args) {
     for (MethodDecl* mm : c->methods)
         if (mm->kind == MethodKind::Normal && mm->name == "Add" && mm->params.size() == 1) pl->add = mm;
     if (!pl->ctor || !pl->add) {
-        diag.error(pl->loc, "List<T> no tiene el constructor List(int) o el método Add necesarios para 'params'");
+        diag.error(pl->loc, "List<T> does not have the List(int) constructor or the Add method needed for 'params'");
         return;
     }
     useMethod(pl->ctor);

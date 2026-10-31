@@ -1,5 +1,5 @@
-5|'A' ya tiene un constructor estático
-6|un constructor estático no puede tener parámetros
-9|las interfaces no pueden declarar tipos anidados
-13|un constructor estático no puede llamar a 'base\(\.\.\.\)'
-18|el indizador necesita un 'get' o un 'set'
+5|'A' already has a static constructor
+6|a static constructor cannot have parameters
+9|interfaces cannot declare nested types
+13|a static constructor cannot call 'base\(\.\.\.\)' or 'this\(\.\.\.\)'
+18|the indexer needs a 'get' or a 'set'

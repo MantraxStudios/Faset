@@ -1,18 +1,18 @@
-15|'params' solo se puede usar en el último parámetro
-15|'params' debe ser un arreglo T\[\] o List<T>
-20|'foreach' no puede recorrer un valor de tipo 'int'
-22|el operador '\?\?' necesita a la izquierda un valor que admita null
-24|el operador '\?\.' necesita un valor que admita null
-25|no se puede convertir 'Punto' en texto
-26|el formato ':F2' solo se aplica a números
-27|formato numérico no válido ':Q9'
-29|el operador '\+' no está definido para 'int\?'
-30|no se puede deconstruir una tupla de 3 elementos en 2 variables
-31|no se puede inferir el tipo de 'null' en una tupla
-32|no se puede convertir implícitamente el tipo '\(int, string\)' en '\(int, int\)'
-33|los brazos del 'switch' no tienen un tipo común
-34|este brazo del 'switch' nunca se alcanza
-35|el patrón de tipo 'Punto' no puede coincidir con un valor de tipo 'Caja'
-36|ninguna sobrecarga de 'Sumar'
-37|el operador '\?\?=' necesita a la izquierda
-38|no se puede inferir el tipo de 'default'
+15|'params' can only be used on the last parameter
+15|a 'params' parameter must be a T\[\] array or List<T>
+20|'foreach' cannot iterate over a value of type 'int': it needs a GetEnumerator\(\) method \(like List<T>, Dictionary<K, V>, HashSet<T>, Span<T> or string\)
+22|the '\?\?' operator needs a nullable value on the left \(a class or a T\? type\); 'int' is never null
+24|the '\?\.' operator needs a nullable value \(a class, a delegate or a T\? type\); 'int' is never null \(use '\.'\)
+25|cannot convert 'Punto' to string in an interpolated string \(define 'public string ToString\(\)' on the type\)
+26|format ':F2' only applies to numbers \(the value is 'string'\)
+27|invalid numeric format ':Q9' for 'int' \(use D, X, F, N, E, P, G with optional digits, or '0\.00', '#,##0'\)
+29|the '\+' operator is not defined for 'int\?'; get the value first with '\?\?' or '\.Value'
+30|cannot deconstruct a tuple of 3 elements into 2 variables
+31|cannot infer the type of 'null' in a tuple \(use a cast\)
+32|cannot implicitly convert type '\(int, string\)' to '\(int, int\)'
+33|the 'switch' arms do not have a common type \('string' and 'int'\)
+34|this 'switch' arm is never reached: an earlier one already covers all values
+35|the type pattern 'Punto' cannot match a value of type 'Caja'
+36|no overload of 'Sumar' accepts the arguments \(int, string\)
+37|the '\?\?=' operator needs a nullable value on the left \(a class or a T\? type\); 'int' is never null
+38|cannot infer the type of 'default'

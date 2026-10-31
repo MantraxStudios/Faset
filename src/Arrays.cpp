@@ -146,7 +146,7 @@ Type* Sema::instanceOf(const char* ns, const char* name, const std::vector<Type*
         if (a->isError()) return a;
     ClassDecl* t = stdTemplate(ns, name);
     if (!t) {
-        diag.error(loc, std::string("falta el tipo ") + ns + "." + name + " (biblioteca estándar no encontrada)");
+        diag.error(loc, std::string("missing type ") + ns + "." + name + " (standard library not found)");
         return tc_.error();
     }
     ClassDecl* inst = instantiate(t, args, loc);
@@ -155,7 +155,7 @@ Type* Sema::instanceOf(const char* ns, const char* name, const std::vector<Type*
 
 Type* Sema::arrayOf(Type* elem, int rank, SourceLoc loc) {
     if (elem->isVoid()) {
-        diag.error(loc, "no puede haber arreglos de 'void'");
+        diag.error(loc, "cannot have arrays of 'void'");
         return tc_.error();
     }
     return instanceOf("std", kArrayTemplates[rank - 1], {elem}, loc);
@@ -216,8 +216,8 @@ bool Sema::arrayCoerce(Expr*& e, Type* to) {
     Type* ta = arrayElemOf(to, &tr);
     if (fa && ta && fr == tr && fa != ta && (fa->isClass() || fa->is(TK::String)) &&
         (canImplicit(nullptr, fa, ta) || (objectDecl && ta == objectDecl->type))) {
-        diag.error(loc, "los arreglos no son covariantes en Faset: '" + from->str() + "' no se convierte en '" + to->str() +
-                            "' (crea un arreglo nuevo, p. ej. con Array.ConvertAll o un bucle)");
+        diag.error(loc, "arrays are not covariant in Faset: '" + from->str() + "' does not convert to '" + to->str() +
+                            "' (create a new array, e.g. with Array.ConvertAll or a loop)");
         e->type = tc_.error();
         return true;
     }
@@ -247,7 +247,7 @@ Type* Sema::checkArrayExpr(Expr* e) {
             auto* f = static_cast<FromEndExpr*>(e);
             Type* idx = stdType("Index");
             if (!idx) {
-                diag.error(e->loc, "'^' necesita std.Index (biblioteca estándar no encontrada)");
+                diag.error(e->loc, "'^' needs std.Index (standard library not found)");
                 return tc_.error();
             }
             Expr* n = mkNew(idx, {f->operand, mkBool(true, e->loc)}, e->loc);
@@ -269,7 +269,7 @@ Type* Sema::checkNewArray(NewArrayExpr* na) {
         if (ct->isError()) {
             bad = true;
         } else if (!ct->isIntegral()) {
-            diag.error(c->loc, "el tamaño del arreglo debe ser un entero (no '" + ct->str() + "')");
+            diag.error(c->loc, "array size must be an integer (not '" + ct->str() + "')");
             bad = true;
         }
     }
@@ -281,7 +281,7 @@ Type* Sema::checkNewArray(NewArrayExpr* na) {
     for (MethodDecl* m : arr->decl->ctors)
         if (m->params.size() == counts.size()) ctor = m;
     if (!ctor) {
-        diag.error(na->loc, "std." + arr->decl->templateOf->name + " no tiene el constructor esperado");
+        diag.error(na->loc, "std." + arr->decl->templateOf->name + " does not have the expected constructor");
         return tc_.error();
     }
     auto* ne = new NewExpr(na->loc);
@@ -299,7 +299,7 @@ Type* Sema::checkNewArray(NewArrayExpr* na) {
             }
         }
         if (x->type == tc_.get(TK::Long) && want->is(TK::Int)) {
-            diag.error(x->loc, "el tamaño de cada dimensión de un arreglo multidimensional debe ser 'int'");
+            diag.error(x->loc, "the size of each dimension of a multidimensional array must be 'int'");
             return tc_.error();
         }
         coerce(x, want);
@@ -315,7 +315,7 @@ Type* Sema::checkRange(RangeExpr* r) {
     Type* idx = stdType("Index");
     Type* rng = stdType("Range");
     if (!idx || !rng) {
-        diag.error(r->loc, "'..' necesita std.Index y std.Range (biblioteca estándar no encontrada)");
+        diag.error(r->loc, "'..' needs std.Index and std.Range (standard library not found)");
         return tc_.error();
     }
     SourceLoc loc = r->loc;
@@ -329,7 +329,7 @@ Type* Sema::checkRange(RangeExpr* r) {
             return nullptr;
         }
         if (t != idx && !(t->isIntegral() && canImplicit(x, t, tc_.get(TK::Int)))) {
-            diag.error(x->loc, "los extremos de un rango deben ser 'int' o 'Index' (no '" + t->str() + "')");
+            diag.error(x->loc, "the endpoints of a range must be 'int' or 'Index' (not '" + t->str() + "')");
             bad = true;
             return nullptr;
         }
@@ -442,7 +442,7 @@ Type* Sema::checkCollection(CollectionExpr* c) {
     // new T[] { ... } / new[] { ... } / new T[n] { ... }
     for (auto& el : c->elems)
         if (el.spread || el.key) {
-            diag.error(el.loc, "un inicializador de arreglo { ... } no admite '..' ni 'clave: valor' (usa [ ... ])");
+            diag.error(el.loc, "an array initializer { ... } does not allow '..' or 'key: value' (use [ ... ])");
             return tc_.error();
         }
     int rank = c->arrayRef->arrayRank;
@@ -471,7 +471,7 @@ Type* Sema::checkCollection(CollectionExpr* c) {
         if (!best) {
             for (Expr* x : leaves)
                 if (x->type && x->type->isError()) return tc_.error();
-            diag.error(c->loc, "no se puede inferir el tipo de los elementos de 'new[]': indica el tipo (new int[] { ... })");
+            diag.error(c->loc, "cannot infer the type of the elements of 'new[]': specify the type (new int[] { ... })");
             return tc_.error();
         }
         arr = arrayOf(best, rank, c->loc);
@@ -485,11 +485,11 @@ Type* Sema::checkCollection(CollectionExpr* c) {
             for (size_t i = 0; i < c->sizes.size() && i < dims.size(); i++) {
                 int64_t v;
                 if (!constEval(c->sizes[i], v)) {
-                    diag.error(c->sizes[i]->loc, "con un inicializador, el tamaño del arreglo debe ser una constante");
+                    diag.error(c->sizes[i]->loc, "with an initializer, the array size must be a constant");
                     return tc_.error();
                 }
                 if (v != dims[i]) {
-                    diag.error(c->sizes[i]->loc, "el tamaño indicado (" + std::to_string(v) + ") no coincide con el número de elementos (" +
+                    diag.error(c->sizes[i]->loc, "the specified size (" + std::to_string(v) + ") does not match the number of elements (" +
                                                      std::to_string(dims[i]) + ")");
                     return tc_.error();
                 }
@@ -558,7 +558,7 @@ int Sema::collectionCost(CollectionExpr* c, Type* to) {
 }
 
 Type* Sema::collectionNaturalType(Expr*& e) {
-    diag.error(e->loc, "una expresión de colección no tiene tipo propio: indica el tipo de destino "
+    diag.error(e->loc, "a collection expression has no type of its own: specify the target type "
                        "(int[] xs = [1, 2], List<int> xs = [1, 2]...)");
     return tc_.error();
 }
@@ -572,12 +572,12 @@ void Sema::convertCollection(Expr*& e, Type* to) {
     CollTarget tg = collTarget(to);
     if (!tg.kind || (c->braces && tg.kind != 1)) {
         if (c->braces)
-            diag.error(c->loc, "un inicializador { ... } solo sirve para arreglos y '" + to->str() +
-                                   "' no lo es (usa una expresión de colección [ ... ])");
+            diag.error(c->loc, "an initializer { ... } only works for arrays and '" + to->str() +
+                                   "' is not one (use a collection expression [ ... ])");
         else
-            diag.error(c->loc, "no se puede convertir una expresión de colección en '" + to->str() +
-                                   "' (se esperaba un arreglo, List<T>, HashSet<T>, Span<T>, ReadOnlySpan<T>, "
-                                   "Dictionary<K, V> o una clase con un método Add)");
+            diag.error(c->loc, "cannot convert a collection expression to '" + to->str() +
+                                   "' (expected an array, List<T>, HashSet<T>, Span<T>, ReadOnlySpan<T>, "
+                                   "Dictionary<K, V> or a class with an Add method)");
         c->type = tc_.error();
         return;
     }
@@ -620,11 +620,11 @@ Expr* Sema::buildCollection(CollectionExpr* c, Type* to) {
     bool spreads = false;
     for (auto& el : c->elems) {
         if (el.key && tg.kind != 6) {
-            diag.error(el.loc, "'clave: valor' solo sirve para diccionarios ('" + to->str() + "' no lo es)");
+            diag.error(el.loc, "'key: value' only works for dictionaries ('" + to->str() + "' is not one)");
             return fail();
         }
         if (tg.kind == 6 && !el.key) {
-            diag.error(el.loc, "los elementos de un diccionario se escriben 'clave: valor' o '[clave] = valor'");
+            diag.error(el.loc, "dictionary elements are written 'key: value' or '[key] = value'");
             return fail();
         }
         if (el.spread) {
@@ -632,12 +632,12 @@ Expr* Sema::buildCollection(CollectionExpr* c, Type* to) {
             Type* se = spreadElem(el.value->type);
             if (el.value->type->isError()) return fail();
             if (tg.kind == 6 || tg.kind == 7 || !se) {
-                diag.error(el.loc, "'..' solo puede expandir un arreglo, List<T>, HashSet<T> o Span<T> (no '" +
-                                       el.value->type->str() + "') en un arreglo, List<T>, HashSet<T> o Span<T>");
+                diag.error(el.loc, "'..' can only spread an array, List<T>, HashSet<T> or Span<T> (not '" +
+                                       el.value->type->str() + "') into an array, List<T>, HashSet<T> or Span<T>");
                 return fail();
             }
             if (se != tg.elem) {
-                diag.error(el.loc, "'..' expande elementos de tipo '" + se->str() + "' pero la colección es de '" +
+                diag.error(el.loc, "'..' spreads elements of type '" + se->str() + "' but the collection is of '" +
                                        tg.elem->str() + "'");
                 return fail();
             }
@@ -648,9 +648,9 @@ Expr* Sema::buildCollection(CollectionExpr* c, Type* to) {
     if (tg.kind == 1 && tg.rank > 1) {
         std::vector<int> dims;
         if (rectCost(c, nullptr, tg.rank, dims, 0) < 0) {
-            diag.error(loc, "el inicializador de un arreglo de " + std::to_string(tg.rank) +
-                                " dimensiones debe tener " + std::to_string(tg.rank) +
-                                " niveles de { } y todas las filas del mismo tamaño");
+            diag.error(loc, "the initializer of an array of " + std::to_string(tg.rank) +
+                                " dimensions must have " + std::to_string(tg.rank) +
+                                " levels of { } and all rows the same size");
             return fail();
         }
         std::vector<Expr*> sizes;
@@ -817,7 +817,7 @@ bool Sema::arrayForeach(ForeachStmt* s, Type* ct) {
 Expr* Sema::listPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
     SourceLoc l = p->loc;
     if (p->kind == PK::Slice) {
-        diag.error(l, "'..' solo puede aparecer dentro de un patrón de lista [ ... ]");
+        diag.error(l, "'..' can only appear inside a list pattern [ ... ]");
         return mkBool(false, l);
     }
     std::string lenName;
@@ -830,7 +830,7 @@ Expr* Sema::listPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
         indexable = !findMethods(st->decl, "operator[]", MethodKind::Operator).empty();
     }
     if (lenName.empty() || !indexable) {
-        diag.error(l, "un patrón de lista necesita un arreglo, una lista, un Span<T> o una cadena (el valor es '" +
+        diag.error(l, "a list pattern needs an array, a list, a Span<T> or a string (the value is '" +
                           st->str() + "')");
         return mkBool(false, l);
     }
@@ -842,7 +842,7 @@ Expr* Sema::listPatternTest(Pattern* p, const SubjectFn& subj, Type* st) {
             slicePos = i;
         }
     if (slices > 1) {
-        diag.error(l, "un patrón de lista admite un solo '..'");
+        diag.error(l, "a list pattern allows only one '..'");
         return mkBool(false, l);
     }
     size_t fixed = p->elems.size() - (size_t)slices;

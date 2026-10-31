@@ -219,7 +219,7 @@ void Sema::mergePartials() {
         }
         ClassDecl* d = it->second;
         if (d->kind != c->kind || c->isTemplate()) {
-            diag.error(c->loc, "las partes de '" + c->name + "' deben ser del mismo tipo (class/struct) y no genéricas");
+            diag.error(c->loc, "the parts of '" + c->name + "' must be the same kind (class/struct) and non-generic");
             continue;
         }
         if (c->mods.isStatic) d->mods.isStatic = true;
@@ -237,7 +237,7 @@ void Sema::mergePartials() {
             d->ctors.push_back(m);
         }
         if (c->dtor) {
-            if (d->dtor) diag.error(c->dtor->loc, "'" + c->name + "' ya tiene un destructor en otra parte");
+            if (d->dtor) diag.error(c->dtor->loc, "'" + c->name + "' already has a destructor in another part");
             else {
                 if (!c->dtor->file) c->dtor->file = c->file;
                 d->dtor = c->dtor;
@@ -271,7 +271,7 @@ void Sema::buildNamespaces() {
             for (MethodDecl* m : c->methods) {
                 m->owner = c;
                 if (m->kind != MethodKind::Normal) {
-                    diag.error(m->loc, "los operadores y propiedades deben declararse dentro de un tipo");
+                    diag.error(m->loc, "operators and properties must be declared inside a type");
                     continue;
                 }
                 ns->funcs[m->name].push_back(m);
@@ -280,7 +280,7 @@ void Sema::buildNamespaces() {
                 f->owner = c;
                 f->mods.isStatic = true;
                 if (ns->globals.count(f->name))
-                    diag.error(f->loc, "la variable global '" + f->name + "' ya está definida en '" + ns->display() + "'");
+                    diag.error(f->loc, "the global variable '" + f->name + "' is already defined in '" + ns->display() + "'");
                 ns->globals[f->name] = f;
                 f->cname = prefix + "g_" + f->name;
             }
@@ -305,10 +305,10 @@ void Sema::buildNamespaces() {
                 if (other->cname == prefix + other->name) other->cname = prefix + other->name + "_G";
                 continue;
             }
-            diag.error(c->loc, "el tipo '" + c->name + "' ya está definido en '" + ns->display() + "'");
+            diag.error(c->loc, "type '" + c->name + "' is already defined in '" + ns->display() + "'");
             continue;
         }
-        if (c->mods.isStatic && c->kind != ClassKind::Class) diag.error(c->loc, "solo las clases pueden ser 'static'");
+        if (c->mods.isStatic && c->kind != ClassKind::Class) diag.error(c->loc, "only classes can be 'static'");
         ns->types[c->name] = c;
         c->cname = prefix + c->name;
         if (!c->isTemplate()) {
@@ -322,11 +322,11 @@ void Sema::buildNamespaces() {
     // Conflictos entre funciones/variables globales y tipos del mismo namespace.
     std::function<void(NamespaceSym*)> checkNs = [&](NamespaceSym* ns) {
         for (auto& [name, fs] : ns->funcs) {
-            if (ns->types.count(name)) diag.error(fs[0]->loc, "'" + name + "' ya está definido como tipo en este namespace");
-            if (ns->globals.count(name)) diag.error(fs[0]->loc, "'" + name + "' ya está definido como variable global");
+            if (ns->types.count(name)) diag.error(fs[0]->loc, "'" + name + "' is already defined as a type in this namespace");
+            if (ns->globals.count(name)) diag.error(fs[0]->loc, "'" + name + "' is already defined as a global variable");
         }
         for (auto& [name, f] : ns->globals)
-            if (ns->types.count(name)) diag.error(f->loc, "'" + name + "' ya está definido como tipo en este namespace");
+            if (ns->types.count(name)) diag.error(f->loc, "'" + name + "' is already defined as a type in this namespace");
         for (auto& [n, child] : ns->children) checkNs(child);
     };
     checkNs(global_);
@@ -342,7 +342,7 @@ void Sema::resolveUsings(FileScope* f) {
     for (UsingDirective& u : f->usings) {
         if (!u.alias.empty() || u.isStatic) continue;  // 'using static' (Nested.cpp)
         NamespaceSym* ns = findNs(u.path);
-        if (!ns) diag.error(u.loc, "el namespace '" + join(u.path, ".") + "' no existe (¿falta un módulo o un archivo?)");
+        if (!ns) diag.error(u.loc, "namespace '" + join(u.path, ".") + "' does not exist (is a module or file missing?)");
         else add(ns);
     }
 }
@@ -427,7 +427,7 @@ Sym Sema::lookupUnqualified(const std::string& name, SourceLoc loc) {
             res = s;  // un 'using' explícito gana al 'using std;' implícito (std.mem.Span frente a std.Span)
             resStd = false;
         } else {
-            diag.error(loc, "'" + name + "' es ambiguo: existe en varios namespaces importados con 'using'");
+            diag.error(loc, "'" + name + "' is ambiguous: it exists in several namespaces imported with 'using'");
             return res;
         }
     }
@@ -470,15 +470,15 @@ void Sema::enter(ClassDecl* c, MethodDecl* m) {
 Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
     if (s.dlg) return delegateFromDecl(s.dlg, tr);
     if (s.type) {
-        if (!tr->typeArgs.empty()) diag.error(tr->loc, "un alias de tipo no admite argumentos genéricos");
+        if (!tr->typeArgs.empty()) diag.error(tr->loc, "a type alias does not allow generic arguments");
         return s.type;
     }
     ClassDecl* c = s.decl;
     if (c->arityTwin && c->isTemplate() == tr->typeArgs.empty()) c = c->arityTwin;  // Task / Task<T>
     if (c->isTemplate()) {
         if (tr->typeArgs.empty()) {
-            diag.error(tr->loc, "el tipo genérico '" + c->name + "' requiere " + std::to_string(c->typeParams.size()) +
-                                    " argumento(s) de tipo");
+            diag.error(tr->loc, "generic type '" + c->name + "' requires " + std::to_string(c->typeParams.size()) +
+                                    " type argument(s)");
             return tc_.error();
         }
         std::vector<Type*> args;
@@ -491,7 +491,7 @@ Type* Sema::typeFromSym(const Sym& s, TypeRef* tr) {
         return inst ? inst->type : tc_.error();
     }
     if (!tr->typeArgs.empty()) {
-        diag.error(tr->loc, "'" + c->name + "' no es un tipo genérico");
+        diag.error(tr->loc, "'" + c->name + "' is not a generic type");
         return tc_.error();
     }
     return c->type;
@@ -531,7 +531,7 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
     }
     if (!base) {
         if (tr->isVar()) {
-            diag.error(tr->loc, "'" + tr->parts[0] + "' solo puede usarse en variables locales con inicializador");
+            diag.error(tr->loc, "'" + tr->parts[0] + "' can only be used on local variables with an initializer");
             return tc_.error();
         }
         Sym s = lookupUnqualified(tr->parts[0], tr->loc);
@@ -541,14 +541,14 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
             if (Type* d = builtinDelegateType(tr)) {  // Func<...> / Action<...>
                 if (d->isError()) return d;
                 for (int i = 0; i < tr->ptrDepth; i++) d = tc_.pointerTo(d);
-                if (tr->ptrDepth > 0 && !unsafeCtx()) unsafeError(tr->loc, "el tipo puntero '" + tr->str() + "'");
+                if (tr->ptrDepth > 0 && !unsafeCtx()) unsafeError(tr->loc, "the pointer type '" + tr->str() + "'");
                 return d;
             }
-            diag.error(tr->loc, "no se encontró el tipo '" + tr->str() + "'");
+            diag.error(tr->loc, "type '" + tr->str() + "' not found");
             return tc_.error();
         }
         if (s.decl && s.decl->isStaticClass() && !(s.decl->arityTwin && !tr->typeArgs.empty())) {  // Result<T, E>, Array<T>
-            diag.error(tr->loc, "no se puede usar la clase estática '" + s.decl->name + "' como tipo");
+            diag.error(tr->loc, "cannot use static class '" + s.decl->name + "' as a type");
             return tc_.error();
         }
         base = typeFromSym(s, tr);
@@ -560,11 +560,11 @@ Type* Sema::resolveType(TypeRef* tr, bool allowVoid) {
         }
     }
     if (base->isVoid() && tr->ptrDepth == 0 && !allowVoid) {
-        diag.error(tr->loc, "'void' solo es válido como tipo de retorno o como puntero (void*)");
+        diag.error(tr->loc, "'void' is only valid as a return type or as a pointer (void*)");
         return tc_.error();
     }
     if (tr->ptrDepth > 0 && !unsafeCtx())
-        unsafeError(tr->loc, "el tipo puntero '" + tr->str() + "'");
+        unsafeError(tr->loc, "the pointer type '" + tr->str() + "'");
     for (int i = 0; i < tr->ptrDepth; i++) base = tc_.pointerTo(base);
     return base;
 }
@@ -574,13 +574,13 @@ void Sema::resolveMethodSignature(MethodDecl* m) {
     m->signatureDone = true;
     if (m->kind == MethodKind::Ctor || m->kind == MethodKind::Dtor) m->ret = tc_.get(TK::Void);
     else m->ret = resolveType(m->retRef, true);
-    if (m->retIsRef() && m->ret->isVoid()) diag.error(m->loc, "no se puede devolver 'void&'");
+    if (m->retIsRef() && m->ret->isVoid()) diag.error(m->loc, "cannot return 'void&'");
     std::set<std::string> names;
     for (Param& p : m->params) {
         p.type = resolveType(p.tref);
-        if (!names.insert(p.name).second) diag.error(p.loc, "el parámetro '" + p.name + "' está duplicado");
+        if (!names.insert(p.name).second) diag.error(p.loc, "parameter '" + p.name + "' is duplicated");
     }
-    if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "solo los métodos 'extern' pueden ser variádicos (...)");
+    if (m->variadic && !m->mods.isExtern) diag.error(m->loc, "only 'extern' methods can be variadic (...)");
     if (m->hasCtParams && !m->ctOf) ctCheckParams(m);  // parámetros 'comptime' (Comptime.cpp)
     checkParamsSignature(m);  // 'params' (Sugar.cpp)
     if (defaultsReady_) resolveParamDefaults(m);  // parámetros opcionales (Members.cpp)
@@ -598,14 +598,14 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         int64_t next = 0;
         std::set<std::string> seen;
         for (EnumMember& m : c->enumMembers) {
-            if (!seen.insert(m.name).second) diag.error(m.loc, "el enum '" + c->name + "' ya contiene '" + m.name + "'");
+            if (!seen.insert(m.name).second) diag.error(m.loc, "enum '" + c->name + "' already contains '" + m.name + "'");
             if (m.value) {
                 int64_t v;
                 if (!constEval(m.value, v)) {
-                    diag.error(m.value->loc, "el valor de un miembro de enum debe ser una constante entera");
+                    diag.error(m.value->loc, "the value of an enum member must be an integer constant");
                     v = next;
                 } else if (!fits(v, tc_.get(TK::Int))) {
-                    diag.error(m.value->loc, "el valor del miembro de enum no cabe en 'int'");
+                    diag.error(m.value->loc, "the enum member value does not fit in 'int'");
                 }
                 m.val = v;
             } else {
@@ -626,15 +626,15 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         ctx_.field = nullptr;
         ctx_.file = c->file;
         if (ideMode && !c->templateOf && f->type) addRef(f->loc, (int)f->name.size(), describeField(f), &f->loc);
-        if (f->tref->isRef) diag.error(f->loc, "los campos no pueden ser referencias (T&); usa un puntero");
+        if (f->tref->isRef) diag.error(f->loc, "fields cannot be references (T&); use a pointer");
         if (f->isEvent) checkEventField(f);
         if (!fieldNames.insert(f->name).second)
-            diag.error(f->loc, "'" + c->displayName + "' ya contiene una definición para '" + f->name + "'");
-        if (f->mods.isConst && !f->init) diag.error(f->loc, "un campo 'const' requiere un valor");
-        if (f->mods.isExtern) diag.error(f->loc, "los campos no pueden ser 'extern'");
+            diag.error(f->loc, "'" + c->displayName + "' already contains a definition for '" + f->name + "'");
+        if (f->mods.isConst && !f->init) diag.error(f->loc, "a 'const' field requires a value");
+        if (f->mods.isExtern) diag.error(f->loc, "fields cannot be 'extern'");
         if (c->isNamespaceScope) continue;
         if (c->isStaticClass() && !f->isStatic())
-            diag.error(f->loc, "las clases estáticas solo pueden tener miembros estáticos");
+            diag.error(f->loc, "static classes can only have static members");
         f->cname = f->isStatic() ? c->cname + "__s_" + f->name : "f_" + f->name;
     }
 
@@ -648,33 +648,33 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
             ctx_.file = c->file;
             ctx_.method = nullptr;
         }
-        if (fieldNames.count(m->name)) diag.error(m->loc, "'" + c->displayName + "' ya contiene un campo '" + m->name + "'");
+        if (fieldNames.count(m->name)) diag.error(m->loc, "'" + c->displayName + "' already contains a field '" + m->name + "'");
         byName[m->name].push_back(m);
         if (m->mods.isExtern) {
-            if (!m->isStatic()) diag.error(m->loc, "los métodos 'extern' deben ser 'static'");
-            if (m->body) diag.error(m->loc, "un método 'extern' no puede tener cuerpo");
-            if (m->isTemplate()) diag.error(m->loc, "un método 'extern' no puede ser genérico");
+            if (!m->isStatic()) diag.error(m->loc, "'extern' methods must be 'static'");
+            if (m->body) diag.error(m->loc, "an 'extern' method cannot have a body");
+            if (m->isTemplate()) diag.error(m->loc, "an 'extern' method cannot be generic");
         } else if (!m->body && !m->mods.isAbstract && !c->isInterface()) {
-            diag.error(m->loc, "el método '" + m->name + "' debe tener cuerpo (o ser 'extern')");
+            diag.error(m->loc, "method '" + m->name + "' must have a body (or be 'extern')");
         }
         if (!c->isNamespaceScope && c->isStaticClass() && !m->isStatic())
-            diag.error(m->loc, "las clases estáticas solo pueden tener miembros estáticos");
-        if (m->isExtension() && !m->isStatic()) diag.error(m->loc, "los métodos de extensión deben ser 'static'");
+            diag.error(m->loc, "static classes can only have static members");
+        if (m->isExtension() && !m->isStatic()) diag.error(m->loc, "extension methods must be 'static'");
         if (m->kind == MethodKind::Getter && !m->params.empty() && m->name != "this[]")  // indizadores (Members.cpp)
-            diag.error(m->loc, "una propiedad no puede tener parámetros");
+            diag.error(m->loc, "a property cannot have parameters");
         if (m->kind == MethodKind::Operator && !isConversionOp(m)) {
             bool index = m->name == "operator[]";
             if (index) {
                 if (m->isStatic() || m->params.size() != 1)
-                    diag.error(m->loc, "'operator[]' debe ser un método de instancia con un parámetro");
+                    diag.error(m->loc, "'operator[]' must be an instance method with one parameter");
             } else {
                 bool unaryOk = m->name == "operator-" || m->name == "operator+" || m->name == "operator!" ||
                                m->name == "operator~";
                 bool binaryOk = m->name != "operator!" && m->name != "operator~";
                 size_t n = m->params.size();
                 if (!m->isStatic() || !((n == 1 && unaryOk) || (n == 2 && binaryOk)))
-                    diag.error(m->loc, "'" + m->name + "' debe ser 'static' y tener " +
-                                           (unaryOk && !binaryOk ? "1 parámetro" : unaryOk ? "1 o 2 parámetros" : "2 parámetros"));
+                    diag.error(m->loc, "'" + m->name + "' must be 'static' and have " +
+                                           (unaryOk && !binaryOk ? "1 parameter" : unaryOk ? "1 or 2 parameters" : "2 parameters"));
             }
         }
     }
@@ -686,9 +686,9 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
                 else m->cname = c->cname + "__m_" + mangleName(name) + (group.size() > 1 ? "_" + std::to_string(i) : "");
                 for (Attribute& a : m->attrs) {
                     if (a.name != "Export") continue;
-                    if (a.args.size() != 1) diag.error(a.loc, "[Export] requiere un nombre: [Export(\"simbolo\")]");
+                    if (a.args.size() != 1) diag.error(a.loc, "[Export] requires a name: [Export(\"symbol\")]");
                     else m->cname = a.args[0];
-                    if (!m->isStatic()) diag.error(a.loc, "[Export] solo se puede aplicar a métodos 'static'");
+                    if (!m->isStatic()) diag.error(a.loc, "[Export] can only be applied to 'static' methods");
                 }
                 if (m->isTemplate()) continue;
                 for (size_t j = 0; j < i; j++) {
@@ -697,7 +697,7 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
                     if (isConversionOp(m) && o->ret != m->ret) continue;  // conversiones a tipos distintos
                     bool same = true;
                     for (size_t k = 0; k < m->params.size(); k++) same &= o->params[k].type == m->params[k].type;
-                    if (same) diag.error(m->loc, "ya existe un método '" + name + "' con los mismos tipos de parámetros");
+                    if (same) diag.error(m->loc, "a method '" + name + "' with the same parameter types already exists");
                 }
             }
         }
@@ -713,15 +713,15 @@ void Sema::resolveClassSignatures(ClassDecl* c) {
         ctx_.file = c->file;
         ctx_.method = nullptr;
         m->cname = c->cname + "__ctor" + std::to_string(i);
-        if (m->trackCaller) diag.error(m->loc, "[TrackCaller] no se puede aplicar a constructores");
+        if (m->trackCaller) diag.error(m->loc, "[TrackCaller] cannot be applied to constructors");
         if (c->isStaticClass() || m->isStatic())
-            diag.error(m->loc, "los constructores estáticos y de clases estáticas no están soportados");
+            diag.error(m->loc, "static constructors and constructors of static classes are not supported");
     }
     if (c->dtor) {
         c->dtor->owner = c;
         resolveMethodSignature(c->dtor);
         c->dtor->cname = c->cname + "__dtor";
-        if (c->isStaticClass()) diag.error(c->dtor->loc, "una clase estática no puede tener destructor");
+        if (c->isStaticClass()) diag.error(c->dtor->loc, "a static class cannot have a destructor");
     }
     checkMemberModifiers(c);  // required, init, indizadores y conversiones (Members.cpp)
     finishClassLayout(c);
@@ -744,7 +744,7 @@ void Sema::assignFunctionNames() {
                     bool same = true;
                     for (size_t k = 0; k < m->params.size(); k++) same &= o->params[k].type == m->params[k].type;
                     if (same && !(m->mods.isExtern && o->mods.isExtern))
-                        diag.error(m->loc, "ya existe una función '" + name + "' con los mismos tipos de parámetros");
+                        diag.error(m->loc, "a function '" + name + "' with the same parameter types already exists");
                 }
             }
         }
@@ -755,15 +755,15 @@ void Sema::assignFunctionNames() {
 
 ClassDecl* Sema::instantiate(ClassDecl* tmpl, const std::vector<Type*>& args, SourceLoc loc) {
     if (args.size() != tmpl->typeParams.size()) {
-        diag.error(loc, "'" + tmpl->name + "' requiere " + std::to_string(tmpl->typeParams.size()) +
-                            " argumento(s) de tipo, no " + std::to_string(args.size()));
+        diag.error(loc, "'" + tmpl->name + "' requires " + std::to_string(tmpl->typeParams.size()) +
+                            " type argument(s), not " + std::to_string(args.size()));
         return nullptr;
     }
     std::string key = typeKey(args);
     auto it = tmpl->instances.find(key);
     if (it != tmpl->instances.end()) return it->second;
     if (instDepth_ > 40) {
-        diag.error(loc, "instanciación de plantillas demasiado profunda (¿recursión infinita en '" + tmpl->name + "'?)");
+        diag.error(loc, "template instantiation too deep (infinite recursion in '" + tmpl->name + "'?)");
         return nullptr;
     }
     ClassDecl* c = Parser::reparseType(tmpl, prog_);
@@ -943,10 +943,10 @@ void Sema::processWork() {
                     cur = cur->usedBy;
                     skipped++;
                 }
-                if (skipped) diag.note(cur->usedAt, "... " + std::to_string(skipped) + " versiones intermedias de '" + name + "' ...");
-                if (cur->ctOf) name += "' con " + cur->ctLabel + ", usado aquí";
-                else name += "', usado aquí";
-                diag.note(cur->usedAt, "requerido por '" + name);
+                if (skipped) diag.note(cur->usedAt, "... " + std::to_string(skipped) + " intermediate versions of '" + name + "' ...");
+                if (cur->ctOf) name += "' with " + cur->ctLabel + ", used here";
+                else name += "', used here";
+                diag.note(cur->usedAt, "required by '" + name);
             }
             if (fi < fieldWork_.size()) break;
         }
@@ -958,7 +958,7 @@ void Sema::orderStructs() {
     std::function<void(ClassDecl*)> visit = [&](ClassDecl* c) {
         if (state[c] == 2) return;
         if (state[c] == 1) {
-            diag.error(c->loc, "el struct '" + c->displayName + "' se contiene a sí mismo por valor (usa un puntero)");
+            diag.error(c->loc, "struct '" + c->displayName + "' contains itself by value (use a pointer)");
             return;
         }
         state[c] = 1;
@@ -985,12 +985,12 @@ void Sema::findEntry() {
                             (m->params.size() == 2 && m->params[0].type->is(TK::Int) &&
                              m->params[1].type == tc_.pointerTo(tc_.pointerTo(tc_.get(TK::Byte))));
             if (!retOk || !paramsOk) {
-                diag.error(m->loc, "el punto de entrada debe ser 'void|int|Task|Task<int> " + m->name + "()' o 'void|int " +
+                diag.error(m->loc, "the entry point must be 'void|int|Task|Task<int> " + m->name + "()' or 'void|int " +
                                        m->name + "(int argc, byte** argv)'");
                 continue;
             }
             if (entry) {
-                diag.error(m->loc, "hay más de un punto de entrada ('" + entry->name + "' ya está definido)");
+                diag.error(m->loc, "there is more than one entry point ('" + entry->name + "' is already defined)");
                 continue;
             }
             entry = m;
@@ -1010,7 +1010,7 @@ VarInfo* Sema::lookupLocal(const std::string& name) {
 
 VarInfo* Sema::declareLocal(const std::string& name, Type* t, SourceLoc loc, const std::string& prefix) {
     if (lookupLocal(name))
-        diag.error(loc, "ya existe una variable local o parámetro llamado '" + name + "' en este ámbito");
+        diag.error(loc, "a local variable or parameter named '" + name + "' already exists in this scope");
     auto* v = new VarInfo();
     v->name = name;
     v->cname = prefix + name;
@@ -1046,7 +1046,7 @@ void Sema::checkMethod(MethodDecl* m) {
     Type* mustReturn = async ? (async->result ? async->result : tc_.get(TK::Void)) : m->ret;
     if ((m->kind == MethodKind::Normal || m->kind == MethodKind::Getter || m->kind == MethodKind::Operator) &&
         !mustReturn->isVoid() && !mustReturn->isError() && !alwaysReturns(m->body))
-        diag.error(m->loc, "no todas las rutas de código devuelven un valor en '" + m->name + "'");
+        diag.error(m->loc, "not all code paths return a value in '" + m->name + "'");
 }
 
 // ================================================================== sentencias
@@ -1084,29 +1084,29 @@ void Sema::checkStmtCore(Stmt* s) {
             bool isVar = d->tref->isVar();
             bool isRef = d->tref->isRef;
             Type* declared = isVar ? nullptr : resolveType(d->tref);
-            if (isVar && d->decls.size() > 1) diag.error(d->loc, "'var'/'auto' no admite múltiples declaradores");
+            if (isVar && d->decls.size() > 1) diag.error(d->loc, "'var'/'auto' does not allow multiple declarators");
             for (auto& dc : d->decls) {
                 Type* t = declared;
                 if (dc.init) {
                     Type* it = checkOperand(dc.init);
                     if (isVar && it->isPending()) it = naturalType(dc.init);  // var f = (int x) => x * 2;
                     if (isVar) {
-                        if (it->is(TK::Null)) diag.error(dc.loc, std::string("no se puede inferir el tipo de ") + (isDefaultLiteral(dc.init) ? "'default'" : "'null'"));
-                        else if (it->isVoid()) diag.error(dc.loc, "no se puede asignar 'void' a una variable");
+                        if (it->is(TK::Null)) diag.error(dc.loc, std::string("cannot infer the type of ") + (isDefaultLiteral(dc.init) ? "'default'" : "'null'"));
+                        else if (it->isVoid()) diag.error(dc.loc, "cannot assign 'void' to a variable");
                         t = it->is(TK::Null) || it->isVoid() ? tc_.error() : it;
                     } else if (isRef) {
                         if (it != t && !it->isError() && !t->isError())
-                            diag.error(dc.loc, "una referencia '" + t->str() + "&' debe enlazarse a un valor del mismo tipo");
+                            diag.error(dc.loc, "a reference '" + t->str() + "&' must bind to a value of the same type");
                     } else {
                         coerce(dc.init, t);
                     }
                     if (isRef && !isLValue(dc.init))
-                        diag.error(dc.loc, "una referencia debe enlazarse a una variable, campo o elemento");
+                        diag.error(dc.loc, "a reference must bind to a variable, field, or element");
                 } else if (isVar || isRef) {
-                    diag.error(dc.loc, isRef ? "una referencia debe inicializarse" : "una variable 'var' debe inicializarse");
+                    diag.error(dc.loc, isRef ? "a reference must be initialized" : "a 'var' variable must be initialized");
                     if (!t) t = tc_.error();
                 }
-                if (d->isConst && !dc.init) diag.error(dc.loc, "una constante local requiere un valor");
+                if (d->isConst && !dc.init) diag.error(dc.loc, "a local constant requires a value");
                 dc.var = declareLocal(dc.name, t, dc.loc, "l_");
                 dc.var->isRef = isRef;
                 if (isRef && dc.init) markAddressTaken(dc.init);
@@ -1125,7 +1125,7 @@ void Sema::checkStmtCore(Stmt* s) {
             if (es->expr->vk != ValKind::Value) checkValue(es->expr);
             else if (!isAssignOrCallLike(es->expr) && es->expr->kind != EK::Await)
                 diag.error(es->loc,
-                           "solo las asignaciones, llamadas, incrementos, decrementos y 'new' pueden usarse como instrucción");
+                           "only assignments, calls, increments, decrements, and 'new' can be used as a statement");
             break;
         }
         case SK::If: {
@@ -1157,12 +1157,12 @@ void Sema::checkStmtCore(Stmt* s) {
             if (fs->initDecl) checkStmt(fs->initDecl);
             for (Expr* e : fs->initExprs) {
                 checkValue(e);
-                if (!isAssignOrCallLike(e)) diag.error(e->loc, "expresión no válida en la inicialización de 'for'");
+                if (!isAssignOrCallLike(e)) diag.error(e->loc, "invalid expression in the 'for' initializer");
             }
             if (fs->cond) checkCondition(fs->cond);
             for (Expr* e : fs->iter) {
                 checkValue(e);
-                if (!isAssignOrCallLike(e)) diag.error(e->loc, "expresión no válida en la iteración de 'for'");
+                if (!isAssignOrCallLike(e)) diag.error(e->loc, "invalid expression in the 'for' iterator");
             }
             ctx_.loopDepth++;
             checkStmt(fs->body);
@@ -1171,11 +1171,11 @@ void Sema::checkStmtCore(Stmt* s) {
             break;
         }
         case SK::Break:
-            if (ctx_.loopDepth == 0 && ctx_.switchDepth == 0) diag.error(s->loc, "'break' fuera de un bucle o 'switch'");
+            if (ctx_.loopDepth == 0 && ctx_.switchDepth == 0) diag.error(s->loc, "'break' outside a loop or 'switch'");
             else excCheckJump(s);
             break;
         case SK::Continue:
-            if (ctx_.loopDepth == 0) diag.error(s->loc, "'continue' fuera de un bucle");
+            if (ctx_.loopDepth == 0) diag.error(s->loc, "'continue' outside a loop");
             else excCheckJump(s);
             break;
         case SK::Return: {
@@ -1190,20 +1190,20 @@ void Sema::checkStmtCore(Stmt* s) {
                 if (rs->value) {
                     checkValue(rs->value);
                     diag.error(rs->loc, m && m->async && !m->async->isVoid
-                                            ? "un método async que devuelve 'Task' no puede devolver un valor (usa Task<T>)"
-                                            : "un método 'void' no puede devolver un valor");
+                                            ? "an async method returning 'Task' cannot return a value (use Task<T>)"
+                                            : "a 'void' method cannot return a value");
                 }
             } else if (!rs->value) {
-                diag.error(rs->loc, "se requiere un valor de retorno de tipo '" + ret->str() + "'");
+                diag.error(rs->loc, "a return value of type '" + ret->str() + "' is required");
             } else if (m->retIsRef()) {
                 Type* t = checkValue(rs->value);
                 if (t != ret && !t->isError()) {
-                    diag.error(rs->loc, "se debe devolver una referencia a '" + ret->str() + "'");
+                    diag.error(rs->loc, "a reference to '" + ret->str() + "' must be returned");
                 } else if (!isLValue(rs->value)) {
-                    diag.error(rs->loc, "solo se puede devolver por referencia una variable, campo o elemento");
+                    diag.error(rs->loc, "only a variable, field, or element can be returned by reference");
                 } else if (std::string local = localRefRoot(rs->value); !local.empty()) {
-                    diag.error(rs->loc, "no se puede devolver una referencia a la variable local '" + local +
-                                            "' (dejaría de existir al salir del método)");
+                    diag.error(rs->loc, "cannot return a reference to local variable '" + local +
+                                            "' (it would cease to exist when the method returns)");
                 }
             } else {
                 checkOperand(rs->value);
@@ -1215,28 +1215,28 @@ void Sema::checkStmtCore(Stmt* s) {
             auto* ss = static_cast<SwitchStmt*>(s);
             Type* st = ss->subject->type ? ss->subject->type : checkValue(ss->subject);  // ya comprobado en Sugar.cpp
             if (!st->isError() && !st->isIntegral() && !st->isEnum())
-                diag.error(ss->subject->loc, "'switch' solo admite tipos enteros, 'char' y enums (no '" + st->str() + "')");
+                diag.error(ss->subject->loc, "'switch' only supports integer types, 'char', and enums (not '" + st->str() + "')");
             std::set<int64_t> seen;
             bool hasDefault = false;
             ctx_.switchDepth++;
             ctx_.scopes.emplace_back();
             for (auto& sec : ss->sections) {
                 if (sec.hasDefault) {
-                    if (hasDefault) diag.error(ss->loc, "el 'switch' ya tiene una etiqueta 'default'");
+                    if (hasDefault) diag.error(ss->loc, "the 'switch' already has a 'default' label");
                     hasDefault = true;
                 }
                 for (Expr*& lbl : sec.labels) {
                     checkValue(lbl);
                     coerce(lbl, st);
                     int64_t v = 0;
-                    if (!constEval(lbl, v)) diag.error(lbl->loc, "se esperaba un valor constante en 'case'");
-                    else if (!seen.insert(v).second) diag.error(lbl->loc, "etiqueta 'case' duplicada");
+                    if (!constEval(lbl, v)) diag.error(lbl->loc, "expected a constant value in 'case'");
+                    else if (!seen.insert(v).second) diag.error(lbl->loc, "duplicate 'case' label");
                     sec.values.push_back(v);
                 }
                 lowerDefers(sec.body);  // Flow.cpp
                 for (Stmt* b : sec.body) checkStmt(b);
                 if (!sectionEnds(sec.body))
-                    diag.error(ss->loc, "el control no puede pasar de una etiqueta 'case' a otra (falta 'break')");
+                    diag.error(ss->loc, "control cannot fall through from one 'case' label to another (missing 'break')");
             }
             ctx_.scopes.pop_back();
             ctx_.switchDepth--;
@@ -1246,7 +1246,7 @@ void Sema::checkStmtCore(Stmt* s) {
             auto* ds = static_cast<DeleteStmt*>(s);
             Type* t = checkValue(ds->expr);
             if (!t->isError() && !t->isPointer() && !t->isClass())
-                diag.error(ds->loc, "'delete' requiere un puntero o una referencia a clase (no '" + t->str() + "')");
+                diag.error(ds->loc, "'delete' requires a pointer or a class reference (not '" + t->str() + "')");
             ClassDecl* target = t->isClass() ? t->decl : (t->isPointer() && t->elem->isStruct()) ? t->elem->decl : nullptr;
             if (target && !ds->isArray) useMethod(target->dtor);
             break;
@@ -1410,8 +1410,8 @@ void Sema::coerce(Expr*& e, Type* to) {
     if (arrayCoerce(e, to)) return;  // T[] -> Span<T>, new T[n] -> T* (Arrays.cpp)
     if (userCoerce(e, to)) return;   // implicit operator (Members.cpp)
     if (!canImplicit(e, from, to)) {
-        std::string msg = "no se puede convertir implícitamente el tipo '" + from->str() + "' en '" + to->str() + "'";
-        if (canExplicit(from, to)) msg += " (existe una conversión explícita; ¿falta un cast?)";
+        std::string msg = "cannot implicitly convert type '" + from->str() + "' to '" + to->str() + "'";
+        if (canExplicit(from, to)) msg += " (an explicit conversion exists; are you missing a cast?)";
         diag.error(e->loc, msg);
         return;
     }
@@ -1607,18 +1607,18 @@ bool Sema::unsafeCtx() const {
 
 void Sema::unsafeError(SourceLoc loc, const std::string& what) {
     if (!unsafeReported_.insert({loc.file, loc.line}).second) return;  // uno por línea
-    diag.error(loc, what + " requiere un contexto memory_unsafe (usa 'memory_unsafe { ... }' o marca "
-                           "el método o la clase con 'memory_unsafe')");
+    diag.error(loc, what + " requires a memory_unsafe context (use 'memory_unsafe { ... }' or mark "
+                           "the method or class with 'memory_unsafe')");
 }
 
 // Llamadas a funciones nativas (extern) o a métodos marcados 'memory_unsafe'.
 void Sema::requireSafeCall(MethodDecl* m, SourceLoc loc) {
     if (!m || unsafeCtx()) return;
     std::string name = m->owner && !m->owner->isNamespaceScope ? m->owner->displayName + "." + m->name : m->name;
-    if (m->kind == MethodKind::Ctor) name = "el constructor de '" + m->owner->displayName + "'";
+    if (m->kind == MethodKind::Ctor) name = "the constructor of '" + m->owner->displayName + "'";
     else name = "'" + name + "'";
-    if (m->mods.isExtern) unsafeError(loc, "llamar a la función nativa " + name + " (extern)");
-    else if (m->unsafeApi) unsafeError(loc, "usar " + name + ", marcado como 'memory_unsafe',");
+    if (m->mods.isExtern) unsafeError(loc, "calling the native function " + name + " (extern)");
+    else if (m->unsafeApi) unsafeError(loc, "using " + name + ", marked 'memory_unsafe',");
 }
 
 void Sema::pointerExprError(Expr* e) {
@@ -1629,24 +1629,24 @@ void Sema::pointerExprError(Expr* e) {
             break;
         case EK::Cast:
             if (static_cast<CastExpr*>(e)->implicit) return;
-            unsafeError(e->loc, "convertir a un tipo puntero ('" + e->type->str() + "')");
+            unsafeError(e->loc, "converting to a pointer type ('" + e->type->str() + "')");
             return;
         case EK::Unary:
             if (static_cast<UnaryExpr*>(e)->op == "&") {
-                unsafeError(e->loc, "tomar la dirección de una variable ('&')");
+                unsafeError(e->loc, "taking the address of a variable ('&')");
                 return;
             }
             break;
-        case EK::NewArray: unsafeError(e->loc, "reservar memoria sin procesar con 'new T[n]' (usa List<T>)"); return;
+        case EK::NewArray: unsafeError(e->loc, "allocating raw memory with 'new T[n]' (use List<T>)"); return;
         case EK::Member:
             if (static_cast<MemberExpr*>(e)->ref == MemberExpr::Ref::StrPtr) {
-                unsafeError(e->loc, "obtener el puntero de una cadena ('.Ptr')");
+                unsafeError(e->loc, "getting a string's pointer ('.Ptr')");
                 return;
             }
             break;
         default: break;
     }
-    unsafeError(e->loc, "usar un valor de tipo puntero ('" + e->type->str() + "')");
+    unsafeError(e->loc, "using a value of pointer type ('" + e->type->str() + "')");
 }
 
 Type* Sema::checkValue(Expr* e) {
@@ -1656,11 +1656,11 @@ Type* Sema::checkValue(Expr* e) {
 
 Type* Sema::requireValue(Expr* e) {
     if (e->vk != ValKind::Value) {
-        std::string what = e->vk == ValKind::TypeName    ? "'" + e->typeValue->str() + "' es un tipo"
-                           : e->vk == ValKind::Namespace ? "'" + e->nsValue->display() + "' es un namespace"
-                                                         : "un grupo de métodos";
-        diag.error(e->loc, what + " y no es válido en este contexto" +
-                               (e->vk == ValKind::MethodGroup ? " (¿faltan paréntesis de llamada?)" : ""));
+        std::string what = e->vk == ValKind::TypeName    ? "'" + e->typeValue->str() + "' is a type"
+                           : e->vk == ValKind::Namespace ? "'" + e->nsValue->display() + "' is a namespace"
+                                                         : "a method group";
+        diag.error(e->loc, what + " and is not valid in this context" +
+                               (e->vk == ValKind::MethodGroup ? " (are you missing call parentheses?)" : ""));
         e->vk = ValKind::Value;
         e->type = tc_.error();
     }
@@ -1669,14 +1669,14 @@ Type* Sema::requireValue(Expr* e) {
 
 void Sema::checkAccess(Access a, ClassDecl* owner, const std::string& what, SourceLoc loc) {
     if (accessible(a, owner)) return;  // private: solo la clase; protected: la clase y sus derivadas
-    diag.error(loc, "'" + owner->displayName + "." + what + "' no es accesible debido a su nivel de protección");
+    diag.error(loc, "'" + owner->displayName + "." + what + "' is not accessible due to its protection level");
 }
 
 Type* Sema::checkInner(Expr* e) {
     if (isSugarExpr(e->kind)) return checkSugar(e);  // Sugar.cpp
     if (isArrayExprKind(e->kind)) return checkArrayExpr(e);  // [1, 2], ^i, a..b (Arrays.cpp)
     if (e->kind == EK::OutVar) {  // fuera de los argumentos de una llamada (Members.cpp)
-        diag.error(e->loc, "'out " + static_cast<OutVarExpr*>(e)->name + "': solo se puede declarar una variable en un argumento 'out' de una llamada a un método o constructor");
+        diag.error(e->loc, "'out " + static_cast<OutVarExpr*>(e)->name + "': a variable can only be declared in an 'out' argument of a method or constructor call");
         return tc_.error();
     }
     switch (e->kind) {
@@ -1698,7 +1698,7 @@ Type* Sema::checkInner(Expr* e) {
         case EK::Null: return tc_.get(TK::Null);
         case EK::This:
             if (!ctx_.cls || ctx_.cls->isNamespaceScope || ctx_.isStatic) {
-                diag.error(e->loc, "'this' no es válido en un contexto estático");
+                diag.error(e->loc, "'this' is not valid in a static context");
                 return tc_.error();
             }
             noteThisUse(e->loc);
@@ -1716,14 +1716,14 @@ Type* Sema::checkInner(Expr* e) {
             if (t->isError()) return t;
             if (!isLValue(pe->operand) || isConstTarget(pe->operand)) {
                 if (ctConstTarget(pe->operand)) return tc_.error();
-                diag.error(pe->loc, "el operando de '" + pe->op + "' debe ser una variable, campo o elemento");
+                diag.error(pe->loc, "the operand of '" + pe->op + "' must be a variable, field, or element");
                 return tc_.error();
             }
             if (!(t->isNumeric() || (t->isPointer() && !t->isVoidPointer()))) {
-                diag.error(pe->loc, "el operador '" + pe->op + "' no se puede aplicar a '" + t->str() + "'");
+                diag.error(pe->loc, "operator '" + pe->op + "' cannot be applied to '" + t->str() + "'");
                 return tc_.error();
             }
-            if (t->isPointer() && !unsafeCtx()) unsafeError(pe->loc, "la aritmética de punteros ('" + pe->op + "')");
+            if (t->isPointer() && !unsafeCtx()) unsafeError(pe->loc, "pointer arithmetic ('" + pe->op + "')");
             return t;
         }
         case EK::Binary: return checkBinary(static_cast<BinaryExpr*>(e));
@@ -1741,7 +1741,7 @@ Type* Sema::checkInner(Expr* e) {
             }
             if (Type* t = userCast(c, from, to)) return t;  // implicit/explicit operator (Members.cpp)
             if (!canExplicit(from, to)) {
-                diag.error(c->loc, "no se puede convertir el tipo '" + from->str() + "' en '" + to->str() + "'");
+                diag.error(c->loc, "cannot convert type '" + from->str() + "' to '" + to->str() + "'");
                 return tc_.error();
             }
             // (Derivada)base y conversiones con interfaces: se comprueban al ejecutar, sin memory_unsafe.
@@ -1751,7 +1751,7 @@ Type* Sema::checkInner(Expr* e) {
             }
             auto refLike = [](Type* t) { return t->isPointer() || t->isClass() || t->isFuncPtr(); };
             if (from != to && (refLike(from) || refLike(to)) && !canImplicit(c->operand, from, to) && !unsafeCtx())
-                unsafeError(c->loc, "reinterpretar '" + from->str() + "' como '" + to->str() + "'");
+                unsafeError(c->loc, "reinterpreting '" + from->str() + "' as '" + to->str() + "'");
             return to;
         }
         case EK::New: return checkNew(static_cast<NewExpr*>(e));
@@ -1929,8 +1929,8 @@ Type* Sema::checkNameImpl(NameExpr* e) {
     if (cls && !cls->isNamespaceScope) {
         if (e->name == "base" && cls->kind == ClassKind::Class) {  // base.Metodo(), base.Propiedad
             if (ctx_.isStatic || !cls->base) {
-                diag.error(e->loc, ctx_.isStatic ? "'base' no es válido en un contexto estático"
-                                                 : "'" + cls->displayName + "' no tiene clase base");
+                diag.error(e->loc, ctx_.isStatic ? "'base' is not valid in a static context"
+                                                 : "'" + cls->displayName + "' has no base class");
                 return tc_.error();
             }
             e->ref = NameExpr::Ref::Base;
@@ -1944,7 +1944,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
                 e->ref = NameExpr::Ref::StaticField;
             } else {
                 if (ctx_.isStatic) {
-                    diag.error(e->loc, "se requiere una referencia de objeto para el campo no estático '" +
+                    diag.error(e->loc, "an object reference is required for the non-static field '" +
                                            cls->displayName + "." + f->name + "'");
                     return tc_.error();
                 }
@@ -1956,7 +1956,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
         if (MethodDecl* m = findGetter(cls, e->name)) {
             checkAccess(m->mods.access, m->owner, m->name, e->loc);
             if (!m->isStatic() && ctx_.isStatic) {
-                diag.error(e->loc, "se requiere una referencia de objeto para la propiedad '" + m->name + "'");
+                diag.error(e->loc, "an object reference is required for property '" + m->name + "'");
                 return tc_.error();
             }
             e->ref = NameExpr::Ref::Property;
@@ -1995,7 +1995,7 @@ Type* Sema::checkNameImpl(NameExpr* e) {
     if (s.kind != Sym::None) return fromSym(e, s, e->typeArgs);
     if (Type* t = usingStaticName(e)) return t;  // using static std.Math; (Nested.cpp)
     if (Type* t = unionNameHook(e)) return t;  // Some / None / Ok / Err (Unions.cpp)
-    diag.error(e->loc, "el nombre '" + e->name + "' no existe en el contexto actual");
+    diag.error(e->loc, "the name '" + e->name + "' does not exist in the current context");
     return tc_.error();
 }
 
@@ -2033,12 +2033,12 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             return s.global->type;
         }
         if (s.kind != Sym::None) return fromSym(e, s, e->typeArgs);
-        diag.error(e->loc, "'" + e->name + "' no existe en el namespace '" + obj->nsValue->display() + "'");
+        diag.error(e->loc, "'" + e->name + "' does not exist in namespace '" + obj->nsValue->display() + "'");
         return tc_.error();
     }
 
     if (obj->vk == ValKind::MethodGroup) {
-        diag.error(e->loc, "no se puede acceder a un miembro de un grupo de métodos");
+        diag.error(e->loc, "cannot access a member of a method group");
         return tc_.error();
     }
 
@@ -2076,7 +2076,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             ClassDecl* c = T->decl;
             if (FieldDecl* f = findField(c, e->name)) {
                 if (!f->isStatic()) {
-                    diag.error(e->loc, "se requiere una referencia de objeto para el campo no estático '" + c->displayName +
+                    diag.error(e->loc, "an object reference is required for the non-static field '" + c->displayName +
                                            "." + f->name + "'");
                     return tc_.error();
                 }
@@ -2088,7 +2088,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             }
             if (MethodDecl* m = findGetter(c, e->name)) {
                 if (!m->isStatic()) {
-                    diag.error(e->loc, "se requiere una referencia de objeto para la propiedad '" + m->name + "'");
+                    diag.error(e->loc, "an object reference is required for property '" + m->name + "'");
                     return tc_.error();
                 }
                 checkAccess(m->mods.access, m->owner, m->name, e->loc);
@@ -2107,7 +2107,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         }
         if (Type* r = nestedTypeMember(e, T)) return r;  // Externa.Interna, Clase.Delegado (Nested.cpp)
         if (Type* r = primitiveStaticMember(e, T)) return r;  // int.Parse, char.IsDigit... (Exceptions.cpp)
-        diag.error(e->loc, "'" + T->str() + "' no contiene una definición para '" + e->name + "'");
+        diag.error(e->loc, "'" + T->str() + "' does not contain a definition for '" + e->name + "'");
         return tc_.error();
     }
 
@@ -2115,13 +2115,13 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
     Type* base = ot;
     if (e->arrow) {
         if (!ot->isPointer()) {
-            diag.error(e->loc, "el operador '->' requiere un puntero (el tipo es '" + ot->str() + "'); usa '.'");
+            diag.error(e->loc, "operator '->' requires a pointer (the type is '" + ot->str() + "'); use '.'");
             return tc_.error();
         }
-        if (!unsafeCtx()) unsafeError(e->loc, "acceder a un miembro a través de un puntero ('->')");
+        if (!unsafeCtx()) unsafeError(e->loc, "accessing a member through a pointer ('->')");
         base = ot->elem;
     } else if (ot->isPointer()) {
-        diag.error(e->loc, "usa '->' para acceder a miembros a través de un puntero ('" + ot->str() + "')");
+        diag.error(e->loc, "use '->' to access members through a pointer ('" + ot->str() + "')");
         return tc_.error();
     }
     if (base->isDelegate() && e->name == "Invoke") {  // f.Invoke(x) equivale a f(x)
@@ -2149,8 +2149,8 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         e->nonVirtual = isBaseExpr(e->obj);
         if (FieldDecl* f = findField(c, e->name)) {
             if (f->isStatic()) {
-                diag.error(e->loc, "el miembro estático '" + c->displayName + "." + f->name +
-                                       "' no se puede usar con una referencia de instancia; califícalo con el nombre del tipo");
+                diag.error(e->loc, "static member '" + c->displayName + "." + f->name +
+                                       "' cannot be used with an instance reference; qualify it with the type name");
                 return tc_.error();
             }
             checkAccess(f->mods.access, f->owner, f->name, e->loc);
@@ -2163,12 +2163,12 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
         if (m && isCallee && hasCallableNamed(c, e->name)) m = nullptr;  // l.Count(x => ...) frente a l.Count
         if (m) {
             if (m->isStatic()) {
-                diag.error(e->loc, "la propiedad estática '" + m->name + "' debe usarse con el nombre del tipo");
+                diag.error(e->loc, "static property '" + m->name + "' must be used with the type name");
                 return tc_.error();
             }
             checkAccess(m->mods.access, m->owner, m->name, e->loc);
             if (e->nonVirtual && m->mods.isAbstract) {
-                diag.error(e->loc, "no se puede usar con 'base' la propiedad abstracta '" + m->owner->displayName + "." + m->name + "'");
+                diag.error(e->loc, "cannot use abstract property '" + m->owner->displayName + "." + m->name + "' with 'base'");
                 return tc_.error();
             }
             e->ref = MemberExpr::Ref::Property;
@@ -2193,7 +2193,7 @@ Type* Sema::checkMemberImpl(MemberExpr* e) {
             return tc_.get(TK::Void);
         }
     }
-    diag.error(e->loc, "'" + base->str() + "' no contiene una definición para '" + e->name + "'");
+    diag.error(e->loc, "'" + base->str() + "' does not contain a definition for '" + e->name + "'");
     return tc_.error();
 }
 
@@ -2262,7 +2262,7 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
     if (viable.empty()) {
         if (report && !bindError.empty()) diag.error(loc, bindError);
         else if (report && !constraintError_.empty()) diag.error(loc, constraintError_);
-        else if (report) diag.error(loc, "ninguna sobrecarga de '" + what + "' acepta los argumentos " + typeList(args));
+        else if (report) diag.error(loc, "no overload of '" + what + "' accepts the arguments " + typeList(args));
         constraintError_.clear();
         return nullptr;
     }
@@ -2305,7 +2305,7 @@ MethodDecl* Sema::resolveOverload(const std::vector<MethodDecl*>& cands, std::ve
         }
     }
     if (viable.size() > 1 && same(viable[0], viable[1]) && viable[0].m != viable[1].m) {
-        if (report) diag.error(loc, "la llamada a '" + what + "' es ambigua para los argumentos " + typeList(args));
+        if (report) diag.error(loc, "the call to '" + what + "' is ambiguous for the arguments " + typeList(args));
         return nullptr;
     }
     return pick(viable[0]);
@@ -2323,9 +2323,9 @@ void Sema::coerceArgs(MethodDecl* m, std::vector<Expr*>& args) {
         if (t->is(TK::Float)) coerce(args[i], tc_.get(TK::Double));
         else if (t->isIntegral() && t->bits() < 32) coerce(args[i], tc_.get(TK::Int));
         else if (t->is(TK::String))
-            diag.error(args[i]->loc, "no se puede pasar 'string' a un parámetro variádico; usa 's.Ptr'");
+            diag.error(args[i]->loc, "cannot pass 'string' to a variadic parameter; use 's.Ptr'");
         else if (t->isStruct())
-            diag.error(args[i]->loc, "no se puede pasar un struct a un parámetro variádico");
+            diag.error(args[i]->loc, "cannot pass a struct to a variadic parameter");
     }
 }
 
@@ -2357,7 +2357,7 @@ Type* Sema::checkCall(CallExpr* e) {
     if (callee->vk == ValKind::Value && callee->type->isFuncPtr()) {
         Type* ft = callee->type;
         if (e->args.size() != ft->params.size()) {
-            diag.error(e->loc, "el puntero a función espera " + std::to_string(ft->params.size()) + " argumento(s)");
+            diag.error(e->loc, "the function pointer expects " + std::to_string(ft->params.size()) + " argument(s)");
             return tc_.error();
         }
         for (size_t i = 0; i < e->args.size(); i++) coerce(e->args[i], ft->params[i]);
@@ -2365,9 +2365,9 @@ Type* Sema::checkCall(CallExpr* e) {
     }
     if (callee->vk != ValKind::MethodGroup) {
         if (callee->vk == ValKind::TypeName)
-            diag.error(e->loc, "'" + callee->typeValue->str() + "' es un tipo; para crear una instancia usa 'new'");
+            diag.error(e->loc, "'" + callee->typeValue->str() + "' is a type; to create an instance use 'new'");
         else
-            diag.error(e->loc, "la expresión no se puede invocar");
+            diag.error(e->loc, "the expression cannot be invoked");
         return tc_.error();
     }
     std::vector<TypeRef*> noArgs;
@@ -2397,7 +2397,7 @@ Type* Sema::checkCall(CallExpr* e) {
         if (callee->kind == EK::Name) {
             if (!m->isStatic()) {
                 if (ctx_.isStatic) {
-                    diag.error(e->loc, "se requiere una referencia de objeto para el método no estático '" +
+                    diag.error(e->loc, "an object reference is required for the non-static method '" +
                                            m->owner->displayName + "." + m->name + "'");
                     return tc_.error();
                 }
@@ -2408,14 +2408,14 @@ Type* Sema::checkCall(CallExpr* e) {
             auto* me = static_cast<MemberExpr*>(callee);
             if (me->obj->vk != ValKind::Value) {
                 if (!m->isStatic()) {
-                    diag.error(e->loc, "se requiere una referencia de objeto para el método no estático '" +
+                    diag.error(e->loc, "an object reference is required for the non-static method '" +
                                            m->owner->displayName + "." + m->name + "'");
                     return tc_.error();
                 }
             } else {
                 if (m->isStatic()) {
-                    diag.error(e->loc, "el método estático '" + m->owner->displayName + "." + m->name +
-                                           "' no se puede llamar con una referencia de instancia; califícalo con el nombre del tipo");
+                    diag.error(e->loc, "static method '" + m->owner->displayName + "." + m->name +
+                                           "' cannot be called with an instance reference; qualify it with the type name");
                     return tc_.error();
                 }
                 e->receiver = me->obj;
@@ -2423,8 +2423,8 @@ Type* Sema::checkCall(CallExpr* e) {
                 if (isBaseExpr(me->obj)) {  // base.Metodo(): llamada directa a la implementación de la base
                     e->nonVirtual = true;
                     if (m->mods.isAbstract) {
-                        diag.error(e->loc, "no se puede llamar con 'base' al miembro abstracto '" + m->owner->displayName +
-                                               "." + m->name + "'");
+                        diag.error(e->loc, "cannot call abstract member '" + m->owner->displayName +
+                                               "." + m->name + "' with 'base'");
                         return tc_.error();
                     }
                 }
@@ -2445,7 +2445,7 @@ Type* Sema::checkIndex(IndexExpr* ix) {
     if (ot->isAggregate()) {
         std::vector<MethodDecl*> cands = findMethods(ot->decl, "operator[]", MethodKind::Operator);
         if (cands.empty()) {
-            diag.error(ix->loc, "'" + ot->str() + "' no define 'operator[]'");
+            diag.error(ix->loc, "'" + ot->str() + "' does not define 'operator[]'");
             return tc_.error();
         }
         std::vector<Expr*> args = {ix->index};
@@ -2460,16 +2460,16 @@ Type* Sema::checkIndex(IndexExpr* ix) {
         return m->ret;
     }
     if (!it->isIntegral()) {
-        diag.error(ix->index->loc, "el índice debe ser un entero (no '" + it->str() + "')");
+        diag.error(ix->index->loc, "the index must be an integer (not '" + it->str() + "')");
         return tc_.error();
     }
     if (!it->is(TK::ULong)) coerce(ix->index, tc_.get(TK::Long));
     if (ot->isPointer() && !ot->isVoidPointer()) {
-        if (!unsafeCtx()) unsafeError(ix->loc, "indexar un puntero ('p[i]', sin comprobación de límites)");
+        if (!unsafeCtx()) unsafeError(ix->loc, "indexing a pointer ('p[i]', no bounds checking)");
         return ot->elem;
     }
     if (ot->is(TK::String)) return tc_.get(TK::Byte);
-    diag.error(ix->loc, "no se puede aplicar indexación a una expresión de tipo '" + ot->str() + "'");
+    diag.error(ix->loc, "cannot apply indexing to an expression of type '" + ot->str() + "'");
     return tc_.error();
 }
 
@@ -2499,9 +2499,9 @@ Type* Sema::checkUnary(UnaryExpr* e) {
             }
             if (viable.size() != 1) {
                 diag.error(e->loc, viable.empty()
-                                       ? "solo se puede tomar la dirección de métodos estáticos sin parámetros por "
-                                         "referencia (ni [TrackCaller])"
-                                       : "la dirección del método es ambigua (está sobrecargado)");
+                                       ? "the address can only be taken of static methods with no by-reference "
+                                         "parameters (or [TrackCaller])"
+                                       : "the method address is ambiguous (it is overloaded)");
                 return tc_.error();
             }
             MethodDecl* m = viable[0];
@@ -2518,7 +2518,7 @@ Type* Sema::checkUnary(UnaryExpr* e) {
     }
     if (t->isError()) return t;
     auto bad = [&]() {
-        diag.error(e->loc, "el operador '" + op + "' no se puede aplicar a un operando de tipo '" + t->str() + "'");
+        diag.error(e->loc, "operator '" + op + "' cannot be applied to an operand of type '" + t->str() + "'");
         return tc_.error();
     };
     if (t->isAggregate() && (op == "-" || op == "+" || op == "!" || op == "~")) {
@@ -2563,28 +2563,28 @@ Type* Sema::checkUnary(UnaryExpr* e) {
     if (op == "++" || op == "--") {
         if (!isLValue(e->operand) || isConstTarget(e->operand)) {
             if (ctConstTarget(e->operand)) return tc_.error();
-            diag.error(e->loc, "el operando de '" + op + "' debe ser una variable, campo o elemento");
+            diag.error(e->loc, "the operand of '" + op + "' must be a variable, field, or element");
             return tc_.error();
         }
         if (!(t->isNumeric() || (t->isPointer() && !t->isVoidPointer()))) return bad();
-        if (t->isPointer() && !unsafeCtx()) unsafeError(e->loc, "la aritmética de punteros ('" + op + "')");
+        if (t->isPointer() && !unsafeCtx()) unsafeError(e->loc, "pointer arithmetic ('" + op + "')");
         return t;
     }
     if (op == "*") {
         if (!t->isPointer()) {
-            diag.error(e->loc, "solo se pueden desreferenciar punteros (el tipo es '" + t->str() + "')");
+            diag.error(e->loc, "only pointers can be dereferenced (the type is '" + t->str() + "')");
             return tc_.error();
         }
         if (t->isVoidPointer()) {
-            diag.error(e->loc, "no se puede desreferenciar 'void*'; conviértelo primero a un puntero tipado");
+            diag.error(e->loc, "cannot dereference 'void*'; convert it to a typed pointer first");
             return tc_.error();
         }
-        if (!unsafeCtx()) unsafeError(e->loc, "desreferenciar un puntero ('*')");
+        if (!unsafeCtx()) unsafeError(e->loc, "dereferencing a pointer ('*')");
         return t->elem;
     }
     if (op == "&") {
         if (!isLValue(e->operand) || isConstTarget(e->operand)) {
-            diag.error(e->loc, "solo se puede tomar la dirección de una variable, campo o elemento");
+            diag.error(e->loc, "the address can only be taken of a variable, field, or element");
             return tc_.error();
         }
         markAddressTaken(e->operand);
@@ -2647,7 +2647,7 @@ Type* Sema::checkBinary(BinaryExpr* e) {
     bool cmp = eq || op == "<" || op == ">" || op == "<=" || op == ">=";
     bool bitwise = op == "&" || op == "|" || op == "^";
     auto bad = [&]() {
-        diag.error(e->loc, "el operador '" + op + "' no se puede aplicar a operandos de tipo '" + L->str() + "' y '" +
+        diag.error(e->loc, "operator '" + op + "' cannot be applied to operands of type '" + L->str() + "' and '" +
                                R->str() + "'");
         return tc_.error();
     };
@@ -2678,8 +2678,8 @@ Type* Sema::checkBinary(BinaryExpr* e) {
             return negate ? boolT : m->ret;
         }
         if (L->isStruct() || R->isStruct()) {
-            diag.error(e->loc, "el operador '" + op + "' no está definido para '" + (L->isStruct() ? L : R)->str() +
-                                   "' (declara 'public static ... operator" + op + "(...)')");
+            diag.error(e->loc, "operator '" + op + "' is not defined for '" + (L->isStruct() ? L : R)->str() +
+                                   "' (declare 'public static ... operator" + op + "(...)')");
             return tc_.error();
         }
     }
@@ -2698,7 +2698,7 @@ Type* Sema::checkBinary(BinaryExpr* e) {
 
     if (L->isRefLike() || R->isRefLike()) {
         if ((op == "+" || op == "-") && (L->isPointer() || R->isPointer()) && !unsafeCtx())
-            unsafeError(e->loc, "la aritmética de punteros ('" + op + "')");
+            unsafeError(e->loc, "pointer arithmetic ('" + op + "')");
         if ((op == "+" || op == "-") && L->isPointer() && R->isIntegral()) {
             if (L->isVoidPointer()) return bad();
             if (!R->is(TK::ULong)) coerce(e->rhs, tc_.get(TK::Long));
@@ -2747,8 +2747,8 @@ Type* Sema::checkBinary(BinaryExpr* e) {
         }
         Type* p = numericPromote(e->lhs, e->rhs);
         if (!p) {
-            diag.error(e->loc, "el operador '" + op + "' es ambiguo entre '" + L->str() + "' y '" + R->str() +
-                                   "' (mezcla de 'ulong' con entero con signo)");
+            diag.error(e->loc, "operator '" + op + "' is ambiguous between '" + L->str() + "' and '" + R->str() +
+                                   "' (mixing 'ulong' with a signed integer)");
             return tc_.error();
         }
         if (bitwise && p->isFloating()) return bad();
@@ -2775,7 +2775,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
     Type* R = checkOperand(e->rhs);
     if (L->isError() || R->isError()) return tc_.error();
     if (isConstTarget(e->lhs)) {
-        diag.error(e->lhs->loc, "no se puede asignar a una constante");
+        diag.error(e->lhs->loc, "cannot assign to a constant");
         return tc_.error();
     }
     MethodDecl* getter = e->lhs->kind == EK::Name ? static_cast<NameExpr*>(e->lhs)->getter
@@ -2799,12 +2799,12 @@ Type* Sema::checkAssign(AssignExpr* e) {
                 coerce(e->rhs, B);
                 return B;
             }
-            diag.error(e->lhs->loc, "la propiedad '" + getter->name + "' es de solo lectura (no tiene 'set')");
+            diag.error(e->lhs->loc, "property '" + getter->name + "' is read-only (it has no 'set')");
             return tc_.error();
         }
         if (setter->isInit && !initSetterAllowed(e, setter)) return tc_.error();  // accesor 'init' (Members.cpp)
         if (e->op != "=") {
-            diag.error(e->loc, "'" + e->op + "' no se puede usar con propiedades; escribe 'p = p " + e->op.substr(0, e->op.size() - 1) + " valor'");
+            diag.error(e->loc, "'" + e->op + "' cannot be used with properties; write 'p = p " + e->op.substr(0, e->op.size() - 1) + " value'");
             return tc_.error();
         }
         checkAccess(setter->mods.access, setter->owner, setter->name, e->loc);
@@ -2816,7 +2816,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
     }
     if (!isLValue(e->lhs)) {
         if (ctConstTarget(e->lhs)) return tc_.error();  // n = 3 con 'comptime int n' (Comptime.cpp)
-        diag.error(e->lhs->loc, "el lado izquierdo de una asignación debe ser una variable, campo o elemento indexado");
+        diag.error(e->lhs->loc, "the left-hand side of an assignment must be a variable, field, or indexed element");
         return tc_.error();
     }
     if (e->op == "=") {
@@ -2826,7 +2826,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
     if (L->isDelegate() && delegateAssign(e, L)) return L;  // d += f; d -= f (multicast)
     std::string op = e->op.substr(0, e->op.size() - 1);
     auto bad = [&]() {
-        diag.error(e->loc, "el operador '" + e->op + "' no se puede aplicar a operandos de tipo '" + L->str() + "' y '" +
+        diag.error(e->loc, "operator '" + e->op + "' cannot be applied to operands of type '" + L->str() + "' and '" +
                                R->str() + "'");
         return tc_.error();
     };
@@ -2851,7 +2851,7 @@ Type* Sema::checkAssign(AssignExpr* e) {
     }
     if (L->isPointer() && (op == "+" || op == "-") && R->isIntegral()) {
         if (L->isVoidPointer()) return bad();
-        if (!unsafeCtx()) unsafeError(e->loc, "la aritmética de punteros ('" + e->op + "')");
+        if (!unsafeCtx()) unsafeError(e->loc, "pointer arithmetic ('" + e->op + "')");
         if (!R->is(TK::ULong)) coerce(e->rhs, tc_.get(TK::Long));
         return L;
     }
@@ -2893,7 +2893,7 @@ Type* Sema::checkCond(CondExpr* e) {
         coerce(e->b, A);
         return A;
     }
-    diag.error(e->loc, "no hay conversión implícita entre '" + A->str() + "' y '" + B->str() + "' en el operador '?:'");
+    diag.error(e->loc, "there is no implicit conversion between '" + A->str() + "' and '" + B->str() + "' in the '?:' operator");
     return tc_.error();
 }
 
@@ -2904,20 +2904,20 @@ Type* Sema::checkNew(NewExpr* e) {
     for (Expr* a : e->args) checkOperand(a);
     if (T->isError()) return T;
     if (!T->isAggregate()) {
-        diag.error(e->loc, "'new T(...)' solo es válido para clases y structs; para memoria de '" + T->str() +
-                               "' usa 'new " + T->str() + "[n]'");
+        diag.error(e->loc, "'new T(...)' is only valid for classes and structs; for memory of '" + T->str() +
+                               "' use 'new " + T->str() + "[n]'");
         return tc_.error();
     }
     ClassDecl* c = T->decl;
     if (c->isInterface() || c->mods.isAbstract) {
-        diag.error(e->loc, std::string("no se puede crear una instancia de ") +
-                               (c->isInterface() ? "la interfaz '" : "la clase abstracta '") + c->displayName + "'");
+        diag.error(e->loc, std::string("cannot create an instance of ") +
+                               (c->isInterface() ? "interface '" : "abstract class '") + c->displayName + "'");
         return tc_.error();
     }
     if (c->ctors.empty()) {
         if (!e->args.empty()) {
-            diag.error(e->loc, "'" + c->displayName + "' no contiene un constructor que acepte " +
-                                   std::to_string(e->args.size()) + " argumento(s)");
+            diag.error(e->loc, "'" + c->displayName + "' does not contain a constructor that accepts " +
+                                   std::to_string(e->args.size()) + " argument(s)");
             return tc_.error();
         }
         return T;

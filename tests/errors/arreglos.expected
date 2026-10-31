@@ -1,17 +1,17 @@
-10|los arreglos no son covariantes en Faset: 'string\[\]' no se convierte en 'object\[\]'
-11|los arreglos no son covariantes en Faset: 'Gato\[\]'
-12|no se puede convertir implícitamente el tipo 'int\[\]' en 'string\[\]'
-13|una expresión de colección no tiene tipo propio
-14|no se puede convertir implícitamente el tipo 'string' en 'int'
-15|el inicializador de un arreglo de 2 dimensiones
-16|el tamaño indicado \(3\) no coincide con el número de elementos \(2\)
-18|'\.\.' solo puede expandir
-20|el lado izquierdo de una asignación
-21|un patrón de lista necesita
-22|un patrón de lista admite un solo '\.\.'
-23|no se puede inferir el tipo de los elementos de 'new\[\]'
-24|un inicializador \{ \.\.\. \} solo sirve para arreglos
-25|el tamaño del arreglo debe ser un entero
-26|ninguna sobrecarga de 'operator\[\]'
-27|los extremos de un rango deben ser
-28|el índice debe ser un entero
+10|arrays are not covariant in Faset: 'string\[\]' does not convert to 'object\[\]' \(create a new array, e\.g\. with Array\.ConvertAll or a loop\)
+11|arrays are not covariant in Faset: 'Gato\[\]' does not convert to 'Animal\[\]' \(create a new array, e\.g\. with Array\.ConvertAll or a loop\)
+12|cannot implicitly convert type 'int\[\]' to 'string\[\]' \(an explicit conversion exists; are you missing a cast\?\)
+13|a collection expression has no type of its own: specify the target type \(int\[\] xs = \[1, 2\], List<int> xs = \[1, 2\]\.\.\.\)
+14|cannot implicitly convert type 'string' to 'int'
+15|the initializer of an array of 2 dimensions must have 2 levels of \{ \} and all rows the same size
+16|the specified size \(3\) does not match the number of elements \(2\)
+18|'\.\.' can only spread an array, List<T>, HashSet<T> or Span<T> \(not 'int'\) into an array, List<T>, HashSet<T> or Span<T>
+20|the left-hand side of an assignment must be a variable, field, or indexed element
+21|a list pattern needs an array, a list, a Span<T> or a string \(the value is 'int'\)
+22|a list pattern allows only one '\.\.'
+23|cannot infer the type of the elements of 'new\[\]': specify the type \(new int\[\] \{ \.\.\. \}\)
+24|an initializer \{ \.\.\. \} only works for arrays and 'List<int>' is not one \(use a collection expression \[ \.\.\. \]\)
+25|array size must be an integer \(not 'double'\)
+26|no overload of 'operator\[\]' accepts the arguments \(string\)
+27|the endpoints of a range must be 'int' or 'Index' \(not 'int\[\]'\)
+28|the index must be an integer \(not 'Range'\)

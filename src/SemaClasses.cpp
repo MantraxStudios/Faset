@@ -61,7 +61,7 @@ void Sema::initObjectModel() {
                           const std::string& owner) {
         for (const TypeConstraint& tc : cons)
             if (std::find(params.begin(), params.end(), tc.param) == params.end())
-                diag.error(tc.loc, "'" + tc.param + "' no es un parámetro de tipo de '" + owner + "' (cláusula 'where')");
+                diag.error(tc.loc, "'" + tc.param + "' is not a type parameter of '" + owner + "' ('where' clause)");
     };
     for (ClassDecl* c : prog_.types) {
         if (c->templateOf) continue;
@@ -199,36 +199,36 @@ void Sema::resolveHierarchy(ClassDecl* c) {
         Type* t = resolveType(r);
         if (t->isError()) continue;
         if (!t->isClass()) {
-            diag.error(r->loc, "no se puede heredar de '" + t->str() + "': solo de una clase o de interfaces");
+            diag.error(r->loc, "cannot inherit from '" + t->str() + "': only from a class or interfaces");
             continue;
         }
         ClassDecl* b = t->decl;
         resolveClassSignatures(b);
         if (b == c || derivesFrom(b, c) || b->hierarchyState == 1) {
-            diag.error(r->loc, "herencia circular: '" + b->displayName + "' depende de '" + c->displayName + "'");
+            diag.error(r->loc, "circular inheritance: '" + b->displayName + "' depends on '" + c->displayName + "'");
             continue;
         }
         if (b->isInterface()) {
             if (std::find(c->interfaces.begin(), c->interfaces.end(), b) != c->interfaces.end())
-                diag.error(r->loc, "la interfaz '" + b->displayName + "' ya está en la lista de bases");
+                diag.error(r->loc, "interface '" + b->displayName + "' is already in the base list");
             else
                 c->interfaces.push_back(b);
             continue;
         }
         if (c->kind != ClassKind::Class) {
-            diag.error(r->loc, std::string(c->isInterface() ? "una interfaz" : "un struct") +
-                                   " solo puede heredar de interfaces ('" + b->displayName + "' es una clase)");
+            diag.error(r->loc, std::string(c->isInterface() ? "an interface" : "a struct") +
+                                   " can only inherit from interfaces ('" + b->displayName + "' is a class)");
         } else if (c->isStaticClass()) {
-            diag.error(r->loc, "una clase estática no puede tener clase base");
+            diag.error(r->loc, "a static class cannot have a base class");
         } else if (c->base) {
-            diag.error(r->loc, "'" + c->displayName + "' ya hereda de '" + c->base->displayName +
-                                   "': Faset solo admite herencia simple de clases (usa interfaces)");
+            diag.error(r->loc, "'" + c->displayName + "' already inherits from '" + c->base->displayName +
+                                   "': Faset only supports single class inheritance (use interfaces)");
         } else if (i != 0) {
-            diag.error(r->loc, "la clase base '" + b->displayName + "' debe ir antes que las interfaces");
+            diag.error(r->loc, "base class '" + b->displayName + "' must come before the interfaces");
         } else if (b->mods.isSealed) {
-            diag.error(r->loc, "'" + c->displayName + "' no puede derivar de la clase sellada (sealed) '" + b->displayName + "'");
+            diag.error(r->loc, "'" + c->displayName + "' cannot derive from sealed class '" + b->displayName + "'");
         } else if (b->isStaticClass()) {
-            diag.error(r->loc, "no se puede derivar de la clase estática '" + b->displayName + "'");
+            diag.error(r->loc, "cannot derive from static class '" + b->displayName + "'");
         } else {
             c->base = b;
         }
@@ -263,28 +263,28 @@ MethodDecl* Sema::findInterfaceImpl(ClassDecl* c, MethodDecl* im) {
 // Tabla virtual, interfaces y comprobaciones de los modificadores de herencia.
 void Sema::finishClassLayout(ClassDecl* c) {
     if (c->isNamespaceScope || c->kind == ClassKind::Enum) return;
-    if (c->mods.isAbstract && c->kind != ClassKind::Class) diag.error(c->loc, "solo las clases pueden ser 'abstract'");
-    if (c->mods.isSealed && c->kind != ClassKind::Class) diag.error(c->loc, "solo las clases pueden ser 'sealed'");
+    if (c->mods.isAbstract && c->kind != ClassKind::Class) diag.error(c->loc, "only classes can be 'abstract'");
+    if (c->mods.isSealed && c->kind != ClassKind::Class) diag.error(c->loc, "only classes can be 'sealed'");
     if (c->mods.isAbstract && c->mods.isSealed)
-        diag.error(c->loc, "una clase no puede ser 'abstract' y 'sealed' a la vez");
+        diag.error(c->loc, "a class cannot be both 'abstract' and 'sealed'");
     if (c->mods.isStatic && (c->mods.isAbstract || c->mods.isSealed))
-        diag.error(c->loc, "una clase estática no puede ser 'abstract' ni 'sealed'");
+        diag.error(c->loc, "a static class cannot be 'abstract' or 'sealed'");
 
     if (c->isInterface()) {
         for (FieldDecl* f : c->fields)
-            if (!f->isStatic()) diag.error(f->loc, "las interfaces no pueden tener campos");
-        if (!c->ctors.empty()) diag.error(c->ctors[0]->loc, "las interfaces no pueden tener constructores");
-        if (c->dtor) diag.error(c->dtor->loc, "las interfaces no pueden tener destructor");
+            if (!f->isStatic()) diag.error(f->loc, "interfaces cannot have fields");
+        if (!c->ctors.empty()) diag.error(c->ctors[0]->loc, "interfaces cannot have constructors");
+        if (c->dtor) diag.error(c->dtor->loc, "interfaces cannot have a destructor");
         for (MethodDecl* m : c->methods) {
             if (m->isStatic()) {
-                diag.error(m->loc, "las interfaces no admiten miembros estáticos");
+                diag.error(m->loc, "interfaces do not allow static members");
                 continue;
             }
-            if (m->kind == MethodKind::Operator) diag.error(m->loc, "las interfaces no pueden declarar operadores");
-            if (m->mods.access != Access::Public) diag.error(m->loc, "los miembros de una interfaz son siempre públicos");
+            if (m->kind == MethodKind::Operator) diag.error(m->loc, "interfaces cannot declare operators");
+            if (m->mods.access != Access::Public) diag.error(m->loc, "interface members are always public");
             if (m->mods.isVirtual || m->mods.isOverride || m->mods.isSealed || m->mods.isAbstract)
-                diag.error(m->loc, "los miembros de una interfaz no admiten virtual/override/abstract/sealed");
-            if (m->isTemplate()) diag.error(m->loc, "los métodos de una interfaz no pueden ser genéricos");
+                diag.error(m->loc, "interface members do not allow virtual/override/abstract/sealed");
+            if (m->isTemplate()) diag.error(m->loc, "interface methods cannot be generic");
             m->objSelf = true;
             useMethod(m);  // método por defecto (con cuerpo)
         }
@@ -294,10 +294,10 @@ void Sema::finishClassLayout(ClassDecl* c) {
     if (c->kind == ClassKind::Struct) {
         for (MethodDecl* m : c->methods) {
             if (m->mods.isVirtual || m->mods.isAbstract || m->mods.isSealed)
-                diag.error(m->loc, "los miembros de un struct no pueden ser virtual, abstract ni sealed");
+                diag.error(m->loc, "struct members cannot be virtual, abstract or sealed");
             // 'override' de ToString/GetHashCode/Equals se acepta por costumbre (no hay herencia).
             if (m->mods.isOverride && m->name != "ToString" && m->name != "GetHashCode" && m->name != "Equals")
-                diag.error(m->loc, "'" + memberName(m) + "': un struct no tiene clase base que reemplazar");
+                diag.error(m->loc, "'" + memberName(m) + "': a struct has no base class to override");
         }
     } else {
         // ---- tabla virtual
@@ -305,27 +305,27 @@ void Sema::finishClassLayout(ClassDecl* c) {
         for (MethodDecl* m : c->methods) {
             bool vmods = m->isVirtualish() || m->mods.isSealed;
             if (m->isStatic()) {
-                if (vmods) diag.error(m->loc, "un miembro estático no puede ser virtual, abstract, override ni sealed");
+                if (vmods) diag.error(m->loc, "a static member cannot be virtual, abstract, override or sealed");
                 continue;
             }
             if (m->kind != MethodKind::Normal && m->kind != MethodKind::Getter && m->kind != MethodKind::Setter) {
-                if (vmods) diag.error(m->loc, "solo los métodos y las propiedades pueden ser virtuales");
+                if (vmods) diag.error(m->loc, "only methods and properties can be virtual");
                 continue;
             }
             if (m->isTemplate()) {
-                if (vmods) diag.error(m->loc, "un método genérico no puede ser virtual, abstract ni override");
+                if (vmods) diag.error(m->loc, "a generic method cannot be virtual, abstract or override");
                 continue;
             }
             const std::string what = described(m);
-            if (m->mods.isAbstract && m->body) diag.error(m->loc, "el miembro abstracto " + what + " no puede tener cuerpo");
+            if (m->mods.isAbstract && m->body) diag.error(m->loc, "abstract member " + what + " cannot have a body");
             if (m->mods.isAbstract && !c->mods.isAbstract)
-                diag.error(m->loc, what + " es abstracto pero la clase '" + c->displayName + "' no es 'abstract'");
+                diag.error(m->loc, what + " is abstract but class '" + c->displayName + "' is not 'abstract'");
             if (m->isVirtualish() && m->mods.access == Access::Private)
-                diag.error(m->loc, "un miembro virtual, abstract u override no puede ser privado (" + what + ")");
+                diag.error(m->loc, "a virtual, abstract or override member cannot be private (" + what + ")");
             if (m->mods.isVirtual && (m->mods.isOverride || m->mods.isAbstract))
-                diag.error(m->loc, what + ": 'virtual' no se combina con 'override' ni con 'abstract'");
-            if (m->mods.isSealed && !m->mods.isOverride) diag.error(m->loc, "'sealed' solo se puede aplicar a un 'override' (" + what + ")");
-            if (m->trackCaller && m->isVirtualish()) diag.error(m->loc, "[TrackCaller] no se puede aplicar a miembros virtuales");
+                diag.error(m->loc, what + ": 'virtual' cannot be combined with 'override' or 'abstract'");
+            if (m->mods.isSealed && !m->mods.isOverride) diag.error(m->loc, "'sealed' can only be applied to an 'override' (" + what + ")");
+            if (m->trackCaller && m->isVirtualish()) diag.error(m->loc, "[TrackCaller] cannot be applied to virtual members");
             int slot = -1;
             for (size_t s = 0; s < c->vtable.size() && slot < 0; s++)
                 if (sameSig(c->vtable[s], m)) slot = (int)s;
@@ -341,27 +341,27 @@ void Sema::finishClassLayout(ClassDecl* c) {
                 m->mods.isOverride = true;
             if (m->mods.isOverride) {
                 if (slot < 0) {
-                    std::string msg = what + " está marcado como 'override' pero no hay ningún miembro virtual, abstract u "
-                                             "override adecuado que reemplazar en la clase base";
-                    if (hiddenBase) msg += " ('" + memberName(hiddenBase) + "' no es virtual)";
+                    std::string msg = what + " is marked 'override' but there is no suitable virtual, abstract or "
+                                             "override member to override in the base class";
+                    if (hiddenBase) msg += " ('" + memberName(hiddenBase) + "' is not virtual)";
                     else {
                         MethodDecl* similar = nullptr;
                         for (ClassDecl* k = c->base; k && !similar; k = k->base)
                             for (MethodDecl* b : k->methods)
                                 if (!similar && b->name == m->name && b->kind == m->kind && b->isVirtualish()) similar = b;
-                        if (similar) msg += " (la firma no coincide con '" + memberName(similar) + "')";
+                        if (similar) msg += " (the signature does not match '" + memberName(similar) + "')";
                     }
                     diag.error(m->loc, msg);
                     continue;
                 }
                 MethodDecl* b = c->vtable[slot];
                 if (b->ret != m->ret && !b->ret->isError() && !m->ret->isError())
-                    diag.error(m->loc, "el tipo de retorno de " + what + " debe ser '" + b->ret->str() +
-                                           "' para coincidir con el miembro reemplazado '" + memberName(b) + "'");
+                    diag.error(m->loc, "the return type of " + what + " must be '" + b->ret->str() +
+                                           "' to match the overridden member '" + memberName(b) + "'");
                 if (b->mods.isSealed)
-                    diag.error(m->loc, what + ": no se puede reemplazar '" + memberName(b) + "' porque es 'sealed'");
+                    diag.error(m->loc, what + ": cannot override '" + memberName(b) + "' because it is 'sealed'");
                 if (b->mods.access != m->mods.access && !(b->owner && b->owner == objectDecl && m->mods.access == Access::Public))
-                    diag.error(m->loc, what + ": no se puede cambiar el nivel de acceso al reemplazar '" + memberName(b) + "'");
+                    diag.error(m->loc, what + ": cannot change the access level when overriding '" + memberName(b) + "'");
                 m->vslot = slot;
                 m->vroot = b->vroot ? b->vroot : b;
                 m->overridden = b;
@@ -369,29 +369,29 @@ void Sema::finishClassLayout(ClassDecl* c) {
                 c->vtable[slot] = m;
             } else if (m->mods.isVirtual || m->mods.isAbstract) {
                 if (slot >= 0 && !m->mods.isNew)
-                    diag.error(m->loc, what + " oculta el miembro heredado '" + memberName(c->vtable[slot]) +
-                                           "'; usa 'override' para reemplazarlo o 'new' para ocultarlo");
+                    diag.error(m->loc, what + " hides inherited member '" + memberName(c->vtable[slot]) +
+                                           "'; use 'override' to override it or 'new' to hide it");
                 m->vslot = (int)c->vtable.size();
                 m->vroot = m;
                 m->objSelf = true;
                 c->vtable.push_back(m);
             } else if (slot >= 0 && !m->mods.isNew) {
-                diag.error(m->loc, what + " oculta el miembro virtual heredado '" + memberName(c->vtable[slot]) +
-                                       "'; usa 'override' para reemplazarlo o 'new' para ocultarlo");
+                diag.error(m->loc, what + " hides inherited virtual member '" + memberName(c->vtable[slot]) +
+                                       "'; use 'override' to override it or 'new' to hide it");
             }
         }
         if (!c->mods.isAbstract)
             for (MethodDecl* m : c->vtable)
                 if (m->mods.isAbstract)
-                    diag.error(c->loc, "'" + c->displayName + "' no implementa el miembro abstracto heredado " + described(m));
+                    diag.error(c->loc, "'" + c->displayName + "' does not implement inherited abstract member " + described(m));
         for (MethodDecl* m : c->vtable) useMethod(m);
 
         // ---- construcción por defecto: la base necesita un constructor sin parámetros
         if (c->ctors.empty() && c->base && !c->base->ctors.empty()) {
             if (MethodDecl* p = paramlessCtor(c->base)) useMethod(p);
             else
-                diag.error(c->loc, "'" + c->displayName + "' debe declarar un constructor que llame a ': base(...)': '" +
-                                       c->base->displayName + "' no tiene un constructor sin parámetros");
+                diag.error(c->loc, "'" + c->displayName + "' must declare a constructor that calls ': base(...)': '" +
+                                       c->base->displayName + "' has no parameterless constructor");
         }
     }
 
@@ -403,10 +403,10 @@ void Sema::finishClassLayout(ClassDecl* c) {
             if (im->isStatic() || im->isTemplate() || im->kind == MethodKind::Operator) continue;
             MethodDecl* m = findInterfaceImpl(c, im);
             if (m && m->mods.access != Access::Public) {
-                diag.error(m->loc, "'" + memberName(m) + "' implementa '" + memberName(im) + "' y debe ser 'public'");
+                diag.error(m->loc, "'" + memberName(m) + "' implements '" + memberName(im) + "' and must be 'public'");
             } else if (m && m->ret != im->ret && !m->ret->isError() && !im->ret->isError()) {
-                diag.error(m->loc, "'" + memberName(m) + "' no puede implementar '" + memberName(im) +
-                                       "': el tipo de retorno debe ser '" + im->ret->str() + "'");
+                diag.error(m->loc, "'" + memberName(m) + "' cannot implement '" + memberName(im) +
+                                       "': the return type must be '" + im->ret->str() + "'");
             } else if (m) {
                 if (m->vslot >= 0 && c->kind == ClassKind::Class) m = c->vtable[m->vslot];
                 m->objSelf = c->kind == ClassKind::Class || m->objSelf;
@@ -414,7 +414,7 @@ void Sema::finishClassLayout(ClassDecl* c) {
             } else if (im->body) {
                 m = im;  // método por defecto de la interfaz
             } else if (!c->mods.isAbstract) {
-                diag.error(c->loc, "'" + c->displayName + "' no implementa el miembro de interfaz " + described(im));
+                diag.error(c->loc, "'" + c->displayName + "' does not implement interface member " + described(im));
             }
             impl.push_back(m);
         }
@@ -434,19 +434,19 @@ void Sema::checkCtorInit(MethodDecl* m) {
         target = resolveOverload(c->ctors, m->ctorInitArgs, at, c->displayName);
         if (!target) return;
         if (target == m) {
-            diag.error(at, "el constructor no puede llamarse a sí mismo con ': this(...)'");
+            diag.error(at, "a constructor cannot call itself with ': this(...)'");
             return;
         }
     } else if (c->kind != ClassKind::Class || !c->base) {
-        if (m->ctorInit == 1) diag.error(at, "'" + c->displayName + "' no tiene clase base: ': base(...)' no es válido");
+        if (m->ctorInit == 1) diag.error(at, "'" + c->displayName + "' has no base class: ': base(...)' is not valid");
         return;
     } else {
         ClassDecl* b = c->base;
         if (m->ctorInit == 1) {
             if (b->ctors.empty()) {
                 if (!m->ctorInitArgs.empty())
-                    diag.error(at, "'" + b->displayName + "' no contiene un constructor que acepte " +
-                                       std::to_string(m->ctorInitArgs.size()) + " argumento(s)");
+                    diag.error(at, "'" + b->displayName + "' does not contain a constructor that accepts " +
+                                       std::to_string(m->ctorInitArgs.size()) + " argument(s)");
                 return;
             }
             target = resolveOverload(b->ctors, m->ctorInitArgs, at, b->displayName);
@@ -456,7 +456,7 @@ void Sema::checkCtorInit(MethodDecl* m) {
             target = paramlessCtor(b);
             if (!target) target = defaultedCtor(b, m->ctorInitArgs, at);  // base(int x = 0) (Members.cpp)
             if (!target) {
-                diag.error(at, "'" + b->displayName + "' no contiene un constructor sin parámetros; llama a uno con ': base(...)'");
+                diag.error(at, "'" + b->displayName + "' does not contain a parameterless constructor; call one with ': base(...)'");
                 return;
             }
         }
@@ -495,7 +495,7 @@ bool Sema::satisfies(Type* arg, const TypeConstraint& tc, std::string& what) {
         if (t->isError()) continue;
         what = t->str();
         if (!t->isClass()) {
-            diag.error(r->loc, "'" + t->str() + "' no es válido como restricción: usa una clase o una interfaz");
+            diag.error(r->loc, "'" + t->str() + "' is not valid as a constraint: use a class or an interface");
             continue;
         }
         if (arg->isClass() && derivesFrom(arg->decl, t->decl)) continue;
@@ -519,8 +519,8 @@ bool Sema::checkConstraints(const std::vector<std::string>& params, const std::v
         if (it == args.end() || it->second->isError()) continue;
         std::string what;
         if (!satisfies(it->second, tc, what)) {
-            err = "el tipo '" + it->second->str() + "' no cumple la restricción '" + what + "' del parámetro de tipo '" +
-                  tc.param + "' de '" + owner + "'";
+            err = "type '" + it->second->str() + "' does not satisfy the constraint '" + what + "' of type parameter '" +
+                  tc.param + "' of '" + owner + "'";
             return false;
         }
     }
@@ -551,26 +551,26 @@ Type* Sema::checkIs(IsExpr* e) {
     Type* ot = checkValue(e->operand);
     if (ot->isError()) return boolT;
     if (!e->tref && !e->preset) {  // is null / is not null
-        if (!ot->isRefLike()) diag.error(e->loc, "'is null' requiere una referencia (el tipo es '" + ot->str() + "')");
+        if (!ot->isRefLike()) diag.error(e->loc, "'is null' requires a reference (the type is '" + ot->str() + "')");
         return boolT;
     }
     Type* T = e->preset ? e->preset : resolveType(e->tref);
     if (T->isError()) return boolT;
     e->target = T;
     if (!ot->isClass()) {
-        diag.error(e->loc, "el operador 'is' requiere una referencia a clase o interfaz (el tipo es '" + ot->str() + "')");
+        diag.error(e->loc, "the 'is' operator requires a class or interface reference (the type is '" + ot->str() + "')");
         return boolT;
     }
     if (!T->isClass()) {
-        diag.error(e->tref ? e->tref->loc : e->loc, "'is' solo admite clases e interfaces como tipo (no '" + T->str() + "')");
+        diag.error(e->tref ? e->tref->loc : e->loc, "'is' only allows classes and interfaces as the type (not '" + T->str() + "')");
         return boolT;
     }
     if (derivesFrom(ot->decl, T->decl)) e->always = true;
     else if (!checkedCastOk(ot, T))
-        diag.error(e->loc, "una expresión de tipo '" + ot->str() + "' nunca puede ser de tipo '" + T->str() + "'");
+        diag.error(e->loc, "an expression of type '" + ot->str() + "' can never be of type '" + T->str() + "'");
     if (!e->varName.empty()) {
         if (!ctx_.method) {
-            diag.error(e->varLoc, "los patrones con variable ('is T nombre') solo se pueden usar dentro de métodos");
+            diag.error(e->varLoc, "variable patterns ('is T name') can only be used inside methods");
             return boolT;
         }
         e->var = declareLocal(e->varName, T, e->varLoc, "l_");
@@ -586,17 +586,17 @@ Type* Sema::checkAs(AsExpr* e) {
     Type* T = e->preset ? e->preset : resolveType(e->tref);
     if (ot->isError() || T->isError()) return tc_.error();
     if (!T->isClass()) {
-        diag.error(e->tref ? e->tref->loc : e->loc, "'as' solo admite clases e interfaces como tipo (no '" + T->str() + "')");
+        diag.error(e->tref ? e->tref->loc : e->loc, "'as' only allows classes and interfaces as the type (not '" + T->str() + "')");
         return tc_.error();
     }
     if (ot->is(TK::Null)) return T;
     if (!ot->isClass()) {
-        diag.error(e->loc, "el operador 'as' requiere una referencia a clase o interfaz (el tipo es '" + ot->str() + "')");
+        diag.error(e->loc, "the 'as' operator requires a class or interface reference (the type is '" + ot->str() + "')");
         return tc_.error();
     }
     if (derivesFrom(ot->decl, T->decl)) e->always = true;
     else if (!checkedCastOk(ot, T)) {
-        diag.error(e->loc, "no se puede convertir '" + ot->str() + "' en '" + T->str() + "' con 'as': los tipos no están relacionados");
+        diag.error(e->loc, "cannot convert '" + ot->str() + "' to '" + T->str() + "' with 'as': the types are not related");
         return tc_.error();
     }
     return T;
@@ -618,27 +618,27 @@ Type* Sema::checkWith(WithExpr* e) {
         if (in.value) checkValue(in.value);
     if (t->isError()) return t;
     if (!t->isAggregate() || !t->decl->isRecord) {
-        diag.error(e->loc, "'with' solo se puede usar con registros (record), no con '" + t->str() + "'");
+        diag.error(e->loc, "'with' can only be used with records (record), not with '" + t->str() + "'");
         return tc_.error();
     }
     ClassDecl* c = t->decl;
     std::set<std::string> seen;
     for (auto& in : e->inits) {
-        if (!seen.insert(in.name).second) diag.error(in.loc, "la propiedad '" + in.name + "' ya se asignó en este 'with'");
+        if (!seen.insert(in.name).second) diag.error(in.loc, "property '" + in.name + "' was already assigned in this 'with'");
         MethodDecl* g = findGetter(c, in.name);
         FieldDecl* f = findField(c, in.name + "__valor");
         if (!g) {
             if (FieldDecl* plain = findField(c, in.name); plain && !plain->isStatic()) f = plain;
             else {
-                diag.error(in.loc, "'" + c->displayName + "' no contiene una propiedad '" + in.name + "'");
+                diag.error(in.loc, "'" + c->displayName + "' does not contain a property '" + in.name + "'");
                 continue;
             }
         } else if (!f) {
-            diag.error(in.loc, "la propiedad '" + in.name + "' no es automática ({ get; }): no se puede usar en 'with'");
+            diag.error(in.loc, "property '" + in.name + "' is not automatic ({ get; }): it cannot be used in 'with'");
             continue;
         }
         if (!accessible(g ? g->mods.access : f->mods.access, c)) {
-            diag.error(in.loc, "'" + c->displayName + "." + in.name + "' no es accesible debido a su nivel de protección");
+            diag.error(in.loc, "'" + c->displayName + "." + in.name + "' is not accessible due to its protection level");
             continue;
         }
         in.field = f;
@@ -661,7 +661,7 @@ Type* Sema::checkOO(Expr* e) {
             if (t->target->isError()) return t->target;
             MethodDecl* from = typeFromHandle();
             if (!typeDecl || !from) {
-                diag.error(e->loc, "'typeof' requiere std.Type");
+                diag.error(e->loc, "'typeof' requires std.Type");
                 return tc_.error();
             }
             useMethod(from, &e->loc);
@@ -677,7 +677,7 @@ Type* Sema::checkOO(Expr* e) {
             else if (o->kind == EK::Member) n->value = static_cast<MemberExpr*>(o)->name;
             else if (o->kind == EK::This) n->value = "this";
             else {
-                diag.error(o->loc, "'nameof' requiere un nombre (variable, tipo, miembro o método)");
+                diag.error(o->loc, "'nameof' requires a name (variable, type, member or method)");
                 return tc_.get(TK::String);
             }
             if (o->kind == EK::Member) {  // nameof(Tipo.Miembro): también miembros de instancia
@@ -686,7 +686,7 @@ Type* Sema::checkOO(Expr* e) {
                 if (m->obj->vk == ValKind::TypeName && ot->isAggregate()) {
                     ClassDecl* c = ot->decl;
                     if (!findField(c, m->name) && !findGetter(c, m->name) && findMethods(c, m->name).empty())
-                        diag.error(m->nameLoc, "'" + c->displayName + "' no contiene una definición para '" + m->name + "'");
+                        diag.error(m->nameLoc, "'" + c->displayName + "' does not contain a definition for '" + m->name + "'");
                     return tc_.get(TK::String);
                 }
             }

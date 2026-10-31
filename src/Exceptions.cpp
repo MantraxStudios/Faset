@@ -39,7 +39,7 @@
 Stmt* Parser::parseTry() {
     auto* t = new TryStmt(cur().loc);
     p_++;  // try
-    if (!isP("{")) fail("se esperaba '{' después de 'try'");
+    if (!isP("{")) fail("expected '{' after 'try'");
     t->body = parseBlock();
     while (isK("catch")) {
         TryStmt::Catch c;
@@ -59,15 +59,15 @@ Stmt* Parser::parseTry() {
             c.filter = parseExpr();
             expectP(")");
         }
-        if (!isP("{")) fail("se esperaba '{' en la cláusula 'catch'");
+        if (!isP("{")) fail("expected '{' in 'catch' clause");
         c.body = parseBlock();
         t->catches.push_back(c);
     }
     if (acceptK("finally")) {
-        if (!isP("{")) fail("se esperaba '{' después de 'finally'");
+        if (!isP("{")) fail("expected '{' after 'finally'");
         t->finallyBody = parseBlock();
     }
-    if (t->catches.empty() && !t->finallyBody) fail(t->loc, "'try' necesita al menos una cláusula 'catch' o 'finally'");
+    if (t->catches.empty() && !t->finallyBody) fail(t->loc, "'try' needs at least one 'catch' or 'finally' clause");
     return t;
 }
 
@@ -143,7 +143,7 @@ void Sema::excSetupHierarchy() {
         for (size_t i = 0; i < sizeof kExcFields / sizeof *kExcFields; i++) {
             FieldDecl* f = i < exceptionClass->fields.size() ? exceptionClass->fields[i] : nullptr;
             if (!f || f->name != kExcFields[i]) {
-                diag.error(exceptionClass->loc, std::string("std.Exception debe empezar por el campo '") + kExcFields[i] + "'");
+                diag.error(exceptionClass->loc, std::string("std.Exception must begin with the field '") + kExcFields[i] + "'");
                 exceptionClass = nullptr;
                 break;
             }
@@ -163,19 +163,19 @@ bool Sema::excPrepare(ClassDecl* c, std::set<ClassDecl*>& busy) {
     if (excClasses_.count(c)) return true;
     const Attribute* a = findAttr(c->attrs, "ExceptionBase");
     if (!a || !exceptionClass) {
-        if (a) diag.error(a->loc, "no se encontró la clase std.Exception");
+        if (a) diag.error(a->loc, "class std.Exception not found");
         return false;
     }
     if (busy.count(c)) {
-        diag.error(a->loc, "la jerarquía de excepciones de '" + c->displayName + "' es circular");
+        diag.error(a->loc, "the exception hierarchy of '" + c->displayName + "' is circular");
         return false;
     }
     if (a->args.size() != 1) {
-        diag.error(a->loc, "[ExceptionBase] requiere el nombre de la clase base: [ExceptionBase(\"Exception\")]");
+        diag.error(a->loc, "[ExceptionBase] requires the name of the base class: [ExceptionBase(\"Exception\")]");
         return false;
     }
     if (c->kind != ClassKind::Class || c->isTemplate() || c->isStaticClass()) {
-        diag.error(a->loc, "[ExceptionBase] solo se puede aplicar a clases no estáticas ni genéricas");
+        diag.error(a->loc, "[ExceptionBase] can only be applied to non-static, non-generic classes");
         return false;
     }
     busy.insert(c);
@@ -198,8 +198,8 @@ bool Sema::excPrepare(ClassDecl* c, std::set<ClassDecl*>& busy) {
     bool ok = base && (base == exceptionClass || excPrepare(base, busy));
     busy.erase(c);
     if (!ok) {
-        diag.error(a->loc, base ? "'" + base->displayName + "' no es una clase de excepción"
-                                : "no se encontró la clase base '" + a->args[0] + "'");
+        diag.error(a->loc, base ? "'" + base->displayName + "' is not an exception class"
+                                : "base class '" + a->args[0] + "' not found");
         return false;
     }
     // Los campos de la base van primero: el layout en C empieza igual que el de la base.
@@ -253,7 +253,7 @@ void Sema::excCheckJump(Stmt* s) {
     if (s->kind == SK::Return) {
         for (auto& r : regions)
             if (r.finallyBody) {
-                diag.error(s->loc, "no se puede salir de un bloque 'finally' con 'return'");
+                diag.error(s->loc, "cannot exit a 'finally' block with 'return'");
                 return;
             }
         return;
@@ -264,7 +264,7 @@ void Sema::excCheckJump(Stmt* s) {
     for (auto it = regions.rbegin(); it != regions.rend(); ++it) {
         if ((isBreak ? it->breaks : it->loops) != depth) break;  // el bucle destino está dentro
         if (it->finallyBody) {
-            diag.error(s->loc, std::string("no se puede salir de un bloque 'finally' con '") +
+            diag.error(s->loc, std::string("cannot exit a 'finally' block with '") +
                                    (isBreak ? "break" : "continue") + "'");
             return;
         }
@@ -275,7 +275,7 @@ void Sema::excCheckJump(Stmt* s) {
 
 void Sema::checkTry(TryStmt* t) {
     if (!exceptionClass) {
-        diag.error(t->loc, "no se encontró la clase std.Exception (biblioteca estándar incompleta)");
+        diag.error(t->loc, "class std.Exception not found (standard library incomplete)");
         return;
     }
     if (ctx_.method) excMethods.insert(ctx_.method);
@@ -296,17 +296,17 @@ void Sema::checkTry(TryStmt* t) {
         c.type = c.tref ? resolveType(c.tref) : exceptionClass->type;
         bool valid = !c.type->isError();
         if (valid && !(c.type->isClass() && isExceptionClass(c.type->decl))) {
-            diag.error(c.tref->loc, "'" + c.type->str() + "' no es una clase de excepción (usa Exception o una clase con " +
+            diag.error(c.tref->loc, "'" + c.type->str() + "' is not an exception class (use Exception or a class with " +
                                         "[ExceptionBase(\"Exception\")])");
             valid = false;
         }
         if (valid) {
             if (catchAll) {
-                diag.error(c.loc, "esta cláusula 'catch' nunca se ejecuta: una anterior ya atrapa todas las excepciones");
+                diag.error(c.loc, "this 'catch' clause is never reached: an earlier one already catches all exceptions");
             } else {
                 for (ClassDecl* p : previous)
                     if (excIsSubclass(c.type->decl, p)) {
-                        diag.error(c.loc, "esta cláusula 'catch' nunca se ejecuta: una anterior ya atrapa '" +
+                        diag.error(c.loc, "this 'catch' clause is never reached: an earlier one already catches '" +
                                               p->displayName + "'");
                         break;
                     }
@@ -346,20 +346,20 @@ void Sema::checkTry(TryStmt* t) {
 void Sema::checkThrow(ThrowStmt* t) {
     if (!t->value) {
         if (ctx_.excHandlers.empty() || ctx_.excHandlers.back() != 'C')
-            diag.error(t->loc, ctx_.excHandlers.empty() ? "'throw;' solo se puede usar dentro de una cláusula 'catch'"
-                                                         : "'throw;' no se puede usar dentro de un bloque 'finally'");
+            diag.error(t->loc, ctx_.excHandlers.empty() ? "'throw;' can only be used inside a 'catch' clause"
+                                                         : "'throw;' cannot be used inside a 'finally' block");
         return;
     }
     if (ctx_.method) excMethods.insert(ctx_.method);
     Type* ty = checkValue(t->value);
     if (ty->isError()) return;
     if (!exceptionClass) {
-        diag.error(t->loc, "no se encontró la clase std.Exception (biblioteca estándar incompleta)");
+        diag.error(t->loc, "class std.Exception not found (standard library incomplete)");
         return;
     }
     if (!(ty->isClass() && isExceptionClass(ty->decl)))
-        diag.error(t->value->loc, "solo se pueden lanzar excepciones: '" + ty->str() +
-                                      "' no es una clase de excepción (usa Exception o una clase con " +
+        diag.error(t->value->loc, "only exceptions can be thrown: '" + ty->str() +
+                                      "' is not an exception class (use Exception or a class with " +
                                       "[ExceptionBase(\"Exception\")])");
 }
 

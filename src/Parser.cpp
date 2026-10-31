@@ -27,17 +27,17 @@ void Parser::fail(const SourceLoc& loc, const std::string& msg) {
 // claramente dónde vive el código que manipula memoria a mano.
 void Parser::unsafeKeywordError() {
     if (!isK("unsafe")) return;
-    diag.error(cur().loc, "'unsafe' no existe en Faset; usa 'memory_unsafe' (sustituye 'unsafe' por 'memory_unsafe')");
+    diag.error(cur().loc, "'unsafe' does not exist in Faset; use 'memory_unsafe' (replace 'unsafe' with 'memory_unsafe')");
 }
 
 void Parser::expectP(const char* s) {
     if (sawMarker_ && !isP(s) && (std::string(s) == ";" || std::string(s) == ")")) return;
-    if (!acceptP(s)) fail(std::string("se esperaba '") + s + "' pero se encontró '" + cur().text + "'");
+    if (!acceptP(s)) fail(std::string("expected '") + s + "' but found '" + cur().text + "'");
 }
 
 std::string Parser::expectIdent() {
     if (cur().kind == TokKind::Ident && cur().text == kCompletionMarker) sawMarker_ = true;
-    if (cur().kind != TokKind::Ident) fail("se esperaba un identificador pero se encontró '" + cur().text + "'");
+    if (cur().kind != TokKind::Ident) fail("expected an identifier but found '" + cur().text + "'");
     return (*toks_)[p_++].text;
 }
 
@@ -284,7 +284,7 @@ std::vector<std::string> Parser::parseTypeParams() {
         else if (isK("class")) p_++;
         ps.push_back(expectIdent());
     } while (acceptP(","));
-    if (!closeAngle() || halfGt_) fail("se esperaba '>' al final de los parámetros de tipo");
+    if (!closeAngle() || halfGt_) fail("expected '>' at the end of the type parameters");
     return ps;
 }
 
@@ -318,11 +318,11 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         c->unionInfo = new UnionInfo();
         if (acceptK("class")) c->unionInfo->isRef = true;
         else acceptK("struct");
-    } else fail("se esperaba 'class', 'struct' o 'enum' pero se encontró '" + cur().text + "'");
+    } else fail("expected 'class', 'struct', or 'enum' but found '" + cur().text + "'");
     c->name = c->displayName = expectIdent();
     c->unsafeCtx = mods.isMemoryUnsafe || nsUnsafe_;
     if (isP("<")) {
-        if (c->kind == ClassKind::Enum) fail("los enums no pueden ser genéricos");
+        if (c->kind == ClassKind::Enum) fail("enums cannot be generic");
         c->typeParams = parseTypeParams();
         c->tokens = toks_;
         c->tokBegin = begin;
@@ -339,7 +339,7 @@ ClassDecl* Parser::parseTypeDecl(const std::string& ns, std::vector<Attribute> a
         if (c->kind == ClassKind::Enum && acceptK("int")) {
             // el tipo subyacente de los enums siempre es int
         } else if (c->kind == ClassKind::Enum) {
-            fail("el tipo subyacente de un enum solo puede ser 'int'");
+            fail("the underlying type of an enum can only be 'int'");
         } else {
             do c->baseRefs.push_back(parseType());
             while (acceptP(","));
@@ -413,7 +413,7 @@ void Parser::parseParams(MethodDecl* m) {
             bool byRef = false;
             if (acceptK("ref") || acceptK("out")) byRef = true;
             if (byRef && isComptimeKw() && (peekTok().kind == TokKind::Ident || peekTok().kind == TokKind::Keyword))
-                fail("un parámetro 'comptime' no puede ser ref ni out");
+                fail("a 'comptime' parameter cannot be ref or out");
             acceptK("const");
             if (acceptK("params")) {  // params List<T> xs  /  params T[] xs (= List<T>)
                 prm.isParams = true;
@@ -434,7 +434,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
     // Sección de acceso al estilo C++: 'public:'
     if (!mods.hasAccess && (isK("public") || isK("private") || isK("internal") || isK("protected")) &&
         peekTok().kind == TokKind::Punct && peekTok().text == ":") {
-        if (c->isNamespaceScope) fail("las secciones de acceso solo son válidas dentro de clases y structs");
+        if (c->isNamespaceScope) fail("access sections are only valid inside classes and structs");
         section_ = cur().text == "public" ? Access::Public : cur().text == "private" ? Access::Private
                    : cur().text == "protected" ? Access::Protected : Access::Internal;
         hasSection_ = true;
@@ -509,12 +509,12 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->kind = MethodKind::Dtor;
         stamp(m);
         std::string name = expectIdent();
-        if (name != c->name) fail(loc, "el destructor debe llamarse '~" + c->name + "'");
+        if (name != c->name) fail(loc, "the destructor must be named '~" + c->name + "'");
         m->name = "~" + name;
         parseParams(m);
-        if (!m->params.empty()) fail(loc, "los destructores no pueden tener parámetros");
+        if (!m->params.empty()) fail(loc, "destructors cannot have parameters");
         finishMethod(m);
-        if (c->dtor) diag.error(loc, "'" + c->name + "' ya tiene un destructor");
+        if (c->dtor) diag.error(loc, "'" + c->name + "' already has a destructor");
         c->dtor = m;
         return;
     }
@@ -539,7 +539,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
             m->ctorInitLoc = cur().loc;
             if (cur().kind == TokKind::Ident && cur().text == "base") p_++, m->ctorInit = 1;
             else if (acceptK("this")) m->ctorInit = 2;
-            else fail("se esperaba 'base(...)' o 'this(...)' después de ':' en el constructor");
+            else fail("expected 'base(...)' or 'this(...)' after ':' in the constructor");
             m->ctorInitArgs = parseArgs();
         }
         finishMethod(m);
@@ -584,7 +584,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                     break;
                 }
         }
-        if (op.empty()) fail("operador no sobrecargable '" + cur().text + "'");
+        if (op.empty()) fail("non-overloadable operator '" + cur().text + "'");
         m->name = "operator" + op;
         parseParams(m);
         finishMethod(m);
@@ -606,7 +606,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         m->explicitName = explicitName;
     };
     if (mods.isEvent && (isP("(") || isP("<") || isP("=>") || isP("{")))
-        fail(nameLoc, "'event' solo se puede aplicar a campos de tipo delegado (public event Action<T> Nombre;)");
+        fail(nameLoc, "'event' can only be applied to fields of a delegate type (public event Action<T> Nombre;)");
 
     if (isP("(") || isP("<")) {
         auto* m = new MethodDecl();
@@ -634,7 +634,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
 
     // Propiedades:  T N => expr;   T N { get { ... } set { ... } }   T N { get; set; } = valor;
     if (isP("=>") || isP("{")) {
-        if (c->isNamespaceScope) fail("las propiedades solo pueden declararse dentro de clases y structs");
+        if (c->isNamespaceScope) fail("properties can only be declared inside classes and structs");
         auto* m = new MethodDecl();
         m->loc = nameLoc;
         m->mods = mods;
@@ -673,7 +673,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                 SourceLoc al = cur().loc;
                 if (cur().kind == TokKind::Ident && cur().text == "get") {
                     p_++;
-                    if (got) fail("la propiedad ya tiene 'get'");
+                    if (got) fail("the property already has 'get'");
                     got = true;
                     if (noBody && acceptP(";")) {
                         m->body = nullptr;
@@ -690,7 +690,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                 } else if (cur().kind == TokKind::Ident && (cur().text == "set" || cur().text == "init")) {
                     bool initOnly = cur().text == "init";  // accesor 'init' (Members.cpp)
                     p_++;
-                    if (setter) fail("la propiedad ya tiene 'set'");
+                    if (setter) fail("the property already has 'set'");
                     setter = new MethodDecl();
                     setter->isInit = initOnly;
                     setter->loc = al;
@@ -728,13 +728,13 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
                         finishMethod(setter);
                     }
                 } else {
-                    fail("se esperaba 'get', 'set' o 'init'");
+                    fail("expected 'get', 'set', or 'init'");
                 }
             }
             expectP("}");
-            if (!got) fail(nameLoc, "la propiedad '" + name + "' necesita un 'get'");
+            if (!got) fail(nameLoc, "property '" + name + "' needs a 'get'");
             if (acceptP("=")) {  // valor inicial de una propiedad automática
-                if (!backing) fail("solo las propiedades automáticas ({ get; set; }) pueden tener valor inicial");
+                if (!backing) fail("only auto-properties ({ get; set; }) can have an initial value");
                 backing->init = parseExpr();
                 expectP(";");
             }
@@ -918,11 +918,11 @@ TypeRef* Parser::parseType() {
             while (isP("*")) p_++;
             if (isP("[")) {
                 p_ = save;
-                fail("los arreglos administrados (T[]) no existen; usa un puntero (T* datos = new T[n]) o List<T>");
+                fail("managed arrays (T[]) do not exist; use a pointer (T* datos = new T[n]) or List<T>");
             }
         }
         p_ = save;
-        fail("se esperaba un tipo pero se encontró '" + cur().text + "'");
+        fail("expected a type but found '" + cur().text + "'");
     }
     return tr;
 }
@@ -1004,7 +1004,7 @@ Stmt* Parser::parseSwitch() {
                 break;
             }
         }
-        if (!any) fail("se esperaba 'case' o 'default'");
+        if (!any) fail("expected 'case' or 'default'");
         while (!atEnd() && !isP("}") && !isK("case") && !isK("default")) {
             try {
                 sec.body.push_back(parseStatement());
@@ -1027,7 +1027,7 @@ Stmt* Parser::parseStatement() {
     if (isUnsafeKw()) {  // memory_unsafe { ... }
         unsafeKeywordError();
         p_++;
-        if (!isP("{")) fail("se esperaba '{' después de 'memory_unsafe' (bloque: memory_unsafe { ... })");
+        if (!isP("{")) fail("expected '{' after 'memory_unsafe' (block: memory_unsafe { ... })");
         BlockStmt* b = parseBlock();
         b->memoryUnsafe = true;
         return b;
@@ -1052,7 +1052,7 @@ Stmt* Parser::parseStatement() {
     if (acceptK("do")) {
         auto* s = new DoWhileStmt(loc);
         s->body = parseStatement();
-        if (!acceptK("while")) fail("se esperaba 'while'");
+        if (!acceptK("while")) fail("expected 'while'");
         expectP("(");
         s->cond = parseExpr();
         expectP(")");
@@ -1112,7 +1112,7 @@ Stmt* Parser::parseStatement() {
     }
     if (isK("try")) return parseTry();      // excepciones: Exceptions.cpp
     if (isK("throw")) return parseThrow();
-    if (isK("goto")) fail("'goto' no está soportado");
+    if (isK("goto")) fail("'goto' is not supported");
     if (looksLikeDecl()) return parseVarDecl(true);
 
     auto* s = new ExprStmt(loc);
@@ -1424,7 +1424,7 @@ Expr* Parser::parsePrimary() {
             if (acceptK("new")) {
                 if (isP("[")) return parseImplicitNewArray(loc);  // new[] { ... } (ParserArrays.cpp)
                 TypeRef* tr = tryParseType();
-                if (!tr || halfGt_) fail("se esperaba un tipo después de 'new'");
+                if (!tr || halfGt_) fail("expected a type after 'new'");
                 if (isP("[") || (tr->arrayRank && isP("{"))) return parseNewArray(loc, tr);
                 if (isP("(") || isP("{")) {
                     auto* e = new NewExpr(loc);
@@ -1433,7 +1433,7 @@ Expr* Parser::parsePrimary() {
                     if (isP("{")) e->init = parseObjInit();  // inicializadores (ParserMembers.cpp)
                     return e;
                 }
-                fail("se esperaba '(', '{' o '[' después de 'new " + tr->str() + "'");
+                fail("expected '(', '{', or '[' after 'new " + tr->str() + "'");
             }
             if (isPrimitiveKw()) {  // int.MaxValue, int::MaxValue
                 auto* e = new NameExpr(loc);
@@ -1449,7 +1449,7 @@ Expr* Parser::parsePrimary() {
                 return e;
             }
             if (isK("stackalloc") || isK("fixed"))
-                fail("'" + tk.text + "' aún no está soportado");
+                fail("'" + tk.text + "' is not yet supported");
             break;
         }
         case TokKind::Punct:
@@ -1459,5 +1459,5 @@ Expr* Parser::parsePrimary() {
         default:
             break;
     }
-    fail("se esperaba una expresión pero se encontró '" + tk.text + "'");
+    fail("expected an expression but found '" + tk.text + "'");
 }

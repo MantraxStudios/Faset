@@ -1,20 +1,20 @@
-5|los parámetros opcionales deben ir después de todos los obligatorios
-6|el valor por defecto de 'x' debe ser una constante
-7|un parámetro 'ref' u 'out' no puede tener valor por defecto
-8|\[CallerLineNumber\] requiere un parámetro de tipo 'int' o 'long'
-9|\[Caller\.\.\.\] solo se puede aplicar a un parámetro opcional
-10|no se puede convertir implícitamente el tipo 'int' en 'Color'
-11|los valores por defecto no forman parte de un tipo delegado
-18|la propiedad 'Apodo' es de solo inicialización \('init'\)
-28|'F' no tiene un parámetro llamado 'y'
-29|un argumento con nombre que no está en su posición no puede ir seguido de argumentos sin nombre
-30|el parámetro 'x' de 'F' ya recibió un argumento
-31|ninguna sobrecarga de 'F' acepta los argumentos \(int, string, int\)
-33|no se pueden usar argumentos con nombre al invocar un delegado
-34|falta asignar el miembro obligatorio 'Persona.Edad' \('required'\)
-36|la propiedad 'Apodo' es de solo inicialización
-37|'Sin' no contiene una definición para 'B'
-38|el miembro 'A' ya se inicializó en este inicializador
-39|'Sin' no tiene un método 'Add'
-40|'new T\(\.\.\.\)' solo es válido para clases y structs
-47|no se puede inferir el tipo de 'out var x'
+5|optional parameters must come after all required ones \('b' has no default value\)
+6|the default value of 'x' must be a constant \(a literal, a constant, an enum member, null or default\)
+7|a 'ref' or 'out' parameter cannot have a default value
+8|\[CallerLineNumber\] requires a parameter of type 'int' or 'long'
+9|\[Caller\.\.\.\] can only be applied to an optional parameter \(with a default value\)
+10|cannot implicitly convert type 'int' to 'Color' \(an explicit conversion exists; are you missing a cast\?\)
+11|default values are not part of a delegate type: remove '= 3' from 'x'
+18|property 'Apodo' is init-only \('init'\): it can only be assigned in an object initializer, in 'with' or in a constructor
+28|'F' has no parameter named 'y'
+29|a named argument out of position cannot be followed by positional arguments
+30|parameter 'x' of 'F' already received an argument
+31|no overload of 'F' accepts the arguments \(int, string, int\)
+33|named arguments cannot be used al invocar un delegado
+34|required member 'Persona\.Edad' \('required'\) must be assigned: initialize it in the object initializer \(new Persona \{ Edad = \.\.\. \}\)
+36|property 'Apodo' is init-only \('init'\): it can only be assigned in an object initializer, in 'with' or in a constructor
+37|'Sin' does not contain a definition for 'B'
+38|member 'A' was already initialized in this initializer
+39|'Sin' has no 'Add' method: it does not allow collection initializers
+40|'new T\(\.\.\.\)' is only valid for classes and structs; for memory of 'int' use 'new int\[n\]'
+47|cannot infer the type of 'out var x' \(the overloads do not match\); write the type: out T x

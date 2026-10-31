@@ -210,7 +210,7 @@ Type* Sema::ctCall(CallExpr* e) {
         if (n->name == "static_assert" && !lookupLocal("static_assert")) {
             Sym s = lookupUnqualified("static_assert", e->loc);
             if (s.kind == Sym::None) {
-                diag.error(e->loc, "'static_assert' es una sentencia: static_assert(condición, \"mensaje\");");
+                diag.error(e->loc, "'static_assert' is a statement: static_assert(condition, \"message\");");
                 return tc_.error();
             }
         }
@@ -229,8 +229,8 @@ Type* Sema::ctCall(CallExpr* e) {
         if (h.k == CtValue::Member && (me->name == "Get" || me->name == "Set")) {
             size_t want = me->name == "Get" ? 1 : 2;
             if (e->args.size() != want) {
-                diag.error(e->loc, "'" + me->name + "' espera " + std::to_string(want) + " argumento(s): " +
-                                       (want == 1 ? "f.Get(obj)" : "f.Set(obj, valor)"));
+                diag.error(e->loc, "'" + me->name + "' expects " + std::to_string(want) + " argument(s): " +
+                                       (want == 1 ? "f.Get(obj)" : "f.Set(obj, value)"));
                 return tc_.error();
             }
             auto* acc = new MemberExpr(e->loc);
@@ -254,13 +254,13 @@ Type* Sema::ctCall(CallExpr* e) {
             bool isCtor = m->kind == MethodKind::Ctor;
             size_t first = m->isStatic() || isCtor ? 0 : 1;
             if (e->args.size() < first) {
-                diag.error(e->loc, "'" + me->name + "' de un método de instancia necesita el objeto: m." + me->name + "(obj, ...)");
+                diag.error(e->loc, "'" + me->name + "' on an instance method needs the object: m." + me->name + "(obj, ...)");
                 return tc_.error();
             }
             std::vector<Expr*> args(e->args.begin() + first, e->args.end());
             if (me->name == "InvocarLista") {
                 if (args.size() != 1) {
-                    diag.error(e->loc, "uso: m.InvocarLista(obj, lista) con una List<object> de argumentos");
+                    diag.error(e->loc, "usage: m.InvocarLista(obj, list) with a List<object> of arguments");
                     return tc_.error();
                 }
                 Expr* list = args[0];
@@ -311,7 +311,7 @@ Type* Sema::ctCall(CallExpr* e) {
                 }
                 if (!m->owner->isNamespaceScope) path.push_back(m->owner->name);
                 if (m->owner->templateOf) {
-                    diag.error(e->loc, "'" + me->name + "' no admite métodos estáticos de tipos genéricos");
+                    diag.error(e->loc, "'" + me->name + "' does not allow static methods of generic types");
                     return tc_.error();
                 }
                 for (const std::string& part : path) {
@@ -359,7 +359,7 @@ Type* Sema::ctCall(CallExpr* e) {
     if (!I.run(e, v)) return tc_.error();
     if (v.k == CtValue::Void) {
         e->lowered = new NullExpr(e->loc);  // llamada sin valor (p. ej. lista.Add(x) sobre una lista comptime)
-        diag.error(e->loc, "esta llamada solo tiene efecto en tiempo de compilación; úsala dentro de 'comptime'");
+        diag.error(e->loc, "this call only has an effect at compile time; use it inside 'comptime'");
         return tc_.error();
     }
     return CtHooks::lowerTo(*this, e, v);
@@ -378,7 +378,7 @@ Type* Sema::ctAfterCall(CallExpr* e, MethodDecl* m) {
             bool isError = false;
             if (a.argExprs.size() >= 2 && a.argExprs[1]->kind == EK::BoolLit) isError = static_cast<BoolLitExpr*>(a.argExprs[1])->value;
             std::string what = (m->owner && !m->owner->isNamespaceScope ? m->owner->displayName + "." : "") + m->name;
-            std::string msg = "'" + what + "' está obsoleto" + (a.args.empty() ? "" : ": " + a.args[0]);
+            std::string msg = "'" + what + "' is obsolete" + (a.args.empty() ? "" : ": " + a.args[0]);
             std::string key = std::to_string(e->loc.file) + ":" + std::to_string(e->loc.line) + ":" + std::to_string(e->loc.col);
             if (isError) diag.error(e->loc, msg);
             else if (st.obsoleteSeen.insert(key).second) diag.warning(e->loc, msg);
@@ -418,9 +418,9 @@ Type* Sema::ctAfterCall(CallExpr* e, MethodDecl* m) {
     if (m->mods.isComptime && !(ctx_.method && ctx_.method->mods.isComptime) && trialDepth_ == 0) {
         CtInterp I(*this);
         CtValue v;
-        if (!I.run(e, v, "al evaluar '" + m->name + "' en tiempo de compilación")) return tc_.error();
+        if (!I.run(e, v, "while evaluating '" + m->name + "' at compile time")) return tc_.error();
         if (m->ret->isVoid()) {
-            diag.error(e->loc, "una función 'comptime' debe devolver un valor");
+            diag.error(e->loc, "a 'comptime' function must return a value");
             return tc_.error();
         }
         CtValue cv = I.convert(v, m->ret, e->loc);
@@ -445,7 +445,7 @@ Type* Sema::checkComptimeExpr(ComptimeExpr* e) {
     CtValue v;
     if (!I.run(e->operand, v)) return tc_.error();
     if (v.k == CtValue::Void) {
-        diag.error(e->loc, "la expresión 'comptime' no produce ningún valor");
+        diag.error(e->loc, "the 'comptime' expression produces no value");
         return tc_.error();
     }
     return CtHooks::lowerTo(*this, e, v);
@@ -481,8 +481,8 @@ Type* Sema::ctResolveType(TypeRef* tr) {
     }
     if (!I.run(e, v)) return tc_.error();
     if (v.k != CtValue::TypeV) {
-        if (v.k == CtValue::Null) diag.error(tr->loc, "'" + tr->str() + "' no es un tipo para este argumento (vale null)");
-        else diag.error(tr->loc, "'" + tr->str() + "' no es un tipo (es " + kindName(v) + ")");
+        if (v.k == CtValue::Null) diag.error(tr->loc, "'" + tr->str() + "' is not a type for this argument (it is null)");
+        else diag.error(tr->loc, "'" + tr->str() + "' is not a type (it is " + kindName(v) + ")");
         return tc_.error();
     }
     Type* t = v.t;
@@ -499,7 +499,7 @@ bool Sema::ctStmt(Stmt* s) {
             CtValue v;
             Stmt* chosen = nullptr;
             if (I.run(is->cond, v)) {
-                if (v.k != CtValue::Bool) diag.error(is->cond->loc, "la condición de 'comptime if' debe ser 'bool' (es " + kindName(v) + ")");
+                if (v.k != CtValue::Bool) diag.error(is->cond->loc, "the condition of a 'comptime if' must be 'bool' (it is " + kindName(v) + ")");
                 else chosen = v.i ? is->then : is->els;
             }
             if (!chosen) {
@@ -521,7 +521,7 @@ bool Sema::ctStmt(Stmt* s) {
                     I.report(err, d->loc, "");
                 }
             }
-            if (lookupLocal(d->name)) diag.error(d->nameLoc, "ya existe una variable local o parámetro llamado '" + d->name + "' en este ámbito");
+            if (lookupLocal(d->name)) diag.error(d->nameLoc, "a local variable or parameter named '" + d->name + "' already exists in this scope");
             auto* var = new VarInfo();
             var->name = d->name;
             var->cname = "ct_" + d->name;
@@ -548,17 +548,17 @@ bool Sema::ctStmt(Stmt* s) {
             else if (coll.k == CtValue::Str)
                 for (uint32_t cp : codepoints(coll.s)) items.push_back(I.mkChar(cp));
             else {
-                diag.error(fe->coll->loc, "'comptime foreach' recorre una lista de tiempo de compilación (p. ej. Tipo<T>.Miembros), no " + kindName(coll));
+                diag.error(fe->coll->loc, "'comptime foreach' iterates over a compile-time list (e.g. Tipo<T>.Miembros), not " + kindName(coll));
                 return true;
             }
             if ((int)items.size() > kCtMaxUnroll) {
-                diag.error(fe->coll->loc, "'comptime foreach' desenrollaría " + std::to_string(items.size()) + " vueltas (límite: " +
+                diag.error(fe->coll->loc, "'comptime foreach' would unroll " + std::to_string(items.size()) + " iterations (limit: " +
                                               std::to_string(kCtMaxUnroll) + ")");
                 return true;
             }
             if ((ct().unrolled += (long long)items.size()) > kCtMaxUnrollTotal) {
-                diag.error(fe->coll->loc, "se superó el límite de " + std::to_string(kCtMaxUnrollTotal) +
-                                              " vueltas de 'comptime foreach' en el programa (¿bucles anidados demasiado grandes?)");
+                diag.error(fe->coll->loc, "the limit of " + std::to_string(kCtMaxUnrollTotal) +
+                                              " 'comptime foreach' iterations in the program was exceeded (nested loops too large?)");
                 return true;
             }
             for (CtValue& it : items) {
@@ -580,7 +580,7 @@ bool Sema::ctStmt(Stmt* s) {
                 block->stmts.push_back(body);
                 if (diag.errorCount > before && it.k != CtValue::Void) {
                     std::string shown = I.toStr(it);
-                    diag.note(fe->loc, "en la vuelta de 'comptime foreach' con " + fe->name + " = " + (shown.empty() ? kindName(it) : shown));
+                    diag.note(fe->loc, "in the 'comptime foreach' iteration with " + fe->name + " = " + (shown.empty() ? kindName(it) : shown));
                 }
             }
             return true;
@@ -593,18 +593,18 @@ bool Sema::ctStmt(Stmt* s) {
             if (lookupLocal("static_assert") || lookupUnqualified("static_assert", c->loc).kind != Sym::None) return false;
             s->lowered = new EmptyStmt(s->loc);
             if (c->args.empty() || c->args.size() > 2) {
-                diag.error(c->loc, "uso: static_assert(condición, \"mensaje\");");
+                diag.error(c->loc, "usage: static_assert(condition, \"message\");");
                 return true;
             }
             CtInterp I(*this);
             CtValue cond, msg;
             if (!I.run(c->args[0], cond, "static_assert")) return true;
             if (cond.k != CtValue::Bool) {
-                diag.error(c->args[0]->loc, "la condición de static_assert debe ser 'bool' (es " + kindName(cond) + ")");
+                diag.error(c->args[0]->loc, "the condition of static_assert must be 'bool' (it is " + kindName(cond) + ")");
                 return true;
             }
             if (!cond.i) {
-                std::string text = "static_assert falló";
+                std::string text = "static_assert failed";
                 if (c->args.size() == 2 && I.run(c->args[1], msg, "static_assert")) text += ": " + I.toStr(msg);
                 else text += ": " + exprText(c->args[0]);
                 diag.error(c->loc, text);
@@ -680,29 +680,29 @@ std::string ctShow(CtInterp& I, const CtValue& v) {
 
 void Sema::ctCheckParams(MethodDecl* m) {
     if (m->kind != MethodKind::Normal) {
-        diag.error(m->loc, "solo los métodos pueden tener parámetros 'comptime' (no los constructores, operadores ni propiedades)");
+        diag.error(m->loc, "only methods can have 'comptime' parameters (not constructors, operators or properties)");
         return;
     }
     if (m->isVirtualish() || (m->owner && m->owner->kind == ClassKind::Interface)) {
-        diag.error(m->loc, "'" + m->name + "' tiene parámetros 'comptime' y no puede ser virtual, abstract, override ni de una "
-                           "interfaz: cada valor genera otra versión del método");
+        diag.error(m->loc, "'" + m->name + "' has 'comptime' parameters and cannot be virtual, abstract, override or in an "
+                           "interface: each value generates another version of the method");
         return;
     }
     if (!m->body || m->mods.isExtern) {
-        diag.error(m->loc, "un método con parámetros 'comptime' necesita cuerpo");
+        diag.error(m->loc, "a method with 'comptime' parameters needs a body");
         return;
     }
     if (!m->tokens) {
-        diag.error(m->loc, "las funciones locales no pueden tener parámetros 'comptime'");
+        diag.error(m->loc, "local functions cannot have 'comptime' parameters");
         return;
     }
     for (Param& p : m->params) {
         if (!p.isComptime) continue;
         if (p.isRef() || p.isParams || p.isThis)
-            diag.error(p.loc, "un parámetro 'comptime' no puede ser ref, out, params ni this");
+            diag.error(p.loc, "a 'comptime' parameter cannot be ref, out, params or this");
         else if (!ctParamType(p.type))
-            diag.error(p.loc, "un parámetro 'comptime' debe ser un número, bool, char, string, enum o List de ellos (no '" +
-                                  p.type->str() + "'); para elegir un tipo usa un parámetro genérico <T>");
+            diag.error(p.loc, "a 'comptime' parameter must be a number, bool, char, string, enum or List of those (not '" +
+                                  p.type->str() + "'); to choose a type use a generic parameter <T>");
     }
 }
 
@@ -723,7 +723,7 @@ MethodDecl* Sema::ctSpecialize(MethodDecl* m, std::vector<Expr*>& args, SourceLo
                 ctx_.method->ctOnly = true;
                 return m;
             }
-        } else if (!I.run(args[i], v, "el argumento del parámetro comptime '" + p.name + "' debe conocerse al compilar")) {
+        } else if (!I.run(args[i], v, "the argument of comptime parameter '" + p.name + "' must be known at compile time")) {
             return nullptr;
         }
         try {
@@ -754,8 +754,8 @@ MethodDecl* Sema::ctSpecialize(MethodDecl* m, std::vector<Expr*>& args, SourceLo
     if (ctx_.method && ctx_.method->ctOf && diag.errorCount > workErrBase_) return nullptr;
     std::string what = (m->owner && !m->owner->isNamespaceScope ? m->owner->displayName + "." : "") + m->name;
     if (m->ctInstances.size() >= kCtMaxVersions) {
-        diag.error(loc, "'" + what + "' ya tiene " + std::to_string(kCtMaxVersions) + " versiones por sus parámetros "
-                        "'comptime' (¿una recursión sin 'comptime if' que la termine?)");
+        diag.error(loc, "'" + what + "' already has " + std::to_string(kCtMaxVersions) + " versions from its "
+                        "'comptime' parameters (a recursion without a 'comptime if' to end it?)");
         return nullptr;
     }
     MethodDecl* s = Parser::reparseMethod(m, prog_);
@@ -784,7 +784,7 @@ bool Sema::ctConstTarget(Expr* e) {
     auto* n = static_cast<NameExpr*>(e);
     VarInfo* v = lookupLocal(n->name);
     if (!v || !ct_ || !ct_->binds.count(v)) return false;
-    diag.error(e->loc, "'" + n->name + "' es un valor de tiempo de compilación (comptime) y no se puede modificar");
+    diag.error(e->loc, "'" + n->name + "' is a compile-time value (comptime) and cannot be modified");
     return true;
 }
 
@@ -833,7 +833,7 @@ void Sema::ctAfterWork() {
                 enter(c, nullptr);
                 auto* es = new ExprStmt(e->loc);
                 es->expr = e;
-                if (!ctStmt(es)) diag.error(e->loc, "uso: static_assert(condición, \"mensaje\");");
+                if (!ctStmt(es)) diag.error(e->loc, "usage: static_assert(condition, \"message\");");
             }
             more = true;
         }

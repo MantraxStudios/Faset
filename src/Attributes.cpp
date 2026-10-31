@@ -44,15 +44,15 @@ bool builtinMultiple(const std::string& n) { return n == "TestCase"; }
 
 std::string targetName(int t) {
     switch (t) {
-        case kTgClass: return "clases";
+        case kTgClass: return "classes";
         case kTgStruct: return "structs";
         case kTgEnum: return "enums";
         case kTgInterface: return "interfaces";
-        case kTgField: return "campos";
-        case kTgProperty: return "propiedades";
-        case kTgMethod: return "métodos";
-        case kTgConstructor: return "constructores";
-        case kTgParameter: return "parámetros";
+        case kTgField: return "fields";
+        case kTgProperty: return "properties";
+        case kTgMethod: return "methods";
+        case kTgConstructor: return "constructors";
+        case kTgParameter: return "parameters";
         default: return "?";
     }
 }
@@ -135,18 +135,18 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                 if (a.name == b.name) bi = &b;
             if (bi) {
                 if (!(bi->targets & target))
-                    diag.error(a.loc, "el atributo [" + a.name + "] no se puede aplicar a " + targetName(target) + " (solo a " +
+                    diag.error(a.loc, "attribute [" + a.name + "] cannot be applied to " + targetName(target) + " (only to " +
                                           targetList(bi->targets) + ")");
                 if (!builtinMultiple(a.name))
                     for (Attribute& o : attrs)
                         if (&o != &a && o.state == 2 && !o.cls && o.name == a.name) {
-                            diag.error(a.loc, "el atributo [" + a.name + "] está repetido");
+                            diag.error(a.loc, "attribute [" + a.name + "] is duplicated");
                             break;
                         }
                 if (ideMode) addRef(a.loc, (int)a.name.size(), "(atributo integrado) " + a.name, nullptr);
             } else {
-                diag.error(a.loc, "atributo desconocido '" + a.name + "' (no hay una clase '" + a.name + "' ni '" + a.name +
-                                      "Attribute' que derive de Attribute)");
+                diag.error(a.loc, "unknown attribute '" + a.name + "' (there is no class '" + a.name + "' or '" + a.name +
+                                      "Attribute' deriving from Attribute)");
             }
             a.state = 2;
             continue;
@@ -154,7 +154,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
         resolveClassSignatures(ac);
         ClassDecl* base = CtAttr::attributeBase(*this);
         if (!base || !derivesFrom(ac, base)) {
-            diag.error(a.loc, "'" + ac->displayName + "' no es un atributo: una clase de atributo debe derivar de Attribute");
+            diag.error(a.loc, "'" + ac->displayName + "' is not an attribute: an attribute class must derive from Attribute");
             a.state = 2;
             continue;
         }
@@ -164,13 +164,13 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
         bool multiple;
         CtAttr::usage(*this, ac, targets, multiple);
         if (!(targets & target))
-            diag.error(a.loc, "el atributo [" + a.name + "] no se puede aplicar a " + targetName(target) + "; según su [AttributeUsage] solo vale para " +
+            diag.error(a.loc, "attribute [" + a.name + "] cannot be applied to " + targetName(target) + "; per its [AttributeUsage] it is only valid for " +
                                   targetList(targets));
         if (!multiple) {
             int n = 0;
             for (Attribute& o : attrs)
                 if (&o != &a && o.state == 2 && o.cls == ac) n++;
-            if (n) diag.error(a.loc, "el atributo [" + a.name + "] está repetido (usa [AttributeUsage(..., AllowMultiple = true)] para permitirlo)");
+            if (n) diag.error(a.loc, "attribute [" + a.name + "] is duplicated (use [AttributeUsage(..., AllowMultiple = true)] to allow it)");
         }
         // Evaluación al compilar: argumentos del constructor y propiedades con nombre.
         CtInterp I(*this);
@@ -178,7 +178,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
         bool ok = true;
         for (Expr* x : a.argExprs) {
             CtValue v;
-            if (!I.run(x, v, "argumento del atributo [" + a.name + "]")) {
+            if (!I.run(x, v, "argument of attribute [" + a.name + "]")) {
                 ok = false;
                 break;
             }
@@ -190,7 +190,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                 CtValue obj = I.construct(ac, ctorArgs, a.loc);
                 if (!ac->ctors.empty()) {
                     std::vector<CtValue> again = args;
-                    a.ctor = I.pick(ac->ctors, again, a.loc, "el constructor de '" + ac->displayName + "'");
+                    a.ctor = I.pick(ac->ctors, again, a.loc, "the constructor of '" + ac->displayName + "'");
                 }
                 std::vector<std::pair<std::string, CtValue>> named;
                 for (size_t i = 0; i < a.namedArgs.size(); i++) {
@@ -204,7 +204,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                     } else if (set && set->mods.access == Access::Public) {
                         I.callMethod(set, {v}, obj.obj, a.namedLocs[i]);
                     } else {
-                        diag.error(a.namedLocs[i], "'" + ac->displayName + "' no tiene un campo o propiedad pública modificable '" + n + "'");
+                        diag.error(a.namedLocs[i], "'" + ac->displayName + "' has no writable public field or property '" + n + "'");
                         continue;
                     }
                     if (ideMode) addRef(a.namedLocs[i], (int)n.size(), "(propiedad del atributo) " + ac->displayName + "." + n,
@@ -216,7 +216,7 @@ void Sema::attrResolveList(std::vector<Attribute>& attrs, int target, ClassDecl*
                 st.attrArgs[&a] = args;
                 st.attrNamed[&a] = named;
             } catch (CtError& err) {
-                I.report(err, a.loc, "atributo [" + a.name + "]");
+                I.report(err, a.loc, "attribute [" + a.name + "]");
             }
         }
         a.state = 2;
@@ -243,7 +243,7 @@ void Sema::attrCheckAll() {
             attrResolveList(m->attrs, m->kind == MethodKind::Getter ? kTgProperty : kTgMethod, c, file);
             for (Attribute& a : m->attrs)  // [Conditional] quita las llamadas: no puede haber un valor que usar
                 if (a.cls && a.cls->name == "Conditional" && a.cls->ns == "std" && m->ret && !m->ret->isVoid())
-                    diag.error(a.loc, "[Conditional] solo se puede aplicar a métodos 'void'");
+                    diag.error(a.loc, "[Conditional] can only be applied to 'void' methods");
             for (Param& p : m->params) attrResolveList(p.attrs, kTgParameter, c, file);
         }
         for (MethodDecl* m : c->ctors) {
@@ -272,7 +272,7 @@ Expr* Sema::attrCreateExpr(Attribute* a, SourceLoc loc) {
     for (const CtValue& v : st.attrArgs[a]) {
         Expr* x = CtHooks::toExpr(*this, v, loc, err);
         if (!x) {
-            diag.error(loc, "no se puede crear [" + a->name + "] al ejecutar: " + err);
+            diag.error(loc, "cannot create [" + a->name + "] at run time: " + err);
             return nullptr;
         }
         n->args.push_back(x);
@@ -286,7 +286,7 @@ Expr* Sema::attrCreateExpr(Attribute* a, SourceLoc loc) {
     for (auto& [name, v] : named) {
         Expr* x = CtHooks::toExpr(*this, v, loc, err);
         if (!x) {
-            diag.error(loc, "no se puede crear [" + a->name + "] al ejecutar: " + err);
+            diag.error(loc, "cannot create [" + a->name + "] at run time: " + err);
             return nullptr;
         }
         auto* ref = new NameExpr(loc);

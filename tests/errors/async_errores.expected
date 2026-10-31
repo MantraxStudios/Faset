@@ -1,11 +1,11 @@
-9|método async de instancia no puede estar en un struct
-16|'await' solo se puede usar dentro de un método 'async'
-19|un método async debe devolver void, Task o Task<T> \(no 'int'\)
-27|async que devuelve 'Task' no puede devolver un valor
-30|no todas las rutas de código devuelven un valor
-36|no puede tener parámetros 'ref' ni 'out'
-45|necesita un método GetAwaiter\(\)
-46|no se puede usar 'await' en esta posición
-51|no se puede usar 'await' en un filtro 'when'
-54|dentro de una lambda 'async'
-55|no todas las rutas de código de la lambda devuelven un valor
+9|an instance async method cannot be in a struct \(the struct would be copied\); use a class or a static method
+16|'await' can only be used inside an 'async' method \(mark it: async Task Metodo\(\)\)
+19|an async method must return void, Task, or Task<T> \(not 'int'\)
+27|an async method returning 'Task' cannot return a value \(use Task<T>\)
+30|not all code paths return a value in 'FaltaReturn'
+36|an async method cannot have 'ref' or 'out' parameters
+45|cannot await a value of type 'int': it needs a GetAwaiter\(\) method \(like Task and Task<T>\)
+46|'await' cannot be used in this position \(inside '\?\.' or '\?\?=', in the condition or increment of a 'for', in the condition of a 'do-while', or in a 'ref' reference\); store the result in a variable first: var x = await \.\.\.;
+51|'await' cannot be used in a 'when' filter
+54|'await' can only be used inside an 'async' lambda \(async \(\) => \.\.\.\)
+55|not all of the lambda's code paths return a value

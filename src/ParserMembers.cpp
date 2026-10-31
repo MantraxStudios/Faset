@@ -25,9 +25,9 @@ TypeRef* voidRef(SourceLoc loc) {
 // ------------------------------------------------------------------ tipos anidados
 
 void Parser::parseNestedType(ClassDecl* outer, std::vector<Attribute> attrs, Modifiers mods, size_t begin) {
-    if (outer->isNamespaceScope) fail("se esperaba una declaración");
-    if (outer->kind == ClassKind::Interface) fail("las interfaces no pueden declarar tipos anidados");
-    if (mods.isStatic && !isK("class")) fail("solo las clases pueden ser 'static'");
+    if (outer->isNamespaceScope) fail("expected a declaration");
+    if (outer->kind == ClassKind::Interface) fail("interfaces cannot declare nested types");
+    if (mods.isStatic && !isK("class")) fail("only classes can be 'static'");
     ClassDecl* n = parseTypeDecl(outer->ns, std::move(attrs), mods, begin);
     n->outer = outer;
     n->displayName = outer->displayName + "." + n->name;
@@ -39,9 +39,9 @@ void Parser::parseNestedType(ClassDecl* outer, std::vector<Attribute> attrs, Mod
 // 'static Clase() { ... }' se guarda como un método estático sin nombre visible (".cctor") que la
 // inicialización estática llama después de los inicializadores de los campos de la clase.
 void Parser::finishStaticCtor(ClassDecl* c, MethodDecl* m, const FinishFn& finish) {
-    if (!m->params.empty()) fail(m->loc, "un constructor estático no puede tener parámetros");
-    if (m->mods.hasAccess) fail(m->loc, "un constructor estático no admite modificadores de acceso");
-    if (isP(":")) fail("un constructor estático no puede llamar a 'base(...)' ni a 'this(...)'");
+    if (!m->params.empty()) fail(m->loc, "a static constructor cannot have parameters");
+    if (m->mods.hasAccess) fail(m->loc, "a static constructor does not allow access modifiers");
+    if (isP(":")) fail("a static constructor cannot call 'base(...)' or 'this(...)'");
     m->kind = MethodKind::Normal;
     m->name = ".cctor";
     m->retRef = voidRef(m->loc);
@@ -49,7 +49,7 @@ void Parser::finishStaticCtor(ClassDecl* c, MethodDecl* m, const FinishFn& finis
     finish(m);
     for (MethodDecl* o : c->methods)
         if (o->name == ".cctor") {
-            diag.error(m->loc, "'" + c->name + "' ya tiene un constructor estático");
+            diag.error(m->loc, "'" + c->name + "' already has a static constructor");
             return;
         }
     c->methods.push_back(m);
@@ -81,7 +81,7 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
                           const FinishFn& finish) {
     (void)ctxUnsafe;
     SourceLoc loc = cur().loc;
-    if (c->isNamespaceScope) fail("los indizadores solo pueden declararse dentro de clases y structs");
+    if (c->isNamespaceScope) fail("indexers can only be declared inside classes and structs");
     p_++;  // this
     expectP("[");
     std::vector<Param> params;
@@ -90,7 +90,7 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
         if (isP("[")) prm.attrs = parseAttributes();
         prm.loc = cur().loc;
         if (isK("ref") || isK("out") || isK("this") || isK("params"))
-            fail("los parámetros de un indizador no pueden ser 'ref', 'out', 'this' ni 'params'");
+            fail("the parameters of an indexer cannot be 'ref', 'out', 'this', or 'params'");
         prm.tref = parseType();
         prm.name = expectIdent();
         if (acceptP("=")) prm.defaultValue = parseExpr();
@@ -120,10 +120,10 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
         SourceLoc al = cur().loc;
         if (cur().kind == TokKind::Ident && cur().text == "get") {
             p_++;
-            if (got) fail("el indizador ya tiene 'get'");
+            if (got) fail("the indexer already has 'get'");
             got = true;
             if (acceptP(";")) {
-                if (!noBody) fail(al, "el 'get' de un indizador necesita un cuerpo");
+                if (!noBody) fail(al, "the 'get' of an indexer needs a body");
                 g->body = nullptr;
             } else {
                 finish(g);
@@ -131,7 +131,7 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
         } else if (cur().kind == TokKind::Ident && (cur().text == "set" || cur().text == "init")) {
             bool initOnly = cur().text == "init";
             p_++;
-            if (setter) fail("el indizador ya tiene 'set'");
+            if (setter) fail("the indexer already has 'set'");
             setter = new MethodDecl();
             setter->loc = al;
             setter->mods = mods;
@@ -149,17 +149,17 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
             for (Param& p : setter->params) p.defaultValue = nullptr;  // los valores por defecto son del 'get'
             setter->params.push_back(value);
             if (acceptP(";")) {
-                if (!noBody) fail(al, "el 'set' de un indizador necesita un cuerpo");
+                if (!noBody) fail(al, "the 'set' of an indexer needs a body");
                 setter->body = nullptr;
             } else {
                 finish(setter);
             }
         } else {
-            fail("se esperaba 'get' o 'set'");
+            fail("expected 'get' or 'set'");
         }
     }
     expectP("}");
-    if (!got && !setter) fail(loc, "el indizador necesita un 'get' o un 'set'");
+    if (!got && !setter) fail(loc, "the indexer needs a 'get' or a 'set'");
     if (got) c->methods.push_back(g);
     if (setter) {
         if (!got)  // indizador de solo escritura: los valores por defecto quedan en el 'set'

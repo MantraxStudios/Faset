@@ -1,4 +1,4 @@
-15|referencia a la variable local 'x'
-21|referencia a la variable local 'p'
-26|referencia a la variable local 'p'
-34|referencia a la variable local 'y'
+15|cannot return a reference to local variable 'x' \(it would cease to exist when the method returns\)
+21|cannot return a reference to local variable 'p' \(it would cease to exist when the method returns\)
+26|cannot return a reference to local variable 'p' \(it would cease to exist when the method returns\)
+34|cannot return a reference to local variable 'y' \(it would cease to exist when the method returns\)

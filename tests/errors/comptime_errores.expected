@@ -1,4 +1,4 @@
-7|límite de 20000000 pasos
+7|while evaluating 'Bucle' at compile time: se superó el límite de 20000000 pasos de evaluación en tiempo de compilación \(¿bucle infinito\?\)
 10|recursión demasiado profunda
 11|división por cero
 32|el valor de la variable 'x' no se conoce en tiempo de compilación

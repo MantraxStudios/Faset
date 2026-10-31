@@ -45,25 +45,25 @@ void Parser::parseUnionBody(ClassDecl* c) {
     UnionInfo* u = c->unionInfo;
     bool members = false;
     while (!atEnd() && !isP("}")) {
-        if (cur().kind != TokKind::Ident) fail("se esperaba el nombre de un caso de la unión '" + c->name + "'");
+        if (cur().kind != TokKind::Ident) fail("expected the name of a case of union '" + c->name + "'");
         UnionCaseInfo uc;
         uc.loc = cur().loc;
         uc.name = expectIdent();
         if (isP("(")) {
             MethodDecl tmp;
             parseParams(&tmp);
-            if (tmp.variadic) diag.error(uc.loc, "un caso de una unión no puede tener '...'");
+            if (tmp.variadic) diag.error(uc.loc, "a case of a union cannot have '...'");
             uc.fields = tmp.params;
         }
         bool dup = u->find(uc.name) >= 0;
-        if (dup) diag.error(uc.loc, "el caso '" + uc.name + "' está repetido en la unión '" + c->name + "'");
-        if (uc.name == c->name) diag.error(uc.loc, "un caso no puede llamarse igual que su unión ('" + c->name + "')");
+        if (dup) diag.error(uc.loc, "case '" + uc.name + "' is repeated in union '" + c->name + "'");
+        if (uc.name == c->name) diag.error(uc.loc, "a case cannot have the same name as its union ('" + c->name + "')");
         std::set<std::string> seen;
         for (Param& p : uc.fields) {
             if (p.tref->isRef || p.isThis || p.isParams)
-                diag.error(p.loc, "los campos de un caso no pueden ser 'ref', 'out', 'this' ni 'params'");
+                diag.error(p.loc, "the fields of a case cannot be 'ref', 'out', 'this' or 'params'");
             if (!seen.insert(p.name).second)
-                diag.error(p.loc, "el campo '" + p.name + "' está repetido en el caso '" + uc.name + "'");
+                diag.error(p.loc, "field '" + p.name + "' is repeated in case '" + uc.name + "'");
         }
         if (!dup) u->cases.push_back(uc);
         if (acceptP(",")) continue;
@@ -71,9 +71,9 @@ void Parser::parseUnionBody(ClassDecl* c) {
             members = true;
             break;
         }
-        if (!isP("}")) fail("se esperaba ',' entre los casos de la unión (o ';' antes de sus miembros)");
+        if (!isP("}")) fail("expected ',' between the cases of the union (or ';' before its members)");
     }
-    if (u->cases.empty()) diag.error(c->loc, "la unión '" + c->name + "' necesita al menos un caso");
+    if (u->cases.empty()) diag.error(c->loc, "union '" + c->name + "' needs at least one case");
     if (members) {
         bool savedHas = hasSection_;
         Access savedSec = section_;
@@ -97,8 +97,8 @@ void Parser::parseUnionBody(ClassDecl* c) {
             if (mentions(p.tref, c->name)) u->isRef = true;
     if (u->isRef) c->kind = ClassKind::Class;
     for (MethodDecl* m : c->ctors)
-        diag.error(m->loc, "una unión no puede declarar constructores: se crea con sus casos (" + c->name + "." +
-                               (u->cases.empty() ? std::string("Caso") : u->cases[0].name) + "(...))");
+        diag.error(m->loc, "a union cannot declare constructors: it is created with its cases (" + c->name + "." +
+                               (u->cases.empty() ? std::string("Case") : u->cases[0].name) + "(...))");
     synthesizeUnion(c);
 }
 
@@ -238,7 +238,7 @@ Stmt* Parser::tryParseDefer() {
     d->body = parseStatement();
     if (d->body->kind == SK::VarDecl)
         diag.error(d->body->loc, std::string("'") + (d->onError ? "errdefer" : "defer") +
-                                     "' no admite una declaración (no se vería después); usa un bloque { ... }");
+                                     "' does not allow a declaration (it would not be visible afterward); use a block { ... }");
     return d;
 }
 

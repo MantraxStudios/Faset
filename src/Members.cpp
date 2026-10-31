@@ -175,8 +175,8 @@ void Sema::flushParamDefaults() {
     for (MethodDecl* d : prog_.delegates)
         for (Param& p : d->params)
             if (p.defaultValue)
-                diag.error(p.defaultValue->loc, "los valores por defecto no forman parte de un tipo delegado: quita '= " +
-                                                    exprText(p.defaultValue) + "' de '" + p.name + "'");
+                diag.error(p.defaultValue->loc, "default values are not part of a delegate type: remove '= " +
+                                                    exprText(p.defaultValue) + "' from '" + p.name + "'");
 }
 
 // ¿Es una constante en tiempo de compilación? (como en C#: literales, const, enums, null, default)
@@ -234,10 +234,10 @@ void Sema::resolveParamDefaults(MethodDecl* m) {
             // los demás ([CallerArgumentExpression], atributos de usuario) los valida Attributes.cpp
         }
         if (!p.defaultValue) {
-            if (p.callerInfo) diag.error(p.loc, "[Caller...] solo se puede aplicar a un parámetro opcional (con valor por defecto)");
+            if (p.callerInfo) diag.error(p.loc, "[Caller...] can only be applied to an optional parameter (with a default value)");
             if (optional && !p.isParams && !orderReported) {
-                diag.error(p.loc, "los parámetros opcionales deben ir después de todos los obligatorios ('" + p.name +
-                                      "' no tiene valor por defecto)");
+                diag.error(p.loc, "optional parameters must come after all required ones ('" + p.name +
+                                      "' has no default value)");
                 orderReported = true;
             }
             continue;
@@ -246,15 +246,15 @@ void Sema::resolveParamDefaults(MethodDecl* m) {
         if (p.defaultChecked) continue;
         p.defaultChecked = true;
         if (p.isRef()) {
-            diag.error(p.loc, "un parámetro 'ref' u 'out' no puede tener valor por defecto");
+            diag.error(p.loc, "a 'ref' or 'out' parameter cannot have a default value");
             continue;
         }
         if (p.isThis) {
-            diag.error(p.loc, "el parámetro 'this' de un método de extensión no puede tener valor por defecto");
+            diag.error(p.loc, "the 'this' parameter of an extension method cannot have a default value");
             continue;
         }
         if (p.isParams) {
-            diag.error(p.loc, "un parámetro 'params' no puede tener valor por defecto");
+            diag.error(p.loc, "a 'params' parameter cannot have a default value");
             continue;
         }
         if (!p.type || p.type->isError()) continue;
@@ -263,7 +263,7 @@ void Sema::resolveParamDefaults(MethodDecl* m) {
             if (str ? !p.type->is(TK::String) : !(p.type->isIntegral() && p.type->bits() >= 32))
                 diag.error(p.loc, std::string(p.callerInfo == 1 ? "[CallerMemberName]" : p.callerInfo == 2 ? "[CallerLineNumber]"
                                                                                                          : "[CallerFilePath]") +
-                                      " requiere un parámetro de tipo " + (str ? "'string'" : "'int' o 'long'"));
+                                      " requires a parameter of type " + (str ? "'string'" : "'int' or 'long'"));
         }
         CtxSave save(*this);
         enter(m->owner, m);
@@ -272,9 +272,9 @@ void Sema::resolveParamDefaults(MethodDecl* m) {
         if (t->isError()) continue;
         coerce(p.defaultValue, p.type);
         if (!isConstantDefault(p.defaultValue))
-            diag.error(p.defaultValue->loc, "el valor por defecto de '" + p.name +
-                                                "' debe ser una constante (un literal, una constante, un miembro de enum, "
-                                                "null o default)");
+            diag.error(p.defaultValue->loc, "the default value of '" + p.name +
+                                                "' must be a constant (a literal, a constant, an enum member, "
+                                                "null or default)");
     }
 }
 
@@ -329,18 +329,18 @@ bool Sema::bindArgs(MethodDecl* m, const std::vector<Expr*>& args, std::vector<E
     for (Expr* a : args) {
         if (a->argName.empty()) {
             if (outOfPlace)
-                return fail("un argumento con nombre que no está en su posición no puede ir seguido de argumentos sin nombre");
+                return fail("a named argument out of position cannot be followed by positional arguments");
             if (pos < n) slots[pos] = a;
             else if (params || m->variadic) extra.push_back(a);
-            else return fail("'" + methodName(m) + "' no acepta " + std::to_string(args.size()) + " argumento(s)");
+            else return fail("'" + methodName(m) + "' does not accept " + std::to_string(args.size()) + " argument(s)");
             pos++;
             continue;
         }
         size_t k = 0;
         while (k < n && m->params[k].name != a->argName) k++;
-        if (k == n) return fail("'" + methodName(m) + "' no tiene un parámetro llamado '" + a->argName + "'");
-        if (slots[k]) return fail("el parámetro '" + a->argName + "' de '" + methodName(m) + "' ya recibió un argumento");
-        if (m->params[k].isThis) return fail("el parámetro 'this' de un método de extensión no se puede pasar por nombre");
+        if (k == n) return fail("'" + methodName(m) + "' has no parameter named '" + a->argName + "'");
+        if (slots[k]) return fail("parameter '" + a->argName + "' of '" + methodName(m) + "' already received an argument");
+        if (m->params[k].isThis) return fail("the 'this' parameter of an extension method cannot be passed by name");
         slots[k] = a;
         if (k != pos) outOfPlace = true;
         pos++;
@@ -350,7 +350,7 @@ bool Sema::bindArgs(MethodDecl* m, const std::vector<Expr*>& args, std::vector<E
         Param& p = m->params[k];
         if (p.isParams && k + 1 == n) continue;  // 'params' sin elementos: lista vacía
         if (!p.defaultValue)
-            return fail("falta un argumento para el parámetro obligatorio '" + p.name + "' de '" + methodName(m) + "'");
+            return fail("missing an argument for required parameter '" + p.name + "' of '" + methodName(m) + "'");
         if (p.callerInfo && p.type && !p.type->isError()) slots[k] = callerInfoArg(p, loc);
         else slots[k] = p.defaultValue;  // en una plantilla: sin comprobar (solo para inferir)
         filled++;
@@ -365,7 +365,7 @@ bool Sema::bindArgs(MethodDecl* m, const std::vector<Expr*>& args, std::vector<E
 bool Sema::rejectNamedArgs(const std::vector<Expr*>& args, const std::string& what) {
     for (Expr* a : args)
         if (!a->argName.empty()) {
-            diag.error(a->argNameLoc, "no se pueden usar argumentos con nombre " + what);
+            diag.error(a->argNameLoc, "named arguments cannot be used " + what);
             return true;
         }
     return false;
@@ -425,16 +425,16 @@ void Sema::declareOutVars(const std::vector<MethodDecl*>& group, std::vector<Exp
                 t = m->params[k].type;
             }
             if (!t || ambiguous) {
-                diag.error(o->loc, "no se puede inferir el tipo de 'out var " + o->name + "'" +
-                                       (ambiguous ? " (las sobrecargas no coinciden); escribe el tipo: out T " + o->name
-                                                  : ": no hay un parámetro 'out' en esa posición"));
+                diag.error(o->loc, "cannot infer the type of 'out var " + o->name + "'" +
+                                       (ambiguous ? " (the overloads do not match); write the type: out T " + o->name
+                                                  : ": there is no 'out' parameter in that position"));
                 t = tc_.error();
             }
         } else {
             t = resolveType(o->tref);
         }
         if (!ctx_.method) {
-            diag.error(o->loc, "'out " + o->name + "': las variables 'out' solo se pueden declarar dentro de métodos");
+            diag.error(o->loc, "'out " + o->name + "': 'out' variables can only be declared inside methods");
             args[i] = new NullExpr(o->loc);
             continue;
         }
@@ -471,7 +471,7 @@ Type* Sema::checkNewMembers(NewExpr* e) {
     ObjInit* oi = e->init;
     if (T->isError() || !T->isAggregate()) {
         if (oi && !T->isError())
-            diag.error(oi->loc, "'" + T->str() + "' no admite inicializadores de objeto");
+            diag.error(oi->loc, "'" + T->str() + "' does not allow object initializers");
         return T;
     }
     ClassDecl* c = T->decl;
@@ -510,19 +510,19 @@ void Sema::applyObjInit(ObjInit* oi, Type* t, const std::function<Expr*()>& targ
                 continue;
             }
             if (assigned && !assigned->insert(en.name).second)
-                diag.error(en.loc, "el miembro '" + en.name + "' ya se inicializó en este inicializador");
+                diag.error(en.loc, "member '" + en.name + "' was already initialized in this initializer");
             MemberExpr* mem = mkMember(target(), en.name, en.loc);
             if (en.nested) {  // Miembro = { ... }: se inicializa el objeto que ya tiene el miembro
                 Type* mt = checkValue(mem);
                 if (mt->isError()) continue;
                 if (!mt->isAggregate()) {
-                    diag.error(en.loc, "el miembro '" + en.name + "' es de tipo '" + mt->str() +
-                                           "' y no admite un inicializador anidado");
+                    diag.error(en.loc, "member '" + en.name + "' is of type '" + mt->str() +
+                                           "' and does not allow a nested initializer");
                     continue;
                 }
                 if (mt->isStruct() && mem->ref == MemberExpr::Ref::Property) {
-                    diag.error(en.loc, "no se puede usar un inicializador anidado con la propiedad '" + en.name +
-                                           "' de tipo struct (se modificaría una copia); asígnale un valor nuevo");
+                    diag.error(en.loc, "cannot use a nested initializer with property '" + en.name +
+                                           "' of struct type (it would modify a copy); assign it a new value");
                     continue;
                 }
                 std::string name = en.name;
@@ -543,7 +543,7 @@ void Sema::applyObjInit(ObjInit* oi, Type* t, const std::function<Expr*()>& targ
         }
         if (en.kind == ObjInit::Entry::Index) {  // [k] = v (se admite junto a elementos: { ["a"] = 1, { "b", 2 } })
             if (en.nested) {
-                diag.error(en.loc, "un inicializador con índice necesita un valor ('[k] = valor'), no un inicializador anidado");
+                diag.error(en.loc, "an index initializer needs a value ('[k] = value'), not a nested initializer");
                 continue;
             }
             auto* ix = new IndexExpr(en.loc);
@@ -571,7 +571,7 @@ void Sema::applyObjInit(ObjInit* oi, Type* t, const std::function<Expr*()>& targ
         }
         if (t->isAggregate() && findMethods(t->decl, "Add").empty() && findExtensions("Add").empty()) {
             if (!noAdd)  // un solo error por inicializador
-                diag.error(en.loc, "'" + t->str() + "' no tiene un método 'Add': no admite inicializadores de colección");
+                diag.error(en.loc, "'" + t->str() + "' has no 'Add' method: it does not allow collection initializers");
             noAdd = true;
             for (Expr* a : en.args) checkOperand(a);
             continue;
@@ -583,7 +583,7 @@ void Sema::applyObjInit(ObjInit* oi, Type* t, const std::function<Expr*()>& targ
         seq.push_back(call);
     }
     if (members && adds)
-        diag.error(oi->loc, "un inicializador no puede mezclar asignaciones de miembros ('X = ...') y elementos de colección");
+        diag.error(oi->loc, "an initializer cannot mix member assignments ('X = ...') and collection elements");
 }
 
 void Sema::checkRequiredMembers(ClassDecl* c, MethodDecl* ctor, const std::set<std::string>& assigned, SourceLoc loc) {
@@ -602,8 +602,8 @@ void Sema::checkRequiredMembers(ClassDecl* c, MethodDecl* ctor, const std::set<s
         }
     }
     for (const std::string& m : missing)
-        diag.error(loc, "falta asignar el miembro obligatorio '" + m + "' ('required'): inicialízalo en el inicializador "
-                        "de objeto (new " + c->displayName + " { " + m.substr(m.rfind('.') + 1) + " = ... })");
+        diag.error(loc, "required member '" + m + "' ('required') must be assigned: initialize it in the object "
+                        "initializer (new " + c->displayName + " { " + m.substr(m.rfind('.') + 1) + " = ... })");
 }
 
 // IntelliSense dentro de 'new T { | }': miembros que se pueden asignar.
@@ -630,8 +630,8 @@ bool Sema::initSetterAllowed(AssignExpr* e, MethodDecl* setter) {
     if (m && onThis && ctx_.cls && derivesFrom(ctx_.cls, setter->owner) &&
         (m->kind == MethodKind::Ctor || (m->kind == MethodKind::Setter && m->isInit)))
         return true;
-    diag.error(e->loc, "la propiedad '" + setter->name + "' es de solo inicialización ('init'): solo se puede asignar en "
-                       "un inicializador de objeto, en 'with' o en un constructor");
+    diag.error(e->loc, "property '" + setter->name + "' is init-only ('init'): it can only be assigned in "
+                       "an object initializer, in 'with' or in a constructor");
     return false;
 }
 
@@ -640,25 +640,25 @@ void Sema::checkMemberModifiers(ClassDecl* c) {
     for (FieldDecl* f : c->fields) {
         if (!f->mods.isRequired || (f->name.size() > 7 && f->name.rfind("__valor") == f->name.size() - 7)) continue;
         if (f->isStatic() || f->mods.isReadonly)
-            diag.error(f->loc, "un miembro 'required' no puede ser static, const ni readonly");
+            diag.error(f->loc, "a 'required' member cannot be static, const or readonly");
         else if (f->mods.access == Access::Private || f->mods.access == Access::Protected)
-            diag.error(f->loc, "un miembro 'required' debe ser tan accesible como su tipo (public o internal)");
+            diag.error(f->loc, "a 'required' member must be as accessible as its type (public or internal)");
     }
     for (MethodDecl* m : c->methods) {
         if (m->mods.isRequired && m->kind != MethodKind::Getter && m->kind != MethodKind::Setter)
-            diag.error(m->loc, "'required' solo se puede aplicar a campos y propiedades");
+            diag.error(m->loc, "'required' can only be applied to fields and properties");
         if (m->kind == MethodKind::Getter && m->mods.isRequired) {
-            if (m->isStatic()) diag.error(m->loc, "un miembro 'required' no puede ser static");
-            else if (m->name == "this[]") diag.error(m->loc, "un indizador no puede ser 'required'");
-            else if (!FindSetter(m)) diag.error(m->loc, "la propiedad obligatoria '" + m->name + "' necesita 'set' o 'init'");
+            if (m->isStatic()) diag.error(m->loc, "a 'required' member cannot be static");
+            else if (m->name == "this[]") diag.error(m->loc, "an indexer cannot be 'required'");
+            else if (!FindSetter(m)) diag.error(m->loc, "required property '" + m->name + "' needs 'set' or 'init'");
             else if (m->mods.access == Access::Private || m->mods.access == Access::Protected)
-                diag.error(m->loc, "un miembro 'required' debe ser tan accesible como su tipo (public o internal)");
+                diag.error(m->loc, "a 'required' member must be as accessible as its type (public or internal)");
         }
         if (m->kind == MethodKind::Setter && m->isInit && m->isStatic())
-            diag.error(m->loc, "'init' no se puede usar en propiedades estáticas; usa 'set'");
-        if (m->name == "this[]" && m->isStatic()) diag.error(m->loc, "un indizador no puede ser 'static'");
+            diag.error(m->loc, "'init' cannot be used on static properties; use 'set'");
+        if (m->name == "this[]" && m->isStatic()) diag.error(m->loc, "an indexer cannot be 'static'");
         if (m->name == ".cctor") {
-            if (c->isInterface()) diag.error(m->loc, "las interfaces no pueden tener constructores estáticos");
+            if (c->isInterface()) diag.error(m->loc, "interfaces cannot have static constructors");
             useMethod(m);
         }
     }
@@ -677,7 +677,7 @@ Type* Sema::checkIndexer(IndexExpr* ix, Type* ot) {
     for (Expr*& x : ix->moreIndices) checkValue(x);
     if (ot->isError() || !ot->isAggregate()) {
         if (!ix->moreIndices.empty() && !ot->isError()) {
-            diag.error(ix->loc, "'" + ot->str() + "' no admite varios índices");
+            diag.error(ix->loc, "'" + ot->str() + "' does not allow multiple indices");
             return tc_.error();
         }
         return nullptr;
@@ -686,7 +686,7 @@ Type* Sema::checkIndexer(IndexExpr* ix, Type* ot) {
     std::vector<MethodDecl*> sets = findMethods(ot->decl, "this[]", MethodKind::Setter);
     if (gets.empty() && sets.empty()) {
         if (!ix->moreIndices.empty()) {
-            diag.error(ix->loc, "'" + ot->str() + "' no tiene un indizador con varios índices (this[...])");
+            diag.error(ix->loc, "'" + ot->str() + "' has no indexer with multiple indices (this[...])");
             return tc_.error();
         }
         return nullptr;  // operator[] (Sema.cpp)
@@ -704,7 +704,7 @@ Type* Sema::checkIndexer(IndexExpr* ix, Type* ot) {
     std::string what = ot->decl->displayName + "[]";
     if (target) {  // a[i] = v: el 'set' se elige con el valor (checkIndexerAssign)
         if (sets.empty()) {
-            diag.error(ix->loc, "el indizador de '" + ot->decl->displayName + "' es de solo lectura (no tiene 'set')");
+            diag.error(ix->loc, "the indexer of '" + ot->decl->displayName + "' is read-only (has no 'set')");
             return tc_.error();
         }
         ix->idxArgs = args;
@@ -712,7 +712,7 @@ Type* Sema::checkIndexer(IndexExpr* ix, Type* ot) {
         return sets[0]->params.back().type ? sets[0]->params.back().type : tc_.error();
     }
     if (gets.empty()) {
-        diag.error(ix->loc, "el indizador de '" + ot->decl->displayName + "' es de solo escritura (no tiene 'get')");
+        diag.error(ix->loc, "the indexer of '" + ot->decl->displayName + "' is write-only (has no 'get')");
         return tc_.error();
     }
     MethodDecl* g = resolveOverload(gets, args, ix->loc, what);
@@ -745,8 +745,8 @@ Type* Sema::checkIndexerAssign(AssignExpr* e) {
             std::vector<Expr*> idx = ix->idxArgs;
             std::vector<MethodDecl*> gets = findMethods(ot->decl, "this[]", MethodKind::Getter);
             if (!gets.empty() && resolveOverload(gets, idx, e->loc, "", {}, false))
-                diag.error(ix->loc, "el indizador de '" + ot->decl->displayName + "' para " + indexTypes(ix->idxArgs) +
-                                        " es de solo lectura (no tiene 'set')");
+                diag.error(ix->loc, "the indexer of '" + ot->decl->displayName + "' for " + indexTypes(ix->idxArgs) +
+                                        " is read-only (has no 'set')");
             else
                 resolveOverload(sets, args, e->loc, ot->decl->displayName + "[]");  // informa del error
             return tc_.error();
@@ -780,7 +780,7 @@ Type* Sema::checkIndexerAssign(AssignExpr* e) {
         let->binds.push_back({t, obj});
         objRef = [t, loc]() -> Expr* { return refTo(t, loc); };
     } else {
-        diag.error(loc, "'" + e->op + "' sobre el indizador de un valor temporal no está soportado; usa una variable");
+        diag.error(loc, "'" + e->op + "' on the indexer of a temporary value is not supported; use a variable");
         checkValue(e->rhs);
         return tc_.error();
     }
@@ -869,7 +869,7 @@ MethodDecl* Sema::findUserConversion(Expr* e, Type* from, Type* to, bool allowEx
     }
     noUserConv_--;
     if (best && ambiguous) {
-        if (report) diag.error(e ? e->loc : SourceLoc(), "la conversión de '" + from->str() + "' a '" + to->str() + "' es ambigua");
+        if (report) diag.error(e ? e->loc : SourceLoc(), "the conversion from '" + from->str() + "' to '" + to->str() + "' is ambiguous");
         return nullptr;
     }
     if (best && cost) *cost = bestCost;
@@ -942,22 +942,22 @@ void Sema::checkConversionOps(ClassDecl* c) {
     for (MethodDecl* m : convs) {
         std::string what = m->name == "operator implicit" ? "implicit operator" : "explicit operator";
         if (!m->isStatic() || m->mods.access != Access::Public) {
-            diag.error(m->loc, "la conversión '" + what + "' debe ser 'public static'");
+            diag.error(m->loc, "the '" + what + "' conversion must be 'public static'");
             continue;
         }
         if (m->params.size() != 1) {
-            diag.error(m->loc, "una conversión del usuario debe tener exactamente un parámetro");
+            diag.error(m->loc, "a user-defined conversion must have exactly one parameter");
             continue;
         }
         Type* S = m->params[0].type;
         Type* T = m->ret;
         if (!S || !T || S->isError() || T->isError()) continue;
         if (S != c->type && T != c->type) {
-            diag.error(m->loc, "una conversión del usuario debe convertir desde o hacia '" + c->displayName + "'");
+            diag.error(m->loc, "a user-defined conversion must convert from or to '" + c->displayName + "'");
             continue;
         }
         if (S == T) {
-            diag.error(m->loc, "una conversión del usuario no puede convertir un tipo en sí mismo");
+            diag.error(m->loc, "a user-defined conversion cannot convert a type to itself");
             continue;
         }
         auto bad = [&](Type* t) {
@@ -965,13 +965,13 @@ void Sema::checkConversionOps(ClassDecl* c) {
         };
         bool related = S->isClass() && T->isClass() && (derivesFrom(S->decl, T->decl) || derivesFrom(T->decl, S->decl));
         if (bad(S) || bad(T) || related) {
-            diag.error(m->loc, "no se permiten conversiones del usuario a o desde una interfaz, 'object' o una clase base o derivada");
+            diag.error(m->loc, "user-defined conversions to or from an interface, 'object' or a base or derived class are not allowed");
             continue;
         }
         for (MethodDecl* o : convs) {
             if (o == m) break;
             if (o->name != m->name && o->params.size() == 1 && o->params[0].type == S && o->ret == T)
-                diag.error(m->loc, "ya existe una conversión de '" + S->str() + "' a '" + T->str() + "' (implicit y explicit a la vez)");
+                diag.error(m->loc, "a conversion from '" + S->str() + "' to '" + T->str() + "' already exists (both implicit and explicit)");
         }
     }
 }

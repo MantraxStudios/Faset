@@ -1,13 +1,13 @@
-4|no es una clase de excepción
-7|no se encontró la clase base
-13|salir de un bloque .finally. con .return.
-18|solo se pueden lanzar excepciones
-19|solo se puede usar dentro de una cláusula .catch.
-20|no es una clase de excepción
-21|nunca se ejecuta
-22|ya atrapa .ArgumentException.
-25|con .break.
-26|con .continue.
-28|no se puede usar dentro de un bloque .finally.
-29|.int. no es una clase de excepción
-30|nunca se ejecuta
+4|'NoEsExcepcion' is not an exception class
+7|base class 'NoExiste' not found
+13|cannot exit a 'finally' block with 'return'
+18|only exceptions can be thrown: 'NoEsExcepcion' is not an exception class \(use Exception or a class with \[ExceptionBase\("Exception"\)\]\)
+19|'throw;' can only be used inside a 'catch' clause
+20|'NoEsExcepcion' is not an exception class \(use Exception or a class with \[ExceptionBase\("Exception"\)\]\)
+21|this 'catch' clause is never reached: an earlier one already catches all exceptions
+22|this 'catch' clause is never reached: an earlier one already catches 'ArgumentException'
+25|cannot exit a 'finally' block with 'break'
+26|cannot exit a 'finally' block with 'continue'
+28|'throw;' cannot be used inside a 'finally' block
+29|only exceptions can be thrown: 'int' is not an exception class \(use Exception or a class with \[ExceptionBase\("Exception"\)\]\)
+30|this 'catch' clause is never reached: an earlier one already catches all exceptions

@@ -1,1 +1,1 @@
-4|se refiere a sí mismo \(un ciclo\)
+4|el objeto de 'Nodo' calculado con comptime se refiere a sí mismo \(un ciclo\): no se puede escribir como constante

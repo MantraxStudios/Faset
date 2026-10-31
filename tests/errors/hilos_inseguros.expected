@@ -1,4 +1,4 @@
-9|usar 'Thread.Run', marcado como 'memory_unsafe'
-11|usar 'ThreadPool.Submit', marcado como 'memory_unsafe'
-12|usar 'Parallel.For', marcado como 'memory_unsafe'
-13|el constructor de 'Thread', marcado como 'memory_unsafe'
+9|using 'Thread\.Run', marked 'memory_unsafe', requires a memory_unsafe context \(use 'memory_unsafe \{ \.\.\. \}' or mark the method or class with 'memory_unsafe'\)
+11|using 'ThreadPool\.Submit', marked 'memory_unsafe', requires a memory_unsafe context \(use 'memory_unsafe \{ \.\.\. \}' or mark the method or class with 'memory_unsafe'\)
+12|using 'Parallel\.For', marked 'memory_unsafe', requires a memory_unsafe context \(use 'memory_unsafe \{ \.\.\. \}' or mark the method or class with 'memory_unsafe'\)
+13|using the constructor of 'Thread', marked 'memory_unsafe', requires a memory_unsafe context \(use 'memory_unsafe \{ \.\.\. \}' or mark the method or class with 'memory_unsafe'\)

@@ -1,30 +1,30 @@
-6|es abstracto pero la clase 'Animal' no es 'abstract'
-12|no puede tener cuerpo
-15|no implementa el miembro abstracto heredado 'Forma.Area\(\)'
-22|no es virtual
-23|debe ser 'void' para coincidir
-25|marcado como 'override' pero no hay
-26|la firma no coincide con 'Animal.Dormir\(\)'
-31|oculta el miembro virtual heredado
-37|no puede ser privado
-38|un miembro estático no puede ser virtual
-39|no se combina con 'override'
-43|clase sellada
-44|herencia simple
-45|un struct solo puede heredar de interfaces
-47|herencia circular
-48|no se puede heredar de 'int'
-54|debe declarar un constructor que llame a ': base
-57|no contiene un constructor sin parámetros
-61|ninguna sobrecarga de 'Base2'
-70|porque es 'sealed'
-76|'sealed' solo se puede aplicar a un 'override'
-82|no contiene una definición para 'Arrancar'
-86|la propiedad abstracta 'Vehiculo.Ruedas'
-91|instancia de la clase abstracta 'Forma'
-93|no se puede convertir implícitamente el tipo 'Animal' en 'Perro'
-94|nunca puede ser de tipo 'Circulo'
-96|requiere una referencia a clase o interfaz
-97|los tipos no están relacionados
-98|reinterpretar 'Animal' como 'Circulo' requiere un contexto memory_unsafe
-99|base
+6|'Animal\.Dormir\(\)' is abstract but class 'Animal' is not 'abstract'
+12|abstract member 'Forma\.Perimetro\(\)' cannot have a body
+15|'Circulo' does not implement inherited abstract member 'Forma\.Area\(\)'
+22|'Perro\.Comer\(\)' is marked 'override' but there is no suitable virtual, abstract or override member to override in the base class \('Animal\.Comer\(\)' is not virtual\)
+23|the return type of 'Perro\.Hablar\(\)' must be 'void' to match the overridden member 'Animal\.Hablar\(\)'
+25|'Perro\.Correr\(\)' is marked 'override' but there is no suitable virtual, abstract or override member to override in the base class
+26|'Perro\.Dormir\(int\)' is marked 'override' but there is no suitable virtual, abstract or override member to override in the base class \(the signature does not match 'Animal\.Dormir\(\)'\)
+31|'Gato\.Hablar\(\)' hides inherited virtual member 'Animal\.Hablar\(\)'; use 'override' to override it or 'new' to hide it
+37|a virtual, abstract or override member cannot be private \('Raton\.Esconderse\(\)'\)
+38|a static member cannot be virtual, abstract, override or sealed
+39|'Raton\.Dormir\(\)': 'virtual' cannot be combined with 'override' or 'abstract'
+43|'Hijo' cannot derive from sealed class 'Final'
+44|'Doble' already inherits from 'Animal': Faset only supports single class inheritance \(use interfaces\)
+45|a struct can only inherit from interfaces \('Animal' is a class\)
+47|circular inheritance: 'A' depends on 'B'
+48|cannot inherit from 'int': only from a class or interfaces
+54|'Der2' must declare a constructor that calls ': base\(\.\.\.\)': 'Base2' has no parameterless constructor
+57|'Base2' does not contain a parameterless constructor; call one with ': base\(\.\.\.\)'
+61|no overload of 'Base2' accepts the arguments \(string\)
+70|'SubSellado\.Hablar\(\)': cannot override 'Sellado\.Hablar\(\)' because it is 'sealed'
+76|'sealed' can only be applied to an 'override' \('Solo\.Nada\(\)'\)
+82|'object' does not contain a definition for 'Arrancar'
+86|cannot use abstract property 'Vehiculo\.Ruedas' with 'base'
+91|cannot create an instance of abstract class 'Forma'
+93|cannot implicitly convert type 'Animal' to 'Perro' \(an explicit conversion exists; are you missing a cast\?\)
+94|an expression of type 'Animal' can never be of type 'Circulo'
+96|the 'is' operator requires a class or interface reference \(the type is 'int'\)
+97|cannot convert 'Animal' to 'Circulo' with 'as': the types are not related
+98|reinterpreting 'Animal' as 'Circulo' requires a memory_unsafe context \(use 'memory_unsafe \{ \.\.\. \}' or mark the method or class with 'memory_unsafe'\)
+99|the name 'base' does not exist in the current context

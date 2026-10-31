@@ -167,42 +167,42 @@ AsyncInfo* Sema::iterBegin(MethodDecl* fn, Type* ret, LambdaExpr* lambda, bool i
     if (trialDepth_ == 0) asyncFns.push_back(a);
     if (!lambda) {
         for (Param& p : fn->params) {
-            if (p.isRef()) diag.error(p.loc, "un iterador no puede tener parámetros 'ref' ni 'out'");
+            if (p.isRef()) diag.error(p.loc, "an iterator cannot have 'ref' or 'out' parameters");
             if (p.var) a->vars.push_back(p.var);
         }
         if (fn->kind != MethodKind::Normal && fn->kind != MethodKind::Getter)
-            diag.error(fn->loc, "solo los métodos, las propiedades (get) y las funciones locales pueden usar 'yield'");
+            diag.error(fn->loc, "only methods, (get) properties and local functions can use 'yield'");
         if (fn->owner && fn->owner->kind == ClassKind::Struct && !fn->isStatic())
-            diag.error(fn->loc, "un iterador de instancia no puede estar en un struct (el struct se copiaría); "
-                                "usa una clase o un método estático");
-        if (fn->retIsRef()) diag.error(fn->loc, "un iterador no puede devolver una referencia");
+            diag.error(fn->loc, "an instance iterator cannot be in a struct (the struct would be copied); "
+                                "use a class or a static method");
+        if (fn->retIsRef()) diag.error(fn->loc, "an iterator cannot return a reference");
     }
     if (!ret) {
-        diag.error(loc, "una lambda con 'yield' necesita un tipo de delegado conocido que devuelva IEnumerable<T> "
-                        "(declárala como función local: IEnumerable<int> Numeros() { yield return 1; })");
+        diag.error(loc, "a lambda with 'yield' needs a known delegate type that returns IEnumerable<T> "
+                        "(declare it as a local function: IEnumerable<int> Numeros() { yield return 1; })");
         return a;
     }
     if (ret->isError()) return a;
     Type* elem = nullptr;
     int kind = iterKindOf(ret, &elem);
     if (!kind) {
-        diag.error(loc, std::string("un iterador (con 'yield') debe devolver ") +
-                            (isAsync ? "IAsyncEnumerable<T> o IAsyncEnumerator<T>" : "IEnumerable<T> o IEnumerator<T>") +
-                            " (no '" + ret->str() + "')");
+        diag.error(loc, std::string("an iterator (with 'yield') must return ") +
+                            (isAsync ? "IAsyncEnumerable<T> or IAsyncEnumerator<T>" : "IEnumerable<T> or IEnumerator<T>") +
+                            " (not '" + ret->str() + "')");
         return a;
     }
     if (isAsync && kind <= 2) {
-        diag.error(loc, "un iterador 'async' debe devolver IAsyncEnumerable<T> o IAsyncEnumerator<T> (no '" + ret->str() + "')");
+        diag.error(loc, "an 'async' iterator must return IAsyncEnumerable<T> or IAsyncEnumerator<T> (not '" + ret->str() + "')");
         return a;
     }
     if (!isAsync && kind >= 3) {
-        diag.error(loc, "un iterador que devuelve '" + ret->str() + "' debe ser 'async' (async IAsyncEnumerable<T> F() { ... })");
+        diag.error(loc, "an iterator that returns '" + ret->str() + "' must be 'async' (async IAsyncEnumerable<T> F() { ... })");
         return a;
     }
     ClassDecl* gt = iterLibType(kind <= 2 ? "collections" : "task", kind <= 2 ? "Generador" : "GeneradorAsync", true);
     if (!gt || (isAsync && !taskDecl(true))) {
-        diag.error(loc, kind <= 2 ? "'yield' necesita la biblioteca std.collections (añade 'using std.collections;')"
-                                  : "los flujos asíncronos necesitan la biblioteca std.task (añade 'using std.task;')");
+        diag.error(loc, kind <= 2 ? "'yield' needs the std.collections library (add 'using std.collections;')"
+                                  : "async streams need the std.task library (add 'using std.task;')");
         return a;
     }
     ClassDecl* gi = instantiate(gt, {elem}, loc);
@@ -272,13 +272,13 @@ void Sema::checkYield(YieldStmt* y) {
     AsyncInfo* a = ctx_.async;
     if (!a || !a->iterKind || ctx_.method != a->fn) {
         if (y->value) checkOperand(y->value);
-        diag.error(y->loc, "'yield' solo se puede usar en el cuerpo de un método, propiedad o función local que devuelve "
-                           "IEnumerable<T> o IEnumerator<T> (o IAsyncEnumerable<T> si es async)");
+        diag.error(y->loc, "'yield' can only be used in the body of a method, property or local function that returns "
+                           "IEnumerable<T> or IEnumerator<T> (or IAsyncEnumerable<T> if async)");
         return;
     }
     for (char h : ctx_.excHandlers)
         if (h == 'F') {
-            diag.error(y->loc, "no se puede usar 'yield' dentro de un bloque 'finally'");
+            diag.error(y->loc, "'yield' cannot be used inside a 'finally' block");
             break;
         }
     if (ideMode && a->iterKind > 0)
@@ -316,8 +316,8 @@ bool Sema::iterCheckStmt(Stmt* s) {
 bool Sema::iterReturn(ReturnStmt* rs, AsyncInfo* a) {
     if (!a || !a->iterKind) return false;
     if (rs->value) checkOperand(rs->value);
-    diag.error(rs->loc, "no se puede usar 'return' en un iterador: usa 'yield return valor;' para producir un elemento "
-                        "y 'yield break;' para terminar");
+    diag.error(rs->loc, "'return' cannot be used in an iterator: use 'yield return value;' to produce an element "
+                        "and 'yield break;' to finish");
     return true;
 }
 
@@ -328,7 +328,7 @@ bool Sema::iterAwaitInvalid(AwaitExpr* e) {
     if (a->cont) return false;  // iterador async: el 'await' es válido
     checkValue(e->operand);
     if (!a->isAsyncIter() && a->iterKind > 0)
-        diag.error(e->loc, "'await' solo se puede usar en un iterador 'async' (async IAsyncEnumerable<T> F() { ... })");
+        diag.error(e->loc, "'await' can only be used in an 'async' iterator (async IAsyncEnumerable<T> F() { ... })");
     return true;
 }
 
@@ -378,14 +378,14 @@ void Sema::checkAwaitForeach(ForeachStmt* s) {
         ctx_.scopes.pop_back();
     };
     if (!a || !a->cont) {
-        diag.error(loc, "'await foreach' solo se puede usar dentro de un método o lambda 'async'");
+        diag.error(loc, "'await foreach' can only be used inside an 'async' method or lambda");
         return fallback();
     }
     if (ct->isError()) return fallback();
     bool has = ct->isAggregate() && !findMethods(ct->decl, "GetAsyncEnumerator").empty();
     if (!has) {
-        diag.error(s->coll->loc, "'await foreach' no puede recorrer un valor de tipo '" + ct->str() +
-                                     "': necesita un método GetAsyncEnumerator() (como IAsyncEnumerable<T>)");
+        diag.error(s->coll->loc, "'await foreach' cannot iterate over a value of type '" + ct->str() +
+                                     "': it needs a GetAsyncEnumerator() method (like IAsyncEnumerable<T>)");
         return fallback();
     }
     VarInfo* cv = hiddenLocal(ct, loc, false);
@@ -478,7 +478,7 @@ bool Sema::iterCoerce(Expr*& e, Type* to) {
             if (k->name == "Caracteres" && k->isStatic() && k->params.size() == 1 && !k->isTemplate()) m = k;
     }
     if (!m) {
-        diag.error(e->loc, "convertir string en IEnumerable<char> necesita std.collections (añade 'using std.collections;')");
+        diag.error(e->loc, "converting string to IEnumerable<char> needs std.collections (add 'using std.collections;')");
         return true;
     }
     auto* callee = new NameExpr(e->loc);
@@ -505,8 +505,8 @@ void Sema::iterResolveExplicit(MethodDecl* m) {
     Type* t = resolveType(m->explicitIface);
     if (t->isError()) return;
     if (!t->isClass() || !t->decl->isInterface()) {
-        diag.error(m->explicitIface->loc, "'" + t->str() + "' no es una interfaz: solo se pueden implementar de forma "
-                                                              "explícita miembros de interfaces");
+        diag.error(m->explicitIface->loc, "'" + t->str() + "' is not an interface: only interface members can be "
+                                                              "implemented explicitly");
         return;
     }
     m->explicitDecl = t->decl;

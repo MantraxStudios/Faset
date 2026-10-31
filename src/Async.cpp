@@ -311,18 +311,18 @@ AsyncInfo* Sema::asyncBegin(MethodDecl* fn, Type* ret, LambdaExpr* lambda, Sourc
     if (trialDepth_ == 0) asyncFns.push_back(a);
     if (!lambda) {
         for (Param& p : fn->params) {
-            if (p.isRef()) diag.error(p.loc, "un método async no puede tener parámetros 'ref' ni 'out'");
+            if (p.isRef()) diag.error(p.loc, "an async method cannot have 'ref' or 'out' parameters");
             if (p.var) a->vars.push_back(p.var);
         }
         if (fn->kind != MethodKind::Normal)
-            diag.error(fn->loc, "solo los métodos (no constructores, propiedades ni operadores) pueden ser 'async'");
+            diag.error(fn->loc, "only methods (not constructors, properties, or operators) can be 'async'");
         if (fn->owner && fn->owner->kind == ClassKind::Struct && !fn->isStatic())
-            diag.error(fn->loc, "un método async de instancia no puede estar en un struct (el struct se copiaría); "
-                                "usa una clase o un método estático");
-        if (fn->retIsRef()) diag.error(fn->loc, "un método async no puede devolver una referencia");
+            diag.error(fn->loc, "an instance async method cannot be in a struct (the struct would be copied); "
+                                "use a class or a static method");
+        if (fn->retIsRef()) diag.error(fn->loc, "an async method cannot return a reference");
     }
     if (!taskDecl(false)) {
-        diag.error(loc, "'async' necesita la biblioteca std.task (añade 'using std.task;')");
+        diag.error(loc, "'async' needs the std.task library (add 'using std.task;')");
         a->result = tc_.error();
         return a;
     }
@@ -336,8 +336,8 @@ AsyncInfo* Sema::asyncBegin(MethodDecl* fn, Type* ret, LambdaExpr* lambda, Sourc
     } else if (Type* r = asyncResultOf(ret)) {
         a->result = r;
     } else {
-        diag.error(loc, std::string(lambda ? "una lambda async" : "un método async") +
-                            " debe devolver void, Task o Task<T> (no '" + ret->str() + "')");
+        diag.error(loc, std::string(lambda ? "an async lambda" : "an async method") +
+                            " must return void, Task, or Task<T> (not '" + ret->str() + "')");
         a->result = tc_.error();
     }
     // Variables ocultas del marco y las llamadas a la tarea (comprobadas aquí, una vez).
@@ -403,21 +403,21 @@ Type* Sema::checkAwait(AwaitExpr* e) {
     if (!a) {
         checkValue(e->operand);
         diag.error(e->loc, lambdaStack_.empty() || !ctx_.method || ctx_.method->name != "<lambda>"
-                               ? "'await' solo se puede usar dentro de un método 'async' (márcalo: async Task Metodo())"
-                               : "'await' solo se puede usar dentro de una lambda 'async' (async () => ...)");
+                               ? "'await' can only be used inside an 'async' method (mark it: async Task Metodo())"
+                               : "'await' can only be used inside an 'async' lambda (async () => ...)");
         return tc_.error();
     }
     if (ctx_.filterDepth > 0) {
         checkValue(e->operand);
-        diag.error(e->loc, "no se puede usar 'await' en un filtro 'when'");
+        diag.error(e->loc, "'await' cannot be used in a 'when' filter");
         return tc_.error();
     }
     Type* t = checkValue(e->operand);
     if (t->isError()) return t;
     bool has = t->isAggregate() && !findMethods(t->decl, "GetAwaiter").empty();
     if (!has) {
-        diag.error(e->operand->loc, "no se puede esperar con 'await' un valor de tipo '" + t->str() +
-                                        "': necesita un método GetAwaiter() (como Task y Task<T>)");
+        diag.error(e->operand->loc, "cannot await a value of type '" + t->str() +
+                                        "': it needs a GetAwaiter() method (like Task and Task<T>)");
         return tc_.error();
     }
     SourceLoc loc = e->loc;
@@ -427,7 +427,7 @@ Type* Sema::checkAwait(AwaitExpr* e) {
     Type* at = checkValue(ga);
     if (at->isError()) return at;
     if (at->isVoid() || !at->isAggregate()) {
-        diag.error(e->operand->loc, "GetAwaiter() de '" + t->str() + "' debe devolver un objeto 'awaiter' (no '" +
+        diag.error(e->operand->loc, "GetAwaiter() of '" + t->str() + "' must return an 'awaiter' object (not '" +
                                         at->str() + "')");
         return tc_.error();
     }
@@ -437,7 +437,7 @@ Type* Sema::checkAwait(AwaitExpr* e) {
     Type* it = checkValue(ic);
     if (it->isError()) return it;
     if (!it->is(TK::Bool)) {
-        diag.error(e->loc, "IsCompleted del 'awaiter' '" + at->str() + "' debe ser bool");
+        diag.error(e->loc, "IsCompleted of 'awaiter' '" + at->str() + "' must be bool");
         return tc_.error();
     }
     Expr* oc = mkCall(mkMember(refTo(e->awVar, loc), "OnCompleted", loc), {refTo(a->cont, loc)}, loc);
@@ -498,7 +498,7 @@ void Sema::asyncSpill(Expr*& e, std::vector<Stmt*>& pre) {
             auto* st = static_cast<AwaitStmt*>(asyncAwaitStmt(aw, true));
             pre.push_back(st);
             if (!st->result) {
-                diag.error(loc, "esta tarea no devuelve ningún valor: 'await' no se puede usar como valor aquí");
+                diag.error(loc, "this task does not return a value: 'await' cannot be used as a value here");
                 return;
             }
             e = checkedRef(st->result, loc);
@@ -773,9 +773,9 @@ struct AwaitValidator {
         if (e->kind == EK::Await) {
             auto* aw = static_cast<AwaitExpr*>(e);
             if (!aw->spilled && aw->type && !aw->type->isError() && reported.insert(aw).second)
-                diag.error(e->loc, "no se puede usar 'await' en esta posición (dentro de '?.' o '?\?=', en la condición o "
-                                   "el incremento de un 'for', en la condición de un 'do-while' o en una referencia "
-                                   "'ref'); guarda antes el resultado en una variable: var x = await ...;");
+                diag.error(e->loc, "'await' cannot be used in this position (inside '?.' or '?\?=', in the condition or "
+                                   "increment of a 'for', in the condition of a 'do-while', or in a 'ref' reference); "
+                                   "store the result in a variable first: var x = await ...;");
         }
         for (Slot& s : slotsOf(e)) expr(*s.p);
     }

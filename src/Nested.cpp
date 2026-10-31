@@ -44,16 +44,16 @@ void Sema::registerNested(ClassDecl* c) {
     ClassDecl* o = c->outer;
     c->displayName = (c->templateOf ? c->displayName : o->displayName + "." + c->name);
     c->cname = o->cname + "_" + c->name + (c->isTemplate() ? "_G" : "");
-    if (c->mods.isStatic && c->kind != ClassKind::Class) diag.error(c->loc, "solo las clases pueden ser 'static'");
+    if (c->mods.isStatic && c->kind != ClassKind::Class) diag.error(c->loc, "only classes can be 'static'");
     if (o->unsafeCtx && !c->unsafeCtx) c->unsafeCtx = true;
     for (ClassDecl* n : o->nested) {
         if (n == c) break;
         if (n->name == c->name && n->isTemplate() == c->isTemplate()) {
-            diag.error(c->loc, "'" + o->displayName + "' ya contiene un tipo llamado '" + c->name + "'");
+            diag.error(c->loc, "'" + o->displayName + "' already contains a type named '" + c->name + "'");
             break;
         }
     }
-    if (c->name == o->name) diag.error(c->loc, "un tipo anidado no puede llamarse como la clase que lo contiene");
+    if (c->name == o->name) diag.error(c->loc, "a nested type cannot have the same name as its containing class");
     if (!c->isTemplate()) c->type = newTypeFor(c);
 }
 
@@ -152,14 +152,14 @@ Sym Sema::nestedMember(const Sym& s, const std::string& name, SourceLoc loc) {
                 break;
             }
         if (d->isTemplate()) {
-            diag.error(loc, "los tipos anidados de la clase genérica '" + d->name + "' solo se pueden nombrar dentro de ella");
+            diag.error(loc, "nested types of the generic class '" + d->name + "' can only be named inside it");
             return none;
         }
     }
     Sym r = nestedLookup(d, name, false);
     if (r.kind == Sym::None) return none;
     if (r.decl && !nestedVisible(r.decl))  // se informa y se sigue con el tipo (un solo error)
-        diag.error(loc, "'" + d->displayName + "." + name + "' no es accesible debido a su nivel de protección");
+        diag.error(loc, "'" + d->displayName + "." + name + "' is not accessible due to its protection level");
     if (ideMode && r.decl) addRef(loc, 0, typeDescription(r.decl), &r.decl->loc);
     return r;
 }
@@ -170,7 +170,7 @@ Type* Sema::nestedTypeMember(MemberExpr* e, Type* T) {
     Sym r = nestedLookup(T->decl, e->name, false);
     if (r.kind == Sym::None) return nullptr;
     if (r.decl && !nestedVisible(r.decl)) {
-        diag.error(e->loc, "'" + T->decl->displayName + "." + e->name + "' no es accesible debido a su nivel de protección");
+        diag.error(e->loc, "'" + T->decl->displayName + "." + e->name + "' is not accessible due to its protection level");
         return tc_.error();
     }
     return fromSym(e, r, e->typeArgs);
@@ -182,8 +182,8 @@ Type* Sema::outerMemberName(NameExpr* e) {
     if (!cls || !cls->outer) return nullptr;
     for (ClassDecl* o = cls->outer; o; o = o->outer) {
         auto instanceError = [&]() {
-            diag.error(e->loc, "no se puede usar el miembro de instancia '" + o->displayName + "." + e->name +
-                                   "' desde el tipo anidado '" + cls->displayName + "'; usa un objeto de '" + o->displayName + "'");
+            diag.error(e->loc, "cannot use the instance member '" + o->displayName + "." + e->name +
+                                   "' from the nested type '" + cls->displayName + "'; use an object of '" + o->displayName + "'");
             return tc_.error();
         };
         if (FieldDecl* f = findField(o, e->name)) {
@@ -229,11 +229,11 @@ void Sema::resolveStaticImports(FileScope* f) {
         std::string name;
         for (size_t i = 0; i < u.path.size(); i++) name += (i ? "." : "") + u.path[i];
         if (s.kind != Sym::TypeK || !s.decl) {
-            diag.error(u.loc, "'using static' necesita un tipo: '" + name + "' no es una clase, struct ni enum");
+            diag.error(u.loc, "'using static' needs a type: '" + name + "' is not a class, struct, or enum");
             continue;
         }
         if (s.decl->isTemplate()) {
-            diag.error(u.loc, "'using static' no admite tipos genéricos ('" + name + "')");
+            diag.error(u.loc, "'using static' does not allow generic types ('" + name + "')");
             continue;
         }
         f->staticImports.push_back(s.decl);

@@ -1,12 +1,12 @@
-10|las interfaces no pueden tener campos
-11|no admiten miembros estáticos
-12|siempre públicos
-15|no implementa el miembro de interfaz 'IVolador.Alas' \(get\)
-22|debe ser 'public'
-28|el tipo de retorno debe ser 'void'
-32|no implementa el miembro de interfaz
-37|ya está en la lista de bases
-43|debe ir antes que las interfaces
-53|instancia de la interfaz 'IVolador'
-55|no se puede convertir implícitamente el tipo 'Punto' en 'IVolador'
-56|no contiene una definición para 'Aterrizar'
+10|interfaces cannot have fields
+11|interfaces do not allow static members
+12|interface members are always public
+15|'Pajaro' does not implement interface member 'IVolador\.Alas' \(get\)
+22|'Avion\.Volar\(\)' implements 'IVolador\.Volar\(\)' and must be 'public'
+28|'Cohete\.Volar\(\)' cannot implement 'IVolador\.Volar\(\)': the return type must be 'void'
+32|'Globo' does not implement interface member 'IVolador\.Alas' \(get\)
+37|interface 'IVolador' is already in the base list
+43|base class 'Pajaro' must come before the interfaces
+53|cannot create an instance of interface 'IVolador'
+55|cannot implicitly convert type 'Punto' to 'IVolador'
+56|'IVolador' does not contain a definition for 'Aterrizar'

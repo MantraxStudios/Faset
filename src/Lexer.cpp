@@ -133,12 +133,12 @@ struct Lex {
                     v = v * 16 + (uint32_t)hexVal(get());
                     n++;
                 }
-                if (n < minDigits) diag.error(loc, "secuencia de escape hexadecimal incompleta");
-                if (v > 0x10FFFF) diag.error(loc, "punto de código Unicode fuera de rango");
+                if (n < minDigits) diag.error(loc, "incomplete hexadecimal escape sequence");
+                if (v > 0x10FFFF) diag.error(loc, "Unicode code point out of range");
                 return v;
             }
             default:
-                diag.error(loc, std::string("secuencia de escape no reconocida: \\") + c);
+                diag.error(loc, std::string("unrecognized escape sequence: \\") + c);
                 return '?';
         }
     }
@@ -181,7 +181,7 @@ struct Lex {
             while (p < expr.size() && (isalnum((unsigned char)expr[p]) || expr[p] == '_')) p++;
             std::string name = expr.substr(b, p - b);
             if (name.empty()) {
-                diag.error(loc, "condición de #if no válida: '" + expr + "'");
+                diag.error(loc, "invalid #if condition: '" + expr + "'");
                 return false;
             }
             bool v = name == "true" || (name != "false" && defines.count(name));
@@ -209,6 +209,7 @@ struct Lex {
         SourceLoc loc = here();
         std::string line;
         while (i < s.size() && peek() != '\n') line += get();
+        if (!line.empty() && line.back() == '\r') line.pop_back();  // CRLF: trailing \r is not part of the directive
         size_t a = line.find_first_not_of(" \t#");
         std::string rest = a == std::string::npos ? "" : line.substr(a);
         size_t sp = rest.find_first_of(" \t");
@@ -223,7 +224,7 @@ struct Lex {
             conds.push_back({parent, v, v, loc});
         } else if (word == "elif") {
             if (conds.empty()) {
-                diag.error(loc, "#elif sin #if");
+                diag.error(loc, "#elif without #if");
                 return;
             }
             Cond& c = conds.back();
@@ -232,26 +233,26 @@ struct Lex {
             c.taken = c.taken || v;
         } else if (word == "else") {
             if (conds.empty()) {
-                diag.error(loc, "#else sin #if");
+                diag.error(loc, "#else without #if");
                 return;
             }
             Cond& c = conds.back();
             c.active = c.parentActive && !c.taken;
             c.taken = true;
         } else if (word == "endif") {
-            if (conds.empty()) diag.error(loc, "#endif sin #if");
+            if (conds.empty()) diag.error(loc, "#endif without #if");
             else conds.pop_back();
         } else if (word == "define" || word == "undef") {
             if (!active()) return;
             // Como en C#: antes del primer token del archivo, y valen solo para ese archivo.
             if (!out.empty()) {
-                diag.error(loc, "#" + word + " tiene que ir al principio del archivo, antes de cualquier código");
+                diag.error(loc, "#" + word + " must appear at the beginning of the file, before any code");
                 return;
             }
             bool ok = !arg.empty() && (isalpha((unsigned char)arg[0]) || arg[0] == '_') && arg != "true" && arg != "false";
             for (char ch : arg) ok = ok && (isalnum((unsigned char)ch) || ch == '_');
             if (!ok) {
-                diag.error(loc, "#" + word + " espera un nombre de símbolo (no '" + arg + "')");
+                diag.error(loc, "#" + word + " expects a symbol name (not '" + arg + "')");
                 return;
             }
             if (word == "define") defines.insert(arg);
@@ -260,7 +261,7 @@ struct Lex {
         } else if (word == "region" || word == "endregion" || word == "pragma") {
             // se ignoran
         } else if (active()) {
-            diag.error(loc, "directiva desconocida '#" + word + "'");
+            diag.error(loc, "unknown directive '#" + word + "'");
         }
     }
 
@@ -312,7 +313,7 @@ struct Lex {
             }
         }
         if (digits.empty()) {
-            diag.error(t.loc, "literal numérico mal formado");
+            diag.error(t.loc, "malformed numeric literal");
             digits = "0";
         }
         char sfx = peek();
@@ -322,7 +323,7 @@ struct Lex {
             t.isFloat32 = (sfx == 'f' || sfx == 'F');
         } else if (sfx == 'm' || sfx == 'M') {
             get();
-            diag.error(t.loc, "el tipo 'decimal' no está soportado");
+            diag.error(t.loc, "type 'decimal' is not supported");
         }
         if (isFloat) {
             t.kind = TokKind::Float;
@@ -336,7 +337,7 @@ struct Lex {
                 if (v > (UINT64_MAX - d) / (uint64_t)base) overflow = true;
                 v = v * (uint64_t)base + d;
             }
-            if (overflow) diag.error(t.loc, "la constante integral es demasiado grande");
+            if (overflow) diag.error(t.loc, "integral constant is too large");
             t.intVal = v;
             for (int k = 0; k < 2; k++) {
                 char c = peek();
@@ -349,7 +350,7 @@ struct Lex {
                 }
             }
         }
-        if (isalnum((unsigned char)peek()) || peek() == '_') diag.error(here(), "sufijo de literal numérico no válido");
+        if (isalnum((unsigned char)peek()) || peek() == '_') diag.error(here(), "invalid numeric literal suffix");
         t.text = digits;
         push(t);
     }
@@ -359,7 +360,7 @@ struct Lex {
 
     void run() {
         lexRange();
-        if (!conds.empty()) diag.error(conds.back().loc, "falta #endif");
+        if (!conds.empty()) diag.error(conds.back().loc, "missing #endif");
         Token end;
         end.kind = TokKind::End;
         end.loc = here();
@@ -383,7 +384,7 @@ struct Lex {
                 SourceLoc loc = here();
                 get(), get();
                 while (i < s.size() && !(peek() == '*' && peek(1) == '/')) get();
-                if (i >= s.size()) diag.error(loc, "comentario de bloque sin cerrar");
+                if (i >= s.size()) diag.error(loc, "unterminated block comment");
                 else get(), get();
                 continue;
             }
@@ -457,7 +458,7 @@ struct Lex {
                         }
                     }
                 }
-                if (!closed) diag.error(t.loc, "literal de cadena sin cerrar");
+                if (!closed) diag.error(t.loc, "unterminated string literal");
                 push(t);
                 continue;
             }
@@ -470,12 +471,12 @@ struct Lex {
                     get();
                     t.charVal = readEscape(t.loc);
                 } else if (peek() == '\'' || peek() == '\n' || i >= s.size()) {
-                    diag.error(t.loc, "literal de carácter vacío");
+                    diag.error(t.loc, "empty character literal");
                 } else {
                     t.charVal = readUtf8();
                 }
                 if (peek() == '\'') get();
-                else diag.error(t.loc, "literal de carácter demasiado largo o sin cerrar");
+                else diag.error(t.loc, "character literal too long or unterminated");
                 push(t);
                 continue;
             }
@@ -494,7 +495,7 @@ struct Lex {
                 }
             }
             if (!matched) {
-                diag.error(here(), std::string("carácter inesperado '") + c + "'");
+                diag.error(here(), std::string("unexpected character '") + c + "'");
                 get();
             }
         }
@@ -552,7 +553,7 @@ void Lex::lexInterpolated() {
                 lit.text += '}';
                 continue;
             }
-            diag.error(here(), "'}' sin pareja en una cadena interpolada (escribe '}}' para un '}' literal)");
+            diag.error(here(), "unmatched '}' in interpolated string (write '}}' for a literal '}')");
             get();
             continue;
         }
@@ -592,14 +593,14 @@ void Lex::lexInterpolated() {
             j++;
         }
         if (exprEnd == std::string::npos) {
-            diag.error(hole.loc, "hueco '{' sin cerrar en la cadena interpolada");
+            diag.error(hole.loc, "unterminated '{' hole in interpolated string");
             while (i < j && i < s.size()) get();
             break;
         }
         bool empty = true;
         for (size_t k = exprBegin; k < exprEnd; k++)
             if (!isspace((unsigned char)s[k])) empty = false;
-        if (empty) diag.error(hole.loc, "hueco vacío '{}' en la cadena interpolada");
+        if (empty) diag.error(hole.loc, "empty hole '{}' in interpolated string");
         push(hole);
         size_t holeIndex = out.size() - 1;
         {
@@ -621,7 +622,7 @@ void Lex::lexInterpolated() {
             while (isdigit((unsigned char)peek())) digits += get();
             while (peek() == ' ') get();
             if (digits.empty() || digits.size() > 6) {
-                diag.error(here(), "la alineación de un hueco debe ser un entero constante ({valor,10} o {valor,-10})");
+                diag.error(here(), "hole alignment must be a constant integer ({value,10} or {value,-10})");
                 while (i < s.size() && peek() != '}' && peek() != ':' && peek() != '"' && peek() != '\n') get();
             } else {
                 int v = std::atoi(digits.c_str());
@@ -640,11 +641,11 @@ void Lex::lexInterpolated() {
         holeEnd.loc = here();
         holeEnd.text = "}";
         if (peek() == '}') get();
-        else diag.error(here(), "se esperaba '}' al final del hueco de la cadena interpolada");
+        else diag.error(here(), "expected '}' at the end of the interpolated string hole");
         push(holeEnd);
         lit.loc = here();
     }
-    if (!closed) diag.error(begin.loc, "cadena interpolada sin cerrar");
+    if (!closed) diag.error(begin.loc, "unterminated interpolated string");
     flush();
     Token end;
     end.kind = TokKind::InterpEnd;
