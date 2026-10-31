@@ -142,6 +142,10 @@ private:
     void parseConversionOperator(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, const FinishFn& finish);
     void parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, TypeRef* type, bool ctxUnsafe,
                       const FinishFn& finish);
+    // Shared get/set body of an indexer, after the parameters and element type are known. Used by both
+    // the C# form (T this[...] { ... }) and the modern 'subscript(...) -> T { ... }' form.
+    void parseIndexerBody(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, TypeRef* type,
+                          std::vector<Param> params, SourceLoc loc, const FinishFn& finish);
     ObjInit* parseObjInit();
     Expr* tryParseOutVar();
     static void hoistLocalFunctions(BlockStmt* b);

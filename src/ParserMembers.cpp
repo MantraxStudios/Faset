@@ -97,7 +97,12 @@ void Parser::parseIndexer(ClassDecl* c, std::vector<Attribute> attrs, Modifiers 
         params.push_back(prm);
     } while (acceptP(","));
     expectP("]");
+    parseIndexerBody(c, std::move(attrs), mods, type, std::move(params), loc, finish);
+}
 
+// get/set body shared by 'T this[...] { ... }' and 'subscript(...) -> T { ... }'.
+void Parser::parseIndexerBody(ClassDecl* c, std::vector<Attribute> attrs, Modifiers mods, TypeRef* type,
+                              std::vector<Param> params, SourceLoc loc, const FinishFn& finish) {
     auto* g = new MethodDecl();
     g->loc = loc;
     g->mods = mods;

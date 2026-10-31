@@ -506,6 +506,125 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         }
     };
 
+    // Shared property parser: the C# form (T Name { ... } / => expr) and the modern 'prop Name: T { ... }'
+    // both land here. Builds a getter MethodDecl (+ optional setter) and, for auto-properties, a backing field.
+    auto parseProperty = [&](TypeRef* type, const std::string& name, SourceLoc nameLoc, TypeRef* explicitIface,
+                             const std::string& explicitName) {
+        if (c->isNamespaceScope) fail("properties can only be declared inside classes and structs");
+        auto applyExplicit = [&](MethodDecl* mm) {
+            if (mm && explicitIface) { mm->explicitIface = explicitIface; mm->explicitName = explicitName; }
+        };
+        auto* m = new MethodDecl();
+        m->loc = nameLoc;
+        m->mods = mods;
+        m->attrs = attrs;
+        m->retRef = type;
+        m->name = name;
+        m->kind = MethodKind::Getter;
+        stamp(m);
+        MethodDecl* setter = nullptr;
+        FieldDecl* backing = nullptr;  // propiedad automática
+        bool noBody = c->kind == ClassKind::Interface || mods.isAbstract;
+        auto backingField = [&]() {
+            if (backing) return;
+            backing = new FieldDecl();
+            backing->loc = nameLoc;
+            backing->mods = mods;
+            backing->mods.access = Access::Private;
+            backing->tref = type;
+            backing->name = name + "__valor";
+            backing->unsafeCtx = ctxUnsafe;
+            c->fields.push_back(backing);
+        };
+        auto fieldRef = [&](SourceLoc l) {
+            auto* n = new NameExpr(l);
+            n->name = name + "__valor";
+            return n;
+        };
+        if (isP("=>")) {
+            finishMethod(m);
+        } else if (isP("{")) {
+            p_++;
+            bool got = false;
+            while (!isP("}") && !atEnd()) {
+                Modifiers accessorMods = parseModifiers();
+                SourceLoc al = cur().loc;
+                if (cur().kind == TokKind::Ident && cur().text == "get") {
+                    p_++;
+                    if (got) fail("the property already has 'get'");
+                    got = true;
+                    if (noBody && acceptP(";")) {
+                        m->body = nullptr;
+                    } else if (acceptP(";")) {  // get; automático
+                        backingField();
+                        auto* b = new BlockStmt(al);
+                        auto* ret = new ReturnStmt(al);
+                        ret->value = fieldRef(al);
+                        b->stmts.push_back(ret);
+                        m->body = b;
+                    } else {
+                        finishMethod(m);
+                    }
+                } else if (cur().kind == TokKind::Ident && (cur().text == "set" || cur().text == "init")) {
+                    bool initOnly = cur().text == "init";  // accesor 'init' (Members.cpp)
+                    p_++;
+                    if (setter) fail("the property already has 'set'");
+                    setter = new MethodDecl();
+                    setter->isInit = initOnly;
+                    setter->loc = al;
+                    setter->mods = mods;
+                    if (accessorMods.hasAccess) setter->mods.access = accessorMods.access;
+                    setter->attrs = attrs;
+                    setter->kind = MethodKind::Setter;
+                    stamp(setter);
+                    setter->name = name;
+                    auto* voidRef = new TypeRef();
+                    voidRef->loc = al;
+                    voidRef->parts = {"void"};
+                    setter->retRef = voidRef;
+                    Param value;
+                    value.loc = al;
+                    value.tref = type;
+                    value.name = "value";
+                    setter->params.push_back(value);
+                    if (noBody && acceptP(";")) {
+                        setter->body = nullptr;
+                    } else if (acceptP(";")) {  // set; automático
+                        backingField();
+                        auto* b = new BlockStmt(al);
+                        auto* st = new ExprStmt(al);
+                        auto* as = new AssignExpr(al);
+                        as->op = "=";
+                        as->lhs = fieldRef(al);
+                        auto* v = new NameExpr(al);
+                        v->name = "value";
+                        as->rhs = v;
+                        st->expr = as;
+                        b->stmts.push_back(st);
+                        setter->body = b;
+                    } else {
+                        finishMethod(setter);
+                    }
+                } else {
+                    fail("expected 'get', 'set', or 'init'");
+                }
+            }
+            expectP("}");
+            if (!got) fail(nameLoc, "property '" + name + "' needs a 'get'");
+            if (acceptP("=")) {  // valor inicial de una propiedad automática
+                if (!backing) fail("only auto-properties ({ get; set; }) can have an initial value");
+                backing->init = parseExpr();
+                expectP(";");
+            }
+        } else {
+            fail("expected '=>' or '{' in a property");
+        }
+        applyExplicit(m);
+        applyExplicit(setter);
+        c->methods.push_back(m);
+        if (setter) c->methods.push_back(setter);
+    };
+
     // Modern declaration form: 'func Name<T>(params) -> Ret { }' / '=> expr;'. Contextual keyword
     // (not reserved: 'func' is still usable as an identifier, e.g. a parameter name). Lowers to the
     // same MethodDecl as the C#/C++ 'Ret Name(params)' form; omitting '-> Ret' means void.
@@ -537,6 +656,139 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
         }
         finishMethod(m);
         c->methods.push_back(m);
+        return;
+    }
+
+    // Modern constructor: 'init(p: Type) { }' / '=> expr' / ': base(...)'/': this(...)'. Lowers to the
+    // same Ctor MethodDecl as 'ClassName(...)'. Contextual ('init' stays usable as an identifier).
+    if (!c->isNamespaceScope && cur().kind == TokKind::Ident && cur().text == "init" &&
+        peekTok().kind == TokKind::Punct && peekTok().text == "(") {
+        p_++;  // init
+        auto* m = new MethodDecl();
+        m->loc = loc;
+        m->mods = mods;
+        m->attrs = attrs;
+        m->kind = MethodKind::Ctor;
+        stamp(m);
+        m->name = c->name;
+        parseParams(m, /*rustStyle=*/true);
+        if (mods.isStatic) {  // static init() { ... }
+            finishStaticCtor(c, m, [&](MethodDecl* x) { finishMethod(x); });
+            return;
+        }
+        if (acceptP(":")) {
+            m->ctorInitLoc = cur().loc;
+            if (cur().kind == TokKind::Ident && cur().text == "base") p_++, m->ctorInit = 1;
+            else if (acceptK("this")) m->ctorInit = 2;
+            else fail("expected 'base(...)' or 'this(...)' after ':' in the constructor");
+            m->ctorInitArgs = parseArgs();
+        }
+        finishMethod(m);
+        c->ctors.push_back(m);
+        return;
+    }
+
+    // Modern destructor: 'deinit { }' / '=> expr'. Lowers to the same Dtor MethodDecl as '~ClassName()'.
+    if (cur().kind == TokKind::Ident && cur().text == "deinit" && peekTok().kind == TokKind::Punct &&
+        (peekTok().text == "{" || peekTok().text == "=>")) {
+        p_++;  // deinit
+        auto* m = new MethodDecl();
+        m->loc = loc;
+        m->mods = mods;
+        m->attrs = attrs;
+        m->kind = MethodKind::Dtor;
+        stamp(m);
+        m->name = "~" + c->name;
+        finishMethod(m);
+        if (c->dtor) diag.error(loc, "'" + c->name + "' already has a destructor");
+        c->dtor = m;
+        return;
+    }
+
+    // Modern operator: 'operator +(a: T, b: T) -> T { }' / '=> expr'. ('operator' is a keyword, so the
+    // old 'static T operator +(...)' form starts with its return type and never reaches this branch.)
+    if (isK("operator")) {
+        p_++;  // operator
+        auto* m = new MethodDecl();
+        m->loc = cur().loc;
+        m->mods = mods;
+        m->mods.isStatic = true;  // operators are always static (no need to write 'static')
+        m->attrs = attrs;
+        m->kind = MethodKind::Operator;
+        stamp(m);
+        static const char* const mops[] = {"==", "!=", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%",
+                                           "&",  "|",  "^",  "!",  "~",  "<",  ">"};
+        std::string op;
+        if (acceptP("[")) {
+            expectP("]");
+            op = "[]";
+        } else {
+            for (const char* o : mops)
+                if (acceptP(o)) {
+                    op = o;
+                    break;
+                }
+        }
+        if (op.empty()) fail("non-overloadable operator '" + cur().text + "'");
+        m->name = "operator" + op;
+        parseParams(m, /*rustStyle=*/true);
+        if (acceptP("->")) m->retRef = parseType();
+        else fail("an 'operator' needs a return type ('-> Type')");
+        finishMethod(m);
+        c->methods.push_back(m);
+        return;
+    }
+
+    // Modern property: 'prop Name: Type { get; set; }' / '=> expr'. Contextual ('prop' stays an identifier).
+    if (cur().kind == TokKind::Ident && cur().text == "prop" && peekTok().kind == TokKind::Ident) {
+        p_++;  // prop
+        SourceLoc pl = cur().loc;
+        std::string pname = expectIdent();
+        expectP(":");
+        TypeRef* ptype = parseType();
+        parseProperty(ptype, pname, pl, nullptr, "");
+        return;
+    }
+
+    // Modern indexer: 'subscript(i: Type) -> T { get; set; }'. Lowers to the same "this[]" getter/setter.
+    if (cur().kind == TokKind::Ident && cur().text == "subscript" && peekTok().kind == TokKind::Punct &&
+        peekTok().text == "(") {
+        SourceLoc sl = cur().loc;
+        p_++;  // subscript
+        MethodDecl tmp;
+        parseParams(&tmp, /*rustStyle=*/true);
+        TypeRef* ret;
+        if (acceptP("->")) ret = parseType();
+        else { fail("a 'subscript' needs an element type ('-> Type')"); return; }
+        parseIndexerBody(c, attrs, mods, ret, tmp.params, sl, [&](MethodDecl* x) { finishMethod(stamp(x)); });
+        return;
+    }
+
+    // Modern field(s): 'var name: Type' (mutable) / 'let name: Type' (readonly), optional '= init' and
+    // comma lists. Requires the 'name :' shape so 'var'/'let' stay usable as type names elsewhere.
+    if (cur().kind == TokKind::Ident && (cur().text == "var" || cur().text == "let") &&
+        peekTok(1).kind == TokKind::Ident && peekTok(2).kind == TokKind::Punct && peekTok(2).text == ":") {
+        bool readonly = cur().text == "let";
+        p_++;  // var / let
+        for (;;) {
+            SourceLoc fl = cur().loc;
+            std::string fname = expectIdent();
+            expectP(":");
+            TypeRef* ftype = parseType();
+            auto* f = new FieldDecl();
+            f->loc = fl;
+            f->mods = mods;
+            if (readonly) f->mods.isReadonly = true;
+            f->attrs = attrs;
+            f->tref = ftype;
+            f->name = fname;
+            f->unsafeCtx = ctxUnsafe;
+            f->isEvent = mods.isEvent;
+            if (acceptP("=")) f->init = isP("{") ? parseBraceInit() : parseExpr();
+            c->fields.push_back(f);
+            if (!acceptP(",")) break;
+        }
+        acceptP(";");  // a trailing ';' is optional for var/let fields (Swift-style)
         return;
     }
 
@@ -674,115 +926,7 @@ void Parser::parseMember(ClassDecl* c, std::vector<Attribute> attrs, Modifiers m
 
     // Propiedades:  T N => expr;   T N { get { ... } set { ... } }   T N { get; set; } = valor;
     if (isP("=>") || isP("{")) {
-        if (c->isNamespaceScope) fail("properties can only be declared inside classes and structs");
-        auto* m = new MethodDecl();
-        m->loc = nameLoc;
-        m->mods = mods;
-        m->attrs = attrs;
-        m->retRef = type;
-        m->name = name;
-        m->kind = MethodKind::Getter;
-        stamp(m);
-        MethodDecl* setter = nullptr;
-        FieldDecl* backing = nullptr;  // propiedad automática
-        // En interfaces y propiedades abstractas, 'get;' y 'set;' no tienen cuerpo ni campo.
-        bool noBody = c->kind == ClassKind::Interface || mods.isAbstract;
-        auto backingField = [&]() {
-            if (backing) return;
-            backing = new FieldDecl();
-            backing->loc = nameLoc;
-            backing->mods = mods;
-            backing->mods.access = Access::Private;
-            backing->tref = type;
-            backing->name = name + "__valor";
-            backing->unsafeCtx = ctxUnsafe;
-            c->fields.push_back(backing);
-        };
-        auto fieldRef = [&](SourceLoc l) {
-            auto* n = new NameExpr(l);
-            n->name = name + "__valor";
-            return n;
-        };
-        if (isP("=>")) {
-            finishMethod(m);
-        } else {
-            p_++;
-            bool got = false;
-            while (!isP("}") && !atEnd()) {
-                Modifiers accessorMods = parseModifiers();
-                SourceLoc al = cur().loc;
-                if (cur().kind == TokKind::Ident && cur().text == "get") {
-                    p_++;
-                    if (got) fail("the property already has 'get'");
-                    got = true;
-                    if (noBody && acceptP(";")) {
-                        m->body = nullptr;
-                    } else if (acceptP(";")) {  // get; automático
-                        backingField();
-                        auto* b = new BlockStmt(al);
-                        auto* ret = new ReturnStmt(al);
-                        ret->value = fieldRef(al);
-                        b->stmts.push_back(ret);
-                        m->body = b;
-                    } else {
-                        finishMethod(m);
-                    }
-                } else if (cur().kind == TokKind::Ident && (cur().text == "set" || cur().text == "init")) {
-                    bool initOnly = cur().text == "init";  // accesor 'init' (Members.cpp)
-                    p_++;
-                    if (setter) fail("the property already has 'set'");
-                    setter = new MethodDecl();
-                    setter->isInit = initOnly;
-                    setter->loc = al;
-                    setter->mods = mods;
-                    if (accessorMods.hasAccess) setter->mods.access = accessorMods.access;
-                    setter->attrs = attrs;
-                    setter->kind = MethodKind::Setter;
-                    stamp(setter);
-                    setter->name = name;
-                    auto* voidRef = new TypeRef();
-                    voidRef->loc = al;
-                    voidRef->parts = {"void"};
-                    setter->retRef = voidRef;
-                    Param value;
-                    value.loc = al;
-                    value.tref = type;
-                    value.name = "value";
-                    setter->params.push_back(value);
-                    if (noBody && acceptP(";")) {
-                        setter->body = nullptr;
-                    } else if (acceptP(";")) {  // set; automático
-                        backingField();
-                        auto* b = new BlockStmt(al);
-                        auto* st = new ExprStmt(al);
-                        auto* as = new AssignExpr(al);
-                        as->op = "=";
-                        as->lhs = fieldRef(al);
-                        auto* v = new NameExpr(al);
-                        v->name = "value";
-                        as->rhs = v;
-                        st->expr = as;
-                        b->stmts.push_back(st);
-                        setter->body = b;
-                    } else {
-                        finishMethod(setter);
-                    }
-                } else {
-                    fail("expected 'get', 'set', or 'init'");
-                }
-            }
-            expectP("}");
-            if (!got) fail(nameLoc, "property '" + name + "' needs a 'get'");
-            if (acceptP("=")) {  // valor inicial de una propiedad automática
-                if (!backing) fail("only auto-properties ({ get; set; }) can have an initial value");
-                backing->init = parseExpr();
-                expectP(";");
-            }
-        }
-        markExplicit(m);
-        markExplicit(setter);
-        c->methods.push_back(m);
-        if (setter) c->methods.push_back(setter);
+        parseProperty(type, name, nameLoc, explicitIface, explicitName);
         return;
     }
 
