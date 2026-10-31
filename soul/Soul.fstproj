@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>Soul</AssemblyName>
+    <RootNamespace>Soul</RootNamespace>
+    <TargetPlatform>native</TargetPlatform>
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+  <ItemGroup>
+    <NativeLibrary Include="user32" Platform="windows" />
+    <NativeLibrary Include="gdi32" Platform="windows" />
+  </ItemGroup>
+</Project>
